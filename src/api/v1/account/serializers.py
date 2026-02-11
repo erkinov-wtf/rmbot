@@ -1,11 +1,6 @@
 from rest_framework import serializers
 
-from account.models import (
-    AccessRequest,
-    Role,
-    TelegramProfile,
-    User
-)
+from account.models import AccessRequest, Role, TelegramProfile, User
 from core.utils.constants import AccessRequestStatus, RoleSlug
 
 
@@ -52,11 +47,7 @@ class UserSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
     def get_telegram(self, obj: User):
-        profile = (
-            obj.telegram_profiles.filter(deleted_at__isnull=True)
-            .order_by("-verified_at", "-created_at")
-            .first()
-        )
+        profile = obj.telegram_profiles.filter(deleted_at__isnull=True).order_by("-verified_at", "-created_at").first()
         if not profile:
             return None
         return TelegramProfileSerializer(profile).data
@@ -105,9 +96,7 @@ class AccessRequestApproveSerializer(serializers.Serializer):
     user_id = serializers.IntegerField(min_value=1, required=False)
     user = serializers.DictField(required=False)
     role_slugs = serializers.ListField(
-        child=serializers.ChoiceField(choices=RoleSlug.values),
-        required=False,
-        allow_empty=True
+        child=serializers.ChoiceField(choices=RoleSlug.values), required=False, allow_empty=True
     )
 
     def validate_user_id(self, value: int) -> int:
