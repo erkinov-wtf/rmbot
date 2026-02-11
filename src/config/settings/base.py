@@ -69,6 +69,7 @@ LOCAL_APPS = [
     "core",
     "gamification",
     "payroll",
+    "rules",
     "api",
     "bot",
     "ticket",

@@ -10,25 +10,10 @@ from account.models import User
 from core.utils.constants import EmployeeLevel, PayrollMonthStatus
 from gamification.models import XPLedger
 from payroll.models import PayrollMonthly, PayrollMonthlyLine
+from rules.services import get_active_rules_state
 
 
 BUSINESS_TZ = ZoneInfo("Asia/Tashkent")
-DEFAULT_FIX_SALARY = 3_000_000
-DEFAULT_BONUS_RATE = 3_000
-DEFAULT_PAID_XP_CAPS = {
-    EmployeeLevel.L1: 167,
-    EmployeeLevel.L2: 267,
-    EmployeeLevel.L3: 400,
-    EmployeeLevel.L4: 433,
-    EmployeeLevel.L5: 500,
-}
-DEFAULT_LEVEL_ALLOWANCES = {
-    EmployeeLevel.L1: 0,
-    EmployeeLevel.L2: 200_000,
-    EmployeeLevel.L3: 1_300_000,
-    EmployeeLevel.L4: 2_200_000,
-    EmployeeLevel.L5: 4_000_000,
-}
 
 
 def parse_month_token(month_token: str) -> date:
@@ -56,18 +41,30 @@ def _normalize_level(level: int | None) -> int:
     return int(EmployeeLevel.L1)
 
 
-def _rules_snapshot() -> dict:
-    return {
-        "fix_salary": DEFAULT_FIX_SALARY,
-        "bonus_rate": DEFAULT_BONUS_RATE,
-        "level_rules": {
-            str(level): {
-                "paid_xp_cap": DEFAULT_PAID_XP_CAPS[level],
-                "allowance": DEFAULT_LEVEL_ALLOWANCES[level],
-            }
-            for level in EmployeeLevel.values
-        },
+def _payroll_rules_from_active_config() -> tuple[int, int, dict[int, int], dict[int, int], dict]:
+    rules_state = get_active_rules_state()
+    rules_config = rules_state.active_version.config
+    payroll_rules = rules_config.get("payroll", {})
+    fix_salary = int(payroll_rules.get("fix_salary", 3_000_000) or 0)
+    bonus_rate = int(payroll_rules.get("bonus_rate", 3_000) or 0)
+
+    caps_raw = payroll_rules.get("level_caps", {})
+    allowances_raw = payroll_rules.get("level_allowances", {})
+
+    level_caps = {
+        int(level): int(caps_raw.get(str(level), 0) or 0)
+        for level in EmployeeLevel.values
     }
+    level_allowances = {
+        int(level): int(allowances_raw.get(str(level), 0) or 0)
+        for level in EmployeeLevel.values
+    }
+    rules_snapshot = {
+        "version": rules_state.active_version.version,
+        "cache_key": rules_state.cache_key,
+        "config": rules_config,
+    }
+    return fix_salary, bonus_rate, level_caps, level_allowances, rules_snapshot
 
 
 @transaction.atomic
@@ -75,6 +72,7 @@ def close_payroll_month(*, month_token: str, actor_user_id: int) -> PayrollMonth
     month_start = parse_month_token(month_token)
     month_start_dt, next_month_start_dt = _month_bounds(month_start)
     now_dt = timezone.now()
+    fix_salary, bonus_rate, level_caps, level_allowances, rules_snapshot = _payroll_rules_from_active_config()
 
     payroll_month, _ = PayrollMonthly.objects.select_for_update().get_or_create(month=month_start)
     if payroll_month.status == PayrollMonthStatus.CLOSED:
@@ -110,11 +108,9 @@ def close_payroll_month(*, month_token: str, actor_user_id: int) -> PayrollMonth
 
         raw_xp = int(row["raw_xp"] or 0)
         level = _normalize_level(user.level)
-        paid_xp_cap = DEFAULT_PAID_XP_CAPS[level]
+        paid_xp_cap = level_caps[level]
         paid_xp = max(0, min(raw_xp, paid_xp_cap))
-        fix_salary = DEFAULT_FIX_SALARY
-        allowance_amount = DEFAULT_LEVEL_ALLOWANCES[level]
-        bonus_rate = DEFAULT_BONUS_RATE
+        allowance_amount = level_allowances[level]
         bonus_amount = paid_xp * bonus_rate
         total_amount = fix_salary + allowance_amount + bonus_amount
 
@@ -156,7 +152,7 @@ def close_payroll_month(*, month_token: str, actor_user_id: int) -> PayrollMonth
     payroll_month.closed_by_id = actor_user_id
     payroll_month.approved_at = None
     payroll_month.approved_by = None
-    payroll_month.rules_snapshot = _rules_snapshot()
+    payroll_month.rules_snapshot = rules_snapshot
     payroll_month.total_raw_xp = total_raw_xp
     payroll_month.total_paid_xp = total_paid_xp
     payroll_month.total_fix_salary = total_fix_salary

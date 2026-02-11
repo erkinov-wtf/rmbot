@@ -11,6 +11,7 @@ from core.utils.constants import (
     XPLedgerEntryType,
 )
 from gamification.services import append_xp_entry
+from rules.services import get_active_rules_config
 from ticket.models import Ticket, TicketTransition, WorkSession
 
 
@@ -145,9 +146,15 @@ def qc_pass_ticket(ticket: Ticket, actor_user_id: int | None = None) -> Ticket:
         actor_user_id=actor_user_id,
     )
 
-    # Default formula from PROJECT.md:
-    # base_xp = ceil(SRT_total_minutes / 20), qc first-pass bonus = +1
-    base_divisor = 20
+    rules = get_active_rules_config()
+    ticket_rules = rules.get("ticket_xp", {})
+    base_divisor = int(ticket_rules.get("base_divisor", 20) or 20)
+    if base_divisor <= 0:
+        base_divisor = 20
+    first_pass_bonus = int(ticket_rules.get("first_pass_bonus", 1) or 0)
+    if first_pass_bonus < 0:
+        first_pass_bonus = 0
+
     base_xp = math.ceil((ticket.srt_total_minutes or 0) / base_divisor)
     append_xp_entry(
         user_id=ticket.technician_id,
@@ -163,16 +170,17 @@ def qc_pass_ticket(ticket: Ticket, actor_user_id: int | None = None) -> Ticket:
         },
     )
 
-    if not had_rework:
+    if not had_rework and first_pass_bonus > 0:
         append_xp_entry(
             user_id=ticket.technician_id,
-            amount=1,
+            amount=first_pass_bonus,
             entry_type=XPLedgerEntryType.TICKET_QC_FIRST_PASS_BONUS,
             reference=f"ticket_qc_first_pass_bonus:{ticket.id}",
             description="Ticket QC first-pass bonus XP",
             payload={
                 "ticket_id": ticket.id,
                 "first_pass": True,
+                "first_pass_bonus": first_pass_bonus,
             },
         )
     return ticket
