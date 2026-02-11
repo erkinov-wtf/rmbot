@@ -3,7 +3,7 @@ set -e
 
 echo "[$(date)] Running healthcheck..."
 
-if curl http://localhost:8000/api/v1/health/ > /dev/null; then
+if curl http://localhost:8000/api/v1/misc/health/ > /dev/null; then
   echo "Django healthcheck passed ✅"
   exit 0
 else

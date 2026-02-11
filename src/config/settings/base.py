@@ -1,13 +1,24 @@
-from pathlib import Path
-from decouple import config
-import dj_database_url
 import os
+import sys
+from pathlib import Path
+
+import dj_database_url
+from decouple import config
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
+LOGS_ROOT = Path(config("LOGS_ROOT", default=BASE_DIR / "logs"))
 DEBUG = config("DEBUG", default=False, cast=bool)
 SECRET_KEY = config("DJANGO_SECRET_KEY", default="django-insecure-change-me")
 ALLOWED_HOSTS = config("ALLOWED_HOSTS", default="").split(",")
-DATABASE_URL = f"postgres://{config('POSTGRES_USER')}:{config('POSTGRES_PASSWORD')}@{config('POSTGRES_HOST')}/{config('POSTGRES_DB')}"
+
+DATABASE_URL = config("DATABASE_URL", default="")
+if not DATABASE_URL:
+    DATABASE_URL = (
+        f"postgres://{config('POSTGRES_USER')}:{config('POSTGRES_PASSWORD')}"
+        f"@{config('POSTGRES_HOST')}/{config('POSTGRES_DB')}"
+    )
+TEST_DATABASE_URL = config("TEST_DATABASE_URL", default="")
+ACTIVE_DATABASE_URL = TEST_DATABASE_URL if ("test" in sys.argv and TEST_DATABASE_URL) else DATABASE_URL
 
 UNFOLD_APPS = [
     "unfold",
@@ -38,9 +49,13 @@ THIRD_PARTY_APPS = [
 
 LOCAL_APPS = [
     "account",
+    "attendance",
+    "bike",
     "core",
+    "gamification",
     "api",
     "bot",
+    "ticket",
 ]
 
 INSTALLED_APPS = UNFOLD_APPS + DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -78,7 +93,7 @@ WSGI_APPLICATION = "config.server.wsgi.application"
 
 DATABASES = {
     "default": dj_database_url.parse(
-        url=DATABASE_URL,
+        url=ACTIVE_DATABASE_URL,
         conn_max_age=600,
         conn_health_checks=True,
     )
@@ -126,7 +141,7 @@ BOT_DEFAULT_LOCALE = config("BOT_DEFAULT_LOCALE", default="en")
 BOT_FALLBACK_LOCALE = config("BOT_FALLBACK_LOCALE", default="en")
 
 # Ensure logs directory exists
-os.makedirs(BASE_DIR.parent / "logs", exist_ok=True)
+os.makedirs(LOGS_ROOT, exist_ok=True)
 
 LOGGING = {
     "version": 1,
@@ -187,7 +202,7 @@ LOGGING = {
         "app_file": {
             "level": "INFO",
             "class": "logging.handlers.TimedRotatingFileHandler",
-            "filename": "../logs/app.log",
+            "filename": LOGS_ROOT / "app.log",
             "when": "midnight",
             "backupCount": 30,
             "formatter": "verbose",
@@ -196,7 +211,7 @@ LOGGING = {
         "error_file": {
             "level": "ERROR",
             "class": "logging.handlers.TimedRotatingFileHandler",
-            "filename": "../logs/error.log",
+            "filename": LOGS_ROOT / "error.log",
             "when": "midnight",
             "backupCount": 60,
             "formatter": "verbose",
@@ -205,7 +220,7 @@ LOGGING = {
         "slow_queries_file": {
             "level": "WARNING",
             "class": "logging.handlers.TimedRotatingFileHandler",
-            "filename": "../logs/slow_queries.log",
+            "filename": LOGS_ROOT / "slow_queries.log",
             "when": "midnight",
             "backupCount": 30,
             "formatter": "verbose",
