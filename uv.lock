@@ -450,7 +450,50 @@ wheels = [
 ]
 
 [[package]]
-name = "django-rest-template"
+name = "django-unfold"
+version = "0.78.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "django" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/47/ca/c1148935fd0753fb70ddad19b7b7180dd94eabd267024dd65611a2c4388f/django_unfold-0.78.1.tar.gz", hash = "sha256:1de8537f0037b48e84d72b30229259060140ac84fc30d79eb69b5c9de6c5e51d", size = 1109404, upload-time = "2026-02-03T10:11:08.838Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/79/0b/4dd387462f0d7e705c477da8c761303591fccd66f0a6b5d6ba2ddc0f7855/django_unfold-0.78.1-py3-none-any.whl", hash = "sha256:6b557030d3ad6c8275ecacb69260b03a7ed3de972cb2e60ef2dea6d3363d515c", size = 1224742, upload-time = "2026-02-03T10:11:07.057Z" },
+]
+
+[[package]]
+name = "djangorestframework"
+version = "3.16.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "django" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/8a/95/5376fe618646fde6899b3cdc85fd959716bb67542e273a76a80d9f326f27/djangorestframework-3.16.1.tar.gz", hash = "sha256:166809528b1aced0a17dc66c24492af18049f2c9420dbd0be29422029cfc3ff7", size = 1089735, upload-time = "2025-08-06T17:50:53.251Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b0/ce/bf8b9d3f415be4ac5588545b5fcdbbb841977db1c1d923f7568eeabe1689/djangorestframework-3.16.1-py3-none-any.whl", hash = "sha256:33a59f47fb9c85ede792cbf88bde71893bcda0667bc573f784649521f1102cec", size = 1080442, upload-time = "2025-08-06T17:50:50.667Z" },
+]
+
+[[package]]
+name = "djangorestframework-simplejwt"
+version = "5.5.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "django" },
+    { name = "djangorestframework" },
+    { name = "pyjwt" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/a8/27/2874a325c11112066139769f7794afae238a07ce6adf96259f08fd37a9d7/djangorestframework_simplejwt-5.5.1.tar.gz", hash = "sha256:e72c5572f51d7803021288e2057afcbd03f17fe11d484096f40a460abc76e87f", size = 101265, upload-time = "2025-07-21T16:52:25.026Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/60/94/fdfb7b2f0b16cd3ed4d4171c55c1c07a2d1e3b106c5978c8ad0c15b4a48b/djangorestframework_simplejwt-5.5.1-py3-none-any.whl", hash = "sha256:2c30f3707053d384e9f315d11c2daccfcb548d4faa453111ca19a542b732e469", size = 107674, upload-time = "2025-07-21T16:52:07.493Z" },
+]
+
+[package.optional-dependencies]
+crypto = [
+    { name = "cryptography" },
+]
+
+[[package]]
+name = "drf-boilerplate"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
@@ -514,49 +557,6 @@ dev = [
     { name = "django-debug-toolbar", specifier = ">=6.0.0" },
     { name = "django-extensions", specifier = ">=4.1" },
     { name = "django-query-counter", specifier = ">=0.4.1" },
-]
-
-[[package]]
-name = "django-unfold"
-version = "0.78.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "django" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/47/ca/c1148935fd0753fb70ddad19b7b7180dd94eabd267024dd65611a2c4388f/django_unfold-0.78.1.tar.gz", hash = "sha256:1de8537f0037b48e84d72b30229259060140ac84fc30d79eb69b5c9de6c5e51d", size = 1109404, upload-time = "2026-02-03T10:11:08.838Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/79/0b/4dd387462f0d7e705c477da8c761303591fccd66f0a6b5d6ba2ddc0f7855/django_unfold-0.78.1-py3-none-any.whl", hash = "sha256:6b557030d3ad6c8275ecacb69260b03a7ed3de972cb2e60ef2dea6d3363d515c", size = 1224742, upload-time = "2026-02-03T10:11:07.057Z" },
-]
-
-[[package]]
-name = "djangorestframework"
-version = "3.16.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "django" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/8a/95/5376fe618646fde6899b3cdc85fd959716bb67542e273a76a80d9f326f27/djangorestframework-3.16.1.tar.gz", hash = "sha256:166809528b1aced0a17dc66c24492af18049f2c9420dbd0be29422029cfc3ff7", size = 1089735, upload-time = "2025-08-06T17:50:53.251Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/b0/ce/bf8b9d3f415be4ac5588545b5fcdbbb841977db1c1d923f7568eeabe1689/djangorestframework-3.16.1-py3-none-any.whl", hash = "sha256:33a59f47fb9c85ede792cbf88bde71893bcda0667bc573f784649521f1102cec", size = 1080442, upload-time = "2025-08-06T17:50:50.667Z" },
-]
-
-[[package]]
-name = "djangorestframework-simplejwt"
-version = "5.5.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "django" },
-    { name = "djangorestframework" },
-    { name = "pyjwt" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/a8/27/2874a325c11112066139769f7794afae238a07ce6adf96259f08fd37a9d7/djangorestframework_simplejwt-5.5.1.tar.gz", hash = "sha256:e72c5572f51d7803021288e2057afcbd03f17fe11d484096f40a460abc76e87f", size = 101265, upload-time = "2025-07-21T16:52:25.026Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/60/94/fdfb7b2f0b16cd3ed4d4171c55c1c07a2d1e3b106c5978c8ad0c15b4a48b/djangorestframework_simplejwt-5.5.1-py3-none-any.whl", hash = "sha256:2c30f3707053d384e9f315d11c2daccfcb548d4faa453111ca19a542b732e469", size = 107674, upload-time = "2025-07-21T16:52:07.493Z" },
-]
-
-[package.optional-dependencies]
-crypto = [
-    { name = "cryptography" },
 ]
 
 [[package]]
