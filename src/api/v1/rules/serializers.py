@@ -14,8 +14,12 @@ class RulesConfigRollbackSerializer(serializers.Serializer):
 
 
 class RulesConfigVersionSerializer(serializers.ModelSerializer):
-    created_by_username = serializers.CharField(source="created_by.username", read_only=True)
-    source_version_number = serializers.IntegerField(source="source_version.version", read_only=True)
+    created_by_username = serializers.CharField(
+        source="created_by.username", read_only=True
+    )
+    source_version_number = serializers.IntegerField(
+        source="source_version.version", read_only=True
+    )
 
     class Meta:
         model = RulesConfigVersion

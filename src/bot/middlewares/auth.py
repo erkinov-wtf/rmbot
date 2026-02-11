@@ -6,7 +6,7 @@ from core.utils.asyncio import run_sync
 
 class AuthMiddleware(BaseMiddleware):
     async def __call__(self, handler, event, data):
-        from aiogram.types import Message, CallbackQuery
+        from aiogram.types import CallbackQuery, Message
 
         message = None
         if isinstance(event, Message):

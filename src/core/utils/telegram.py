@@ -2,18 +2,20 @@ import hashlib
 import hmac
 import time
 import urllib.parse
-from typing import Dict, Any
+from typing import Any
 
 
 class InitDataValidationError(ValueError):
     pass
 
 
-def _build_data_check_string(data: Dict[str, str]) -> str:
+def _build_data_check_string(data: dict[str, str]) -> str:
     return "\n".join(f"{k}={v}" for k, v in sorted(data.items()))
 
 
-def validate_init_data(init_data: str, bot_token: str, max_age_seconds: int = 300) -> Dict[str, Any]:
+def validate_init_data(
+    init_data: str, bot_token: str, max_age_seconds: int = 300
+) -> dict[str, Any]:
     """
     Validate Telegram Mini App initData according to Telegram spec.
 
@@ -40,7 +42,9 @@ def validate_init_data(init_data: str, bot_token: str, max_age_seconds: int = 30
     # Telegram Mini Apps spec:
     # secret_key = HMAC_SHA256("WebAppData", bot_token)
     secret_key = hmac.new(b"WebAppData", bot_token.encode(), hashlib.sha256).digest()
-    computed_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
+    computed_hash = hmac.new(
+        secret_key, data_check_string.encode(), hashlib.sha256
+    ).hexdigest()
 
     if not hmac.compare_digest(computed_hash, provided_hash):
         raise InitDataValidationError("Invalid init_data hash")

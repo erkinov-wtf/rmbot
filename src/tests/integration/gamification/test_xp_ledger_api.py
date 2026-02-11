@@ -3,7 +3,6 @@ import pytest
 from core.utils.constants import RoleSlug, XPLedgerEntryType
 from gamification.models import XPLedger
 
-
 pytestmark = pytest.mark.django_db
 
 
@@ -75,7 +74,9 @@ def test_regular_user_sees_only_own_entries(authed_client_factory, ledger_contex
     assert all(item["user"] == ledger_context["tech_one"].id for item in entries)
 
 
-def test_regular_user_cannot_read_other_user_entries(authed_client_factory, ledger_context):
+def test_regular_user_cannot_read_other_user_entries(
+    authed_client_factory, ledger_context
+):
     client = authed_client_factory(ledger_context["tech_one"])
     resp = client.get(f"{LEDGER_URL}?user_id={ledger_context['tech_two'].id}")
 
@@ -91,7 +92,9 @@ def test_ops_can_filter_by_user_and_ticket(authed_client_factory, ledger_context
     assert len(by_user.data["data"]) == 1
     assert by_user.data["data"][0]["user"] == ledger_context["tech_two"].id
 
-    by_ticket = client.get(f"{LEDGER_URL}?user_id={ledger_context['tech_one'].id}&ticket_id=101")
+    by_ticket = client.get(
+        f"{LEDGER_URL}?user_id={ledger_context['tech_one'].id}&ticket_id=101"
+    )
     assert by_ticket.status_code == 200
     assert len(by_ticket.data["data"]) == 2
     refs = {item["reference"] for item in by_ticket.data["data"]}

@@ -9,7 +9,6 @@ from bike.models import Bike
 from core.utils.constants import RoleSlug, TicketStatus
 from ticket.models import Ticket
 
-
 ROLE_NAMES = {
     RoleSlug.SUPER_ADMIN: "Super Admin",
     RoleSlug.OPS_MANAGER: "Ops Manager",

@@ -5,7 +5,6 @@ from core.utils.constants import TicketStatus, TicketTransitionAction, XPLedgerE
 from gamification.models import XPLedger
 from ticket.models import TicketTransition
 
-
 pytestmark = pytest.mark.django_db
 
 

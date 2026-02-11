@@ -12,7 +12,6 @@ from gamification.models import XPLedger
 from payroll.models import PayrollMonthly, PayrollMonthlyLine
 from rules.services import get_active_rules_state
 
-
 BUSINESS_TZ = ZoneInfo("Asia/Tashkent")
 
 
@@ -30,8 +29,12 @@ def _month_bounds(month_start: date) -> tuple[datetime, datetime]:
     else:
         next_month = date(month_start.year, month_start.month + 1, 1)
 
-    month_start_dt = timezone.make_aware(datetime.combine(month_start, time.min), BUSINESS_TZ)
-    next_month_start_dt = timezone.make_aware(datetime.combine(next_month, time.min), BUSINESS_TZ)
+    month_start_dt = timezone.make_aware(
+        datetime.combine(month_start, time.min), BUSINESS_TZ
+    )
+    next_month_start_dt = timezone.make_aware(
+        datetime.combine(next_month, time.min), BUSINESS_TZ
+    )
     return month_start_dt, next_month_start_dt
 
 
@@ -41,7 +44,9 @@ def _normalize_level(level: int | None) -> int:
     return int(EmployeeLevel.L1)
 
 
-def _payroll_rules_from_active_config() -> tuple[int, int, dict[int, int], dict[int, int], dict]:
+def _payroll_rules_from_active_config() -> (
+    tuple[int, int, dict[int, int], dict[int, int], dict]
+):
     rules_state = get_active_rules_state()
     rules_config = rules_state.active_version.config
     payroll_rules = rules_config.get("payroll", {})
@@ -72,25 +77,35 @@ def close_payroll_month(*, month_token: str, actor_user_id: int) -> PayrollMonth
     month_start = parse_month_token(month_token)
     month_start_dt, next_month_start_dt = _month_bounds(month_start)
     now_dt = timezone.now()
-    fix_salary, bonus_rate, level_caps, level_allowances, rules_snapshot = _payroll_rules_from_active_config()
+    fix_salary, bonus_rate, level_caps, level_allowances, rules_snapshot = (
+        _payroll_rules_from_active_config()
+    )
 
-    payroll_month, _ = PayrollMonthly.objects.select_for_update().get_or_create(month=month_start)
+    payroll_month, _ = PayrollMonthly.objects.select_for_update().get_or_create(
+        month=month_start
+    )
     if payroll_month.status == PayrollMonthStatus.CLOSED:
         raise ValueError("Payroll month is already closed.")
     if payroll_month.status == PayrollMonthStatus.APPROVED:
-        raise ValueError("Payroll month is already approved and cannot be closed again.")
+        raise ValueError(
+            "Payroll month is already approved and cannot be closed again."
+        )
 
     payroll_month.lines.all().delete()
 
     xp_rows = list(
-        XPLedger.objects.filter(created_at__gte=month_start_dt, created_at__lt=next_month_start_dt)
+        XPLedger.objects.filter(
+            created_at__gte=month_start_dt, created_at__lt=next_month_start_dt
+        )
         .values("user_id")
         .annotate(raw_xp=Coalesce(Sum("amount"), 0))
         .order_by("user_id")
     )
     users_by_id = {
         user.id: user
-        for user in User.objects.filter(id__in=[row["user_id"] for row in xp_rows]).only("id", "level")
+        for user in User.objects.filter(
+            id__in=[row["user_id"] for row in xp_rows]
+        ).only("id", "level")
     }
 
     lines = []
@@ -177,15 +192,19 @@ def close_payroll_month(*, month_token: str, actor_user_id: int) -> PayrollMonth
         ]
     )
 
-    return PayrollMonthly.objects.select_related("closed_by", "approved_by").prefetch_related("lines__user").get(
-        pk=payroll_month.pk
+    return (
+        PayrollMonthly.objects.select_related("closed_by", "approved_by")
+        .prefetch_related("lines__user")
+        .get(pk=payroll_month.pk)
     )
 
 
 @transaction.atomic
 def approve_payroll_month(*, month_token: str, actor_user_id: int) -> PayrollMonthly:
     month_start = parse_month_token(month_token)
-    payroll_month = PayrollMonthly.objects.select_for_update().filter(month=month_start).first()
+    payroll_month = (
+        PayrollMonthly.objects.select_for_update().filter(month=month_start).first()
+    )
     if not payroll_month:
         raise ValueError("Payroll month is not closed yet.")
     if payroll_month.status == PayrollMonthStatus.DRAFT:
@@ -196,15 +215,22 @@ def approve_payroll_month(*, month_token: str, actor_user_id: int) -> PayrollMon
     payroll_month.status = PayrollMonthStatus.APPROVED
     payroll_month.approved_at = timezone.now()
     payroll_month.approved_by_id = actor_user_id
-    payroll_month.save(update_fields=["status", "approved_at", "approved_by", "updated_at"])
+    payroll_month.save(
+        update_fields=["status", "approved_at", "approved_by", "updated_at"]
+    )
 
-    return PayrollMonthly.objects.select_related("closed_by", "approved_by").prefetch_related("lines__user").get(
-        pk=payroll_month.pk
+    return (
+        PayrollMonthly.objects.select_related("closed_by", "approved_by")
+        .prefetch_related("lines__user")
+        .get(pk=payroll_month.pk)
     )
 
 
 def get_payroll_month(*, month_token: str) -> PayrollMonthly | None:
     month_start = parse_month_token(month_token)
-    return PayrollMonthly.objects.select_related("closed_by", "approved_by").prefetch_related("lines__user").filter(
-        month=month_start
-    ).first()
+    return (
+        PayrollMonthly.objects.select_related("closed_by", "approved_by")
+        .prefetch_related("lines__user")
+        .filter(month=month_start)
+        .first()
+    )

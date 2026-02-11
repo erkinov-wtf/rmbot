@@ -22,6 +22,7 @@ class AbstractMiddleware(ABC):
     # HOOK METHODS TO OVERRIDE
     # -----------------------------
 
+    @abstractmethod
     def process_request(self, request):
         """
         Runs BEFORE Django selects a view.
@@ -31,8 +32,9 @@ class AbstractMiddleware(ABC):
             - None → continue processing
             - HttpResponse → short-circuit and return immediately
         """
-        return None
+        ...
 
+    @abstractmethod
     def process_view(self, request, view_func, view_args, view_kwargs):
         """
         Runs RIGHT BEFORE the view is executed.
@@ -40,8 +42,9 @@ class AbstractMiddleware(ABC):
         - Inspecting/modifying view arguments
         - Cancelling execution by returning a response
         """
-        return None
+        ...
 
+    @abstractmethod
     def process_exception(self, request, exception):
         """
         Runs ONLY if the view raises an exception.
@@ -49,9 +52,10 @@ class AbstractMiddleware(ABC):
         - Logging
         - Returning a custom error response
         """
-        return None
+        ...
 
-    def process_template_response(self, request, response):
+    @staticmethod
+    def process_template_response(request, response):
         """
         Runs ONLY for TemplateResponse objects.
         Good for:
@@ -59,7 +63,8 @@ class AbstractMiddleware(ABC):
         """
         return response
 
-    def process_response(self, request, response):
+    @staticmethod
+    def process_response(request, response):
         """
         Runs for ALL responses.
         Good for:

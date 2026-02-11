@@ -2,10 +2,14 @@ import pytest
 from django.utils import timezone
 
 from attendance.models import AttendanceRecord
-from core.utils.constants import RoleSlug, TicketStatus, TicketTransitionAction, XPLedgerEntryType
+from core.utils.constants import (
+    RoleSlug,
+    TicketStatus,
+    TicketTransitionAction,
+    XPLedgerEntryType,
+)
 from gamification.models import XPLedger
 from ticket.models import TicketTransition
-
 
 pytestmark = pytest.mark.django_db
 

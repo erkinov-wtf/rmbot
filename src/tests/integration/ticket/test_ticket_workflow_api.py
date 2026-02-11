@@ -1,8 +1,12 @@
 import pytest
 
-from core.utils.constants import BikeStatus, RoleSlug, TicketStatus, TicketTransitionAction
+from core.utils.constants import (
+    BikeStatus,
+    RoleSlug,
+    TicketStatus,
+    TicketTransitionAction,
+)
 from ticket.models import TicketTransition
-
 
 pytestmark = pytest.mark.django_db
 
@@ -113,7 +117,9 @@ def test_technician_moves_to_waiting_qc(authed_client_factory, workflow_context)
     assert ticket.status == TicketStatus.WAITING_QC
 
 
-def test_qc_pass_marks_done_and_sets_bike_ready(authed_client_factory, workflow_context):
+def test_qc_pass_marks_done_and_sets_bike_ready(
+    authed_client_factory, workflow_context
+):
     ticket = workflow_context["ticket"]
     bike = workflow_context["bike"]
     bike.status = BikeStatus.IN_SERVICE
@@ -133,7 +139,9 @@ def test_qc_pass_marks_done_and_sets_bike_ready(authed_client_factory, workflow_
     assert bike.status == BikeStatus.READY
 
 
-def test_qc_fail_moves_to_rework_then_technician_can_restart(authed_client_factory, workflow_context):
+def test_qc_fail_moves_to_rework_then_technician_can_restart(
+    authed_client_factory, workflow_context
+):
     ticket = workflow_context["ticket"]
     ticket.status = TicketStatus.WAITING_QC
     ticket.technician = workflow_context["tech"]
@@ -154,11 +162,17 @@ def test_qc_fail_moves_to_rework_then_technician_can_restart(authed_client_facto
     assert ticket.status == TicketStatus.IN_PROGRESS
 
 
-def test_transition_history_endpoint_returns_ordered_audit_records(authed_client_factory, workflow_context):
+def test_transition_history_endpoint_returns_ordered_audit_records(
+    authed_client_factory, workflow_context
+):
     ticket = workflow_context["ticket"]
 
     master_client = authed_client_factory(workflow_context["master"])
-    master_client.post(f"/api/v1/tickets/{ticket.id}/assign/", {"technician_id": workflow_context['tech'].id}, format="json")
+    master_client.post(
+        f"/api/v1/tickets/{ticket.id}/assign/",
+        {"technician_id": workflow_context["tech"].id},
+        format="json",
+    )
 
     tech_client = authed_client_factory(workflow_context["tech"])
     tech_client.post(f"/api/v1/tickets/{ticket.id}/start/", {}, format="json")

@@ -19,7 +19,6 @@ def seed_roles(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("account", "0001_initial"),
     ]

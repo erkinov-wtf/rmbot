@@ -2,7 +2,9 @@ import logging
 import queue
 import threading
 import traceback
+
 import requests
+
 
 class TelegramErrorHandler(logging.Handler):
     """
@@ -53,7 +55,6 @@ class TelegramErrorHandler(logging.Handler):
                 pass
             finally:
                 self.queue.task_done()
-
 
 
 class RequestContextFilter(logging.Filter):

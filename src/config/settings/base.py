@@ -282,7 +282,9 @@ LOGGING = {
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": ["rest_framework_simplejwt.authentication.JWTAuthentication"],
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework_simplejwt.authentication.JWTAuthentication"
+    ],
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
     "DEFAULT_PAGINATION_CLASS": "core.utils.pagination.CustomPagination",
     "PAGE_SIZE": 10,
@@ -296,7 +298,9 @@ UNFOLD = {
     "SITE_TITLE": "DJANGO REST Template",
     "SITE_HEADER": "DJANGO REST Template",
     "SITE_SUBHEADER": lambda request: (
-        request.user.get_navigation_title() if request.user.is_authenticated else "Unknown User"
+        request.user.get_navigation_title()
+        if request.user.is_authenticated
+        else "Unknown User"
     ),
     "SIDEBAR": {
         "show_search": False,

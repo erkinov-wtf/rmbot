@@ -3,7 +3,6 @@ import pytest
 from core.utils.constants import RoleSlug, TicketStatus, TicketTransitionAction
 from ticket.models import Ticket, TicketTransition
 
-
 pytestmark = pytest.mark.django_db
 
 
@@ -79,7 +78,9 @@ def test_master_can_create_ticket(authed_client_factory, ticket_api_context):
     assert transition.actor_id == ticket_api_context["master_user"].id
 
 
-def test_rejects_second_active_ticket_for_same_bike(authed_client_factory, ticket_api_context):
+def test_rejects_second_active_ticket_for_same_bike(
+    authed_client_factory, ticket_api_context
+):
     Ticket.objects.create(
         bike=ticket_api_context["bike"],
         master=ticket_api_context["master_user"],

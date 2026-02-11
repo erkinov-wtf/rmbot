@@ -4,7 +4,9 @@ from core.models import SoftDeleteModel, TimestampedModel
 
 
 class AttendanceRecord(TimestampedModel, SoftDeleteModel):
-    user = models.ForeignKey("account.User", on_delete=models.CASCADE, related_name="attendance_records")
+    user = models.ForeignKey(
+        "account.User", on_delete=models.CASCADE, related_name="attendance_records"
+    )
     work_date = models.DateField(db_index=True)
     check_in_at = models.DateTimeField(null=True, blank=True, db_index=True)
     check_out_at = models.DateTimeField(null=True, blank=True, db_index=True)

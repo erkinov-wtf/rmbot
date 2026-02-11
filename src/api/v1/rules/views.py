@@ -17,7 +17,6 @@ from rules.services import (
     update_rules_config,
 )
 
-
 RulesReadPermission = HasRole.as_any(RoleSlug.SUPER_ADMIN, RoleSlug.OPS_MANAGER)
 RulesWritePermission = HasRole.as_any(RoleSlug.SUPER_ADMIN)
 
@@ -88,9 +87,18 @@ class RulesConfigHistoryAPIView(BaseAPIView):
         try:
             limit = int(limit_raw)
         except ValueError:
-            return Response({"detail": "limit must be an integer"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"detail": "limit must be an integer"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         if limit < 1 or limit > 200:
-            return Response({"detail": "limit must be between 1 and 200"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"detail": "limit must be between 1 and 200"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         history = list_rules_versions(limit=limit)
-        return Response(RulesConfigVersionSerializer(history, many=True).data, status=status.HTTP_200_OK)
+        return Response(
+            RulesConfigVersionSerializer(history, many=True).data,
+            status=status.HTTP_200_OK,
+        )

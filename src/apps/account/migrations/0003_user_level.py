@@ -4,7 +4,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("account", "0002_role_telegramprofile_userrole_user_roles_and_more"),
     ]

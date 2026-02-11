@@ -19,7 +19,11 @@ class BotSettings:
     @property
     def webhook_url(self) -> str:
         base = self.webhook_base_url.rstrip("/")
-        path = self.webhook_path if self.webhook_path.startswith("/") else f"/{self.webhook_path}"
+        path = (
+            self.webhook_path
+            if self.webhook_path.startswith("/")
+            else f"/{self.webhook_path}"
+        )
         return f"{base}{path}"
 
 

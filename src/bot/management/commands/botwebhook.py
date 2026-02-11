@@ -35,7 +35,9 @@ class Command(BaseCommand):
                 raise CommandError("BOT_WEBHOOK_BASE_URL is required")
             asyncio.run(setup_webhook(drop_pending_updates=drop_pending))
             asyncio.run(shutdown())
-            self.stdout.write(self.style.SUCCESS(f"Webhook configured at {settings.webhook_url}"))
+            self.stdout.write(
+                self.style.SUCCESS(f"Webhook configured at {settings.webhook_url}")
+            )
             return
 
         asyncio.run(remove_webhook(drop_pending_updates=drop_pending))

@@ -6,12 +6,12 @@ from rest_framework import serializers, status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework_simplejwt.serializers import TokenVerifySerializer
+from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
     TokenVerifyView,
 )
-from rest_framework_simplejwt.tokens import RefreshToken
 
 from account.services import upsert_telegram_profile
 from api.v1.account.serializers import UserSerializer
@@ -28,7 +28,6 @@ class RefreshAPIView(TokenRefreshView, BaseAPIView):
 
 
 class TokenVerifyAPIView(TokenVerifyView, BaseAPIView):
-
     def post(self, request, *args, **kwargs):
         response = super().post(request, *args, **kwargs)
 
@@ -68,7 +67,9 @@ class TMAInitDataVerifyAPIView(BaseAPIView):
         serializer.is_valid(raise_exception=True)
 
         try:
-            parsed = validate_init_data(serializer.validated_data["init_data"], bot_token=settings.BOT_TOKEN)
+            parsed = validate_init_data(
+                serializer.validated_data["init_data"], bot_token=settings.BOT_TOKEN
+            )
         except InitDataValidationError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -76,15 +77,24 @@ class TMAInitDataVerifyAPIView(BaseAPIView):
         try:
             user_payload = json.loads(raw_user) if raw_user else {}
         except (TypeError, json.JSONDecodeError):
-            return Response({"detail": "init_data user payload is invalid"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"detail": "init_data user payload is invalid"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         telegram_id = user_payload.get("id")
         try:
             telegram_id = int(telegram_id)
         except (TypeError, ValueError):
-            return Response({"detail": "init_data user.id is missing or invalid"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"detail": "init_data user.id is missing or invalid"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         if telegram_id <= 0:
-            return Response({"detail": "init_data user.id is missing or invalid"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"detail": "init_data user.id is missing or invalid"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         username = user_payload.get("username")
         first_name = user_payload.get("first_name")
@@ -93,15 +103,16 @@ class TMAInitDataVerifyAPIView(BaseAPIView):
         is_premium = user_payload.get("is_premium", False)
         is_bot = user_payload.get("is_bot", False)
 
-        profile = upsert_telegram_profile(_TelegramFromUser(
-            id=telegram_id,
-            username=username,
-            first_name=first_name,
-            last_name=last_name,
-            language_code=language_code,
-            is_premium=is_premium,
-            is_bot=is_bot,
-        )
+        profile = upsert_telegram_profile(
+            _TelegramFromUser(
+                id=telegram_id,
+                username=username,
+                first_name=first_name,
+                last_name=last_name,
+                language_code=language_code,
+                is_premium=is_premium,
+                is_bot=is_bot,
+            )
         )
 
         user = profile.user

@@ -2,7 +2,6 @@ from django.contrib.auth.base_user import BaseUserManager
 
 
 class UserManager(BaseUserManager):
-
     def get_by_natural_key(self, username):
         """Returns the user by their username field."""
         return self.get(**{self.model.USERNAME_FIELD: username})

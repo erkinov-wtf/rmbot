@@ -2,7 +2,7 @@ from rest_framework import serializers
 
 from account.models import User
 from core.utils.constants import RoleSlug
-from ticket.models import Ticket, TicketTransition, WorkSession, ACTIVE_TICKET_STATUSES
+from ticket.models import ACTIVE_TICKET_STATUSES, Ticket, TicketTransition, WorkSession
 
 
 class TicketSerializer(serializers.ModelSerializer):
@@ -41,7 +41,9 @@ class TicketSerializer(serializers.ModelSerializer):
             status__in=ACTIVE_TICKET_STATUSES,
             deleted_at__isnull=True,
         ).exists():
-            raise serializers.ValidationError({"bike": "An active ticket already exists for this bike."})
+            raise serializers.ValidationError(
+                {"bike": "An active ticket already exists for this bike."}
+            )
         return attrs
 
 
@@ -53,7 +55,9 @@ class TicketAssignSerializer(serializers.Serializer):
         if not user:
             raise serializers.ValidationError("Technician user does not exist.")
         if not user.roles.filter(slug=RoleSlug.TECHNICIAN).exists():
-            raise serializers.ValidationError("Selected user does not have TECHNICIAN role.")
+            raise serializers.ValidationError(
+                "Selected user does not have TECHNICIAN role."
+            )
         return value
 
 

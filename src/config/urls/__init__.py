@@ -1,1 +1,3 @@
-from .base import *
+from .base import urlpatterns
+
+__all__ = ["urlpatterns"]

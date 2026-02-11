@@ -8,7 +8,6 @@ import pytest
 
 from account.models import TelegramProfile
 
-
 pytestmark = pytest.mark.django_db
 
 
@@ -22,7 +21,9 @@ def build_init_data(bot_token: str, user_payload: dict) -> str:
     }
     data_check_string = "\n".join(f"{k}={v}" for k, v in sorted(data.items()))
     secret_key = hmac.new(b"WebAppData", bot_token.encode(), hashlib.sha256).digest()
-    data["hash"] = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
+    data["hash"] = hmac.new(
+        secret_key, data_check_string.encode(), hashlib.sha256
+    ).hexdigest()
     return urlencode(data)
 
 
@@ -45,7 +46,9 @@ def tg_user_payload():
     }
 
 
-def test_returns_tokens_when_user_linked(api_client, user_factory, tma_settings, tg_user_payload):
+def test_returns_tokens_when_user_linked(
+    api_client, user_factory, tma_settings, tg_user_payload
+):
     user = user_factory(
         username="alice",
         password="password",

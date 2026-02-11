@@ -101,31 +101,55 @@ def validate_and_normalize_rules_config(raw_config: Any) -> dict[str, Any]:
     if not isinstance(payroll, dict):
         raise ValueError("payroll must be an object.")
 
-    base_divisor = _require_int(ticket_xp.get("base_divisor"), field="ticket_xp.base_divisor")
+    base_divisor = _require_int(
+        ticket_xp.get("base_divisor"), field="ticket_xp.base_divisor"
+    )
     if base_divisor <= 0:
         raise ValueError("ticket_xp.base_divisor must be > 0.")
-    first_pass_bonus = _require_int(ticket_xp.get("first_pass_bonus"), field="ticket_xp.first_pass_bonus")
+    first_pass_bonus = _require_int(
+        ticket_xp.get("first_pass_bonus"), field="ticket_xp.first_pass_bonus"
+    )
 
-    on_time_xp = _require_int(attendance.get("on_time_xp"), field="attendance.on_time_xp", allow_negative=True)
-    grace_xp = _require_int(attendance.get("grace_xp"), field="attendance.grace_xp", allow_negative=True)
-    late_xp = _require_int(attendance.get("late_xp"), field="attendance.late_xp", allow_negative=True)
+    on_time_xp = _require_int(
+        attendance.get("on_time_xp"), field="attendance.on_time_xp", allow_negative=True
+    )
+    grace_xp = _require_int(
+        attendance.get("grace_xp"), field="attendance.grace_xp", allow_negative=True
+    )
+    late_xp = _require_int(
+        attendance.get("late_xp"), field="attendance.late_xp", allow_negative=True
+    )
 
     on_time_cutoff = attendance.get("on_time_cutoff")
     grace_cutoff = attendance.get("grace_cutoff")
     timezone_value = attendance.get("timezone")
-    if not isinstance(on_time_cutoff, str) or len(on_time_cutoff) != 5 or on_time_cutoff[2] != ":":
+    if (
+        not isinstance(on_time_cutoff, str)
+        or len(on_time_cutoff) != 5
+        or on_time_cutoff[2] != ":"
+    ):
         raise ValueError("attendance.on_time_cutoff must be in HH:MM format.")
-    if not isinstance(grace_cutoff, str) or len(grace_cutoff) != 5 or grace_cutoff[2] != ":":
+    if (
+        not isinstance(grace_cutoff, str)
+        or len(grace_cutoff) != 5
+        or grace_cutoff[2] != ":"
+    ):
         raise ValueError("attendance.grace_cutoff must be in HH:MM format.")
     if on_time_cutoff > grace_cutoff:
-        raise ValueError("attendance.on_time_cutoff must be <= attendance.grace_cutoff.")
+        raise ValueError(
+            "attendance.on_time_cutoff must be <= attendance.grace_cutoff."
+        )
     if not isinstance(timezone_value, str) or not timezone_value.strip():
         raise ValueError("attendance.timezone must be a non-empty string.")
 
     fix_salary = _require_int(payroll.get("fix_salary"), field="payroll.fix_salary")
     bonus_rate = _require_int(payroll.get("bonus_rate"), field="payroll.bonus_rate")
-    level_caps = _normalize_level_map(payroll.get("level_caps"), field="payroll.level_caps")
-    level_allowances = _normalize_level_map(payroll.get("level_allowances"), field="payroll.level_allowances")
+    level_caps = _normalize_level_map(
+        payroll.get("level_caps"), field="payroll.level_caps"
+    )
+    level_allowances = _normalize_level_map(
+        payroll.get("level_allowances"), field="payroll.level_allowances"
+    )
 
     return {
         "ticket_xp": {
@@ -170,13 +194,22 @@ def _diff_rules(before: Any, after: Any, *, path: str = "") -> dict[str, Any]:
 
 
 def _next_version_number() -> int:
-    current = RulesConfigVersion.objects.aggregate(max_version=Max("version")).get("max_version") or 0
+    current = (
+        RulesConfigVersion.objects.aggregate(max_version=Max("version")).get(
+            "max_version"
+        )
+        or 0
+    )
     return int(current) + 1
 
 
 @transaction.atomic
 def ensure_rules_state() -> RulesConfigState:
-    state = RulesConfigState.objects.select_for_update().select_related("active_version").first()
+    state = (
+        RulesConfigState.objects.select_for_update()
+        .select_related("active_version")
+        .first()
+    )
     if state:
         return state
 
@@ -201,7 +234,9 @@ def ensure_rules_state() -> RulesConfigState:
 def get_active_rules_state() -> RulesConfigState:
     with transaction.atomic():
         state = ensure_rules_state()
-    return RulesConfigState.objects.select_related("active_version", "active_version__created_by").get(pk=state.pk)
+    return RulesConfigState.objects.select_related(
+        "active_version", "active_version__created_by"
+    ).get(pk=state.pk)
 
 
 def get_active_rules_config() -> dict[str, Any]:
@@ -210,7 +245,9 @@ def get_active_rules_config() -> dict[str, Any]:
 
 
 @transaction.atomic
-def update_rules_config(*, config: Any, actor_user_id: int, reason: str | None = None) -> RulesConfigState:
+def update_rules_config(
+    *, config: Any, actor_user_id: int, reason: str | None = None
+) -> RulesConfigState:
     normalized = validate_and_normalize_rules_config(config)
     state = ensure_rules_state()
     current_version = state.active_version
@@ -233,14 +270,20 @@ def update_rules_config(*, config: Any, actor_user_id: int, reason: str | None =
     state.active_version = new_version
     state.cache_key = uuid.uuid4().hex
     state.save(update_fields=["active_version", "cache_key", "updated_at"])
-    return RulesConfigState.objects.select_related("active_version", "active_version__created_by").get(pk=state.pk)
+    return RulesConfigState.objects.select_related(
+        "active_version", "active_version__created_by"
+    ).get(pk=state.pk)
 
 
 @transaction.atomic
-def rollback_rules_config(*, target_version_number: int, actor_user_id: int, reason: str | None = None) -> RulesConfigState:
+def rollback_rules_config(
+    *, target_version_number: int, actor_user_id: int, reason: str | None = None
+) -> RulesConfigState:
     state = ensure_rules_state()
     current_version = state.active_version
-    target_version = RulesConfigVersion.objects.filter(version=target_version_number).first()
+    target_version = RulesConfigVersion.objects.filter(
+        version=target_version_number
+    ).first()
     if not target_version:
         raise ValueError("Target version does not exist.")
     if target_version.id == current_version.id:
@@ -262,11 +305,15 @@ def rollback_rules_config(*, target_version_number: int, actor_user_id: int, rea
     state.active_version = new_version
     state.cache_key = uuid.uuid4().hex
     state.save(update_fields=["active_version", "cache_key", "updated_at"])
-    return RulesConfigState.objects.select_related("active_version", "active_version__created_by").get(pk=state.pk)
+    return RulesConfigState.objects.select_related(
+        "active_version", "active_version__created_by"
+    ).get(pk=state.pk)
 
 
 def list_rules_versions(*, limit: int = 50) -> list[RulesConfigVersion]:
     capped_limit = max(1, min(limit, 200))
     return list(
-        RulesConfigVersion.objects.select_related("created_by", "source_version").order_by("-version")[:capped_limit]
+        RulesConfigVersion.objects.select_related(
+            "created_by", "source_version"
+        ).order_by("-version")[:capped_limit]
     )

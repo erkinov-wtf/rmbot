@@ -9,14 +9,18 @@ import pytest
 from core.utils.telegram import InitDataValidationError, validate_init_data
 
 
-def _build_init_data(bot_token: str, user_payload: dict, auth_date: int | None = None) -> str:
+def _build_init_data(
+    bot_token: str, user_payload: dict, auth_date: int | None = None
+) -> str:
     data = {
         "user": json.dumps(user_payload, separators=(",", ":")),
         "auth_date": str(auth_date or int(time.time())),
     }
     data_check_string = "\n".join(f"{k}={v}" for k, v in sorted(data.items()))
     secret_key = hmac.new(b"WebAppData", bot_token.encode(), hashlib.sha256).digest()
-    data["hash"] = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
+    data["hash"] = hmac.new(
+        secret_key, data_check_string.encode(), hashlib.sha256
+    ).hexdigest()
     return urlencode(data)
 
 

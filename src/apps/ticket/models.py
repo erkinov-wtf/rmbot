@@ -3,7 +3,6 @@ from django.db import models
 from core.models import AppendOnlyModel, SoftDeleteModel, TimestampedModel
 from core.utils.constants import TicketStatus, TicketTransitionAction, WorkSessionStatus
 
-
 ACTIVE_TICKET_STATUSES = [
     TicketStatus.NEW,
     TicketStatus.ASSIGNED,
@@ -14,8 +13,12 @@ ACTIVE_TICKET_STATUSES = [
 
 
 class Ticket(TimestampedModel, SoftDeleteModel):
-    bike = models.ForeignKey("bike.Bike", on_delete=models.PROTECT, related_name="tickets")
-    master = models.ForeignKey("account.User", on_delete=models.PROTECT, related_name="created_tickets")
+    bike = models.ForeignKey(
+        "bike.Bike", on_delete=models.PROTECT, related_name="tickets"
+    )
+    master = models.ForeignKey(
+        "account.User", on_delete=models.PROTECT, related_name="created_tickets"
+    )
     technician = models.ForeignKey(
         "account.User",
         on_delete=models.SET_NULL,
@@ -26,7 +29,12 @@ class Ticket(TimestampedModel, SoftDeleteModel):
     title = models.CharField(max_length=255, blank=True, null=True)
     srt_total_minutes = models.PositiveIntegerField(default=0)
     flag_minutes = models.PositiveIntegerField(default=0)
-    status = models.CharField(max_length=20, choices=TicketStatus.choices, default=TicketStatus.NEW, db_index=True)
+    status = models.CharField(
+        max_length=20,
+        choices=TicketStatus.choices,
+        default=TicketStatus.NEW,
+        db_index=True,
+    )
     assigned_at = models.DateTimeField(null=True, blank=True)
     started_at = models.DateTimeField(null=True, blank=True)
     done_at = models.DateTimeField(null=True, blank=True)
@@ -39,7 +47,9 @@ class Ticket(TimestampedModel, SoftDeleteModel):
         constraints = [
             models.UniqueConstraint(
                 fields=["bike"],
-                condition=models.Q(status__in=ACTIVE_TICKET_STATUSES, deleted_at__isnull=True),
+                condition=models.Q(
+                    status__in=ACTIVE_TICKET_STATUSES, deleted_at__isnull=True
+                ),
                 name="unique_active_ticket_per_bike",
             ),
             models.UniqueConstraint(
@@ -58,8 +68,12 @@ class Ticket(TimestampedModel, SoftDeleteModel):
 
 
 class WorkSession(TimestampedModel, SoftDeleteModel):
-    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="work_sessions")
-    technician = models.ForeignKey("account.User", on_delete=models.CASCADE, related_name="work_sessions")
+    ticket = models.ForeignKey(
+        Ticket, on_delete=models.CASCADE, related_name="work_sessions"
+    )
+    technician = models.ForeignKey(
+        "account.User", on_delete=models.CASCADE, related_name="work_sessions"
+    )
     status = models.CharField(
         max_length=20,
         choices=WorkSessionStatus.choices,
@@ -100,11 +114,23 @@ class WorkSession(TimestampedModel, SoftDeleteModel):
 
 
 class TicketTransition(AppendOnlyModel):
-    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, related_name="transitions")
-    from_status = models.CharField(max_length=20, choices=TicketStatus.choices, null=True, blank=True)
-    to_status = models.CharField(max_length=20, choices=TicketStatus.choices)
-    action = models.CharField(max_length=30, choices=TicketTransitionAction.choices, db_index=True)
-    actor = models.ForeignKey("account.User", on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    ticket = models.ForeignKey(
+        Ticket, on_delete=models.CASCADE, related_name="transitions"
+    )
+    from_status = models.CharField(
+        max_length=20, choices=TicketStatus, null=True, blank=True
+    )
+    to_status = models.CharField(max_length=20, choices=TicketStatus)
+    action = models.CharField(
+        max_length=30, choices=TicketTransitionAction, db_index=True
+    )
+    actor = models.ForeignKey(
+        "account.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
     note = models.TextField(blank=True, null=True)
     metadata = models.JSONField(default=dict, blank=True)
 
@@ -115,4 +141,4 @@ class TicketTransition(AppendOnlyModel):
         ]
 
     def __str__(self) -> str:
-        return f"TicketTransition#{self.pk} ticket={self.ticket_id} {self.from_status}->{self.to_status} ({self.action})"
+        return f"TicketTransition #{self.pk} {self.from_status}>{self.to_status} ({self.action})"

@@ -4,7 +4,6 @@ from django.db import IntegrityError, transaction
 from core.utils.constants import TicketStatus
 from ticket.models import Ticket
 
-
 pytestmark = pytest.mark.django_db
 
 

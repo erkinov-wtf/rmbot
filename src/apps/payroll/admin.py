@@ -48,7 +48,15 @@ class PayrollMonthlyAdmin(BaseModelAdmin):
 
 @admin.register(PayrollMonthlyLine)
 class PayrollMonthlyLineAdmin(BaseModelAdmin):
-    list_display = ("id", "payroll_monthly", "user", "level", "raw_xp", "paid_xp", "total_amount")
+    list_display = (
+        "id",
+        "payroll_monthly",
+        "user",
+        "level",
+        "raw_xp",
+        "paid_xp",
+        "total_amount",
+    )
     list_filter = ("level",)
     search_fields = ("id", "payroll_monthly__month", "user__username")
     readonly_fields = (

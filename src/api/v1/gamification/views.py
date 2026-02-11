@@ -3,12 +3,10 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from api.v1.gamification.serializers import XPLedgerSerializer
 from core.api.views import BaseAPIView
 from core.utils.constants import RoleSlug, XPLedgerEntryType
 from gamification.models import XPLedger
-
-from api.v1.gamification.serializers import XPLedgerSerializer
-
 
 PRIVILEGED_LEDGER_VIEW_ROLES = {RoleSlug.SUPER_ADMIN, RoleSlug.OPS_MANAGER}
 
@@ -28,31 +26,51 @@ class XPLedgerListAPIView(BaseAPIView):
         try:
             limit = int(limit_raw)
         except ValueError:
-            return Response({"detail": "limit must be an integer"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"detail": "limit must be an integer"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         if limit < 1 or limit > 500:
-            return Response({"detail": "limit must be between 1 and 500"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"detail": "limit must be between 1 and 500"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         user_id = None
         if user_id_raw is not None:
             try:
                 user_id = int(user_id_raw)
             except ValueError:
-                return Response({"detail": "user_id must be an integer"}, status=status.HTTP_400_BAD_REQUEST)
+                return Response(
+                    {"detail": "user_id must be an integer"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
             if user_id < 1:
-                return Response({"detail": "user_id must be a positive integer"}, status=status.HTTP_400_BAD_REQUEST)
+                return Response(
+                    {"detail": "user_id must be a positive integer"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
         ticket_id = None
         if ticket_id_raw is not None:
             try:
                 ticket_id = int(ticket_id_raw)
             except ValueError:
-                return Response({"detail": "ticket_id must be an integer"}, status=status.HTTP_400_BAD_REQUEST)
+                return Response(
+                    {"detail": "ticket_id must be an integer"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
             if ticket_id < 1:
-                return Response({"detail": "ticket_id must be a positive integer"}, status=status.HTTP_400_BAD_REQUEST)
+                return Response(
+                    {"detail": "ticket_id must be a positive integer"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
         if entry_type and entry_type not in XPLedgerEntryType.values:
             return Response(
-                {"detail": f"Invalid entry_type value. Allowed: {', '.join(XPLedgerEntryType.values)}"},
+                {
+                    "detail": f"Invalid entry_type value. Allowed: {', '.join(XPLedgerEntryType.values)}"
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
 

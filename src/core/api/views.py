@@ -1,9 +1,9 @@
+from logging import getLogger
+
+from django.utils.translation import gettext_lazy as _
 from rest_framework import generics, mixins, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-
-from django.utils.translation import gettext_lazy as _
-from logging import getLogger
 
 from core.utils.pagination import CustomPagination
 
@@ -11,7 +11,6 @@ logger = getLogger(__name__)
 
 
 class PaginatedListMixin:
-
     pagination_class = CustomPagination
 
     def list(self, request, *args, **kwargs):
@@ -83,7 +82,9 @@ class CustomResponseMixin:
     @staticmethod
     def _is_structured_response(response: Response) -> bool:
         is_already_structured: bool = (
-            isinstance(response.data, dict) and "success" in response.data and "message" in response.data
+            isinstance(response.data, dict)
+            and "success" in response.data
+            and "message" in response.data
         )
         return is_already_structured
 
@@ -122,7 +123,6 @@ class BaseAPIView(CustomResponseMixin, generics.GenericAPIView):
 
 
 class ListAPIView(mixins.ListModelMixin, PaginatedListMixin, BaseAPIView):
-
     def get(self, request, *args, **kwargs):
         return self.list(request, *args, **kwargs)
 
@@ -140,7 +140,6 @@ class RetrieveAPIView(mixins.RetrieveModelMixin, BaseAPIView):
 
 
 class UpdateAPIView(mixins.UpdateModelMixin, BaseAPIView):
-
     def put(self, request, *args, **kwargs):
         return self.update(request, *args, **kwargs)
 

@@ -35,13 +35,18 @@ class AuditFeedAPIView(BaseAPIView):
         try:
             requested_limit = int(request.query_params.get("limit", "50"))
         except ValueError:
-            return Response({"detail": "limit must be an integer"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"detail": "limit must be an integer"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         limit = max(1, min(requested_limit, 200))
         pool_size = max(limit * 3, 50)
         events = []
 
-        transitions = TicketTransition.objects.select_related("actor", "ticket").order_by("-created_at")[:pool_size]
+        transitions = TicketTransition.objects.select_related(
+            "actor", "ticket"
+        ).order_by("-created_at")[:pool_size]
         for tr in transitions:
             events.append(
                 {
@@ -58,7 +63,9 @@ class AuditFeedAPIView(BaseAPIView):
                 }
             )
 
-        xp_entries = XPLedger.objects.select_related("user").order_by("-created_at")[:pool_size]
+        xp_entries = XPLedger.objects.select_related("user").order_by("-created_at")[
+            :pool_size
+        ]
         for xp in xp_entries:
             events.append(
                 {

@@ -1,4 +1,4 @@
-from datetime import datetime, date
+from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
 from django.db import transaction
@@ -45,7 +45,9 @@ def _business_date(now_dt: datetime) -> date:
 
 
 def _punctuality_xp(check_in_dt: datetime) -> int:
-    on_time_xp, grace_xp, late_xp, cutoff_10_00, cutoff_10_20, local_tz = _attendance_rules()
+    on_time_xp, grace_xp, late_xp, cutoff_10_00, cutoff_10_20, local_tz = (
+        _attendance_rules()
+    )
     local_dt = check_in_dt.astimezone(local_tz)
     minutes = local_dt.hour * 60 + local_dt.minute
     if minutes <= cutoff_10_00:
@@ -65,7 +67,9 @@ def check_in(user_id: int) -> tuple[AttendanceRecord, int]:
     now_dt = timezone.now()
     today = _business_date(now_dt)
 
-    record = AttendanceRecord.all_objects.filter(user_id=user_id, work_date=today).first()
+    record = AttendanceRecord.all_objects.filter(
+        user_id=user_id, work_date=today
+    ).first()
     if record and record.deleted_at is not None:
         record.deleted_at = None
         record.save(update_fields=["deleted_at"])

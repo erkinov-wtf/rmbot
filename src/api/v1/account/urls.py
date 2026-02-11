@@ -13,7 +13,17 @@ app_name = "account"
 urlpatterns = [
     path("me/", MeAPIView.as_view(), name="me"),
     path("request-access/", RequestAccessAPIView.as_view(), name="request-access"),
-    path("access-requests/", AccessRequestListAPIView.as_view(), name="access-requests"),
-    path("access-requests/<int:pk>/approve/", AccessRequestApproveAPIView.as_view(), name="access-request-approve"),
-    path("access-requests/<int:pk>/reject/", AccessRequestRejectAPIView.as_view(), name="access-request-reject"),
+    path(
+        "access-requests/", AccessRequestListAPIView.as_view(), name="access-requests"
+    ),
+    path(
+        "access-requests/<int:pk>/approve/",
+        AccessRequestApproveAPIView.as_view(),
+        name="access-request-approve",
+    ),
+    path(
+        "access-requests/<int:pk>/reject/",
+        AccessRequestRejectAPIView.as_view(),
+        name="access-request-reject",
+    ),
 ]

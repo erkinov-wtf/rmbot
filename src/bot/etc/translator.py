@@ -1,7 +1,19 @@
 import gettext
+from collections.abc import Callable
 from functools import lru_cache
 from pathlib import Path
-from typing import Callable
+
+
+@lru_cache(maxsize=128)
+def _resolve_translation(
+    domain: str, locales_path: str, locale: str
+) -> gettext.NullTranslations:
+    return gettext.translation(
+        domain,
+        localedir=locales_path,
+        languages=[locale],
+        fallback=True,
+    )
 
 
 class Translator:
@@ -12,14 +24,8 @@ class Translator:
         self.domain = domain
         self.fallback_locale = fallback_locale
 
-    @lru_cache(maxsize=32)
     def _translation(self, locale: str) -> gettext.NullTranslations:
-        return gettext.translation(
-            self.domain,
-            localedir=str(self.locales_path),
-            languages=[locale],
-            fallback=True,
-        )
+        return _resolve_translation(self.domain, str(self.locales_path), locale)
 
     def gettext(self, locale: str) -> Callable[[str], str]:
         translation = self._translation(locale or self.fallback_locale)

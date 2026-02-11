@@ -3,7 +3,6 @@ import pytest
 from core.utils.constants import RoleSlug, TicketStatus, WorkSessionStatus
 from ticket.models import WorkSession
 
-
 pytestmark = pytest.mark.django_db
 
 
@@ -48,28 +47,40 @@ def test_technician_session_lifecycle(authed_client_factory, work_session_contex
     client = authed_client_factory(work_session_context["tech"])
     ticket = work_session_context["ticket"]
 
-    start = client.post(f"/api/v1/tickets/{ticket.id}/work-session/start/", {}, format="json")
+    start = client.post(
+        f"/api/v1/tickets/{ticket.id}/work-session/start/", {}, format="json"
+    )
     assert start.status_code == 200
     assert start.data["data"]["status"] == WorkSessionStatus.RUNNING
 
-    pause = client.post(f"/api/v1/tickets/{ticket.id}/work-session/pause/", {}, format="json")
+    pause = client.post(
+        f"/api/v1/tickets/{ticket.id}/work-session/pause/", {}, format="json"
+    )
     assert pause.status_code == 200
     assert pause.data["data"]["status"] == WorkSessionStatus.PAUSED
 
-    resume = client.post(f"/api/v1/tickets/{ticket.id}/work-session/resume/", {}, format="json")
+    resume = client.post(
+        f"/api/v1/tickets/{ticket.id}/work-session/resume/", {}, format="json"
+    )
     assert resume.status_code == 200
     assert resume.data["data"]["status"] == WorkSessionStatus.RUNNING
 
-    stop = client.post(f"/api/v1/tickets/{ticket.id}/work-session/stop/", {}, format="json")
+    stop = client.post(
+        f"/api/v1/tickets/{ticket.id}/work-session/stop/", {}, format="json"
+    )
     assert stop.status_code == 200
     assert stop.data["data"]["status"] == WorkSessionStatus.STOPPED
 
-    session = WorkSession.objects.get(ticket=ticket, technician=work_session_context["tech"])
+    session = WorkSession.objects.get(
+        ticket=ticket, technician=work_session_context["tech"]
+    )
     assert session.status == WorkSessionStatus.STOPPED
     assert session.ended_at is not None
 
 
-def test_other_technician_cannot_control_session(authed_client_factory, work_session_context):
+def test_other_technician_cannot_control_session(
+    authed_client_factory, work_session_context
+):
     ticket = work_session_context["ticket"]
     WorkSession.objects.create(
         ticket=ticket,
@@ -80,19 +91,25 @@ def test_other_technician_cannot_control_session(authed_client_factory, work_ses
     )
 
     client = authed_client_factory(work_session_context["other_tech"])
-    resp = client.post(f"/api/v1/tickets/{ticket.id}/work-session/pause/", {}, format="json")
+    resp = client.post(
+        f"/api/v1/tickets/{ticket.id}/work-session/pause/", {}, format="json"
+    )
 
     assert resp.status_code == 400
     assert "no active work session" in resp.data["error"]["detail"].lower()
 
 
-def test_cannot_start_session_when_ticket_not_in_progress(authed_client_factory, work_session_context):
+def test_cannot_start_session_when_ticket_not_in_progress(
+    authed_client_factory, work_session_context
+):
     ticket = work_session_context["ticket"]
     ticket.status = TicketStatus.ASSIGNED
     ticket.save(update_fields=["status"])
 
     client = authed_client_factory(work_session_context["tech"])
-    resp = client.post(f"/api/v1/tickets/{ticket.id}/work-session/start/", {}, format="json")
+    resp = client.post(
+        f"/api/v1/tickets/{ticket.id}/work-session/start/", {}, format="json"
+    )
 
     assert resp.status_code == 400
     assert "in_progress" in resp.data["error"]["detail"].lower()

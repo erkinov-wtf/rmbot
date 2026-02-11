@@ -9,7 +9,16 @@ class XPLedgerAdmin(BaseModelAdmin):
     list_display = ("id", "user", "amount", "entry_type", "reference", "created_at")
     list_filter = ("entry_type",)
     search_fields = ("id", "reference", "user__username")
-    readonly_fields = ("user", "amount", "entry_type", "reference", "description", "payload", "created_at", "updated_at")
+    readonly_fields = (
+        "user",
+        "amount",
+        "entry_type",
+        "reference",
+        "description",
+        "payload",
+        "created_at",
+        "updated_at",
+    )
 
     def has_add_permission(self, request):
         return False

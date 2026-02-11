@@ -1,12 +1,12 @@
+from api.v1.bike.serializers import BikeSerializer
+from bike.models import Bike
 from core.api.permissions import HasRole
 from core.api.views import CreateAPIView, ListAPIView
 from core.utils.constants import RoleSlug
-from bike.models import Bike
 
-from api.v1.bike.serializers import BikeSerializer
-
-
-BikeManagePermission = HasRole.as_any(RoleSlug.SUPER_ADMIN, RoleSlug.OPS_MANAGER, RoleSlug.MASTER)
+BikeManagePermission = HasRole.as_any(
+    RoleSlug.SUPER_ADMIN, RoleSlug.OPS_MANAGER, RoleSlug.MASTER
+)
 
 
 class BikeListAPIView(ListAPIView):

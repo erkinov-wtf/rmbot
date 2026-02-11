@@ -59,7 +59,10 @@ class TicketTransitionAction(models.TextChoices):
 class XPLedgerEntryType(models.TextChoices):
     ATTENDANCE_PUNCTUALITY = "attendance_punctuality", _("Attendance Punctuality")
     TICKET_BASE_XP = "ticket_base_xp", _("Ticket Base XP")
-    TICKET_QC_FIRST_PASS_BONUS = "ticket_qc_first_pass_bonus", _("Ticket QC First Pass Bonus")
+    TICKET_QC_FIRST_PASS_BONUS = (
+        "ticket_qc_first_pass_bonus",
+        _("Ticket QC First Pass Bonus"),
+    )
 
 
 class PayrollMonthStatus(models.TextChoices):

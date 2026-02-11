@@ -3,7 +3,6 @@ import pytest
 from account.models import AccessRequest
 from core.utils.constants import AccessRequestStatus
 
-
 pytestmark = pytest.mark.django_db
 
 

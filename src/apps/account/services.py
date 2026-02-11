@@ -1,9 +1,9 @@
-from typing import Iterable, Optional, Tuple
+from collections.abc import Iterable
 
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
-from account.models import AccessRequest, TelegramProfile, User, Role
+from account.models import AccessRequest, Role, TelegramProfile, User
 from core.utils.constants import AccessRequestStatus
 
 
@@ -21,26 +21,32 @@ def upsert_telegram_profile(from_user) -> TelegramProfile:
         "is_premium": getattr(from_user, "is_premium", False),
         "verified_at": timezone.now(),
     }
-    profile, _ = TelegramProfile.all_objects.get_or_create(telegram_id=from_user.id, defaults=defaults)
-    TelegramProfile.all_objects.filter(pk=profile.pk).update(deleted_at=None, **defaults)
+    profile, _ = TelegramProfile.all_objects.get_or_create(
+        telegram_id=from_user.id, defaults=defaults
+    )
+    TelegramProfile.all_objects.filter(pk=profile.pk).update(
+        deleted_at=None, **defaults
+    )
     profile.refresh_from_db()
     return profile
 
 
-def get_active_profile(telegram_id: int) -> Optional[TelegramProfile]:
-    return TelegramProfile.objects.select_related("user").filter(
-        telegram_id=telegram_id, deleted_at__isnull=True
-    ).first()
+def get_active_profile(telegram_id: int) -> TelegramProfile | None:
+    return (
+        TelegramProfile.objects.select_related("user")
+        .filter(telegram_id=telegram_id, deleted_at__isnull=True)
+        .first()
+    )
 
 
 def ensure_pending_access_request(
     telegram_id: int,
-    username: Optional[str] = None,
-    first_name: Optional[str] = None,
-    last_name: Optional[str] = None,
-    phone: Optional[str] = None,
-    note: Optional[str] = None,
-) -> Tuple[AccessRequest, bool]:
+    username: str | None = None,
+    first_name: str | None = None,
+    last_name: str | None = None,
+    phone: str | None = None,
+    note: str | None = None,
+) -> tuple[AccessRequest, bool]:
     """
     Create a pending access request if none exists for the telegram user.
     Returns (access_request, created).
@@ -85,7 +91,7 @@ def ensure_pending_access_request(
         return existing, False
 
 
-def get_pending_access_request(telegram_id: int) -> Optional[AccessRequest]:
+def get_pending_access_request(telegram_id: int) -> AccessRequest | None:
     return AccessRequest.all_objects.filter(
         telegram_id=telegram_id,
         status=AccessRequestStatus.PENDING,
@@ -104,7 +110,7 @@ def link_profile_to_user(profile: TelegramProfile, user: User) -> TelegramProfil
 def approve_access_request(
     access_request: AccessRequest,
     user: User,
-    role_slugs: Optional[Iterable[str]] = None,
+    role_slugs: Iterable[str] | None = None,
 ) -> AccessRequest:
     if access_request.status != AccessRequestStatus.PENDING:
         raise ValueError("Access request is already resolved")

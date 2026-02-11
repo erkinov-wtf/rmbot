@@ -1,8 +1,11 @@
-import os
 from datetime import timedelta
-from .base import *
+
+from . import base as base_settings
 
 BOT_MODE = "polling"
+DEBUG = base_settings.DEBUG
+INSTALLED_APPS = [*base_settings.INSTALLED_APPS]
+MIDDLEWARE = [*base_settings.MIDDLEWARE]
 
 
 if DEBUG:
@@ -28,3 +31,7 @@ if DEBUG:
     }
 
     CORS_ALLOW_ALL_ORIGINS = True
+
+for setting_name in dir(base_settings):
+    if setting_name.isupper() and setting_name not in globals():
+        globals()[setting_name] = getattr(base_settings, setting_name)

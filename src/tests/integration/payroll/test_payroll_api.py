@@ -3,10 +3,14 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from core.utils.constants import EmployeeLevel, PayrollMonthStatus, RoleSlug, XPLedgerEntryType
+from core.utils.constants import (
+    EmployeeLevel,
+    PayrollMonthStatus,
+    RoleSlug,
+    XPLedgerEntryType,
+)
 from gamification.models import XPLedger
 from payroll.models import PayrollMonthly
-
 
 pytestmark = pytest.mark.django_db
 
@@ -49,7 +53,9 @@ def payroll_context(user_factory, assign_roles):
             reference=reference,
             payload={},
         )
-        XPLedger.all_objects.filter(pk=entry.pk).update(created_at=created_at, updated_at=created_at)
+        XPLedger.all_objects.filter(pk=entry.pk).update(
+            created_at=created_at, updated_at=created_at
+        )
 
     create_xp(
         user=tech_l1,
@@ -90,7 +96,9 @@ def payroll_context(user_factory, assign_roles):
     }
 
 
-def test_payroll_close_applies_level_caps_and_totals(authed_client_factory, payroll_context):
+def test_payroll_close_applies_level_caps_and_totals(
+    authed_client_factory, payroll_context
+):
     client = authed_client_factory(payroll_context["ops"])
 
     resp = client.post("/api/v1/payroll/2026-01/close/", {}, format="json")
@@ -133,7 +141,9 @@ def test_payroll_close_requires_privileged_role(authed_client_factory, payroll_c
     assert resp.status_code == 403
 
 
-def test_payroll_close_rejects_invalid_or_repeated_month(authed_client_factory, payroll_context):
+def test_payroll_close_rejects_invalid_or_repeated_month(
+    authed_client_factory, payroll_context
+):
     client = authed_client_factory(payroll_context["ops"])
 
     invalid = client.post("/api/v1/payroll/2026-13/close/", {}, format="json")

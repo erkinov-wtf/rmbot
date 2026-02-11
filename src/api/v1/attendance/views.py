@@ -2,10 +2,9 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from api.v1.attendance.serializers import AttendanceRecordSerializer
 from attendance.services import check_in, check_out, get_today_record
 from core.api.views import BaseAPIView
-
-from api.v1.attendance.serializers import AttendanceRecordSerializer
 
 
 class AttendanceTodayAPIView(BaseAPIView):
@@ -15,7 +14,9 @@ class AttendanceTodayAPIView(BaseAPIView):
         record = get_today_record(user_id=request.user.id)
         if not record:
             return Response(None, status=status.HTTP_200_OK)
-        return Response(AttendanceRecordSerializer(record).data, status=status.HTTP_200_OK)
+        return Response(
+            AttendanceRecordSerializer(record).data, status=status.HTTP_200_OK
+        )
 
 
 class AttendanceCheckInAPIView(BaseAPIView):
@@ -45,4 +46,6 @@ class AttendanceCheckOutAPIView(BaseAPIView):
         except ValueError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
-        return Response(AttendanceRecordSerializer(record).data, status=status.HTTP_200_OK)
+        return Response(
+            AttendanceRecordSerializer(record).data, status=status.HTTP_200_OK
+        )

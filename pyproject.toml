@@ -25,6 +25,7 @@ dependencies = [
     "pygments>=2.19.2",
     "python-decouple>=3.8",
     "requests>=2.32.5",
+    "ruff>=0.15.0",
     "sentry-sdk>=2.34.1",
     "sqlparse>=0.5.3",
     "uvicorn>=0.37.0",
@@ -36,9 +37,51 @@ dev = [
     "django-debug-toolbar>=6.0.0",
     "django-extensions>=4.1",
     "django-query-counter>=0.4.1",
+    "pre-commit>=4.3.0",
     "pytest>=8.4.2",
     "pytest-cov>=7.0.0",
     "pytest-django>=4.11.1",
+]
+
+[tool.black]
+line-length = 88
+target-version = ["py313"]
+extend-exclude = '''
+/(
+  migrations
+)/
+'''
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+src = ["src", "src/apps"]
+extend-exclude = [
+    "*/migrations/*",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",
+    "F",
+    "I",
+    "B",
+    "UP",
+]
+
+[tool.ruff.lint.isort]
+known-first-party = [
+    "account",
+    "api",
+    "attendance",
+    "bike",
+    "bot",
+    "config",
+    "core",
+    "gamification",
+    "payroll",
+    "rules",
+    "ticket",
 ]
 
 [tool.pytest.ini_options]

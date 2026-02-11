@@ -6,7 +6,7 @@ from aiogram import BaseMiddleware
 logger = getLogger(__name__)
 
 if TYPE_CHECKING:
-    from aiogram.types import Message, CallbackQuery
+    from aiogram.types import Message
 
 
 class ErrorMiddleware(BaseMiddleware):
@@ -29,7 +29,7 @@ class ErrorMiddleware(BaseMiddleware):
 
     @staticmethod
     def _get_message(event) -> Optional["Message"]:
-        from aiogram.types import Message, CallbackQuery
+        from aiogram.types import CallbackQuery, Message
 
         if isinstance(event, Message):
             return event

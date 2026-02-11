@@ -7,10 +7,12 @@ from aiogram.fsm.storage.memory import MemoryStorage
 
 from bot.config import get_bot_settings
 from bot.etc.container import Container
-from bot.middlewares import DIMiddleware
-from bot.middlewares import ErrorMiddleware
-from bot.middlewares import I18nMiddleware
-from bot.middlewares import AuthMiddleware
+from bot.middlewares import (
+    AuthMiddleware,
+    DIMiddleware,
+    ErrorMiddleware,
+    I18nMiddleware,
+)
 from bot.url_router import get_root_router
 
 

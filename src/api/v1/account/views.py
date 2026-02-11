@@ -1,23 +1,28 @@
+from django.db import IntegrityError
+from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
-from django.shortcuts import get_object_or_404
-from django.db import IntegrityError
 
-from core.api.views import BaseAPIView
-from core.api.permissions import HasRole
-from core.utils.constants import AccessRequestStatus, RoleSlug
+from account.models import AccessRequest, User
+from account.services import (
+    approve_access_request,
+    ensure_pending_access_request,
+    reject_access_request,
+)
 from api.v1.account.serializers import (
-    AccessRequestCreateSerializer,
     AccessRequestApproveSerializer,
+    AccessRequestCreateSerializer,
     AccessRequestSerializer,
     UserSerializer,
 )
-from account.models import AccessRequest, User
-from account.services import ensure_pending_access_request, approve_access_request, reject_access_request
+from core.api.permissions import HasRole
+from core.api.views import BaseAPIView
+from core.utils.constants import AccessRequestStatus, RoleSlug
 
-
-AccessRequestManagerPermission = HasRole.as_any(RoleSlug.SUPER_ADMIN, RoleSlug.OPS_MANAGER)
+AccessRequestManagerPermission = HasRole.as_any(
+    RoleSlug.SUPER_ADMIN, RoleSlug.OPS_MANAGER
+)
 
 
 class MeAPIView(BaseAPIView):
@@ -57,7 +62,9 @@ class AccessRequestListAPIView(BaseAPIView):
         status_query = request.query_params.get("status", AccessRequestStatus.PENDING)
         if status_query not in AccessRequestStatus.values:
             return Response(
-                {"detail": f"Invalid status value. Allowed: {', '.join(AccessRequestStatus.values)}"},
+                {
+                    "detail": f"Invalid status value. Allowed: {', '.join(AccessRequestStatus.values)}"
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -77,7 +84,10 @@ class AccessRequestApproveAPIView(BaseAPIView):
     def post(self, request, *args, **kwargs):
         access_request = get_object_or_404(AccessRequest.objects, pk=kwargs["pk"])
         if access_request.status != AccessRequestStatus.PENDING:
-            return Response({"detail": "Access request is already resolved."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"detail": "Access request is already resolved."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -118,7 +128,10 @@ class AccessRequestRejectAPIView(BaseAPIView):
     def post(self, request, *args, **kwargs):
         access_request = get_object_or_404(AccessRequest.objects, pk=kwargs["pk"])
         if access_request.status != AccessRequestStatus.PENDING:
-            return Response({"detail": "Access request is already resolved."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"detail": "Access request is already resolved."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         rejected = reject_access_request(access_request)
         output = AccessRequestSerializer(rejected).data

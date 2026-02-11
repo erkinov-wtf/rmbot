@@ -36,9 +36,15 @@ def log_ticket_transition(
 
 
 @transaction.atomic
-def assign_ticket(ticket: Ticket, technician_id: int, actor_user_id: int | None = None) -> Ticket:
+def assign_ticket(
+    ticket: Ticket, technician_id: int, actor_user_id: int | None = None
+) -> Ticket:
     from_status = ticket.status
-    if ticket.status not in (TicketStatus.NEW, TicketStatus.ASSIGNED, TicketStatus.REWORK):
+    if ticket.status not in (
+        TicketStatus.NEW,
+        TicketStatus.ASSIGNED,
+        TicketStatus.REWORK,
+    ):
         raise ValueError("Ticket cannot be assigned in current status.")
 
     ticket.technician_id = technician_id
@@ -207,7 +213,9 @@ def qc_fail_ticket(ticket: Ticket, actor_user_id: int | None = None) -> Ticket:
 
 def _accumulate_active_seconds(session: WorkSession, now_dt) -> None:
     if session.last_started_at:
-        elapsed_seconds = max(0, int((now_dt - session.last_started_at).total_seconds()))
+        elapsed_seconds = max(
+            0, int((now_dt - session.last_started_at).total_seconds())
+        )
         session.active_seconds += elapsed_seconds
 
 
@@ -244,12 +252,16 @@ def start_work_session(ticket: Ticket, actor_user_id: int) -> WorkSession:
 
 
 def _get_open_session_for_ticket(ticket: Ticket, actor_user_id: int) -> WorkSession:
-    session = WorkSession.objects.filter(
-        ticket=ticket,
-        technician_id=actor_user_id,
-        status__in=[WorkSessionStatus.RUNNING, WorkSessionStatus.PAUSED],
-        deleted_at__isnull=True,
-    ).order_by("-created_at").first()
+    session = (
+        WorkSession.objects.filter(
+            ticket=ticket,
+            technician_id=actor_user_id,
+            status__in=[WorkSessionStatus.RUNNING, WorkSessionStatus.PAUSED],
+            deleted_at__isnull=True,
+        )
+        .order_by("-created_at")
+        .first()
+    )
     if not session:
         raise ValueError("No active work session found for this ticket and technician.")
     return session
@@ -288,10 +300,14 @@ def stop_work_session(ticket: Ticket, actor_user_id: int) -> WorkSession:
     if session.status == WorkSessionStatus.RUNNING:
         _accumulate_active_seconds(session, now_dt)
     elif session.status != WorkSessionStatus.PAUSED:
-        raise ValueError("Work session can be stopped only from RUNNING or PAUSED state.")
+        raise ValueError(
+            "Work session can be stopped only from RUNNING or PAUSED state."
+        )
 
     session.status = WorkSessionStatus.STOPPED
     session.last_started_at = None
     session.ended_at = now_dt
-    session.save(update_fields=["active_seconds", "status", "last_started_at", "ended_at"])
+    session.save(
+        update_fields=["active_seconds", "status", "last_started_at", "ended_at"]
+    )
     return session

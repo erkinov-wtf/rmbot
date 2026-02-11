@@ -16,6 +16,17 @@ Install dev dependencies first:
 uv sync --group dev
 ```
 
+## Black + Ruff via pre-commit
+Install git hooks:
+```
+uv run pre-commit install
+```
+
+Run hooks on all files:
+```
+uv run pre-commit run --all-files
+```
+
 Run tests with pytest:
 ```
 uv run pytest

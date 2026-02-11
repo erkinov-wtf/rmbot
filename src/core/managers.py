@@ -1,5 +1,6 @@
 from django.db.models import Manager
 
+
 class SoftDeleteManager(Manager):
     """Manager that filters out soft-deleted objects by default."""
 

@@ -1,10 +1,9 @@
 from django.contrib.auth.base_user import AbstractBaseUser
 from django.db import models
 
-from core.models import TimestampedModel, SoftDeleteModel
-from core.utils.constants import AccessRequestStatus, EmployeeLevel, RoleSlug
-
 from account import managers
+from core.models import SoftDeleteModel, TimestampedModel
+from core.utils.constants import AccessRequestStatus, EmployeeLevel, RoleSlug
 
 
 class Role(TimestampedModel, SoftDeleteModel):
@@ -16,7 +15,6 @@ class Role(TimestampedModel, SoftDeleteModel):
 
 
 class User(AbstractBaseUser, TimestampedModel, SoftDeleteModel):
-
     first_name = models.CharField(max_length=30)
     last_name = models.CharField(max_length=30, blank=True, null=True)
     patronymic = models.CharField(max_length=100, blank=True, null=True)
@@ -24,9 +22,13 @@ class User(AbstractBaseUser, TimestampedModel, SoftDeleteModel):
     username = models.CharField(max_length=150, unique=True)
     phone = models.CharField(max_length=15, unique=True, null=True, blank=True)
     email = models.EmailField(unique=True)
-    level = models.PositiveSmallIntegerField(choices=EmployeeLevel.choices, default=EmployeeLevel.L1, db_index=True)
+    level = models.PositiveSmallIntegerField(
+        choices=EmployeeLevel.choices, default=EmployeeLevel.L1, db_index=True
+    )
 
-    roles = models.ManyToManyField(Role, through="UserRole", related_name="users", blank=True)
+    roles = models.ManyToManyField(
+        Role, through="UserRole", related_name="users", blank=True
+    )
 
     # For Django Admin
     is_staff = models.BooleanField(default=False)
@@ -71,7 +73,13 @@ class UserRole(TimestampedModel, SoftDeleteModel):
 
 
 class TelegramProfile(TimestampedModel, SoftDeleteModel):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="telegram_profiles", null=True, blank=True)
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="telegram_profiles",
+        null=True,
+        blank=True,
+    )
     telegram_id = models.BigIntegerField(unique=True, db_index=True)
     username = models.CharField(max_length=32, blank=True, null=True)
     first_name = models.CharField(max_length=255, blank=True, null=True)
@@ -93,9 +101,18 @@ class AccessRequest(TimestampedModel, SoftDeleteModel):
     phone = models.CharField(max_length=15, blank=True, null=True)
     note = models.TextField(blank=True, null=True)
     status = models.CharField(
-        max_length=20, choices=AccessRequestStatus.choices, default=AccessRequestStatus.PENDING, db_index=True
+        max_length=20,
+        choices=AccessRequestStatus.choices,
+        default=AccessRequestStatus.PENDING,
+        db_index=True,
     )
-    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="access_requests")
+    user = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="access_requests",
+    )
     resolved_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:

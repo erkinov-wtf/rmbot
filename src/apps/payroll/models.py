@@ -47,8 +47,12 @@ class PayrollMonthly(TimestampedModel):
 
 
 class PayrollMonthlyLine(TimestampedModel):
-    payroll_monthly = models.ForeignKey(PayrollMonthly, on_delete=models.CASCADE, related_name="lines")
-    user = models.ForeignKey("account.User", on_delete=models.PROTECT, related_name="payroll_monthly_lines")
+    payroll_monthly = models.ForeignKey(
+        PayrollMonthly, on_delete=models.CASCADE, related_name="lines"
+    )
+    user = models.ForeignKey(
+        "account.User", on_delete=models.PROTECT, related_name="payroll_monthly_lines"
+    )
     level = models.PositiveSmallIntegerField(choices=EmployeeLevel.choices)
 
     raw_xp = models.IntegerField(default=0)

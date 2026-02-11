@@ -1,6 +1,5 @@
 from functools import reduce
 from operator import or_
-from typing import List, Optional
 
 from django.core.exceptions import ValidationError
 from django.db import models, router, transaction
@@ -8,8 +7,8 @@ from django.db.models.deletion import CASCADE, Collector
 from django.db.models.fields.reverse_related import ForeignObjectRel
 from django.db.models.query import QuerySet
 from django.db.models.sql.subqueries import UpdateQuery
-from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
 
 from core.managers import SoftDeleteManager
 from core.utils.deletion import SOFT_DELETE_CASCADE
@@ -23,8 +22,12 @@ class BaseModel(models.Model):
 
 
 class TimestampedModel(BaseModel):
-    created_at = models.DateTimeField(auto_now_add=True, db_index=True, verbose_name=_("Created At"))
-    updated_at = models.DateTimeField(auto_now=True, db_index=True, verbose_name=_("Updated At"))
+    created_at = models.DateTimeField(
+        auto_now_add=True, db_index=True, verbose_name=_("Created At")
+    )
+    updated_at = models.DateTimeField(
+        auto_now=True, db_index=True, verbose_name=_("Updated At")
+    )
 
     class Meta:
         abstract = True
@@ -32,10 +35,14 @@ class TimestampedModel(BaseModel):
 
 class AppendOnlyQuerySet(models.QuerySet):
     def update(self, **kwargs):
-        raise ValidationError(_("Append-only records cannot be updated. Create a reversal entry instead."))
+        raise ValidationError(
+            _("Append-only records cannot be updated. Create a reversal entry instead.")
+        )
 
     def delete(self):
-        raise ValidationError(_("Append-only records cannot be deleted. Create a reversal entry instead."))
+        raise ValidationError(
+            _("Append-only records cannot be deleted. Create a reversal entry instead.")
+        )
 
 
 class AppendOnlyManager(models.Manager.from_queryset(AppendOnlyQuerySet)):
@@ -51,15 +58,23 @@ class AppendOnlyModel(TimestampedModel):
 
     def save(self, *args, **kwargs):
         if not self._state.adding:
-            raise ValidationError(_("Append-only records cannot be updated. Create a reversal entry instead."))
+            raise ValidationError(
+                _(
+                    "Append-only records cannot be updated. Create a reversal entry instead."
+                )
+            )
         return super().save(*args, **kwargs)
 
-    def delete(self, using: Optional[str] = None, keep_parents: bool = False):
-        raise ValidationError(_("Append-only records cannot be deleted. Create a reversal entry instead."))
+    def delete(self, using: str | None = None, keep_parents: bool = False):
+        raise ValidationError(
+            _("Append-only records cannot be deleted. Create a reversal entry instead.")
+        )
 
 
 class SoftDeleteModel(BaseModel):
-    deleted_at = models.DateTimeField(null=True, blank=True, db_index=True, verbose_name=_("Deleted At"))
+    deleted_at = models.DateTimeField(
+        null=True, blank=True, db_index=True, verbose_name=_("Deleted At")
+    )
 
     objects = SoftDeleteManager()
     all_objects = models.Manager()
@@ -69,7 +84,7 @@ class SoftDeleteModel(BaseModel):
         """Return whether the object is soft-deleted."""
         return self.deleted_at is not None
 
-    def delete(self, using: Optional[str] = None, keep_parents: bool = False) -> None:
+    def delete(self, using: str | None = None, keep_parents: bool = False) -> None:
         """
         Soft delete the object by setting the deleted_at timestamp.
         """
@@ -77,7 +92,7 @@ class SoftDeleteModel(BaseModel):
         self.deleted_at = timezone.now()
         self.save(update_fields=["deleted_at"])
 
-    def hard_delete(self, using: Optional[str] = None, keep_parents: bool = False) -> None:
+    def hard_delete(self, using: str | None = None, keep_parents: bool = False) -> None:
         """
         Permanently delete the object from the database.
         """
@@ -93,7 +108,9 @@ class SoftDeleteModel(BaseModel):
     class Meta:
         abstract = True
 
-    def _perform_on_delete(self, using: Optional[str] = None, keep_parents: bool = False) -> None:
+    def _perform_on_delete(
+        self, using: str | None = None, keep_parents: bool = False
+    ) -> None:
         """
         Manually trigger relation field on_delete actions when soft deleting.
 
@@ -107,7 +124,7 @@ class SoftDeleteModel(BaseModel):
             keep_parents: Whether to keep parent models when deleting
         """
         # Temporarily replace CASCADE actions with our custom SOFT_DELETE_CASCADE
-        cascade_fields: List[ForeignObjectRel] = []
+        cascade_fields: list[ForeignObjectRel] = []
         for field in self._meta.get_fields():
             if isinstance(field, ForeignObjectRel) and field.on_delete == CASCADE:
                 cascade_fields.append(field)
@@ -130,7 +147,10 @@ class SoftDeleteModel(BaseModel):
                     updates = []
                     objs = []
                     for instances in instances_list:
-                        if isinstance(instances, QuerySet) and instances._result_cache is None:
+                        if (
+                            isinstance(instances, QuerySet)
+                            and instances._result_cache is None
+                        ):
                             updates.append(instances)
                         else:
                             objs.extend(instances)

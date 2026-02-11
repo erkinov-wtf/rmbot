@@ -3,7 +3,6 @@ import pytest
 from bike.models import Bike
 from core.utils.constants import RoleSlug
 
-
 pytestmark = pytest.mark.django_db
 
 

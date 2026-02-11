@@ -4,7 +4,6 @@ from attendance.models import AttendanceRecord
 from core.utils.constants import XPLedgerEntryType
 from gamification.models import XPLedger
 
-
 pytestmark = pytest.mark.django_db
 
 

@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from account.models import User, Role, TelegramProfile, AccessRequest
+from account.models import AccessRequest, Role, TelegramProfile, User
 from core.admin import BaseModelAdmin
 
 
@@ -21,13 +21,28 @@ class RoleAdmin(BaseModelAdmin):
 
 @admin.register(TelegramProfile)
 class TelegramProfileAdmin(BaseModelAdmin):
-    list_display = ("id", "telegram_id", "username", "user", "verified_at", "created_at")
+    list_display = (
+        "id",
+        "telegram_id",
+        "username",
+        "user",
+        "verified_at",
+        "created_at",
+    )
     search_fields = ("telegram_id", "username")
     list_filter = ("verified_at",)
 
 
 @admin.register(AccessRequest)
 class AccessRequestAdmin(BaseModelAdmin):
-    list_display = ("id", "telegram_id", "username", "status", "user", "created_at", "resolved_at")
+    list_display = (
+        "id",
+        "telegram_id",
+        "username",
+        "status",
+        "user",
+        "created_at",
+        "resolved_at",
+    )
     search_fields = ("telegram_id", "username", "first_name", "last_name")
     list_filter = ("status",)

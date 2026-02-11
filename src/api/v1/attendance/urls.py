@@ -1,6 +1,10 @@
 from django.urls import path
 
-from api.v1.attendance.views import AttendanceCheckInAPIView, AttendanceCheckOutAPIView, AttendanceTodayAPIView
+from api.v1.attendance.views import (
+    AttendanceCheckInAPIView,
+    AttendanceCheckOutAPIView,
+    AttendanceTodayAPIView,
+)
 
 app_name = "attendance"
 

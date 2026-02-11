@@ -10,7 +10,6 @@ from rules.models import RulesConfigVersion
 from rules.services import get_active_rules_config
 from ticket.services import qc_pass_ticket
 
-
 pytestmark = pytest.mark.django_db
 
 
@@ -72,7 +71,9 @@ def test_permissions_for_config_mutation(authed_client_factory, rules_context):
     forbidden = ops_client.put(RULES_CONFIG_URL, {"config": mutated}, format="json")
     assert forbidden.status_code == 403
 
-    allowed = super_admin_client.put(RULES_CONFIG_URL, {"config": mutated, "reason": "Tune divisor"}, format="json")
+    allowed = super_admin_client.put(
+        RULES_CONFIG_URL, {"config": mutated, "reason": "Tune divisor"}, format="json"
+    )
     assert allowed.status_code == 200
     assert allowed.data["data"]["active_version"] == 2
 
@@ -90,7 +91,11 @@ def test_update_changes_cache_key_and_history(authed_client_factory, rules_conte
             "first_pass_bonus": 2,
         },
     }
-    after_resp = client.put(RULES_CONFIG_URL, {"config": updated, "reason": "More aggressive XP"}, format="json")
+    after_resp = client.put(
+        RULES_CONFIG_URL,
+        {"config": updated, "reason": "More aggressive XP"},
+        format="json",
+    )
     assert after_resp.status_code == 200
 
     after = after_resp.data["data"]
@@ -113,12 +118,18 @@ def test_rollback_restores_previous_version(authed_client_factory, rules_context
     base = client.get(RULES_CONFIG_URL).data["data"]["config"]
 
     cfg_v2 = {**base, "payroll": {**base["payroll"], "bonus_rate": 4500}}
-    resp_v2 = client.put(RULES_CONFIG_URL, {"config": cfg_v2, "reason": "Raise bonus rate"}, format="json")
+    resp_v2 = client.put(
+        RULES_CONFIG_URL,
+        {"config": cfg_v2, "reason": "Raise bonus rate"},
+        format="json",
+    )
     assert resp_v2.status_code == 200
     assert resp_v2.data["data"]["active_version"] == 2
 
     cfg_v3 = {**cfg_v2, "payroll": {**cfg_v2["payroll"], "bonus_rate": 5000}}
-    resp_v3 = client.put(RULES_CONFIG_URL, {"config": cfg_v3, "reason": "Raise again"}, format="json")
+    resp_v3 = client.put(
+        RULES_CONFIG_URL, {"config": cfg_v3, "reason": "Raise again"}, format="json"
+    )
     assert resp_v3.status_code == 200
     assert resp_v3.data["data"]["active_version"] == 3
 
@@ -167,7 +178,9 @@ def test_invalid_config_rejected(authed_client_factory, rules_context):
     assert resp.data["success"] is False
 
 
-def test_ticket_xp_formula_uses_active_rules(rules_context, bike_factory, ticket_factory, user_factory):
+def test_ticket_xp_formula_uses_active_rules(
+    rules_context, bike_factory, ticket_factory, user_factory
+):
     actor = rules_context["super_admin"]
     current = get_active_rules_config()
     current["ticket_xp"]["base_divisor"] = 10
@@ -175,7 +188,9 @@ def test_ticket_xp_formula_uses_active_rules(rules_context, bike_factory, ticket
 
     from rules.services import update_rules_config
 
-    update_rules_config(config=current, actor_user_id=actor.id, reason="Formula override")
+    update_rules_config(
+        config=current, actor_user_id=actor.id, reason="Formula override"
+    )
 
     technician = user_factory(
         username="rules_xp_tech",
@@ -195,12 +210,16 @@ def test_ticket_xp_formula_uses_active_rules(rules_context, bike_factory, ticket
     qc_pass_ticket(ticket=ticket, actor_user_id=actor.id)
 
     base_entry = XPLedger.objects.get(reference=f"ticket_base_xp:{ticket.id}")
-    bonus_entry = XPLedger.objects.get(reference=f"ticket_qc_first_pass_bonus:{ticket.id}")
+    bonus_entry = XPLedger.objects.get(
+        reference=f"ticket_qc_first_pass_bonus:{ticket.id}"
+    )
     assert base_entry.amount == 5  # ceil(45/10)
     assert bonus_entry.amount == 2
 
 
-def test_payroll_formula_uses_active_rules(authed_client_factory, rules_context, user_factory):
+def test_payroll_formula_uses_active_rules(
+    authed_client_factory, rules_context, user_factory
+):
     actor = rules_context["super_admin"]
     current = get_active_rules_config()
     current["payroll"]["bonus_rate"] = 100
@@ -210,7 +229,9 @@ def test_payroll_formula_uses_active_rules(authed_client_factory, rules_context,
 
     from rules.services import update_rules_config
 
-    update_rules_config(config=current, actor_user_id=actor.id, reason="Payroll override")
+    update_rules_config(
+        config=current, actor_user_id=actor.id, reason="Payroll override"
+    )
 
     tech = user_factory(
         username="rules_payroll_l1",

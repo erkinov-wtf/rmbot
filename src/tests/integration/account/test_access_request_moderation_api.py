@@ -3,7 +3,6 @@ import pytest
 from account.models import AccessRequest, TelegramProfile, User
 from core.utils.constants import AccessRequestStatus, RoleSlug
 
-
 pytestmark = pytest.mark.django_db
 
 
@@ -81,7 +80,9 @@ def test_approve_links_profile_and_assigns_roles(
     assert target_user.roles.filter(slug=RoleSlug.TECHNICIAN).exists()
 
 
-def test_approve_can_create_user_and_link(authed_client_factory, moderation_context, role_factory):
+def test_approve_can_create_user_and_link(
+    authed_client_factory, moderation_context, role_factory
+):
     client = authed_client_factory(moderation_context["moderator"])
     pending = moderation_context["pending"]
     role_factory(RoleSlug.TECHNICIAN, name="Technician")
@@ -111,7 +112,9 @@ def test_approve_can_create_user_and_link(authed_client_factory, moderation_cont
     assert created_user.roles.filter(slug=RoleSlug.TECHNICIAN).exists()
 
 
-def test_approve_requires_user_reference_or_payload(authed_client_factory, moderation_context, role_factory):
+def test_approve_requires_user_reference_or_payload(
+    authed_client_factory, moderation_context, role_factory
+):
     client = authed_client_factory(moderation_context["moderator"])
     pending = moderation_context["pending"]
     role_factory(RoleSlug.TECHNICIAN, name="Technician")
@@ -131,7 +134,9 @@ def test_reject_marks_request_as_rejected(authed_client_factory, moderation_cont
     client = authed_client_factory(moderation_context["moderator"])
     pending = moderation_context["pending"]
 
-    resp = client.post(f"/api/v1/users/access-requests/{pending.id}/reject/", {}, format="json")
+    resp = client.post(
+        f"/api/v1/users/access-requests/{pending.id}/reject/", {}, format="json"
+    )
 
     assert resp.status_code == 200
     pending.refresh_from_db()
