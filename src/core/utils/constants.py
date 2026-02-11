@@ -10,6 +10,14 @@ class RoleSlug(models.TextChoices):
     QC_INSPECTOR = "qc_inspector", _("QC Inspector")
 
 
+class EmployeeLevel(models.IntegerChoices):
+    L1 = 1, _("L1")
+    L2 = 2, _("L2")
+    L3 = 3, _("L3")
+    L4 = 4, _("L4")
+    L5 = 5, _("L5")
+
+
 class AccessRequestStatus(models.TextChoices):
     PENDING = "pending", _("Pending")
     APPROVED = "approved", _("Approved")
@@ -52,3 +60,9 @@ class XPLedgerEntryType(models.TextChoices):
     ATTENDANCE_PUNCTUALITY = "attendance_punctuality", _("Attendance Punctuality")
     TICKET_BASE_XP = "ticket_base_xp", _("Ticket Base XP")
     TICKET_QC_FIRST_PASS_BONUS = "ticket_qc_first_pass_bonus", _("Ticket QC First Pass Bonus")
+
+
+class PayrollMonthStatus(models.TextChoices):
+    DRAFT = "draft", _("Draft")
+    CLOSED = "closed", _("Closed")
+    APPROVED = "approved", _("Approved")

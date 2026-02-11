@@ -2,7 +2,7 @@ from django.contrib.auth.base_user import AbstractBaseUser
 from django.db import models
 
 from core.models import TimestampedModel, SoftDeleteModel
-from core.utils.constants import RoleSlug, AccessRequestStatus
+from core.utils.constants import AccessRequestStatus, EmployeeLevel, RoleSlug
 
 from account import managers
 
@@ -24,6 +24,7 @@ class User(AbstractBaseUser, TimestampedModel, SoftDeleteModel):
     username = models.CharField(max_length=150, unique=True)
     phone = models.CharField(max_length=15, unique=True, null=True, blank=True)
     email = models.EmailField(unique=True)
+    level = models.PositiveSmallIntegerField(choices=EmployeeLevel.choices, default=EmployeeLevel.L1, db_index=True)
 
     roles = models.ManyToManyField(Role, through="UserRole", related_name="users", blank=True)
 

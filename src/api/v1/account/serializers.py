@@ -39,6 +39,7 @@ class UserSerializer(serializers.ModelSerializer):
             "username",
             "email",
             "phone",
+            "level",
             "roles",
             "telegram",
             "created_at",

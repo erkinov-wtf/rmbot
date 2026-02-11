@@ -68,6 +68,7 @@ LOCAL_APPS = [
     "bike",
     "core",
     "gamification",
+    "payroll",
     "api",
     "bot",
     "ticket",
