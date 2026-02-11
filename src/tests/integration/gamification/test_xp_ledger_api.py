@@ -1,108 +1,112 @@
-from django.test import TestCase
-from rest_framework.test import APIClient
+import pytest
 
-from account.models import Role, User
 from core.utils.constants import RoleSlug, XPLedgerEntryType
 from gamification.models import XPLedger
 
 
-class XPLedgerAPITests(TestCase):
-    def setUp(self):
-        self.client = APIClient()
-        self.url = "/api/v1/xp/ledger/"
+pytestmark = pytest.mark.django_db
 
-        self.tech_one = User.objects.create_user(
-            username="xp_api_tech_one",
-            password="pass1234",
-            first_name="Tech One",
-            email="xp_api_tech_one@example.com",
-        )
-        self.tech_two = User.objects.create_user(
-            username="xp_api_tech_two",
-            password="pass1234",
-            first_name="Tech Two",
-            email="xp_api_tech_two@example.com",
-        )
-        self.ops = User.objects.create_user(
-            username="xp_api_ops",
-            password="pass1234",
-            first_name="Ops",
-            email="xp_api_ops@example.com",
-        )
 
-        ops_role, _ = Role.objects.update_or_create(
-            slug=RoleSlug.OPS_MANAGER,
-            defaults={"name": "Ops Manager"},
-        )
-        self.ops.roles.add(ops_role)
+LEDGER_URL = "/api/v1/xp/ledger/"
 
-        XPLedger.objects.create(
-            user=self.tech_one,
-            amount=3,
-            entry_type=XPLedgerEntryType.TICKET_BASE_XP,
-            reference="ticket_base_xp:101",
-            payload={"ticket_id": 101},
-        )
-        XPLedger.objects.create(
-            user=self.tech_one,
-            amount=1,
-            entry_type=XPLedgerEntryType.TICKET_QC_FIRST_PASS_BONUS,
-            reference="ticket_qc_first_pass_bonus:101",
-            payload={"ticket_id": 101},
-        )
-        XPLedger.objects.create(
-            user=self.tech_one,
-            amount=2,
-            entry_type=XPLedgerEntryType.ATTENDANCE_PUNCTUALITY,
-            reference="attendance_checkin:tech_one:2026-02-11",
-            payload={},
-        )
-        XPLedger.objects.create(
-            user=self.tech_two,
-            amount=4,
-            entry_type=XPLedgerEntryType.TICKET_BASE_XP,
-            reference="ticket_base_xp:202",
-            payload={"ticket_id": 202},
-        )
 
-    def test_regular_user_sees_only_own_entries(self):
-        self.client.force_authenticate(user=self.tech_one)
-        resp = self.client.get(self.url)
-        self.assertEqual(resp.status_code, 200)
+@pytest.fixture
+def ledger_context(user_factory, assign_roles):
+    tech_one = user_factory(
+        username="xp_api_tech_one",
+        first_name="Tech One",
+        email="xp_api_tech_one@example.com",
+    )
+    tech_two = user_factory(
+        username="xp_api_tech_two",
+        first_name="Tech Two",
+        email="xp_api_tech_two@example.com",
+    )
+    ops = user_factory(
+        username="xp_api_ops",
+        first_name="Ops",
+        email="xp_api_ops@example.com",
+    )
+    assign_roles(ops, RoleSlug.OPS_MANAGER)
 
-        entries = resp.data["data"]
-        self.assertEqual(len(entries), 3)
-        self.assertTrue(all(item["user"] == self.tech_one.id for item in entries))
+    XPLedger.objects.create(
+        user=tech_one,
+        amount=3,
+        entry_type=XPLedgerEntryType.TICKET_BASE_XP,
+        reference="ticket_base_xp:101",
+        payload={"ticket_id": 101},
+    )
+    XPLedger.objects.create(
+        user=tech_one,
+        amount=1,
+        entry_type=XPLedgerEntryType.TICKET_QC_FIRST_PASS_BONUS,
+        reference="ticket_qc_first_pass_bonus:101",
+        payload={"ticket_id": 101},
+    )
+    XPLedger.objects.create(
+        user=tech_one,
+        amount=2,
+        entry_type=XPLedgerEntryType.ATTENDANCE_PUNCTUALITY,
+        reference="attendance_checkin:tech_one:2026-02-11",
+        payload={},
+    )
+    XPLedger.objects.create(
+        user=tech_two,
+        amount=4,
+        entry_type=XPLedgerEntryType.TICKET_BASE_XP,
+        reference="ticket_base_xp:202",
+        payload={"ticket_id": 202},
+    )
 
-    def test_regular_user_cannot_read_other_user_entries(self):
-        self.client.force_authenticate(user=self.tech_one)
-        resp = self.client.get(f"{self.url}?user_id={self.tech_two.id}")
-        self.assertEqual(resp.status_code, 403)
-        self.assertFalse(resp.data["success"])
+    return {
+        "tech_one": tech_one,
+        "tech_two": tech_two,
+        "ops": ops,
+    }
 
-    def test_ops_can_filter_by_user_and_ticket(self):
-        self.client.force_authenticate(user=self.ops)
 
-        by_user = self.client.get(f"{self.url}?user_id={self.tech_two.id}")
-        self.assertEqual(by_user.status_code, 200)
-        self.assertEqual(len(by_user.data["data"]), 1)
-        self.assertEqual(by_user.data["data"][0]["user"], self.tech_two.id)
+def test_regular_user_sees_only_own_entries(authed_client_factory, ledger_context):
+    client = authed_client_factory(ledger_context["tech_one"])
+    resp = client.get(LEDGER_URL)
 
-        by_ticket = self.client.get(f"{self.url}?user_id={self.tech_one.id}&ticket_id=101")
-        self.assertEqual(by_ticket.status_code, 200)
-        self.assertEqual(len(by_ticket.data["data"]), 2)
-        refs = {item["reference"] for item in by_ticket.data["data"]}
-        self.assertIn("ticket_base_xp:101", refs)
-        self.assertIn("ticket_qc_first_pass_bonus:101", refs)
+    assert resp.status_code == 200
+    entries = resp.data["data"]
+    assert len(entries) == 3
+    assert all(item["user"] == ledger_context["tech_one"].id for item in entries)
 
-    def test_invalid_filters_return_400(self):
-        self.client.force_authenticate(user=self.ops)
 
-        invalid_limit = self.client.get(f"{self.url}?limit=abc")
-        self.assertEqual(invalid_limit.status_code, 400)
+def test_regular_user_cannot_read_other_user_entries(authed_client_factory, ledger_context):
+    client = authed_client_factory(ledger_context["tech_one"])
+    resp = client.get(f"{LEDGER_URL}?user_id={ledger_context['tech_two'].id}")
 
-        invalid_ticket = self.client.get(f"{self.url}?ticket_id=-1")
-        self.assertEqual(invalid_ticket.status_code, 400)
+    assert resp.status_code == 403
+    assert resp.data["success"] is False
 
-        invalid_entry_type = self.client.get(f"{self.url}?entry_type=unknown_entry")
-        self.assertEqual(invalid_entry_type.status_code, 400)
+
+def test_ops_can_filter_by_user_and_ticket(authed_client_factory, ledger_context):
+    client = authed_client_factory(ledger_context["ops"])
+
+    by_user = client.get(f"{LEDGER_URL}?user_id={ledger_context['tech_two'].id}")
+    assert by_user.status_code == 200
+    assert len(by_user.data["data"]) == 1
+    assert by_user.data["data"][0]["user"] == ledger_context["tech_two"].id
+
+    by_ticket = client.get(f"{LEDGER_URL}?user_id={ledger_context['tech_one'].id}&ticket_id=101")
+    assert by_ticket.status_code == 200
+    assert len(by_ticket.data["data"]) == 2
+    refs = {item["reference"] for item in by_ticket.data["data"]}
+    assert "ticket_base_xp:101" in refs
+    assert "ticket_qc_first_pass_bonus:101" in refs
+
+
+def test_invalid_filters_return_400(authed_client_factory, ledger_context):
+    client = authed_client_factory(ledger_context["ops"])
+
+    invalid_limit = client.get(f"{LEDGER_URL}?limit=abc")
+    assert invalid_limit.status_code == 400
+
+    invalid_ticket = client.get(f"{LEDGER_URL}?ticket_id=-1")
+    assert invalid_ticket.status_code == 400
+
+    invalid_entry_type = client.get(f"{LEDGER_URL}?entry_type=unknown_entry")
+    assert invalid_entry_type.status_code == 400

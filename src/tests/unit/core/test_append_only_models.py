@@ -1,75 +1,81 @@
+import pytest
 from django.core.exceptions import ValidationError
-from django.test import TestCase
 
-from account.models import User
-from bike.models import Bike
 from core.utils.constants import TicketStatus, TicketTransitionAction, XPLedgerEntryType
 from gamification.models import XPLedger
-from ticket.models import Ticket, TicketTransition
+from ticket.models import TicketTransition
 
 
-class AppendOnlyModelTests(TestCase):
-    def setUp(self):
-        self.user = User.objects.create_user(
-            username="append_only_user",
-            password="pass1234",
-            first_name="Append",
-            email="append_only_user@example.com",
-        )
-        self.bike = Bike.objects.create(bike_code="RM-APP-0001")
-        self.ticket = Ticket.objects.create(
-            bike=self.bike,
-            master=self.user,
-            technician=self.user,
-            status=TicketStatus.DONE,
-            title="Append-only ticket",
-        )
+pytestmark = pytest.mark.django_db
 
-    def test_xp_ledger_is_append_only(self):
-        entry = XPLedger.objects.create(
-            user=self.user,
-            amount=2,
-            entry_type=XPLedgerEntryType.ATTENDANCE_PUNCTUALITY,
-            reference="append-only-xp-entry",
-            payload={},
-        )
 
-        entry.amount = 10
-        with self.assertRaises(ValidationError):
-            entry.save()
+@pytest.fixture
+def append_only_context(user_factory, bike_factory, ticket_factory):
+    user = user_factory(
+        username="append_only_user",
+        first_name="Append",
+        email="append_only_user@example.com",
+    )
+    bike = bike_factory(bike_code="RM-APP-0001")
+    ticket = ticket_factory(
+        bike=bike,
+        master=user,
+        technician=user,
+        status=TicketStatus.DONE,
+        title="Append-only ticket",
+    )
+    return {
+        "user": user,
+        "ticket": ticket,
+    }
 
-        with self.assertRaises(ValidationError):
-            XPLedger.objects.filter(pk=entry.pk).update(amount=99)
 
-        with self.assertRaises(ValidationError):
-            entry.delete()
+def test_xp_ledger_is_append_only(append_only_context):
+    entry = XPLedger.objects.create(
+        user=append_only_context["user"],
+        amount=2,
+        entry_type=XPLedgerEntryType.ATTENDANCE_PUNCTUALITY,
+        reference="append-only-xp-entry",
+        payload={},
+    )
 
-        with self.assertRaises(ValidationError):
-            XPLedger.objects.filter(pk=entry.pk).delete()
+    entry.amount = 10
+    with pytest.raises(ValidationError):
+        entry.save()
 
-        self.assertEqual(XPLedger.objects.filter(pk=entry.pk).count(), 1)
+    with pytest.raises(ValidationError):
+        XPLedger.objects.filter(pk=entry.pk).update(amount=99)
 
-    def test_ticket_transition_is_append_only(self):
-        transition = TicketTransition.objects.create(
-            ticket=self.ticket,
-            from_status=TicketStatus.WAITING_QC,
-            to_status=TicketStatus.DONE,
-            action=TicketTransitionAction.QC_PASS,
-            actor=self.user,
-            metadata={"source": "test"},
-        )
+    with pytest.raises(ValidationError):
+        entry.delete()
 
-        transition.note = "mutate"
-        with self.assertRaises(ValidationError):
-            transition.save()
+    with pytest.raises(ValidationError):
+        XPLedger.objects.filter(pk=entry.pk).delete()
 
-        with self.assertRaises(ValidationError):
-            TicketTransition.objects.filter(pk=transition.pk).update(note="mutate")
+    assert XPLedger.objects.filter(pk=entry.pk).count() == 1
 
-        with self.assertRaises(ValidationError):
-            transition.delete()
 
-        with self.assertRaises(ValidationError):
-            TicketTransition.objects.filter(pk=transition.pk).delete()
+def test_ticket_transition_is_append_only(append_only_context):
+    transition = TicketTransition.objects.create(
+        ticket=append_only_context["ticket"],
+        from_status=TicketStatus.WAITING_QC,
+        to_status=TicketStatus.DONE,
+        action=TicketTransitionAction.QC_PASS,
+        actor=append_only_context["user"],
+        metadata={"source": "test"},
+    )
 
-        self.assertEqual(TicketTransition.objects.filter(pk=transition.pk).count(), 1)
+    transition.note = "mutate"
+    with pytest.raises(ValidationError):
+        transition.save()
+
+    with pytest.raises(ValidationError):
+        TicketTransition.objects.filter(pk=transition.pk).update(note="mutate")
+
+    with pytest.raises(ValidationError):
+        transition.delete()
+
+    with pytest.raises(ValidationError):
+        TicketTransition.objects.filter(pk=transition.pk).delete()
+
+    assert TicketTransition.objects.filter(pk=transition.pk).count() == 1

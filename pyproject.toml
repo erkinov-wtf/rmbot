@@ -36,4 +36,27 @@ dev = [
     "django-debug-toolbar>=6.0.0",
     "django-extensions>=4.1",
     "django-query-counter>=0.4.1",
+    "pytest>=8.4.2",
+    "pytest-cov>=7.0.0",
+    "pytest-django>=4.11.1",
 ]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings.dev"
+pythonpath = ["src", "src/apps"]
+testpaths = ["src/tests"]
+python_files = ["test_*.py", "*_test.py"]
+addopts = "--cov --cov-report=term-missing --cov-report=xml --cov-report=html"
+
+[tool.coverage.run]
+branch = true
+source = ["src"]
+omit = [
+    "*/migrations/*",
+    "*/tests/*",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+precision = 2

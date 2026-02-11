@@ -1,13 +1,18 @@
-import hmac
 import hashlib
+import hmac
 import json
 import time
 from urllib.parse import urlencode
 
-from django.test import TestCase, override_settings
-from rest_framework.test import APIClient
+import pytest
 
-from account.models import TelegramProfile, User
+from account.models import TelegramProfile
+
+
+pytestmark = pytest.mark.django_db
+
+
+VERIFY_URL = "/api/v1/auth/tma/verify/"
 
 
 def build_init_data(bot_token: str, user_payload: dict) -> str:
@@ -21,70 +26,77 @@ def build_init_data(bot_token: str, user_payload: dict) -> str:
     return urlencode(data)
 
 
-@override_settings(BOT_TOKEN="TEST_BOT_TOKEN", LOGS_ROOT="/home/mehroj/PycharmProjects/RentMarket/logs")
-class TMAInitDataVerifyAPITests(TestCase):
-    def setUp(self):
-        self.client = APIClient()
-        self.url = "/api/v1/auth/tma/verify/"
-        self.user_payload = {
-            "id": 1111,
-            "username": "tguser",
-            "first_name": "TG",
-            "last_name": "User",
-            "language_code": "en",
-            "is_premium": False,
-            "is_bot": False,
-        }
+@pytest.fixture
+def tma_settings(settings):
+    settings.BOT_TOKEN = "TEST_BOT_TOKEN"
+    return settings
 
-    def test_returns_tokens_when_user_linked(self):
-        user = User.objects.create_user(
-            username="alice",
-            password="password",
-            first_name="Alice",
-            email="alice@example.com",
-        )
-        TelegramProfile.objects.create(
-            user=user,
-            telegram_id=self.user_payload["id"],
-            username=self.user_payload["username"],
-        )
 
-        init_data = build_init_data("TEST_BOT_TOKEN", self.user_payload)
-        resp = self.client.post(self.url, {"init_data": init_data}, format="json")
+@pytest.fixture
+def tg_user_payload():
+    return {
+        "id": 1111,
+        "username": "tguser",
+        "first_name": "TG",
+        "last_name": "User",
+        "language_code": "en",
+        "is_premium": False,
+        "is_bot": False,
+    }
 
-        self.assertEqual(resp.status_code, 200)
-        payload = resp.data["data"]
-        self.assertTrue(payload["user_exists"])
-        self.assertIn("access", payload)
-        self.assertIn("refresh", payload)
-        self.assertEqual(payload["user"]["id"], user.id)
 
-    def test_requires_access_when_no_linked_user(self):
-        init_data = build_init_data("TEST_BOT_TOKEN", self.user_payload)
-        resp = self.client.post(self.url, {"init_data": init_data}, format="json")
+def test_returns_tokens_when_user_linked(api_client, user_factory, tma_settings, tg_user_payload):
+    user = user_factory(
+        username="alice",
+        password="password",
+        first_name="Alice",
+        email="alice@example.com",
+    )
+    TelegramProfile.objects.create(
+        user=user,
+        telegram_id=tg_user_payload["id"],
+        username=tg_user_payload["username"],
+    )
 
-        self.assertEqual(resp.status_code, 200)
-        payload = resp.data["data"]
-        self.assertTrue(payload["valid"])
-        self.assertFalse(payload["user_exists"])
-        self.assertTrue(payload["needs_access_request"])
+    init_data = build_init_data("TEST_BOT_TOKEN", tg_user_payload)
+    resp = api_client.post(VERIFY_URL, {"init_data": init_data}, format="json")
 
-    def test_rejects_invalid_hash(self):
-        init_data = build_init_data("TEST_BOT_TOKEN", self.user_payload) + "tampered"
-        resp = self.client.post(self.url, {"init_data": init_data}, format="json")
+    assert resp.status_code == 200
+    payload = resp.data["data"]
+    assert payload["user_exists"] is True
+    assert "access" in payload
+    assert "refresh" in payload
+    assert payload["user"]["id"] == user.id
 
-        self.assertEqual(resp.status_code, 400)
-        self.assertFalse(resp.data["success"])
-        self.assertIn("hash", resp.data["error"]["detail"].lower())
 
-    def test_rejects_missing_user_id(self):
-        bad_payload = {
-            "username": "tguser",
-            "first_name": "TG",
-        }
-        init_data = build_init_data("TEST_BOT_TOKEN", bad_payload)
-        resp = self.client.post(self.url, {"init_data": init_data}, format="json")
+def test_requires_access_when_no_linked_user(api_client, tma_settings, tg_user_payload):
+    init_data = build_init_data("TEST_BOT_TOKEN", tg_user_payload)
+    resp = api_client.post(VERIFY_URL, {"init_data": init_data}, format="json")
 
-        self.assertEqual(resp.status_code, 400)
-        self.assertFalse(resp.data["success"])
-        self.assertIn("user.id", resp.data["error"]["detail"])
+    assert resp.status_code == 200
+    payload = resp.data["data"]
+    assert payload["valid"] is True
+    assert payload["user_exists"] is False
+    assert payload["needs_access_request"] is True
+
+
+def test_rejects_invalid_hash(api_client, tma_settings, tg_user_payload):
+    init_data = build_init_data("TEST_BOT_TOKEN", tg_user_payload) + "tampered"
+    resp = api_client.post(VERIFY_URL, {"init_data": init_data}, format="json")
+
+    assert resp.status_code == 400
+    assert resp.data["success"] is False
+    assert "hash" in resp.data["error"]["detail"].lower()
+
+
+def test_rejects_missing_user_id(api_client, tma_settings):
+    bad_payload = {
+        "username": "tguser",
+        "first_name": "TG",
+    }
+    init_data = build_init_data("TEST_BOT_TOKEN", bad_payload)
+    resp = api_client.post(VERIFY_URL, {"init_data": init_data}, format="json")
+
+    assert resp.status_code == 400
+    assert resp.data["success"] is False
+    assert "user.id" in resp.data["error"]["detail"]

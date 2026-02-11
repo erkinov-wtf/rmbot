@@ -1,81 +1,82 @@
-from django.test import TestCase
+import pytest
 
-from account.models import Role, User
-from bike.models import Bike
 from core.utils.constants import RoleSlug, TicketStatus, TicketTransitionAction, XPLedgerEntryType
 from gamification.models import XPLedger
-from ticket.models import Ticket, TicketTransition
+from ticket.models import TicketTransition
 from ticket.services import qc_fail_ticket, qc_pass_ticket
 
 
-class TicketXPLedgerTests(TestCase):
-    def setUp(self):
-        self.technician = User.objects.create_user(
-            username="xp_tech",
-            password="pass1234",
-            first_name="XP Tech",
-            email="xp_tech@example.com",
-        )
-        tech_role, _ = Role.objects.update_or_create(
-            slug=RoleSlug.TECHNICIAN,
-            defaults={"name": "Technician"},
-        )
-        self.technician.roles.add(tech_role)
+pytestmark = pytest.mark.django_db
 
-        self.master = User.objects.create_user(
-            username="xp_master",
-            password="pass1234",
-            first_name="XP Master",
-            email="xp_master@example.com",
-        )
-        self.bike = Bike.objects.create(bike_code="RM-XP-0001")
 
-    def _make_waiting_qc_ticket(self, *, srt_minutes: int = 45) -> Ticket:
-        return Ticket.objects.create(
-            bike=self.bike,
-            master=self.master,
-            technician=self.technician,
+@pytest.fixture
+def xp_ticket_context(user_factory, assign_roles, bike_factory, ticket_factory):
+    technician = user_factory(
+        username="xp_tech",
+        first_name="XP Tech",
+        email="xp_tech@example.com",
+    )
+    assign_roles(technician, RoleSlug.TECHNICIAN)
+
+    master = user_factory(
+        username="xp_master",
+        first_name="XP Master",
+        email="xp_master@example.com",
+    )
+    bike = bike_factory(bike_code="RM-XP-0001")
+
+    def _make_waiting_qc_ticket(srt_minutes: int = 45):
+        return ticket_factory(
+            bike=bike,
+            master=master,
+            technician=technician,
             status=TicketStatus.WAITING_QC,
             srt_total_minutes=srt_minutes,
             title="XP ticket",
         )
 
-    def test_qc_pass_awards_base_and_first_pass_bonus(self):
-        ticket = self._make_waiting_qc_ticket(srt_minutes=45)
+    return {
+        "technician": technician,
+        "master": master,
+        "make_waiting_qc_ticket": _make_waiting_qc_ticket,
+    }
 
-        qc_pass_ticket(ticket=ticket, actor_user_id=self.master.id)
 
-        entries = XPLedger.objects.filter(user=self.technician).order_by("entry_type")
-        self.assertEqual(entries.count(), 2)
-        base = entries.filter(entry_type=XPLedgerEntryType.TICKET_BASE_XP).first()
-        bonus = entries.filter(entry_type=XPLedgerEntryType.TICKET_QC_FIRST_PASS_BONUS).first()
-        self.assertIsNotNone(base)
-        self.assertIsNotNone(bonus)
-        self.assertEqual(base.amount, 3)  # ceil(45 / 20) = 3
-        self.assertEqual(bonus.amount, 1)
+def test_qc_pass_awards_base_and_first_pass_bonus(xp_ticket_context):
+    ticket = xp_ticket_context["make_waiting_qc_ticket"](45)
 
-    def test_qc_pass_after_rework_awards_base_without_first_pass_bonus(self):
-        ticket = self._make_waiting_qc_ticket(srt_minutes=21)
-        qc_fail_ticket(ticket=ticket, actor_user_id=self.master.id)
+    qc_pass_ticket(ticket=ticket, actor_user_id=xp_ticket_context["master"].id)
 
-        # Simulate rework completion back to waiting_qc
-        ticket.status = TicketStatus.WAITING_QC
-        ticket.save(update_fields=["status"])
-        qc_pass_ticket(ticket=ticket, actor_user_id=self.master.id)
+    entries = XPLedger.objects.filter(user=xp_ticket_context["technician"]).order_by("entry_type")
+    assert entries.count() == 2
+    base = entries.filter(entry_type=XPLedgerEntryType.TICKET_BASE_XP).first()
+    bonus = entries.filter(entry_type=XPLedgerEntryType.TICKET_QC_FIRST_PASS_BONUS).first()
+    assert base is not None
+    assert bonus is not None
+    assert base.amount == 3  # ceil(45 / 20) = 3
+    assert bonus.amount == 1
 
-        entries = XPLedger.objects.filter(user=self.technician)
-        self.assertEqual(entries.filter(entry_type=XPLedgerEntryType.TICKET_BASE_XP).count(), 1)
-        self.assertEqual(entries.filter(entry_type=XPLedgerEntryType.TICKET_QC_FIRST_PASS_BONUS).count(), 0)
-        self.assertEqual(entries.get(entry_type=XPLedgerEntryType.TICKET_BASE_XP).amount, 2)  # ceil(21 / 20)
 
-    def test_qc_pass_logs_transition_and_creates_base_reference(self):
-        ticket = self._make_waiting_qc_ticket(srt_minutes=40)
-        qc_pass_ticket(ticket=ticket, actor_user_id=self.master.id)
+def test_qc_pass_after_rework_awards_base_without_first_pass_bonus(xp_ticket_context):
+    ticket = xp_ticket_context["make_waiting_qc_ticket"](21)
+    qc_fail_ticket(ticket=ticket, actor_user_id=xp_ticket_context["master"].id)
 
-        self.assertTrue(
-            TicketTransition.objects.filter(
-                ticket=ticket,
-                action=TicketTransitionAction.QC_PASS,
-            ).exists()
-        )
-        self.assertEqual(XPLedger.objects.filter(reference=f"ticket_base_xp:{ticket.id}").count(), 1)
+    ticket.status = TicketStatus.WAITING_QC
+    ticket.save(update_fields=["status"])
+    qc_pass_ticket(ticket=ticket, actor_user_id=xp_ticket_context["master"].id)
+
+    entries = XPLedger.objects.filter(user=xp_ticket_context["technician"])
+    assert entries.filter(entry_type=XPLedgerEntryType.TICKET_BASE_XP).count() == 1
+    assert entries.filter(entry_type=XPLedgerEntryType.TICKET_QC_FIRST_PASS_BONUS).count() == 0
+    assert entries.get(entry_type=XPLedgerEntryType.TICKET_BASE_XP).amount == 2  # ceil(21 / 20)
+
+
+def test_qc_pass_logs_transition_and_creates_base_reference(xp_ticket_context):
+    ticket = xp_ticket_context["make_waiting_qc_ticket"](40)
+    qc_pass_ticket(ticket=ticket, actor_user_id=xp_ticket_context["master"].id)
+
+    assert TicketTransition.objects.filter(
+        ticket=ticket,
+        action=TicketTransitionAction.QC_PASS,
+    ).exists()
+    assert XPLedger.objects.filter(reference=f"ticket_base_xp:{ticket.id}").count() == 1

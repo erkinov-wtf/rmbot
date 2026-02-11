@@ -4,7 +4,7 @@ import json
 import time
 from urllib.parse import urlencode
 
-from django.test import SimpleTestCase
+import pytest
 
 from core.utils.telegram import InitDataValidationError, validate_init_data
 
@@ -20,28 +20,33 @@ def _build_init_data(bot_token: str, user_payload: dict, auth_date: int | None =
     return urlencode(data)
 
 
-class ValidateInitDataTests(SimpleTestCase):
-    def test_invalid_hash_raises(self):
-        auth_date = int(time.time())
-        bad_init = f"auth_date={auth_date}&hash=invalid"
-        with self.assertRaises(InitDataValidationError):
-            validate_init_data(bad_init, bot_token="token")
+def test_invalid_hash_raises():
+    auth_date = int(time.time())
+    bad_init = f"auth_date={auth_date}&hash=invalid"
 
-    def test_valid_init_data_returns_payload(self):
-        init_data = _build_init_data(
-            bot_token="token",
-            user_payload={"id": 123, "username": "alice"},
-        )
-        parsed = validate_init_data(init_data, bot_token="token")
-        self.assertIn("user", parsed)
-        self.assertIn("auth_date", parsed)
+    with pytest.raises(InitDataValidationError):
+        validate_init_data(bad_init, bot_token="token")
 
-    def test_expired_init_data_raises(self):
-        old_ts = int(time.time()) - 1000
-        init_data = _build_init_data(
-            bot_token="token",
-            user_payload={"id": 123},
-            auth_date=old_ts,
-        )
-        with self.assertRaises(InitDataValidationError):
-            validate_init_data(init_data, bot_token="token", max_age_seconds=300)
+
+def test_valid_init_data_returns_payload():
+    init_data = _build_init_data(
+        bot_token="token",
+        user_payload={"id": 123, "username": "alice"},
+    )
+
+    parsed = validate_init_data(init_data, bot_token="token")
+
+    assert "user" in parsed
+    assert "auth_date" in parsed
+
+
+def test_expired_init_data_raises():
+    old_ts = int(time.time()) - 1000
+    init_data = _build_init_data(
+        bot_token="token",
+        user_payload={"id": 123},
+        auth_date=old_ts,
+    )
+
+    with pytest.raises(InitDataValidationError):
+        validate_init_data(init_data, bot_token="token", max_age_seconds=300)

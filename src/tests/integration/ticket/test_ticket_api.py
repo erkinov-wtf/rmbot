@@ -1,99 +1,104 @@
-from django.test import TestCase
-from rest_framework.test import APIClient
+import pytest
 
-from account.models import Role, User
-from bike.models import Bike
 from core.utils.constants import RoleSlug, TicketStatus, TicketTransitionAction
 from ticket.models import Ticket, TicketTransition
 
 
-class TicketAPITests(TestCase):
-    def setUp(self):
-        self.client = APIClient()
-        self.create_url = "/api/v1/tickets/create/"
+pytestmark = pytest.mark.django_db
 
-        self.master_user = User.objects.create_user(
-            username="master_api",
-            password="pass1234",
-            first_name="Master",
-            email="master_api@example.com",
-        )
-        self.regular_user = User.objects.create_user(
-            username="regular_api",
-            password="pass1234",
-            first_name="Regular",
-            email="regular_api@example.com",
-        )
-        self.technician = User.objects.create_user(
-            username="tech_api",
-            password="pass1234",
-            first_name="Tech",
-            email="tech_api@example.com",
-        )
 
-        master_role, _ = Role.objects.update_or_create(
-            slug=RoleSlug.MASTER,
-            defaults={"name": "Master (Service Lead)"},
-        )
-        self.master_user.roles.add(master_role)
+CREATE_URL = "/api/v1/tickets/create/"
 
-        self.bike = Bike.objects.create(bike_code="RM-0100")
 
-    def test_ticket_create_requires_master_role(self):
-        self.client.force_authenticate(user=self.regular_user)
-        resp = self.client.post(
-            self.create_url,
-            {
-                "bike": self.bike.id,
-                "technician": self.technician.id,
-                "title": "Diagnostics",
-                "srt_total_minutes": 40,
-            },
-            format="json",
-        )
-        self.assertEqual(resp.status_code, 403)
+@pytest.fixture
+def ticket_api_context(user_factory, assign_roles, bike_factory):
+    master_user = user_factory(
+        username="master_api",
+        first_name="Master",
+        email="master_api@example.com",
+    )
+    assign_roles(master_user, RoleSlug.MASTER)
 
-    def test_master_can_create_ticket(self):
-        self.client.force_authenticate(user=self.master_user)
-        resp = self.client.post(
-            self.create_url,
-            {
-                "bike": self.bike.id,
-                "technician": self.technician.id,
-                "title": "Diagnostics",
-                "srt_total_minutes": 40,
-            },
-            format="json",
-        )
+    regular_user = user_factory(
+        username="regular_api",
+        first_name="Regular",
+        email="regular_api@example.com",
+    )
+    technician = user_factory(
+        username="tech_api",
+        first_name="Tech",
+        email="tech_api@example.com",
+    )
+    bike = bike_factory(bike_code="RM-0100")
+    return {
+        "master_user": master_user,
+        "regular_user": regular_user,
+        "technician": technician,
+        "bike": bike,
+    }
 
-        self.assertEqual(resp.status_code, 201)
-        payload = resp.data["data"]
-        self.assertEqual(payload["master"], self.master_user.id)
-        self.assertEqual(payload["status"], TicketStatus.NEW)
-        self.assertEqual(Ticket.objects.count(), 1)
-        transition = TicketTransition.objects.get(ticket_id=payload["id"])
-        self.assertEqual(transition.action, TicketTransitionAction.CREATED)
-        self.assertEqual(transition.actor_id, self.master_user.id)
 
-    def test_rejects_second_active_ticket_for_same_bike(self):
-        Ticket.objects.create(
-            bike=self.bike,
-            master=self.master_user,
-            status=TicketStatus.NEW,
-            title="Existing active ticket",
-        )
-        self.client.force_authenticate(user=self.master_user)
-        resp = self.client.post(
-            self.create_url,
-            {
-                "bike": self.bike.id,
-                "technician": self.technician.id,
-                "title": "Second ticket attempt",
-                "srt_total_minutes": 30,
-            },
-            format="json",
-        )
+def test_ticket_create_requires_master_role(authed_client_factory, ticket_api_context):
+    client = authed_client_factory(ticket_api_context["regular_user"])
 
-        self.assertEqual(resp.status_code, 400)
-        self.assertFalse(resp.data["success"])
-        self.assertIn("bike", resp.data["message"].lower())
+    resp = client.post(
+        CREATE_URL,
+        {
+            "bike": ticket_api_context["bike"].id,
+            "technician": ticket_api_context["technician"].id,
+            "title": "Diagnostics",
+            "srt_total_minutes": 40,
+        },
+        format="json",
+    )
+
+    assert resp.status_code == 403
+
+
+def test_master_can_create_ticket(authed_client_factory, ticket_api_context):
+    client = authed_client_factory(ticket_api_context["master_user"])
+
+    resp = client.post(
+        CREATE_URL,
+        {
+            "bike": ticket_api_context["bike"].id,
+            "technician": ticket_api_context["technician"].id,
+            "title": "Diagnostics",
+            "srt_total_minutes": 40,
+        },
+        format="json",
+    )
+
+    assert resp.status_code == 201
+    payload = resp.data["data"]
+    assert payload["master"] == ticket_api_context["master_user"].id
+    assert payload["status"] == TicketStatus.NEW
+    assert Ticket.objects.count() == 1
+    transition = TicketTransition.objects.get(ticket_id=payload["id"])
+    assert transition.action == TicketTransitionAction.CREATED
+    assert transition.actor_id == ticket_api_context["master_user"].id
+
+
+def test_rejects_second_active_ticket_for_same_bike(authed_client_factory, ticket_api_context):
+    Ticket.objects.create(
+        bike=ticket_api_context["bike"],
+        master=ticket_api_context["master_user"],
+        status=TicketStatus.NEW,
+        title="Existing active ticket",
+    )
+    client = authed_client_factory(ticket_api_context["master_user"])
+
+    resp = client.post(
+        CREATE_URL,
+        {
+            "bike": ticket_api_context["bike"].id,
+            "technician": ticket_api_context["technician"].id,
+            "title": "Second ticket attempt",
+            "srt_total_minutes": 30,
+        },
+        format="json",
+    )
+
+    assert resp.status_code == 400
+    assert resp.data["success"] is False
+    assert "bike" in resp.data["message"].lower()

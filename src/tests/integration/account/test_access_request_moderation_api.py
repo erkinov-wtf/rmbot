@@ -1,123 +1,139 @@
-from django.test import TestCase
-from rest_framework.test import APIClient
+import pytest
 
-from account.models import AccessRequest, Role, TelegramProfile, User
+from account.models import AccessRequest, TelegramProfile, User
 from core.utils.constants import AccessRequestStatus, RoleSlug
 
 
-class AccessRequestModerationAPITests(TestCase):
-    def setUp(self):
-        self.client = APIClient()
-        self.list_url = "/api/v1/users/access-requests/"
-        self.pending = AccessRequest.objects.create(
-            telegram_id=999001,
-            username="new_tech",
-            first_name="New",
-            last_name="Tech",
-        )
-        self.target_user = User.objects.create_user(
-            username="worker",
-            password="pass1234",
-            first_name="Worker",
-            email="worker@example.com",
-        )
+pytestmark = pytest.mark.django_db
 
-        self.regular_user = User.objects.create_user(
-            username="regular",
-            password="pass1234",
-            first_name="Regular",
-            email="regular@example.com",
-        )
-        self.moderator = User.objects.create_user(
-            username="ops",
-            password="pass1234",
-            first_name="Ops",
-            email="ops@example.com",
-        )
 
-        ops_role, _ = Role.objects.update_or_create(
-            slug=RoleSlug.OPS_MANAGER,
-            defaults={"name": "Ops Manager"},
-        )
-        technician_role, _ = Role.objects.update_or_create(
-            slug=RoleSlug.TECHNICIAN,
-            defaults={"name": "Technician"},
-        )
-        self.technician_role_slug = technician_role.slug
-        self.moderator.roles.add(ops_role)
+LIST_URL = "/api/v1/users/access-requests/"
 
-    def test_list_requires_privileged_role(self):
-        self.client.force_authenticate(user=self.regular_user)
-        forbidden = self.client.get(self.list_url)
-        self.assertEqual(forbidden.status_code, 403)
 
-        self.client.force_authenticate(user=self.moderator)
-        allowed = self.client.get(self.list_url)
-        self.assertEqual(allowed.status_code, 200)
-        self.assertEqual(len(allowed.data["data"]), 1)
-        self.assertEqual(allowed.data["data"][0]["status"], AccessRequestStatus.PENDING)
+@pytest.fixture
+def moderation_context(user_factory, assign_roles):
+    pending = AccessRequest.objects.create(
+        telegram_id=999001,
+        username="new_tech",
+        first_name="New",
+        last_name="Tech",
+    )
+    target_user = user_factory(
+        username="worker",
+        first_name="Worker",
+        email="worker@example.com",
+    )
+    regular_user = user_factory(
+        username="regular",
+        first_name="Regular",
+        email="regular@example.com",
+    )
+    moderator = user_factory(
+        username="ops",
+        first_name="Ops",
+        email="ops@example.com",
+    )
+    assign_roles(moderator, RoleSlug.OPS_MANAGER)
+    return {
+        "pending": pending,
+        "target_user": target_user,
+        "regular_user": regular_user,
+        "moderator": moderator,
+    }
 
-    def test_approve_links_profile_and_assigns_roles(self):
-        self.client.force_authenticate(user=self.moderator)
-        url = f"/api/v1/users/access-requests/{self.pending.id}/approve/"
-        resp = self.client.post(
-            url,
-            {"user_id": self.target_user.id, "role_slugs": [self.technician_role_slug]},
-            format="json",
-        )
 
-        self.assertEqual(resp.status_code, 200)
-        self.pending.refresh_from_db()
-        self.assertEqual(self.pending.status, AccessRequestStatus.APPROVED)
-        self.assertEqual(self.pending.user_id, self.target_user.id)
-        self.assertIsNotNone(self.pending.resolved_at)
+def test_list_requires_privileged_role(authed_client_factory, moderation_context):
+    regular_client = authed_client_factory(moderation_context["regular_user"])
+    forbidden = regular_client.get(LIST_URL)
+    assert forbidden.status_code == 403
 
-        profile = TelegramProfile.objects.get(telegram_id=self.pending.telegram_id)
-        self.assertEqual(profile.user_id, self.target_user.id)
-        self.assertTrue(self.target_user.roles.filter(slug=self.technician_role_slug).exists())
+    moderator_client = authed_client_factory(moderation_context["moderator"])
+    allowed = moderator_client.get(LIST_URL)
+    assert allowed.status_code == 200
+    assert len(allowed.data["data"]) == 1
+    assert allowed.data["data"][0]["status"] == AccessRequestStatus.PENDING
 
-    def test_approve_can_create_user_and_link(self):
-        self.client.force_authenticate(user=self.moderator)
-        url = f"/api/v1/users/access-requests/{self.pending.id}/approve/"
-        resp = self.client.post(
-            url,
-            {
-                "user": {
-                    "username": "created_worker",
-                    "first_name": "Created",
-                    "email": "created_worker@example.com",
-                    "phone": "+998990001122",
-                },
-                "role_slugs": [self.technician_role_slug],
+
+def test_approve_links_profile_and_assigns_roles(
+    authed_client_factory,
+    moderation_context,
+    role_factory,
+):
+    client = authed_client_factory(moderation_context["moderator"])
+    pending = moderation_context["pending"]
+    target_user = moderation_context["target_user"]
+    role_factory(RoleSlug.TECHNICIAN, name="Technician")
+
+    resp = client.post(
+        f"/api/v1/users/access-requests/{pending.id}/approve/",
+        {"user_id": target_user.id, "role_slugs": [RoleSlug.TECHNICIAN]},
+        format="json",
+    )
+
+    assert resp.status_code == 200
+    pending.refresh_from_db()
+    assert pending.status == AccessRequestStatus.APPROVED
+    assert pending.user_id == target_user.id
+    assert pending.resolved_at is not None
+
+    profile = TelegramProfile.objects.get(telegram_id=pending.telegram_id)
+    assert profile.user_id == target_user.id
+    assert target_user.roles.filter(slug=RoleSlug.TECHNICIAN).exists()
+
+
+def test_approve_can_create_user_and_link(authed_client_factory, moderation_context, role_factory):
+    client = authed_client_factory(moderation_context["moderator"])
+    pending = moderation_context["pending"]
+    role_factory(RoleSlug.TECHNICIAN, name="Technician")
+
+    resp = client.post(
+        f"/api/v1/users/access-requests/{pending.id}/approve/",
+        {
+            "user": {
+                "username": "created_worker",
+                "first_name": "Created",
+                "email": "created_worker@example.com",
+                "phone": "+998990001122",
             },
-            format="json",
-        )
+            "role_slugs": [RoleSlug.TECHNICIAN],
+        },
+        format="json",
+    )
 
-        self.assertEqual(resp.status_code, 200)
-        created_user = User.objects.get(username="created_worker")
-        self.pending.refresh_from_db()
-        self.assertEqual(self.pending.status, AccessRequestStatus.APPROVED)
-        self.assertEqual(self.pending.user_id, created_user.id)
+    assert resp.status_code == 200
+    created_user = User.objects.get(username="created_worker")
+    pending.refresh_from_db()
+    assert pending.status == AccessRequestStatus.APPROVED
+    assert pending.user_id == created_user.id
 
-        profile = TelegramProfile.objects.get(telegram_id=self.pending.telegram_id)
-        self.assertEqual(profile.user_id, created_user.id)
-        self.assertTrue(created_user.roles.filter(slug=self.technician_role_slug).exists())
+    profile = TelegramProfile.objects.get(telegram_id=pending.telegram_id)
+    assert profile.user_id == created_user.id
+    assert created_user.roles.filter(slug=RoleSlug.TECHNICIAN).exists()
 
-    def test_approve_requires_user_reference_or_payload(self):
-        self.client.force_authenticate(user=self.moderator)
-        url = f"/api/v1/users/access-requests/{self.pending.id}/approve/"
-        resp = self.client.post(url, {"role_slugs": [self.technician_role_slug]}, format="json")
 
-        self.assertEqual(resp.status_code, 400)
-        self.assertFalse(resp.data["success"])
-        self.assertIn("exactly one", resp.data["message"].lower())
+def test_approve_requires_user_reference_or_payload(authed_client_factory, moderation_context, role_factory):
+    client = authed_client_factory(moderation_context["moderator"])
+    pending = moderation_context["pending"]
+    role_factory(RoleSlug.TECHNICIAN, name="Technician")
 
-    def test_reject_marks_request_as_rejected(self):
-        self.client.force_authenticate(user=self.moderator)
-        url = f"/api/v1/users/access-requests/{self.pending.id}/reject/"
-        resp = self.client.post(url, {}, format="json")
+    resp = client.post(
+        f"/api/v1/users/access-requests/{pending.id}/approve/",
+        {"role_slugs": [RoleSlug.TECHNICIAN]},
+        format="json",
+    )
 
-        self.assertEqual(resp.status_code, 200)
-        self.pending.refresh_from_db()
-        self.assertEqual(self.pending.status, AccessRequestStatus.REJECTED)
-        self.assertIsNotNone(self.pending.resolved_at)
+    assert resp.status_code == 400
+    assert resp.data["success"] is False
+    assert "exactly one" in resp.data["message"].lower()
+
+
+def test_reject_marks_request_as_rejected(authed_client_factory, moderation_context):
+    client = authed_client_factory(moderation_context["moderator"])
+    pending = moderation_context["pending"]
+
+    resp = client.post(f"/api/v1/users/access-requests/{pending.id}/reject/", {}, format="json")
+
+    assert resp.status_code == 200
+    pending.refresh_from_db()
+    assert pending.status == AccessRequestStatus.REJECTED
+    assert pending.resolved_at is not None

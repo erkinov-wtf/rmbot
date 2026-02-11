@@ -6,19 +6,34 @@ import dj_database_url
 from decouple import config
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
-LOGS_ROOT = Path(config("LOGS_ROOT", default=BASE_DIR / "logs"))
+IS_TEST_RUN = (
+    "test" in sys.argv
+    or "PYTEST_CURRENT_TEST" in os.environ
+    or any("pytest" in arg for arg in sys.argv)
+)
+LOGS_ROOT = Path(config("LOGS_ROOT", default=BASE_DIR.parent / "logs"))
 DEBUG = config("DEBUG", default=False, cast=bool)
-SECRET_KEY = config("DJANGO_SECRET_KEY", default="django-insecure-change-me")
+if IS_TEST_RUN:
+    # Keep tests deterministic and avoid debug-only middleware/tooling side effects.
+    DEBUG = False
+SECRET_KEY = config(
+    "DJANGO_SECRET_KEY",
+    default="django-insecure-change-me-please-use-a-long-secret-key-for-local-dev",
+)
 ALLOWED_HOSTS = config("ALLOWED_HOSTS", default="").split(",")
 
 DATABASE_URL = config("DATABASE_URL", default="")
-if not DATABASE_URL:
-    DATABASE_URL = (
-        f"postgres://{config('POSTGRES_USER')}:{config('POSTGRES_PASSWORD')}"
-        f"@{config('POSTGRES_HOST')}/{config('POSTGRES_DB')}"
-    )
-TEST_DATABASE_URL = config("TEST_DATABASE_URL", default="")
-ACTIVE_DATABASE_URL = TEST_DATABASE_URL if ("test" in sys.argv and TEST_DATABASE_URL) else DATABASE_URL
+TEST_DATABASE_URL = config("TEST_DATABASE_URL", default="sqlite:///:memory:")
+
+if IS_TEST_RUN:
+    ACTIVE_DATABASE_URL = TEST_DATABASE_URL
+else:
+    if not DATABASE_URL:
+        DATABASE_URL = (
+            f"postgres://{config('POSTGRES_USER')}:{config('POSTGRES_PASSWORD')}"
+            f"@{config('POSTGRES_HOST')}/{config('POSTGRES_DB')}"
+        )
+    ACTIVE_DATABASE_URL = DATABASE_URL
 
 UNFOLD_APPS = [
     "unfold",
