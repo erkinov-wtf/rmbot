@@ -2,6 +2,7 @@ from functools import reduce
 from operator import or_
 from typing import List, Optional
 
+from django.core.exceptions import ValidationError
 from django.db import models, router, transaction
 from django.db.models.deletion import CASCADE, Collector
 from django.db.models.fields.reverse_related import ForeignObjectRel
@@ -27,6 +28,34 @@ class TimestampedModel(BaseModel):
 
     class Meta:
         abstract = True
+
+
+class AppendOnlyQuerySet(models.QuerySet):
+    def update(self, **kwargs):
+        raise ValidationError(_("Append-only records cannot be updated. Create a reversal entry instead."))
+
+    def delete(self):
+        raise ValidationError(_("Append-only records cannot be deleted. Create a reversal entry instead."))
+
+
+class AppendOnlyManager(models.Manager.from_queryset(AppendOnlyQuerySet)):
+    pass
+
+
+class AppendOnlyModel(TimestampedModel):
+    objects = AppendOnlyManager()
+    all_objects = models.Manager()
+
+    class Meta:
+        abstract = True
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            raise ValidationError(_("Append-only records cannot be updated. Create a reversal entry instead."))
+        return super().save(*args, **kwargs)
+
+    def delete(self, using: Optional[str] = None, keep_parents: bool = False):
+        raise ValidationError(_("Append-only records cannot be deleted. Create a reversal entry instead."))
 
 
 class SoftDeleteModel(BaseModel):
