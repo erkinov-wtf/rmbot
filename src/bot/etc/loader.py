@@ -10,6 +10,7 @@ from bot.etc.container import Container
 from bot.middlewares import DIMiddleware
 from bot.middlewares import ErrorMiddleware
 from bot.middlewares import I18nMiddleware
+from bot.middlewares import AuthMiddleware
 from bot.url_router import get_root_router
 
 
@@ -32,6 +33,7 @@ def create_bot_bundle() -> BotBundle:
     dispatcher.update.outer_middleware(ErrorMiddleware())
     dispatcher.update.middleware(I18nMiddleware(container=container))
     dispatcher.update.middleware(DIMiddleware(container=container))
+    dispatcher.update.middleware(AuthMiddleware())
     dispatcher.include_router(get_root_router())
 
     return BotBundle(bot=bot, dispatcher=dispatcher, container=container)
