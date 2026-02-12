@@ -8,7 +8,7 @@ class Bike(TimestampedModel, SoftDeleteModel):
     bike_code = models.CharField(max_length=32, unique=True, db_index=True)
     status = models.CharField(
         max_length=20,
-        choices=BikeStatus.choices,
+        choices=BikeStatus,
         default=BikeStatus.READY,
         db_index=True,
     )

@@ -7,8 +7,8 @@ from core.utils.constants import RoleSlug, TicketStatus, XPLedgerEntryType
 from gamification.models import XPLedger
 from payroll.models import PayrollMonthly
 from rules.models import RulesConfigVersion
-from rules.services import get_active_rules_config
-from ticket.services import qc_pass_ticket
+from rules.services import RulesService
+from ticket.services import TicketService
 
 pytestmark = pytest.mark.django_db
 
@@ -57,6 +57,7 @@ def test_get_config_bootstraps_defaults(authed_client_factory, rules_context):
     assert payload["config"]["ticket_xp"]["base_divisor"] == 20
     assert payload["config"]["ticket_xp"]["first_pass_bonus"] == 1
     assert payload["config"]["payroll"]["bonus_rate"] == 3000
+    assert payload["config"]["progression"]["weekly_coupon_amount"] == 100000
 
 
 def test_permissions_for_config_mutation(authed_client_factory, rules_context):
@@ -182,13 +183,11 @@ def test_ticket_xp_formula_uses_active_rules(
     rules_context, bike_factory, ticket_factory, user_factory
 ):
     actor = rules_context["super_admin"]
-    current = get_active_rules_config()
+    current = RulesService.get_active_rules_config()
     current["ticket_xp"]["base_divisor"] = 10
     current["ticket_xp"]["first_pass_bonus"] = 2
 
-    from rules.services import update_rules_config
-
-    update_rules_config(
+    RulesService.update_rules_config(
         config=current, actor_user_id=actor.id, reason="Formula override"
     )
 
@@ -207,7 +206,7 @@ def test_ticket_xp_formula_uses_active_rules(
         title="Rules ticket XP",
     )
 
-    qc_pass_ticket(ticket=ticket, actor_user_id=actor.id)
+    TicketService.qc_pass_ticket(ticket=ticket, actor_user_id=actor.id)
 
     base_entry = XPLedger.objects.get(reference=f"ticket_base_xp:{ticket.id}")
     bonus_entry = XPLedger.objects.get(
@@ -221,15 +220,13 @@ def test_payroll_formula_uses_active_rules(
     authed_client_factory, rules_context, user_factory
 ):
     actor = rules_context["super_admin"]
-    current = get_active_rules_config()
+    current = RulesService.get_active_rules_config()
     current["payroll"]["bonus_rate"] = 100
     current["payroll"]["fix_salary"] = 1_000
     current["payroll"]["level_caps"]["1"] = 50
     current["payroll"]["level_allowances"]["1"] = 10
 
-    from rules.services import update_rules_config
-
-    update_rules_config(
+    RulesService.update_rules_config(
         config=current, actor_user_id=actor.id, reason="Payroll override"
     )
 

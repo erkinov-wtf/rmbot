@@ -27,6 +27,16 @@ Run hooks on all files:
 uv run pre-commit run --all-files
 ```
 
+## API Docs (Swagger/OpenAPI)
+After installing dependencies and running the server, docs are available at:
+- Swagger UI: `/api/docs/`
+- ReDoc: `/api/redoc/`
+- OpenAPI schema: `/api/schema/`
+
+Access onboarding note:
+- New access requests are submitted through Telegram bot `/start` onboarding only.
+- Managers approve/reject via `/api/v1/users/access-requests/{id}/approve|reject/`.
+
 Run tests with pytest:
 ```
 uv run pytest

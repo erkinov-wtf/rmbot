@@ -2,7 +2,13 @@ from rest_framework import serializers
 
 from account.models import User
 from core.utils.constants import RoleSlug
-from ticket.models import ACTIVE_TICKET_STATUSES, Ticket, TicketTransition, WorkSession
+from ticket.models import (
+    ACTIVE_TICKET_STATUSES,
+    Ticket,
+    TicketTransition,
+    WorkSession,
+    WorkSessionTransition,
+)
 
 
 class TicketSerializer(serializers.ModelSerializer):
@@ -89,6 +95,23 @@ class TicketTransitionSerializer(serializers.ModelSerializer):
             "action",
             "actor",
             "note",
+            "metadata",
+            "created_at",
+        )
+
+
+class WorkSessionTransitionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WorkSessionTransition
+        fields = (
+            "id",
+            "work_session",
+            "ticket",
+            "from_status",
+            "to_status",
+            "action",
+            "actor",
+            "event_at",
             "metadata",
             "created_at",
         )

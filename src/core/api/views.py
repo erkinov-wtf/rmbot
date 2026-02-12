@@ -5,6 +5,7 @@ from rest_framework import generics, mixins, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from core.api.serializers import SchemaFallbackSerializer
 from core.utils.pagination import CustomPagination
 
 logger = getLogger(__name__)
@@ -90,7 +91,7 @@ class CustomResponseMixin:
 
 
 class BaseAPIView(CustomResponseMixin, generics.GenericAPIView):
-    ...
+    serializer_class = SchemaFallbackSerializer
 
     def _parse_error_message(self, errors):
         message = None

@@ -9,6 +9,7 @@ from api.v1.ticket.views import (
     TicketStartAPIView,
     TicketToWaitingQCAPIView,
     TicketTransitionListAPIView,
+    TicketWorkSessionHistoryAPIView,
     TicketWorkSessionPauseAPIView,
     TicketWorkSessionResumeAPIView,
     TicketWorkSessionStartAPIView,
@@ -53,5 +54,10 @@ urlpatterns = [
         "<int:pk>/work-session/stop/",
         TicketWorkSessionStopAPIView.as_view(),
         name="ticket-work-session-stop",
+    ),
+    path(
+        "<int:pk>/work-session/history/",
+        TicketWorkSessionHistoryAPIView.as_view(),
+        name="ticket-work-session-history",
     ),
 ]

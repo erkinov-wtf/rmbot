@@ -1,7 +1,12 @@
 from django.db import models
 
 from core.models import AppendOnlyModel, SoftDeleteModel, TimestampedModel
-from core.utils.constants import TicketStatus, TicketTransitionAction, WorkSessionStatus
+from core.utils.constants import (
+    TicketStatus,
+    TicketTransitionAction,
+    WorkSessionStatus,
+    WorkSessionTransitionAction,
+)
 
 ACTIVE_TICKET_STATUSES = [
     TicketStatus.NEW,
@@ -31,7 +36,7 @@ class Ticket(TimestampedModel, SoftDeleteModel):
     flag_minutes = models.PositiveIntegerField(default=0)
     status = models.CharField(
         max_length=20,
-        choices=TicketStatus.choices,
+        choices=TicketStatus,
         default=TicketStatus.NEW,
         db_index=True,
     )
@@ -76,7 +81,7 @@ class WorkSession(TimestampedModel, SoftDeleteModel):
     )
     status = models.CharField(
         max_length=20,
-        choices=WorkSessionStatus.choices,
+        choices=WorkSessionStatus,
         default=WorkSessionStatus.RUNNING,
         db_index=True,
     )
@@ -111,6 +116,51 @@ class WorkSession(TimestampedModel, SoftDeleteModel):
 
     def __str__(self) -> str:
         return f"WorkSession#{self.pk} ticket={self.ticket_id} tech={self.technician_id} [{self.status}]"
+
+
+class WorkSessionTransition(AppendOnlyModel):
+    work_session = models.ForeignKey(
+        WorkSession,
+        on_delete=models.CASCADE,
+        related_name="transitions",
+    )
+    ticket = models.ForeignKey(
+        Ticket,
+        on_delete=models.CASCADE,
+        related_name="work_session_transitions",
+    )
+    from_status = models.CharField(
+        max_length=20,
+        choices=WorkSessionStatus,
+        null=True,
+        blank=True,
+    )
+    to_status = models.CharField(max_length=20, choices=WorkSessionStatus)
+    action = models.CharField(
+        max_length=20, choices=WorkSessionTransitionAction, db_index=True
+    )
+    actor = models.ForeignKey(
+        "account.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    event_at = models.DateTimeField(db_index=True)
+    metadata = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["work_session", "event_at"]),
+            models.Index(fields=["ticket", "event_at"]),
+            models.Index(fields=["action", "event_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return (
+            f"WorkSessionTransition #{self.pk} ws={self.work_session_id} "
+            f"{self.from_status}>{self.to_status} ({self.action})"
+        )
 
 
 class TicketTransition(AppendOnlyModel):

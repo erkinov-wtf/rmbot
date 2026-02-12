@@ -13,20 +13,36 @@ from rest_framework_simplejwt.views import (
     TokenVerifyView,
 )
 
-from account.services import upsert_telegram_profile
+from account.services import AccountService
 from api.v1.account.serializers import UserSerializer
+from core.api.schema import extend_schema
 from core.api.views import BaseAPIView
 from core.utils.telegram import InitDataValidationError, validate_init_data
 
 
+@extend_schema(
+    tags=["Auth"],
+    summary="Login with credentials and get JWT tokens",
+    description="Authenticates user credentials and returns JWT access and refresh tokens.",
+)
 class LoginAPIView(TokenObtainPairView, BaseAPIView):
     pass
 
 
+@extend_schema(
+    tags=["Auth"],
+    summary="Refresh JWT access token",
+    description="Validates a refresh token and issues a new access token.",
+)
 class RefreshAPIView(TokenRefreshView, BaseAPIView):
     pass
 
 
+@extend_schema(
+    tags=["Auth"],
+    summary="Verify JWT token",
+    description="Checks whether the provided JWT token is valid and not expired.",
+)
 class TokenVerifyAPIView(TokenVerifyView, BaseAPIView):
     def post(self, request, *args, **kwargs):
         response = super().post(request, *args, **kwargs)
@@ -42,6 +58,12 @@ class TokenVerifyAPIView(TokenVerifyView, BaseAPIView):
 class TMAInitDataSerializer(serializers.Serializer):
     init_data = serializers.CharField()
 
+    def validate_init_data(self, value):
+        if not value:
+            raise serializers.ValidationError("init_data is required")
+
+        return value
+
 
 @dataclass(slots=True)
 class _TelegramFromUser:
@@ -54,6 +76,11 @@ class _TelegramFromUser:
     is_bot: bool = False
 
 
+@extend_schema(
+    tags=["Auth"],
+    summary="Verify Telegram Mini App initData",
+    description="Validates Telegram Mini App initData and issues JWT tokens when a linked user account exists.",
+)
 class TMAInitDataVerifyAPIView(BaseAPIView):
     """
     Verifies Telegram Mini App initData, returns JWT tokens if linked user exists.
@@ -72,6 +99,11 @@ class TMAInitDataVerifyAPIView(BaseAPIView):
             )
         except InitDataValidationError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except ValueError as ve:
+            return Response(
+                {"detail": "init_data is invalid: " + str(ve)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         raw_user = parsed.get("user")
         try:
@@ -103,7 +135,7 @@ class TMAInitDataVerifyAPIView(BaseAPIView):
         is_premium = user_payload.get("is_premium", False)
         is_bot = user_payload.get("is_bot", False)
 
-        profile = upsert_telegram_profile(
+        profile = AccountService.upsert_telegram_profile(
             _TelegramFromUser(
                 id=telegram_id,
                 username=username,

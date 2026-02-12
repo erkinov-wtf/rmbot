@@ -1,25 +1,46 @@
 from django.db.models import Q
-from rest_framework import generics, status
+from rest_framework import generics, serializers, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from attendance.models import AttendanceRecord
 from core.api.permissions import HasRole
+from core.api.schema import extend_schema
 from core.api.views import BaseAPIView
 from core.utils.constants import RoleSlug
 from gamification.models import XPLedger
 from ticket.models import TicketTransition
 
 
+class HealthSerializer(serializers.Serializer):
+    status = serializers.CharField()
+
+
+class TestSerializer(serializers.Serializer):
+    message = serializers.CharField()
+
+
+@extend_schema(
+    tags=["System / Health"],
+    summary="Health check",
+    description="Lightweight service health endpoint for readiness and uptime checks.",
+)
 class HealthAPIView(generics.RetrieveAPIView):
     permission_classes = []
+    serializer_class = HealthSerializer
 
     def retrieve(self, request, *args, **kwargs):
         return Response(data={"status": "ok"}, status=200)
 
 
+@extend_schema(
+    tags=["System / Health"],
+    summary="Connectivity smoke test",
+    description="Simple endpoint to verify API reachability and response flow.",
+)
 class TestAPIView(generics.RetrieveAPIView):
     permission_classes = []
+    serializer_class = TestSerializer
 
     def retrieve(self, request, *args, **kwargs):
         return Response(data={"message": "This is a test endpoint."}, status=200)
@@ -28,6 +49,14 @@ class TestAPIView(generics.RetrieveAPIView):
 AuditFeedPermission = HasRole.as_any(RoleSlug.SUPER_ADMIN, RoleSlug.OPS_MANAGER)
 
 
+@extend_schema(
+    tags=["System / Audit Feed"],
+    summary="List recent audit feed events",
+    description=(
+        "Returns recent operational events merged from ticket transitions, "
+        "XP ledger changes, and attendance actions."
+    ),
+)
 class AuditFeedAPIView(BaseAPIView):
     permission_classes = (IsAuthenticated, AuditFeedPermission)
 

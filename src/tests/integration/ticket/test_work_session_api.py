@@ -1,7 +1,15 @@
-import pytest
+from datetime import timedelta
 
-from core.utils.constants import RoleSlug, TicketStatus, WorkSessionStatus
-from ticket.models import WorkSession
+import pytest
+from django.utils import timezone
+
+from core.utils.constants import (
+    RoleSlug,
+    TicketStatus,
+    WorkSessionStatus,
+    WorkSessionTransitionAction,
+)
+from ticket.models import WorkSession, WorkSessionTransition
 
 pytestmark = pytest.mark.django_db
 
@@ -76,6 +84,17 @@ def test_technician_session_lifecycle(authed_client_factory, work_session_contex
     )
     assert session.status == WorkSessionStatus.STOPPED
     assert session.ended_at is not None
+    transitions = list(
+        WorkSessionTransition.objects.filter(work_session=session)
+        .order_by("event_at", "id")
+        .values_list("action", flat=True)
+    )
+    assert transitions == [
+        WorkSessionTransitionAction.STARTED,
+        WorkSessionTransitionAction.PAUSED,
+        WorkSessionTransitionAction.RESUMED,
+        WorkSessionTransitionAction.STOPPED,
+    ]
 
 
 def test_other_technician_cannot_control_session(
@@ -99,11 +118,11 @@ def test_other_technician_cannot_control_session(
     assert "no active work session" in resp.data["error"]["detail"].lower()
 
 
-def test_cannot_start_session_when_ticket_not_in_progress(
+def test_cannot_start_session_when_ticket_in_invalid_status(
     authed_client_factory, work_session_context
 ):
     ticket = work_session_context["ticket"]
-    ticket.status = TicketStatus.ASSIGNED
+    ticket.status = TicketStatus.WAITING_QC
     ticket.save(update_fields=["status"])
 
     client = authed_client_factory(work_session_context["tech"])
@@ -113,3 +132,94 @@ def test_cannot_start_session_when_ticket_not_in_progress(
 
     assert resp.status_code == 400
     assert "in_progress" in resp.data["error"]["detail"].lower()
+
+
+def test_work_session_history_endpoint_returns_ordered_events(
+    authed_client_factory, work_session_context
+):
+    client = authed_client_factory(work_session_context["tech"])
+    ticket = work_session_context["ticket"]
+
+    client.post(f"/api/v1/tickets/{ticket.id}/work-session/start/", {}, format="json")
+    client.post(f"/api/v1/tickets/{ticket.id}/work-session/pause/", {}, format="json")
+    client.post(f"/api/v1/tickets/{ticket.id}/work-session/resume/", {}, format="json")
+    client.post(f"/api/v1/tickets/{ticket.id}/work-session/stop/", {}, format="json")
+
+    history = client.get(f"/api/v1/tickets/{ticket.id}/work-session/history/")
+
+    assert history.status_code == 200
+    actions = [item["action"] for item in history.data["data"]]
+    assert actions[:4] == [
+        WorkSessionTransitionAction.STOPPED,
+        WorkSessionTransitionAction.RESUMED,
+        WorkSessionTransitionAction.PAUSED,
+        WorkSessionTransitionAction.STARTED,
+    ]
+
+
+def test_active_seconds_is_recalculated_from_persistent_history(
+    authed_client_factory, work_session_context
+):
+    client = authed_client_factory(work_session_context["tech"])
+    ticket = work_session_context["ticket"]
+    start = client.post(
+        f"/api/v1/tickets/{ticket.id}/work-session/start/", {}, format="json"
+    )
+    assert start.status_code == 200
+
+    session = WorkSession.objects.get(
+        ticket=ticket,
+        technician=work_session_context["tech"],
+    )
+    WorkSession.objects.filter(pk=session.pk).update(
+        active_seconds=9_999,
+        last_started_at=timezone.now() - timedelta(days=1),
+    )
+
+    pause = client.post(
+        f"/api/v1/tickets/{ticket.id}/work-session/pause/", {}, format="json"
+    )
+    assert pause.status_code == 200
+
+    session = WorkSession.objects.get(
+        ticket=ticket,
+        technician=work_session_context["tech"],
+    )
+    assert session.active_seconds != 9_999
+    assert session.active_seconds < 60
+
+
+def test_rework_ticket_can_restart_via_work_session_start_then_return_to_qc(
+    authed_client_factory, work_session_context
+):
+    ticket = work_session_context["ticket"]
+    ticket.status = TicketStatus.REWORK
+    ticket.save(update_fields=["status"])
+
+    tech_client = authed_client_factory(work_session_context["tech"])
+    ws_start = tech_client.post(
+        f"/api/v1/tickets/{ticket.id}/work-session/start/",
+        {},
+        format="json",
+    )
+    assert ws_start.status_code == 200
+    assert ws_start.data["data"]["status"] == WorkSessionStatus.RUNNING
+
+    ticket.refresh_from_db()
+    assert ticket.status == TicketStatus.IN_PROGRESS
+
+    ws_stop = tech_client.post(
+        f"/api/v1/tickets/{ticket.id}/work-session/stop/",
+        {},
+        format="json",
+    )
+    assert ws_stop.status_code == 200
+
+    to_qc = tech_client.post(
+        f"/api/v1/tickets/{ticket.id}/to-waiting-qc/",
+        {},
+        format="json",
+    )
+    assert to_qc.status_code == 200
+    ticket.refresh_from_db()
+    assert ticket.status == TicketStatus.WAITING_QC

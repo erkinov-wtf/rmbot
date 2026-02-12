@@ -47,6 +47,13 @@ class WorkSessionStatus(models.TextChoices):
     STOPPED = "stopped", _("Stopped")
 
 
+class WorkSessionTransitionAction(models.TextChoices):
+    STARTED = "started", _("Started")
+    PAUSED = "paused", _("Paused")
+    RESUMED = "resumed", _("Resumed")
+    STOPPED = "stopped", _("Stopped")
+
+
 class TicketTransitionAction(models.TextChoices):
     CREATED = "created", _("Created")
     ASSIGNED = "assigned", _("Assigned")

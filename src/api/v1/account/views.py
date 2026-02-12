@@ -1,22 +1,17 @@
-from django.db import IntegrityError
 from django.shortcuts import get_object_or_404
 from rest_framework import status
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from account.models import AccessRequest, User
-from account.services import (
-    approve_access_request,
-    ensure_pending_access_request,
-    reject_access_request,
-)
+from account.models import AccessRequest
+from account.services import AccountService
 from api.v1.account.serializers import (
     AccessRequestApproveSerializer,
-    AccessRequestCreateSerializer,
     AccessRequestSerializer,
     UserSerializer,
 )
 from core.api.permissions import HasRole
+from core.api.schema import extend_schema
 from core.api.views import BaseAPIView
 from core.utils.constants import AccessRequestStatus, RoleSlug
 
@@ -25,6 +20,11 @@ AccessRequestManagerPermission = HasRole.as_any(
 )
 
 
+@extend_schema(
+    tags=["Users / Profile"],
+    summary="Get current user profile",
+    description="Returns the authenticated user's profile, including roles and linked Telegram data.",
+)
 class MeAPIView(BaseAPIView):
     serializer_class = UserSerializer
     permission_classes = (IsAuthenticated,)
@@ -34,26 +34,11 @@ class MeAPIView(BaseAPIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
-class RequestAccessAPIView(BaseAPIView):
-    serializer_class = AccessRequestCreateSerializer
-    permission_classes = (AllowAny,)
-
-    def post(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        access_request, created = ensure_pending_access_request(
-            telegram_id=serializer.validated_data["telegram_id"],
-            username=serializer.validated_data.get("username"),
-            first_name=serializer.validated_data.get("first_name"),
-            last_name=serializer.validated_data.get("last_name"),
-            phone=serializer.validated_data.get("phone"),
-            note=serializer.validated_data.get("note"),
-        )
-        output = AccessRequestSerializer(access_request).data
-        http_status = status.HTTP_201_CREATED if created else status.HTTP_200_OK
-        return Response(output, status=http_status)
-
-
+@extend_schema(
+    tags=["Users / Access Requests"],
+    summary="List access requests by status",
+    description="Lists onboarding access requests filtered by status for manager roles.",
+)
 class AccessRequestListAPIView(BaseAPIView):
     serializer_class = AccessRequestSerializer
     permission_classes = (IsAuthenticated, AccessRequestManagerPermission)
@@ -77,6 +62,11 @@ class AccessRequestListAPIView(BaseAPIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
+@extend_schema(
+    tags=["Users / Access Requests"],
+    summary="Approve access request",
+    description="Approves a pending bot-submitted access request and activates its pre-created user.",
+)
 class AccessRequestApproveAPIView(BaseAPIView):
     serializer_class = AccessRequestApproveSerializer
     permission_classes = (IsAuthenticated, AccessRequestManagerPermission)
@@ -91,37 +81,22 @@ class AccessRequestApproveAPIView(BaseAPIView):
 
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        payload = serializer.validated_data
-        user_id = payload.get("user_id")
-        if user_id:
-            user = User.objects.get(pk=user_id)
-        else:
-            user_data = payload["user"]
-            try:
-                user = User.objects.create_user(
-                    username=user_data["username"],
-                    password=None,
-                    first_name=user_data["first_name"],
-                    email=user_data["email"],
-                    last_name=user_data.get("last_name"),
-                    patronymic=user_data.get("patronymic"),
-                    phone=user_data.get("phone") or access_request.phone,
-                )
-            except IntegrityError:
-                return Response(
-                    {"detail": "User with provided identity fields already exists."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-        approved = approve_access_request(
-            access_request=access_request,
-            user=user,
-            role_slugs=payload.get("role_slugs", []),
-        )
+        try:
+            approved = AccountService.approve_access_request(
+                access_request=access_request,
+                role_slugs=serializer.validated_data.get("role_slugs", []),
+            )
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         output = AccessRequestSerializer(approved).data
         return Response(output, status=status.HTTP_200_OK)
 
 
+@extend_schema(
+    tags=["Users / Access Requests"],
+    summary="Reject access request",
+    description="Rejects a pending onboarding access request and marks it as resolved.",
+)
 class AccessRequestRejectAPIView(BaseAPIView):
     permission_classes = (IsAuthenticated, AccessRequestManagerPermission)
 
@@ -133,6 +108,6 @@ class AccessRequestRejectAPIView(BaseAPIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        rejected = reject_access_request(access_request)
+        rejected = AccountService.reject_access_request(access_request)
         output = AccessRequestSerializer(rejected).data
         return Response(output, status=status.HTTP_200_OK)

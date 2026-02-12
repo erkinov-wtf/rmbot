@@ -1,7 +1,7 @@
 from django.contrib import admin
 
 from core.admin import BaseModelAdmin
-from ticket.models import Ticket, TicketTransition, WorkSession
+from ticket.models import Ticket, TicketTransition, WorkSession, WorkSessionTransition
 
 
 @admin.register(Ticket)
@@ -59,6 +59,43 @@ class TicketTransitionAdmin(BaseModelAdmin):
         "action",
         "actor",
         "note",
+        "metadata",
+        "created_at",
+        "updated_at",
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(WorkSessionTransition)
+class WorkSessionTransitionAdmin(BaseModelAdmin):
+    list_display = (
+        "id",
+        "work_session",
+        "ticket",
+        "action",
+        "from_status",
+        "to_status",
+        "actor",
+        "event_at",
+    )
+    list_filter = ("action", "from_status", "to_status")
+    search_fields = ("id", "work_session__id", "ticket__id", "actor__username")
+    readonly_fields = (
+        "work_session",
+        "ticket",
+        "from_status",
+        "to_status",
+        "action",
+        "actor",
+        "event_at",
         "metadata",
         "created_at",
         "updated_at",

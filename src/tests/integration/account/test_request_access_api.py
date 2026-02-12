@@ -1,8 +1,5 @@
 import pytest
 
-from account.models import AccessRequest
-from core.utils.constants import AccessRequestStatus
-
 pytestmark = pytest.mark.django_db
 
 
@@ -10,39 +7,13 @@ REQUEST_ACCESS_URL = "/api/v1/users/request-access/"
 ME_URL = "/api/v1/users/me/"
 
 
-def test_creates_pending_access_request(api_client):
-    payload = {
-        "telegram_id": 12345,
-        "username": "alice",
-        "first_name": "Alice",
-        "phone": "+998901234567",
-        "note": "Need access for technician onboarding",
-    }
-
-    resp = api_client.post(REQUEST_ACCESS_URL, payload, format="json")
-
-    assert resp.status_code == 201
-    assert AccessRequest.objects.count() == 1
-    obj = AccessRequest.objects.first()
-    assert obj.status == AccessRequestStatus.PENDING
-    assert obj.phone == payload["phone"]
-    assert obj.note == payload["note"]
-    assert resp.data["data"]["status"] == AccessRequestStatus.PENDING
-
-
-def test_prevents_duplicate_pending(api_client):
-    AccessRequest.objects.create(
-        telegram_id=12345,
-        username="alice",
-        status=AccessRequestStatus.PENDING,
+def test_request_access_endpoint_is_not_available(api_client):
+    resp = api_client.post(
+        REQUEST_ACCESS_URL,
+        {"telegram_id": 12345},
+        format="json",
     )
-
-    resp = api_client.post(REQUEST_ACCESS_URL, {"telegram_id": 12345}, format="json")
-
-    assert resp.status_code == 400
-    assert resp.data["success"] is False
-    assert "telegram" in resp.data["message"].lower()
-    assert AccessRequest.objects.count() == 1
+    assert resp.status_code == 404
 
 
 def test_me_requires_auth(api_client):

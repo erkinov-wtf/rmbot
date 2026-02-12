@@ -4,6 +4,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from api.v1.gamification.serializers import XPLedgerSerializer
+from core.api.schema import extend_schema
 from core.api.views import BaseAPIView
 from core.utils.constants import RoleSlug, XPLedgerEntryType
 from gamification.models import XPLedger
@@ -11,6 +12,11 @@ from gamification.models import XPLedger
 PRIVILEGED_LEDGER_VIEW_ROLES = {RoleSlug.SUPER_ADMIN, RoleSlug.OPS_MANAGER}
 
 
+@extend_schema(
+    tags=["XP Ledger"],
+    summary="List XP ledger entries",
+    description="Returns XP ledger entries with optional filters. Regular users can only see their own entries.",
+)
 class XPLedgerListAPIView(BaseAPIView):
     permission_classes = (IsAuthenticated,)
 

@@ -11,9 +11,7 @@ class RulesConfigAction(models.TextChoices):
 
 class RulesConfigVersion(AppendOnlyModel):
     version = models.PositiveIntegerField(unique=True, db_index=True)
-    action = models.CharField(
-        max_length=20, choices=RulesConfigAction.choices, db_index=True
-    )
+    action = models.CharField(max_length=20, choices=RulesConfigAction, db_index=True)
     config = models.JSONField(default=dict)
     diff = models.JSONField(default=dict, blank=True)
     checksum = models.CharField(max_length=64, db_index=True)

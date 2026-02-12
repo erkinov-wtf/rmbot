@@ -1,6 +1,6 @@
 from aiogram import BaseMiddleware
 
-from account.services import get_active_profile
+from account.services import AccountService
 from core.utils.asyncio import run_sync
 
 
@@ -18,7 +18,7 @@ class AuthMiddleware(BaseMiddleware):
         if not from_user:
             return await handler(event, data)
 
-        profile = await run_sync(get_active_profile, from_user.id)
+        profile = await run_sync(AccountService.get_active_profile, from_user.id)
         data["telegram_profile"] = profile
         data["user"] = profile.user if profile else None
         return await handler(event, data)

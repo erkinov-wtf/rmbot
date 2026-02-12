@@ -8,14 +8,10 @@ from api.v1.rules.serializers import (
     RulesConfigVersionSerializer,
 )
 from core.api.permissions import HasRole
+from core.api.schema import extend_schema
 from core.api.views import BaseAPIView
 from core.utils.constants import RoleSlug
-from rules.services import (
-    get_active_rules_state,
-    list_rules_versions,
-    rollback_rules_config,
-    update_rules_config,
-)
+from rules.services import RulesService
 
 RulesReadPermission = HasRole.as_any(RoleSlug.SUPER_ADMIN, RoleSlug.OPS_MANAGER)
 RulesWritePermission = HasRole.as_any(RoleSlug.SUPER_ADMIN)
@@ -31,6 +27,11 @@ def _state_payload(state) -> dict:
     }
 
 
+@extend_schema(
+    tags=["Rules Engine"],
+    summary="Read or update active rules config",
+    description="GET returns the active rules config. PUT validates and creates a new version, then activates it.",
+)
 class RulesConfigAPIView(BaseAPIView):
     serializer_class = RulesConfigUpdateSerializer
 
@@ -42,7 +43,7 @@ class RulesConfigAPIView(BaseAPIView):
         return [permission() for permission in permission_classes]
 
     def get(self, request, *args, **kwargs):
-        state = get_active_rules_state()
+        state = RulesService.get_active_rules_state()
         return Response(_state_payload(state), status=status.HTTP_200_OK)
 
     def put(self, request, *args, **kwargs):
@@ -50,7 +51,7 @@ class RulesConfigAPIView(BaseAPIView):
         serializer.is_valid(raise_exception=True)
 
         try:
-            state = update_rules_config(
+            state = RulesService.update_rules_config(
                 config=serializer.validated_data["config"],
                 actor_user_id=request.user.id,
                 reason=serializer.validated_data.get("reason"),
@@ -60,6 +61,11 @@ class RulesConfigAPIView(BaseAPIView):
         return Response(_state_payload(state), status=status.HTTP_200_OK)
 
 
+@extend_schema(
+    tags=["Rules Engine"],
+    summary="Rollback active rules config",
+    description="Rolls back active rules to a selected historical version and records a new rollback version entry.",
+)
 class RulesConfigRollbackAPIView(BaseAPIView):
     permission_classes = (IsAuthenticated, RulesWritePermission)
     serializer_class = RulesConfigRollbackSerializer
@@ -69,7 +75,7 @@ class RulesConfigRollbackAPIView(BaseAPIView):
         serializer.is_valid(raise_exception=True)
 
         try:
-            state = rollback_rules_config(
+            state = RulesService.rollback_rules_config(
                 target_version_number=serializer.validated_data["target_version"],
                 actor_user_id=request.user.id,
                 reason=serializer.validated_data.get("reason"),
@@ -79,6 +85,11 @@ class RulesConfigRollbackAPIView(BaseAPIView):
         return Response(_state_payload(state), status=status.HTTP_200_OK)
 
 
+@extend_schema(
+    tags=["Rules Engine"],
+    summary="List rules config version history",
+    description="Returns recent rules config versions with metadata and change diff snapshots.",
+)
 class RulesConfigHistoryAPIView(BaseAPIView):
     permission_classes = (IsAuthenticated, RulesReadPermission)
 
@@ -97,7 +108,7 @@ class RulesConfigHistoryAPIView(BaseAPIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        history = list_rules_versions(limit=limit)
+        history = RulesService.list_rules_versions(limit=limit)
         return Response(
             RulesConfigVersionSerializer(history, many=True).data,
             status=status.HTTP_200_OK,

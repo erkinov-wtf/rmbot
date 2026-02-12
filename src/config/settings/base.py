@@ -1,9 +1,12 @@
 import os
 import sys
+from importlib.util import find_spec
 from pathlib import Path
 
 import dj_database_url
 from decouple import config
+
+HAS_DRF_SPECTACULAR = find_spec("drf_spectacular") is not None
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 IS_TEST_RUN = (
@@ -61,6 +64,8 @@ THIRD_PARTY_APPS = [
     "rest_framework_simplejwt",
     "corsheaders",
 ]
+if HAS_DRF_SPECTACULAR:
+    THIRD_PARTY_APPS.append("drf_spectacular")
 
 LOCAL_APPS = [
     "account",
@@ -290,6 +295,69 @@ REST_FRAMEWORK = {
     "PAGE_SIZE": 10,
     "EXCEPTION_HANDLER": "core.api.exceptions.custom_exception_handler",  # noqa
 }
+if HAS_DRF_SPECTACULAR:
+    REST_FRAMEWORK["DEFAULT_SCHEMA_CLASS"] = "drf_spectacular.openapi.AutoSchema"
+
+if HAS_DRF_SPECTACULAR:
+    SPECTACULAR_SETTINGS = {
+        "TITLE": "Rent Market API",
+        "DESCRIPTION": (
+            "Versioned API documentation for operations, payroll, rules, and bot-linked auth."
+        ),
+        "VERSION": "v1",
+        "SERVE_INCLUDE_SCHEMA": False,
+        "SCHEMA_PATH_PREFIX": r"/api/v[0-9]",
+        "TAGS": [
+            {
+                "name": "Auth",
+                "description": "JWT and Telegram Mini App authentication endpoints.",
+            },
+            {
+                "name": "Users / Profile",
+                "description": "Authenticated user profile endpoints.",
+            },
+            {
+                "name": "Users / Access Requests",
+                "description": "Onboarding requests and moderation workflow.",
+            },
+            {
+                "name": "Attendance",
+                "description": "Daily check-in/check-out and attendance state.",
+            },
+            {
+                "name": "Bikes",
+                "description": "Bike fleet registration and listing.",
+            },
+            {
+                "name": "Tickets / Workflow",
+                "description": "Ticket lifecycle and transition endpoints.",
+            },
+            {
+                "name": "Tickets / Work Sessions",
+                "description": "Technician timer workflow endpoints per ticket.",
+            },
+            {
+                "name": "XP Ledger",
+                "description": "Gamification XP ledger query surface.",
+            },
+            {
+                "name": "Payroll",
+                "description": "Monthly payroll close/approve and snapshots.",
+            },
+            {
+                "name": "Rules Engine",
+                "description": "Rules config management, history, and rollback.",
+            },
+            {
+                "name": "System / Health",
+                "description": "System health and connectivity checks.",
+            },
+            {
+                "name": "System / Audit Feed",
+                "description": "Operational feed combining transitions, XP and attendance.",
+            },
+        ],
+    }
 
 AUTH_USER_MODEL = "account.User"  # noqa
 

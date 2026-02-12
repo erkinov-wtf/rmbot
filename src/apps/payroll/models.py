@@ -8,7 +8,7 @@ class PayrollMonthly(TimestampedModel):
     month = models.DateField(unique=True, db_index=True)
     status = models.CharField(
         max_length=20,
-        choices=PayrollMonthStatus.choices,
+        choices=PayrollMonthStatus,
         default=PayrollMonthStatus.DRAFT,
         db_index=True,
     )
@@ -53,7 +53,7 @@ class PayrollMonthlyLine(TimestampedModel):
     user = models.ForeignKey(
         "account.User", on_delete=models.PROTECT, related_name="payroll_monthly_lines"
     )
-    level = models.PositiveSmallIntegerField(choices=EmployeeLevel.choices)
+    level = models.PositiveSmallIntegerField(choices=EmployeeLevel)
 
     raw_xp = models.IntegerField(default=0)
     paid_xp = models.PositiveIntegerField(default=0)

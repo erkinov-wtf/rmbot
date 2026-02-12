@@ -8,7 +8,7 @@ from core.utils.constants import AccessRequestStatus, EmployeeLevel, RoleSlug
 
 class Role(TimestampedModel, SoftDeleteModel):
     name = models.CharField(max_length=80)
-    slug = models.CharField(max_length=50, unique=True, choices=RoleSlug.choices)
+    slug = models.CharField(max_length=50, unique=True, choices=RoleSlug)
 
     def __str__(self) -> str:
         return f"{self.name} ({self.slug})"
@@ -23,7 +23,7 @@ class User(AbstractBaseUser, TimestampedModel, SoftDeleteModel):
     phone = models.CharField(max_length=15, unique=True, null=True, blank=True)
     email = models.EmailField(unique=True)
     level = models.PositiveSmallIntegerField(
-        choices=EmployeeLevel.choices, default=EmployeeLevel.L1, db_index=True
+        choices=EmployeeLevel, default=EmployeeLevel.L1, db_index=True
     )
 
     roles = models.ManyToManyField(
@@ -102,7 +102,7 @@ class AccessRequest(TimestampedModel, SoftDeleteModel):
     note = models.TextField(blank=True, null=True)
     status = models.CharField(
         max_length=20,
-        choices=AccessRequestStatus.choices,
+        choices=AccessRequestStatus,
         default=AccessRequestStatus.PENDING,
         db_index=True,
     )
