@@ -329,6 +329,10 @@ if HAS_DRF_SPECTACULAR:
                 "description": "Bike fleet registration and listing.",
             },
             {
+                "name": "Analytics",
+                "description": "Operational fleet and team KPI snapshots.",
+            },
+            {
                 "name": "Tickets / Workflow",
                 "description": "Ticket lifecycle and transition endpoints.",
             },

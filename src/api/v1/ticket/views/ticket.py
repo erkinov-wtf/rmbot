@@ -34,8 +34,9 @@ class TicketViewSet(BaseModelViewSet):
         tags=["Tickets / Workflow"],
         summary="Create ticket",
         description=(
-            "Creates a new ticket intake with checklist snapshot and master-approved "
-            "SRT, then records the initial workflow transition."
+            "Creates a new ticket intake by bike_code with checklist snapshot and "
+            "master-approved SRT, then records the initial workflow transition. "
+            "Unknown bike codes require explicit confirm-create and a reason."
         ),
     )
     def create(self, request, *args, **kwargs):
@@ -51,6 +52,7 @@ class TicketViewSet(BaseModelViewSet):
 
     def perform_create(self, serializer):
         ticket = serializer.save(master=self.request.user)
+        intake_metadata = serializer.get_intake_metadata()
         TicketWorkflowService.log_ticket_transition(
             ticket=ticket,
             from_status=None,
@@ -61,5 +63,6 @@ class TicketViewSet(BaseModelViewSet):
                 "srt_total_minutes": ticket.srt_total_minutes,
                 "srt_approved": bool(ticket.srt_approved_at),
                 "checklist_items_count": len(ticket.checklist_snapshot or []),
+                **intake_metadata,
             },
         )
