@@ -13,8 +13,27 @@ def _build_data_check_string(data: dict[str, str]) -> str:
     return "\n".join(f"{k}={v}" for k, v in sorted(data.items()))
 
 
+def extract_init_data_hash(init_data: str) -> str:
+    if not init_data:
+        raise InitDataValidationError("init_data is required")
+
+    try:
+        parsed = dict(urllib.parse.parse_qsl(init_data, strict_parsing=True))
+    except ValueError as exc:
+        raise InitDataValidationError("init_data is invalid") from exc
+
+    provided_hash = parsed.get("hash")
+    if not provided_hash:
+        raise InitDataValidationError("hash is missing in init_data")
+
+    return provided_hash
+
+
 def validate_init_data(
-    init_data: str, bot_token: str, max_age_seconds: int = 300
+    init_data: str,
+    bot_token: str,
+    max_age_seconds: int = 300,
+    max_future_skew_seconds: int = 30,
 ) -> dict[str, Any]:
     """
     Validate Telegram Mini App initData according to Telegram spec.
@@ -33,7 +52,11 @@ def validate_init_data(
     if not init_data:
         raise InitDataValidationError("init_data is required")
 
-    parsed = dict(urllib.parse.parse_qsl(init_data, strict_parsing=True))
+    try:
+        parsed = dict(urllib.parse.parse_qsl(init_data, strict_parsing=True))
+    except ValueError as exc:
+        raise InitDataValidationError("init_data is invalid") from exc
+
     provided_hash = parsed.pop("hash", None)
     if not provided_hash:
         raise InitDataValidationError("hash is missing in init_data")
@@ -53,7 +76,13 @@ def validate_init_data(
         auth_date = int(parsed.get("auth_date", "0"))
     except (TypeError, ValueError):
         raise InitDataValidationError("auth_date is missing or invalid") from None
-    if auth_date <= 0 or (time.time() - auth_date) > max_age_seconds:
+
+    now_ts = int(time.time())
+    if auth_date <= 0:
+        raise InitDataValidationError("auth_date is missing or invalid")
+    if auth_date > (now_ts + max_future_skew_seconds):
+        raise InitDataValidationError("init_data auth_date is in the future")
+    if (now_ts - auth_date) > max_age_seconds:
         raise InitDataValidationError("init_data is expired")
 
     return parsed

@@ -54,3 +54,36 @@ def test_expired_init_data_raises():
 
     with pytest.raises(InitDataValidationError):
         validate_init_data(init_data, bot_token="token", max_age_seconds=300)
+
+
+def test_future_auth_date_beyond_skew_raises():
+    future_ts = int(time.time()) + 120
+    init_data = _build_init_data(
+        bot_token="token",
+        user_payload={"id": 123},
+        auth_date=future_ts,
+    )
+
+    with pytest.raises(InitDataValidationError):
+        validate_init_data(
+            init_data,
+            bot_token="token",
+            max_future_skew_seconds=30,
+        )
+
+
+def test_future_auth_date_within_skew_is_valid():
+    future_ts = int(time.time()) + 5
+    init_data = _build_init_data(
+        bot_token="token",
+        user_payload={"id": 123},
+        auth_date=future_ts,
+    )
+
+    parsed = validate_init_data(
+        init_data,
+        bot_token="token",
+        max_future_skew_seconds=30,
+    )
+
+    assert parsed["auth_date"] == str(future_ts)

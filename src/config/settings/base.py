@@ -161,6 +161,15 @@ BOT_WEBHOOK_SECRET = config("BOT_WEBHOOK_SECRET", default="")
 BOT_PARSE_MODE = config("BOT_PARSE_MODE", default="HTML")
 BOT_DEFAULT_LOCALE = config("BOT_DEFAULT_LOCALE", default="en")
 BOT_FALLBACK_LOCALE = config("BOT_FALLBACK_LOCALE", default="en")
+TMA_INIT_DATA_MAX_AGE_SECONDS = config(
+    "TMA_INIT_DATA_MAX_AGE_SECONDS", default=300, cast=int
+)
+TMA_INIT_DATA_MAX_FUTURE_SKEW_SECONDS = config(
+    "TMA_INIT_DATA_MAX_FUTURE_SKEW_SECONDS", default=30, cast=int
+)
+TMA_INIT_DATA_REPLAY_TTL_SECONDS = config(
+    "TMA_INIT_DATA_REPLAY_TTL_SECONDS", default=300, cast=int
+)
 
 # Ensure logs directory exists
 os.makedirs(LOGS_ROOT, exist_ok=True)

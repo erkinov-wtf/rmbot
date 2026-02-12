@@ -2,6 +2,7 @@ import json
 from dataclasses import dataclass
 
 from django.conf import settings
+from django.core.cache import cache
 from rest_framework import serializers, status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -17,7 +18,11 @@ from account.services import AccountService
 from api.v1.account.serializers import UserSerializer
 from core.api.schema import extend_schema
 from core.api.views import BaseAPIView
-from core.utils.telegram import InitDataValidationError, validate_init_data
+from core.utils.telegram import (
+    InitDataValidationError,
+    extract_init_data_hash,
+    validate_init_data,
+)
 
 
 @extend_schema(
@@ -93,10 +98,22 @@ class TMAInitDataVerifyAPIView(BaseAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
+        init_data = serializer.validated_data["init_data"]
+        max_age_seconds = max(
+            int(getattr(settings, "TMA_INIT_DATA_MAX_AGE_SECONDS", 300)), 1
+        )
+        max_future_skew_seconds = max(
+            int(getattr(settings, "TMA_INIT_DATA_MAX_FUTURE_SKEW_SECONDS", 30)), 0
+        )
+
         try:
             parsed = validate_init_data(
-                serializer.validated_data["init_data"], bot_token=settings.BOT_TOKEN
+                init_data,
+                bot_token=settings.BOT_TOKEN,
+                max_age_seconds=max_age_seconds,
+                max_future_skew_seconds=max_future_skew_seconds,
             )
+            init_data_hash = extract_init_data_hash(init_data)
         except InitDataValidationError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         except ValueError as ve:
@@ -160,6 +177,12 @@ class TMAInitDataVerifyAPIView(BaseAPIView):
                 status=status.HTTP_200_OK,
             )
 
+        if self._is_replayed(init_data_hash):
+            return Response(
+                {"detail": "init_data has already been used"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         refresh = RefreshToken.for_user(user)
         user_data = UserSerializer(user).data
         return Response(
@@ -172,3 +195,10 @@ class TMAInitDataVerifyAPIView(BaseAPIView):
             },
             status=status.HTTP_200_OK,
         )
+
+    def _is_replayed(self, init_data_hash: str) -> bool:
+        replay_ttl_seconds = max(
+            int(getattr(settings, "TMA_INIT_DATA_REPLAY_TTL_SECONDS", 300)), 1
+        )
+        replay_cache_key = f"tma:init-data-hash:{init_data_hash}"
+        return not cache.add(replay_cache_key, "1", timeout=replay_ttl_seconds)

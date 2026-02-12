@@ -14,10 +14,16 @@ pytestmark = pytest.mark.django_db
 VERIFY_URL = "/api/v1/auth/tma/verify/"
 
 
-def build_init_data(bot_token: str, user_payload: dict) -> str:
+def build_init_data(
+    bot_token: str,
+    user_payload: dict,
+    *,
+    auth_date: int | None = None,
+) -> str:
     data = {
         "user": json.dumps(user_payload, separators=(",", ":")),
-        "auth_date": str(int(time.time())),
+        "auth_date": str(auth_date or int(time.time())),
+        "query_id": str(time.time_ns()),
     }
     data_check_string = "\n".join(f"{k}={v}" for k, v in sorted(data.items()))
     secret_key = hmac.new(b"WebAppData", bot_token.encode(), hashlib.sha256).digest()
@@ -30,6 +36,9 @@ def build_init_data(bot_token: str, user_payload: dict) -> str:
 @pytest.fixture
 def tma_settings(settings):
     settings.BOT_TOKEN = "TEST_BOT_TOKEN"
+    settings.TMA_INIT_DATA_MAX_AGE_SECONDS = 300
+    settings.TMA_INIT_DATA_MAX_FUTURE_SKEW_SECONDS = 30
+    settings.TMA_INIT_DATA_REPLAY_TTL_SECONDS = 300
     return settings
 
 
@@ -103,3 +112,46 @@ def test_rejects_missing_user_id(api_client, tma_settings):
     assert resp.status_code == 400
     assert resp.data["success"] is False
     assert "user.id" in resp.data["error"]["detail"]
+
+
+def test_rejects_replayed_init_data_for_linked_user(
+    api_client, user_factory, tma_settings, tg_user_payload
+):
+    user = user_factory(
+        username="bob",
+        password="password",
+        first_name="Bob",
+        email="bob@example.com",
+    )
+    TelegramProfile.objects.create(
+        user=user,
+        telegram_id=tg_user_payload["id"],
+        username=tg_user_payload["username"],
+    )
+
+    init_data = build_init_data("TEST_BOT_TOKEN", tg_user_payload)
+
+    first_resp = api_client.post(VERIFY_URL, {"init_data": init_data}, format="json")
+    second_resp = api_client.post(
+        VERIFY_URL,
+        {"init_data": init_data},
+        format="json",
+    )
+
+    assert first_resp.status_code == 200
+    assert second_resp.status_code == 400
+    assert second_resp.data["success"] is False
+    assert "already been used" in second_resp.data["error"]["detail"]
+
+
+def test_rejects_auth_date_far_in_future(api_client, tma_settings, tg_user_payload):
+    init_data = build_init_data(
+        "TEST_BOT_TOKEN",
+        tg_user_payload,
+        auth_date=int(time.time()) + 120,
+    )
+    resp = api_client.post(VERIFY_URL, {"init_data": init_data}, format="json")
+
+    assert resp.status_code == 400
+    assert resp.data["success"] is False
+    assert "future" in resp.data["error"]["detail"].lower()
