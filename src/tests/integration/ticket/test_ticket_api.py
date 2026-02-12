@@ -7,6 +7,7 @@ pytestmark = pytest.mark.django_db
 
 
 CREATE_URL = "/api/v1/tickets/create/"
+VALID_CHECKLIST = [f"Task {idx}" for idx in range(1, 11)]
 
 
 @pytest.fixture
@@ -46,7 +47,9 @@ def test_ticket_create_requires_master_role(authed_client_factory, ticket_api_co
             "bike": ticket_api_context["bike"].id,
             "technician": ticket_api_context["technician"].id,
             "title": "Diagnostics",
+            "checklist_snapshot": VALID_CHECKLIST,
             "srt_total_minutes": 40,
+            "approve_srt": True,
         },
         format="json",
     )
@@ -63,7 +66,9 @@ def test_master_can_create_ticket(authed_client_factory, ticket_api_context):
             "bike": ticket_api_context["bike"].id,
             "technician": ticket_api_context["technician"].id,
             "title": "Diagnostics",
+            "checklist_snapshot": VALID_CHECKLIST,
             "srt_total_minutes": 40,
+            "approve_srt": True,
         },
         format="json",
     )
@@ -72,10 +77,15 @@ def test_master_can_create_ticket(authed_client_factory, ticket_api_context):
     payload = resp.data["data"]
     assert payload["master"] == ticket_api_context["master_user"].id
     assert payload["status"] == TicketStatus.NEW
+    assert len(payload["checklist_snapshot"]) == 10
+    assert payload["srt_approved_by"] == ticket_api_context["master_user"].id
+    assert payload["srt_approved_at"] is not None
     assert Ticket.objects.count() == 1
     transition = TicketTransition.objects.get(ticket_id=payload["id"])
     assert transition.action == TicketTransitionAction.CREATED
     assert transition.actor_id == ticket_api_context["master_user"].id
+    assert transition.metadata["checklist_items_count"] == 10
+    assert transition.metadata["srt_approved"] is True
 
 
 def test_rejects_second_active_ticket_for_same_bike(
@@ -95,7 +105,9 @@ def test_rejects_second_active_ticket_for_same_bike(
             "bike": ticket_api_context["bike"].id,
             "technician": ticket_api_context["technician"].id,
             "title": "Second ticket attempt",
+            "checklist_snapshot": VALID_CHECKLIST,
             "srt_total_minutes": 30,
+            "approve_srt": True,
         },
         format="json",
     )
@@ -103,3 +115,47 @@ def test_rejects_second_active_ticket_for_same_bike(
     assert resp.status_code == 400
     assert resp.data["success"] is False
     assert "bike" in resp.data["message"].lower()
+
+
+def test_ticket_create_rejects_short_checklist(
+    authed_client_factory, ticket_api_context
+):
+    client = authed_client_factory(ticket_api_context["master_user"])
+
+    resp = client.post(
+        CREATE_URL,
+        {
+            "bike": ticket_api_context["bike"].id,
+            "technician": ticket_api_context["technician"].id,
+            "title": "Diagnostics",
+            "checklist_snapshot": VALID_CHECKLIST[:5],
+            "srt_total_minutes": 40,
+            "approve_srt": True,
+        },
+        format="json",
+    )
+
+    assert resp.status_code == 400
+    assert "at least 10" in resp.data["message"].lower()
+
+
+def test_ticket_create_rejects_unapproved_srt(
+    authed_client_factory, ticket_api_context
+):
+    client = authed_client_factory(ticket_api_context["master_user"])
+
+    resp = client.post(
+        CREATE_URL,
+        {
+            "bike": ticket_api_context["bike"].id,
+            "technician": ticket_api_context["technician"].id,
+            "title": "Diagnostics",
+            "checklist_snapshot": VALID_CHECKLIST,
+            "srt_total_minutes": 40,
+            "approve_srt": False,
+        },
+        format="json",
+    )
+
+    assert resp.status_code == 400
+    assert "approved by master" in resp.data["message"].lower()

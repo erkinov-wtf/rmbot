@@ -32,7 +32,16 @@ class Ticket(TimestampedModel, SoftDeleteModel):
         related_name="assigned_tickets",
     )
     title = models.CharField(max_length=255, blank=True, null=True)
+    checklist_snapshot = models.JSONField(default=list, blank=True)
     srt_total_minutes = models.PositiveIntegerField(default=0)
+    srt_approved_by = models.ForeignKey(
+        "account.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="srt_approved_tickets",
+    )
+    srt_approved_at = models.DateTimeField(null=True, blank=True)
     flag_minutes = models.PositiveIntegerField(default=0)
     status = models.CharField(
         max_length=20,

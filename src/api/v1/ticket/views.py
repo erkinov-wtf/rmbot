@@ -40,7 +40,10 @@ class TicketListAPIView(ListAPIView):
 @extend_schema(
     tags=["Tickets / Workflow"],
     summary="Create ticket",
-    description="Creates a new ticket and records the initial workflow transition.",
+    description=(
+        "Creates a new ticket intake with checklist snapshot and master-approved "
+        "SRT, then records the initial workflow transition."
+    ),
 )
 class TicketCreateAPIView(CreateAPIView):
     serializer_class = TicketSerializer
@@ -55,6 +58,11 @@ class TicketCreateAPIView(CreateAPIView):
             to_status=ticket.status,
             action=TicketTransitionAction.CREATED,
             actor_user_id=self.request.user.id,
+            metadata={
+                "srt_total_minutes": ticket.srt_total_minutes,
+                "srt_approved": bool(ticket.srt_approved_at),
+                "checklist_items_count": len(ticket.checklist_snapshot or []),
+            },
         )
 
 
