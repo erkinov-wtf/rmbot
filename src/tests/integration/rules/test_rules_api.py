@@ -2,6 +2,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 import pytest
+from django.core.cache import cache
 
 from core.utils.constants import RoleSlug, TicketStatus, XPLedgerEntryType
 from gamification.models import XPLedger
@@ -112,6 +113,31 @@ def test_update_changes_cache_key_and_history(authed_client_factory, rules_conte
     assert items[0]["action"] == "update"
     assert items[0]["source_version_number"] == 1
     assert "ticket_xp.base_divisor" in items[0]["diff"]["changes"]
+
+
+def test_update_rotates_cached_rules_config(rules_context):
+    actor = rules_context["super_admin"]
+    state_before = RulesService.get_active_rules_state()
+    config_before = RulesService.get_active_rules_config()
+    old_cache_key = RulesService._cache_storage_key(state_before.cache_key)
+    assert (
+        cache.get(old_cache_key)["ticket_xp"]["base_divisor"]
+        == config_before["ticket_xp"]["base_divisor"]
+    )
+
+    updated = RulesService.get_active_rules_config()
+    updated["ticket_xp"]["base_divisor"] = 13
+    RulesService.update_rules_config(
+        config=updated,
+        actor_user_id=actor.id,
+        reason="Cache rotation check",
+    )
+    state_after = RulesService.get_active_rules_state()
+    new_cache_key = RulesService._cache_storage_key(state_after.cache_key)
+
+    assert state_after.cache_key != state_before.cache_key
+    assert cache.get(old_cache_key) is None
+    assert cache.get(new_cache_key)["ticket_xp"]["base_divisor"] == 13
 
 
 def test_rollback_restores_previous_version(authed_client_factory, rules_context):

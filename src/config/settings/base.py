@@ -7,6 +7,11 @@ import dj_database_url
 from decouple import config
 
 HAS_DRF_SPECTACULAR = find_spec("drf_spectacular") is not None
+HAS_CELERY = find_spec("celery") is not None
+HAS_REDIS_PACKAGE = find_spec("redis") is not None
+
+if HAS_CELERY:
+    from celery.schedules import crontab
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 IS_TEST_RUN = (
@@ -37,6 +42,19 @@ else:
             f"@{config('POSTGRES_HOST')}/{config('POSTGRES_DB')}"
         )
     ACTIVE_DATABASE_URL = DATABASE_URL
+
+REDIS_HOST = config("REDIS_HOST", default="redis")
+REDIS_PORT = config("REDIS_PORT", default=6379, cast=int)
+REDIS_DB = config("REDIS_DB", default=0, cast=int)
+REDIS_CACHE_DB = config("REDIS_CACHE_DB", default=1, cast=int)
+REDIS_URL = config(
+    "REDIS_URL",
+    default=f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}",
+)
+REDIS_CACHE_URL = config(
+    "REDIS_CACHE_URL",
+    default=f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_CACHE_DB}",
+)
 
 UNFOLD_APPS = [
     "unfold",
@@ -120,6 +138,44 @@ DATABASES = {
         conn_health_checks=True,
     )
 }
+
+if IS_TEST_RUN or not HAS_REDIS_PACKAGE:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "rent-market-test-cache",
+        }
+    }
+else:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": REDIS_CACHE_URL,
+            "TIMEOUT": None,
+        }
+    }
+
+CELERY_BROKER_URL = config("CELERY_BROKER_URL", default=REDIS_URL)
+CELERY_RESULT_BACKEND = config("CELERY_RESULT_BACKEND", default=CELERY_BROKER_URL)
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_TIMEZONE = "Asia/Tashkent"
+CELERY_ENABLE_UTC = True
+CELERY_TASK_IGNORE_RESULT = True
+
+CELERY_BEAT_SCHEDULE = {}
+if HAS_CELERY:
+    CELERY_BEAT_SCHEDULE = {
+        "detect-stockout-incidents": {
+            "task": "ticket.tasks.detect_stockout_incidents",
+            "schedule": crontab(minute="*"),
+        },
+        "evaluate-levels-weekly": {
+            "task": "gamification.tasks.run_weekly_level_evaluation",
+            "schedule": crontab(minute=5, hour=0, day_of_week=1),
+        },
+    }
 
 AUTH_PASSWORD_VALIDATORS = [
     {

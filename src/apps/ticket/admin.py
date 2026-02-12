@@ -1,7 +1,13 @@
 from django.contrib import admin
 
 from core.admin import BaseModelAdmin
-from ticket.models import Ticket, TicketTransition, WorkSession, WorkSessionTransition
+from ticket.models import (
+    StockoutIncident,
+    Ticket,
+    TicketTransition,
+    WorkSession,
+    WorkSessionTransition,
+)
 
 
 @admin.register(Ticket)
@@ -97,6 +103,41 @@ class WorkSessionTransitionAdmin(BaseModelAdmin):
         "actor",
         "event_at",
         "metadata",
+        "created_at",
+        "updated_at",
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(StockoutIncident)
+class StockoutIncidentAdmin(BaseModelAdmin):
+    list_display = (
+        "id",
+        "is_active",
+        "started_at",
+        "ended_at",
+        "duration_minutes",
+        "ready_count_at_start",
+        "ready_count_at_end",
+    )
+    list_filter = ("is_active",)
+    search_fields = ("id",)
+    readonly_fields = (
+        "started_at",
+        "ended_at",
+        "is_active",
+        "duration_minutes",
+        "ready_count_at_start",
+        "ready_count_at_end",
+        "payload",
         "created_at",
         "updated_at",
     )

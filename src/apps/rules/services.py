@@ -7,6 +7,7 @@ import uuid
 from collections.abc import Mapping
 from typing import Any
 
+from django.core.cache import cache
 from django.db import transaction
 from django.db.models import Max
 
@@ -15,6 +16,8 @@ from rules.models import RulesConfigAction, RulesConfigState, RulesConfigVersion
 
 
 class RulesService:
+    RULES_CONFIG_CACHE_PREFIX = "rules:active-config:"
+
     @staticmethod
     def default_rules_config() -> dict[str, Any]:
         level_caps = {
@@ -59,6 +62,19 @@ class RulesService:
                     str(EmployeeLevel.L5): 1_100,
                 },
                 "weekly_coupon_amount": 100_000,
+            },
+            "sla": {
+                "stockout": {
+                    "timezone": "Asia/Tashkent",
+                    "business_start_hour": 10,
+                    "business_end_hour": 20,
+                },
+                "allowance_gate": {
+                    "enabled": True,
+                    "gated_levels": [str(EmployeeLevel.L5)],
+                    "min_first_pass_rate_percent": 85,
+                    "max_stockout_minutes": 0,
+                },
             },
         }
 
@@ -113,12 +129,50 @@ class RulesService:
                 )
             previous_threshold = current_threshold
 
+    @staticmethod
+    def _normalize_sla_gated_levels(value: Any) -> list[str]:
+        if not isinstance(value, list):
+            raise ValueError("sla.allowance_gate.gated_levels must be an array.")
+
+        normalized: set[int] = set()
+        for raw_level in value:
+            try:
+                parsed_level = int(raw_level)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    "sla.allowance_gate.gated_levels values must be valid levels."
+                ) from exc
+            if parsed_level not in EmployeeLevel.values:
+                raise ValueError(
+                    "sla.allowance_gate.gated_levels values must be valid levels."
+                )
+            normalized.add(parsed_level)
+        return [str(level) for level in sorted(normalized)]
+
+    @classmethod
+    def _cache_storage_key(cls, state_cache_key: str) -> str:
+        return f"{cls.RULES_CONFIG_CACHE_PREFIX}{state_cache_key}"
+
+    @classmethod
+    def _set_cached_active_config(
+        cls, *, state_cache_key: str, config_payload: dict[str, Any]
+    ) -> None:
+        cache.set(
+            cls._cache_storage_key(state_cache_key),
+            copy.deepcopy(config_payload),
+            timeout=None,
+        )
+
+    @classmethod
+    def _invalidate_cached_active_config(cls, *, state_cache_key: str) -> None:
+        cache.delete(cls._cache_storage_key(state_cache_key))
+
     @classmethod
     def validate_and_normalize_rules_config(cls, raw_config: Any) -> dict[str, Any]:
         if not isinstance(raw_config, dict):
             raise ValueError("config must be a JSON object.")
 
-        allowed_keys = {"ticket_xp", "attendance", "payroll", "progression"}
+        allowed_keys = {"ticket_xp", "attendance", "payroll", "progression", "sla"}
         unknown_keys = sorted(set(raw_config.keys()) - allowed_keys)
         if unknown_keys:
             raise ValueError(f"Unknown config keys: {', '.join(unknown_keys)}.")
@@ -127,6 +181,8 @@ class RulesService:
         attendance = raw_config.get("attendance")
         payroll = raw_config.get("payroll")
         progression = raw_config.get("progression")
+        default_sla_config = cls.default_rules_config()["sla"]
+        sla = raw_config.get("sla", default_sla_config)
 
         if not isinstance(ticket_xp, dict):
             raise ValueError("ticket_xp must be an object.")
@@ -136,6 +192,8 @@ class RulesService:
             raise ValueError("payroll must be an object.")
         if not isinstance(progression, dict):
             raise ValueError("progression must be an object.")
+        if not isinstance(sla, dict):
+            raise ValueError("sla must be an object.")
 
         base_divisor = cls._require_int(
             ticket_xp.get("base_divisor"), field="ticket_xp.base_divisor"
@@ -203,6 +261,51 @@ class RulesService:
             field="progression.weekly_coupon_amount",
         )
 
+        stockout = sla.get("stockout")
+        if not isinstance(stockout, dict):
+            raise ValueError("sla.stockout must be an object.")
+        stockout_timezone = stockout.get("timezone")
+        if not isinstance(stockout_timezone, str) or not stockout_timezone.strip():
+            raise ValueError("sla.stockout.timezone must be a non-empty string.")
+        stockout_start_hour = cls._require_int(
+            stockout.get("business_start_hour"),
+            field="sla.stockout.business_start_hour",
+        )
+        stockout_end_hour = cls._require_int(
+            stockout.get("business_end_hour"),
+            field="sla.stockout.business_end_hour",
+        )
+        if stockout_start_hour < 0 or stockout_start_hour > 23:
+            raise ValueError("sla.stockout.business_start_hour must be in 0..23.")
+        if stockout_end_hour < 1 or stockout_end_hour > 24:
+            raise ValueError("sla.stockout.business_end_hour must be in 1..24.")
+        if stockout_start_hour >= stockout_end_hour:
+            raise ValueError(
+                "sla.stockout.business_start_hour must be < business_end_hour."
+            )
+
+        allowance_gate = sla.get("allowance_gate")
+        if not isinstance(allowance_gate, dict):
+            raise ValueError("sla.allowance_gate must be an object.")
+        allowance_gate_enabled = allowance_gate.get("enabled")
+        if not isinstance(allowance_gate_enabled, bool):
+            raise ValueError("sla.allowance_gate.enabled must be boolean.")
+        allowance_gate_levels = cls._normalize_sla_gated_levels(
+            allowance_gate.get("gated_levels", [])
+        )
+        min_first_pass_rate_percent = cls._require_int(
+            allowance_gate.get("min_first_pass_rate_percent"),
+            field="sla.allowance_gate.min_first_pass_rate_percent",
+        )
+        if min_first_pass_rate_percent < 0 or min_first_pass_rate_percent > 100:
+            raise ValueError(
+                "sla.allowance_gate.min_first_pass_rate_percent must be in 0..100."
+            )
+        max_stockout_minutes = cls._require_int(
+            allowance_gate.get("max_stockout_minutes"),
+            field="sla.allowance_gate.max_stockout_minutes",
+        )
+
         return {
             "ticket_xp": {
                 "base_divisor": base_divisor,
@@ -225,6 +328,19 @@ class RulesService:
             "progression": {
                 "level_thresholds": level_thresholds,
                 "weekly_coupon_amount": weekly_coupon_amount,
+            },
+            "sla": {
+                "stockout": {
+                    "timezone": stockout_timezone.strip(),
+                    "business_start_hour": stockout_start_hour,
+                    "business_end_hour": stockout_end_hour,
+                },
+                "allowance_gate": {
+                    "enabled": allowance_gate_enabled,
+                    "gated_levels": allowance_gate_levels,
+                    "min_first_pass_rate_percent": min_first_pass_rate_percent,
+                    "max_stockout_minutes": max_stockout_minutes,
+                },
             },
         }
 
@@ -280,11 +396,16 @@ class RulesService:
             created_by=None,
             source_version=None,
         )
-        return RulesConfigState.objects.create(
+        state = RulesConfigState.objects.create(
             singleton=True,
             active_version=version,
             cache_key=uuid.uuid4().hex,
         )
+        cls._set_cached_active_config(
+            state_cache_key=state.cache_key,
+            config_payload=version.config,
+        )
+        return state
 
     @classmethod
     def get_active_rules_state(cls) -> RulesConfigState:
@@ -297,7 +418,16 @@ class RulesService:
     @classmethod
     def get_active_rules_config(cls) -> dict[str, Any]:
         state = cls.get_active_rules_state()
-        return copy.deepcopy(state.active_version.config)
+        cached = cache.get(cls._cache_storage_key(state.cache_key))
+        if isinstance(cached, dict):
+            return copy.deepcopy(cached)
+
+        active_config = copy.deepcopy(state.active_version.config)
+        cls._set_cached_active_config(
+            state_cache_key=state.cache_key,
+            config_payload=active_config,
+        )
+        return copy.deepcopy(active_config)
 
     @classmethod
     @transaction.atomic
@@ -306,6 +436,7 @@ class RulesService:
     ) -> RulesConfigState:
         normalized = cls.validate_and_normalize_rules_config(config)
         state = cls.ensure_rules_state()
+        previous_cache_key = state.cache_key
         current_version = state.active_version
 
         if normalized == current_version.config:
@@ -326,6 +457,11 @@ class RulesService:
         state.active_version = new_version
         state.cache_key = uuid.uuid4().hex
         state.save(update_fields=["active_version", "cache_key", "updated_at"])
+        cls._invalidate_cached_active_config(state_cache_key=previous_cache_key)
+        cls._set_cached_active_config(
+            state_cache_key=state.cache_key,
+            config_payload=new_version.config,
+        )
         return RulesConfigState.objects.select_related(
             "active_version", "active_version__created_by"
         ).get(pk=state.pk)
@@ -340,6 +476,7 @@ class RulesService:
         reason: str | None = None,
     ) -> RulesConfigState:
         state = cls.ensure_rules_state()
+        previous_cache_key = state.cache_key
         current_version = state.active_version
         target_version = RulesConfigVersion.objects.filter(
             version=target_version_number
@@ -365,6 +502,11 @@ class RulesService:
         state.active_version = new_version
         state.cache_key = uuid.uuid4().hex
         state.save(update_fields=["active_version", "cache_key", "updated_at"])
+        cls._invalidate_cached_active_config(state_cache_key=previous_cache_key)
+        cls._set_cached_active_config(
+            state_cache_key=state.cache_key,
+            config_payload=new_version.config,
+        )
         return RulesConfigState.objects.select_related(
             "active_version", "active_version__created_by"
         ).get(pk=state.pk)

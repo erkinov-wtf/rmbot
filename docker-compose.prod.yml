@@ -17,6 +17,23 @@ services:
     env_file:
       - .env
 
+  redis:
+    container_name: redis-prod
+    image: redis:7-alpine
+    ports:
+      - "127.0.0.1:${REDIS_PORT}:6379"
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - network-default
+    restart: unless-stopped
+    env_file:
+      - .env
+
   web:
     container_name: web-prod
     build: .
@@ -24,7 +41,7 @@ services:
     volumes:
       - app_data:/app/cdn
     ports:
-        - "127.0.0.1:${APP_PORT}:8000"
+      - "127.0.0.1:${APP_PORT}:8000"
     healthcheck:
       test: [ "CMD-SHELL", "./scripts/healthcheck.sh" ]
       interval: 30s
@@ -33,6 +50,38 @@ services:
       start_period: 20s
     depends_on:
       db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - network-default
+    restart: unless-stopped
+    env_file:
+      - .env
+
+  worker:
+    container_name: worker-prod
+    build: .
+    command: python -m celery -A config worker --loglevel=INFO
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - network-default
+    restart: unless-stopped
+    env_file:
+      - .env
+
+  beat:
+    container_name: beat-prod
+    build: .
+    command: python -m celery -A config beat --loglevel=INFO
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     networks:
       - network-default

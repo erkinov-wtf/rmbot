@@ -10,16 +10,46 @@ services:
     env_file:
       - .env
 
+  redis:
+    container_name: redis-dev
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
   web:
     build: .
     container_name: web-dev
     entrypoint: /app/scripts/entrypoint.sh
     volumes:
-     - app_data:/app/cdn
+      - app_data:/app/cdn
     ports:
       - "8005:8000"
     depends_on:
       - db
+      - redis
+    restart: unless-stopped
+    env_file:
+      - .env
+
+  worker:
+    build: .
+    container_name: worker-dev
+    command: python -m celery -A config worker --loglevel=INFO
+    depends_on:
+      - db
+      - redis
+    restart: unless-stopped
+    env_file:
+      - .env
+
+  beat:
+    build: .
+    container_name: beat-dev
+    command: python -m celery -A config beat --loglevel=INFO
+    depends_on:
+      - db
+      - redis
     restart: unless-stopped
     env_file:
       - .env

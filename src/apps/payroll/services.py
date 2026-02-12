@@ -11,6 +11,7 @@ from core.utils.constants import EmployeeLevel, PayrollMonthStatus
 from gamification.models import XPLedger
 from payroll.models import PayrollMonthly, PayrollMonthlyLine
 from rules.services import RulesService
+from ticket.services_stockout import StockoutIncidentService
 
 
 class PayrollService:
@@ -51,6 +52,7 @@ class PayrollService:
         int,
         dict[int, int],
         dict[int, int],
+        dict[str, int | bool | set[int]],
         dict,
     ]:
         rules_state = RulesService.get_active_rules_state()
@@ -70,12 +72,52 @@ class PayrollService:
             int(level): int(allowances_raw.get(str(level), 0) or 0)
             for level in EmployeeLevel.values
         }
+
+        allowance_gate_rules = rules_config.get("sla", {}).get("allowance_gate", {})
+        raw_enabled = allowance_gate_rules.get("enabled", False)
+        gate_enabled = raw_enabled if isinstance(raw_enabled, bool) else False
+        gated_levels: set[int] = set()
+        for raw_level in allowance_gate_rules.get("gated_levels", []):
+            try:
+                level_value = int(raw_level)
+            except (TypeError, ValueError):
+                continue
+            if level_value in EmployeeLevel.values:
+                gated_levels.add(level_value)
+        try:
+            min_first_pass_rate_percent = int(
+                allowance_gate_rules.get("min_first_pass_rate_percent", 0) or 0
+            )
+        except (TypeError, ValueError):
+            min_first_pass_rate_percent = 0
+        min_first_pass_rate_percent = max(0, min(100, min_first_pass_rate_percent))
+        try:
+            max_stockout_minutes = int(
+                allowance_gate_rules.get("max_stockout_minutes", 0) or 0
+            )
+        except (TypeError, ValueError):
+            max_stockout_minutes = 0
+        max_stockout_minutes = max(0, max_stockout_minutes)
+        allowance_gate = {
+            "enabled": gate_enabled,
+            "gated_levels": gated_levels,
+            "min_first_pass_rate_percent": min_first_pass_rate_percent,
+            "max_stockout_minutes": max_stockout_minutes,
+        }
+
         rules_snapshot = {
             "version": rules_state.active_version.version,
             "cache_key": rules_state.cache_key,
             "config": rules_config,
         }
-        return fix_salary, bonus_rate, level_caps, level_allowances, rules_snapshot
+        return (
+            fix_salary,
+            bonus_rate,
+            level_caps,
+            level_allowances,
+            allowance_gate,
+            rules_snapshot,
+        )
 
     @classmethod
     @transaction.atomic
@@ -85,9 +127,31 @@ class PayrollService:
         month_start = cls.parse_month_token(month_token)
         month_start_dt, next_month_start_dt = cls._month_bounds(month_start)
         now_dt = timezone.now()
-        fix_salary, bonus_rate, level_caps, level_allowances, rules_snapshot = (
-            cls._payroll_rules_from_active_config()
+        (
+            fix_salary,
+            bonus_rate,
+            level_caps,
+            level_allowances,
+            allowance_gate,
+            rules_snapshot,
+        ) = cls._payroll_rules_from_active_config()
+        sla_snapshot = StockoutIncidentService.monthly_sla_snapshot(
+            month_start_dt=month_start_dt,
+            next_month_start_dt=next_month_start_dt,
         )
+        allowance_gate_reasons: list[str] = []
+        if allowance_gate["enabled"]:
+            if (
+                sla_snapshot["qc"]["first_pass_rate_percent"]
+                < allowance_gate["min_first_pass_rate_percent"]
+            ):
+                allowance_gate_reasons.append("first_pass_rate_below_threshold")
+            if (
+                sla_snapshot["stockout"]["minutes"]
+                > allowance_gate["max_stockout_minutes"]
+            ):
+                allowance_gate_reasons.append("stockout_minutes_above_threshold")
+        allowance_gate_passed = len(allowance_gate_reasons) == 0
 
         payroll_month, _ = PayrollMonthly.objects.select_for_update().get_or_create(
             month=month_start
@@ -134,6 +198,13 @@ class PayrollService:
             paid_xp_cap = level_caps[level]
             paid_xp = max(0, min(raw_xp, paid_xp_cap))
             allowance_amount = level_allowances[level]
+            allowance_gated = (
+                allowance_gate["enabled"]
+                and level in allowance_gate["gated_levels"]
+                and not allowance_gate_passed
+            )
+            if allowance_gated:
+                allowance_amount = 0
             bonus_amount = paid_xp * bonus_rate
             total_amount = fix_salary + allowance_amount + bonus_amount
 
@@ -163,6 +234,8 @@ class PayrollService:
                         "paid_xp_cap": paid_xp_cap,
                         "paid_xp": paid_xp,
                         "level": level,
+                        "allowance_gated": allowance_gated,
+                        "allowance_gate_reasons": allowance_gate_reasons,
                     },
                 )
             )
@@ -175,6 +248,17 @@ class PayrollService:
         payroll_month.closed_by_id = actor_user_id
         payroll_month.approved_at = None
         payroll_month.approved_by = None
+        rules_snapshot["sla_snapshot"] = sla_snapshot
+        rules_snapshot["allowance_gate"] = {
+            "enabled": allowance_gate["enabled"],
+            "gated_levels": sorted(allowance_gate["gated_levels"]),
+            "min_first_pass_rate_percent": allowance_gate[
+                "min_first_pass_rate_percent"
+            ],
+            "max_stockout_minutes": allowance_gate["max_stockout_minutes"],
+            "passed": allowance_gate_passed,
+            "reasons": allowance_gate_reasons,
+        }
         payroll_month.rules_snapshot = rules_snapshot
         payroll_month.total_raw_xp = total_raw_xp
         payroll_month.total_paid_xp = total_paid_xp

@@ -11,6 +11,7 @@ from core.utils.constants import (
 )
 from gamification.models import XPLedger
 from payroll.models import PayrollMonthly
+from ticket.models import StockoutIncident
 
 pytestmark = pytest.mark.django_db
 
@@ -183,3 +184,54 @@ def test_payroll_approve_flow(authed_client_factory, payroll_context):
     duplicate = client.post("/api/v1/payroll/2026-01/approve/", {}, format="json")
     assert duplicate.status_code == 400
     assert "already approved" in duplicate.data["error"]["detail"].lower()
+
+
+def test_payroll_close_applies_sla_allowance_gate_for_l5(
+    authed_client_factory,
+    payroll_context,
+    user_factory,
+):
+    l5_user = user_factory(
+        username="payroll_tech_l5",
+        first_name="Tech L5",
+        email="payroll_tech_l5@example.com",
+        level=EmployeeLevel.L5,
+    )
+    l5_xp = XPLedger.objects.create(
+        user=l5_user,
+        amount=200,
+        entry_type=XPLedgerEntryType.ATTENDANCE_PUNCTUALITY,
+        reference="payroll:l5:jan:a",
+        payload={},
+    )
+    XPLedger.all_objects.filter(pk=l5_xp.pk).update(
+        created_at=datetime(2026, 1, 12, 12, 0, tzinfo=BUSINESS_TZ),
+        updated_at=datetime(2026, 1, 12, 12, 0, tzinfo=BUSINESS_TZ),
+    )
+    StockoutIncident.objects.create(
+        started_at=datetime(2026, 1, 15, 10, 0, tzinfo=BUSINESS_TZ),
+        ended_at=datetime(2026, 1, 15, 10, 20, tzinfo=BUSINESS_TZ),
+        is_active=False,
+        duration_minutes=20,
+        ready_count_at_start=0,
+        ready_count_at_end=3,
+    )
+
+    client = authed_client_factory(payroll_context["ops"])
+    resp = client.post("/api/v1/payroll/2026-01/close/", {}, format="json")
+
+    assert resp.status_code == 200
+    payload = resp.data["data"]
+    lines_by_user = {line["user"]: line for line in payload["lines"]}
+    l5_line = lines_by_user[l5_user.id]
+
+    assert l5_line["level"] == EmployeeLevel.L5
+    assert l5_line["allowance_amount"] == 0
+    assert l5_line["payload"]["allowance_gated"] is True
+    assert (
+        "stockout_minutes_above_threshold"
+        in l5_line["payload"]["allowance_gate_reasons"]
+    )
+    gate_snapshot = payload["rules_snapshot"]["allowance_gate"]
+    assert gate_snapshot["passed"] is False
+    assert "stockout_minutes_above_threshold" in gate_snapshot["reasons"]

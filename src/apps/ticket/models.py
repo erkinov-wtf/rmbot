@@ -81,6 +81,29 @@ class Ticket(TimestampedModel, SoftDeleteModel):
         return f"Ticket#{self.pk} {self.bike.bike_code} [{self.status}]"
 
 
+class StockoutIncident(TimestampedModel):
+    started_at = models.DateTimeField(db_index=True)
+    ended_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    is_active = models.BooleanField(default=True, db_index=True)
+    duration_minutes = models.PositiveIntegerField(default=0)
+    ready_count_at_start = models.PositiveIntegerField(default=0)
+    ready_count_at_end = models.PositiveIntegerField(null=True, blank=True)
+    payload = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["is_active", "started_at"]),
+            models.Index(fields=["started_at", "ended_at"]),
+        ]
+
+    def __str__(self) -> str:
+        status = "active" if self.is_active else "closed"
+        return (
+            f"StockoutIncident#{self.pk} [{status}] "
+            f"start={self.started_at.isoformat()} end={self.ended_at}"
+        )
+
+
 class WorkSession(TimestampedModel, SoftDeleteModel):
     ticket = models.ForeignKey(
         Ticket, on_delete=models.CASCADE, related_name="work_sessions"
