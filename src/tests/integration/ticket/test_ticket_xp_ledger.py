@@ -8,7 +8,7 @@ from core.utils.constants import (
 )
 from gamification.models import XPLedger
 from ticket.models import TicketTransition
-from ticket.services import TicketService
+from ticket.services_workflow import TicketWorkflowService
 
 pytestmark = pytest.mark.django_db
 
@@ -49,7 +49,7 @@ def xp_ticket_context(user_factory, assign_roles, bike_factory, ticket_factory):
 def test_qc_pass_awards_base_and_first_pass_bonus(xp_ticket_context):
     ticket = xp_ticket_context["make_waiting_qc_ticket"](45)
 
-    TicketService.qc_pass_ticket(
+    TicketWorkflowService.qc_pass_ticket(
         ticket=ticket, actor_user_id=xp_ticket_context["master"].id
     )
 
@@ -69,13 +69,13 @@ def test_qc_pass_awards_base_and_first_pass_bonus(xp_ticket_context):
 
 def test_qc_pass_after_rework_awards_base_without_first_pass_bonus(xp_ticket_context):
     ticket = xp_ticket_context["make_waiting_qc_ticket"](21)
-    TicketService.qc_fail_ticket(
+    TicketWorkflowService.qc_fail_ticket(
         ticket=ticket, actor_user_id=xp_ticket_context["master"].id
     )
 
     ticket.status = TicketStatus.WAITING_QC
     ticket.save(update_fields=["status"])
-    TicketService.qc_pass_ticket(
+    TicketWorkflowService.qc_pass_ticket(
         ticket=ticket, actor_user_id=xp_ticket_context["master"].id
     )
 
@@ -92,7 +92,7 @@ def test_qc_pass_after_rework_awards_base_without_first_pass_bonus(xp_ticket_con
 
 def test_qc_pass_logs_transition_and_creates_base_reference(xp_ticket_context):
     ticket = xp_ticket_context["make_waiting_qc_ticket"](40)
-    TicketService.qc_pass_ticket(
+    TicketWorkflowService.qc_pass_ticket(
         ticket=ticket, actor_user_id=xp_ticket_context["master"].id
     )
 

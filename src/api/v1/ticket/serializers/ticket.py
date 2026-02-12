@@ -1,15 +1,7 @@
 from django.utils import timezone
 from rest_framework import serializers
 
-from account.models import User
-from core.utils.constants import RoleSlug
-from ticket.models import (
-    ACTIVE_TICKET_STATUSES,
-    Ticket,
-    TicketTransition,
-    WorkSession,
-    WorkSessionTransition,
-)
+from ticket.models import ACTIVE_TICKET_STATUSES, Ticket
 
 
 class TicketSerializer(serializers.ModelSerializer):
@@ -50,15 +42,6 @@ class TicketSerializer(serializers.ModelSerializer):
             "srt_approved_by",
             "srt_approved_at",
         )
-
-    @staticmethod
-    def _is_valid_checklist_item(item) -> bool:
-        if isinstance(item, str):
-            return bool(item.strip())
-        if isinstance(item, dict):
-            task = item.get("task")
-            return isinstance(task, str) and bool(task.strip())
-        return False
 
     def validate_checklist_snapshot(self, value):
         if not isinstance(value, list):
@@ -112,66 +95,11 @@ class TicketSerializer(serializers.ModelSerializer):
             validated_data["srt_approved_at"] = timezone.now()
         return super().create(validated_data)
 
-
-class TicketAssignSerializer(serializers.Serializer):
-    technician_id = serializers.IntegerField(min_value=1)
-
-    def validate_technician_id(self, value: int) -> int:
-        user = User.objects.filter(pk=value).first()
-        if not user:
-            raise serializers.ValidationError("Technician user does not exist.")
-        if not user.roles.filter(slug=RoleSlug.TECHNICIAN).exists():
-            raise serializers.ValidationError(
-                "Selected user does not have TECHNICIAN role."
-            )
-        return value
-
-
-class WorkSessionSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = WorkSession
-        fields = (
-            "id",
-            "ticket",
-            "technician",
-            "status",
-            "started_at",
-            "last_started_at",
-            "ended_at",
-            "active_seconds",
-            "created_at",
-            "updated_at",
-        )
-
-
-class TicketTransitionSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = TicketTransition
-        fields = (
-            "id",
-            "ticket",
-            "from_status",
-            "to_status",
-            "action",
-            "actor",
-            "note",
-            "metadata",
-            "created_at",
-        )
-
-
-class WorkSessionTransitionSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = WorkSessionTransition
-        fields = (
-            "id",
-            "work_session",
-            "ticket",
-            "from_status",
-            "to_status",
-            "action",
-            "actor",
-            "event_at",
-            "metadata",
-            "created_at",
-        )
+    @staticmethod
+    def _is_valid_checklist_item(item) -> bool:
+        if isinstance(item, str):
+            return bool(item.strip())
+        if isinstance(item, dict):
+            task = item.get("task")
+            return isinstance(task, str) and bool(task.strip())
+        return False

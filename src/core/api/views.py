@@ -4,6 +4,7 @@ from django.utils.translation import gettext_lazy as _
 from rest_framework import generics, mixins, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.viewsets import GenericViewSet, ModelViewSet, ReadOnlyModelViewSet
 
 from core.api.serializers import SchemaFallbackSerializer
 from core.utils.pagination import CustomPagination
@@ -155,3 +156,15 @@ class DestroyAPIView(mixins.DestroyModelMixin, BaseAPIView):
         instance = self.get_object()
         self.perform_destroy(instance)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class BaseViewSet(CustomResponseMixin, GenericViewSet):
+    serializer_class = SchemaFallbackSerializer
+
+
+class BaseModelViewSet(CustomResponseMixin, ModelViewSet):
+    serializer_class = SchemaFallbackSerializer
+
+
+class BaseReadOnlyModelViewSet(CustomResponseMixin, ReadOnlyModelViewSet):
+    serializer_class = SchemaFallbackSerializer

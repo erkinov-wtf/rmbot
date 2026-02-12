@@ -1,63 +1,70 @@
 from django.urls import path
 
 from api.v1.ticket.views import (
-    TicketAssignAPIView,
-    TicketCreateAPIView,
-    TicketListAPIView,
-    TicketQCFailAPIView,
-    TicketQCPassAPIView,
-    TicketStartAPIView,
-    TicketToWaitingQCAPIView,
-    TicketTransitionListAPIView,
-    TicketWorkSessionHistoryAPIView,
-    TicketWorkSessionPauseAPIView,
-    TicketWorkSessionResumeAPIView,
-    TicketWorkSessionStartAPIView,
-    TicketWorkSessionStopAPIView,
+    TicketViewSet,
+    TicketWorkflowViewSet,
+    TicketWorkSessionViewSet,
 )
 
 app_name = "ticket"
 
 urlpatterns = [
-    path("", TicketListAPIView.as_view(), name="ticket-list"),
-    path("create/", TicketCreateAPIView.as_view(), name="ticket-create"),
-    path("<int:pk>/assign/", TicketAssignAPIView.as_view(), name="ticket-assign"),
+    path("", TicketViewSet.as_view({"get": "list"}), name="ticket-list"),
+    path("create/", TicketViewSet.as_view({"post": "create"}), name="ticket-create"),
+    path("<int:pk>/", TicketViewSet.as_view({"get": "retrieve"}), name="ticket-detail"),
+    path(
+        "<int:pk>/assign/",
+        TicketWorkflowViewSet.as_view({"post": "assign"}),
+        name="ticket-assign",
+    ),
     path(
         "<int:pk>/transitions/",
-        TicketTransitionListAPIView.as_view(),
+        TicketWorkflowViewSet.as_view({"get": "transitions"}),
         name="ticket-transitions",
     ),
-    path("<int:pk>/start/", TicketStartAPIView.as_view(), name="ticket-start"),
+    path(
+        "<int:pk>/start/",
+        TicketWorkflowViewSet.as_view({"post": "start"}),
+        name="ticket-start",
+    ),
     path(
         "<int:pk>/to-waiting-qc/",
-        TicketToWaitingQCAPIView.as_view(),
+        TicketWorkflowViewSet.as_view({"post": "to_waiting_qc"}),
         name="ticket-to-waiting-qc",
     ),
-    path("<int:pk>/qc-pass/", TicketQCPassAPIView.as_view(), name="ticket-qc-pass"),
-    path("<int:pk>/qc-fail/", TicketQCFailAPIView.as_view(), name="ticket-qc-fail"),
+    path(
+        "<int:pk>/qc-pass/",
+        TicketWorkflowViewSet.as_view({"post": "qc_pass"}),
+        name="ticket-qc-pass",
+    ),
+    path(
+        "<int:pk>/qc-fail/",
+        TicketWorkflowViewSet.as_view({"post": "qc_fail"}),
+        name="ticket-qc-fail",
+    ),
     path(
         "<int:pk>/work-session/start/",
-        TicketWorkSessionStartAPIView.as_view(),
+        TicketWorkSessionViewSet.as_view({"post": "start"}),
         name="ticket-work-session-start",
     ),
     path(
         "<int:pk>/work-session/pause/",
-        TicketWorkSessionPauseAPIView.as_view(),
+        TicketWorkSessionViewSet.as_view({"post": "pause"}),
         name="ticket-work-session-pause",
     ),
     path(
         "<int:pk>/work-session/resume/",
-        TicketWorkSessionResumeAPIView.as_view(),
+        TicketWorkSessionViewSet.as_view({"post": "resume"}),
         name="ticket-work-session-resume",
     ),
     path(
         "<int:pk>/work-session/stop/",
-        TicketWorkSessionStopAPIView.as_view(),
+        TicketWorkSessionViewSet.as_view({"post": "stop"}),
         name="ticket-work-session-stop",
     ),
     path(
         "<int:pk>/work-session/history/",
-        TicketWorkSessionHistoryAPIView.as_view(),
+        TicketWorkSessionViewSet.as_view({"get": "history"}),
         name="ticket-work-session-history",
     ),
 ]

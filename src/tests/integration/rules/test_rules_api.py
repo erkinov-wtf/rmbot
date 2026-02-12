@@ -8,7 +8,7 @@ from gamification.models import XPLedger
 from payroll.models import PayrollMonthly
 from rules.models import RulesConfigVersion
 from rules.services import RulesService
-from ticket.services import TicketService
+from ticket.services_workflow import TicketWorkflowService
 
 pytestmark = pytest.mark.django_db
 
@@ -206,7 +206,7 @@ def test_ticket_xp_formula_uses_active_rules(
         title="Rules ticket XP",
     )
 
-    TicketService.qc_pass_ticket(ticket=ticket, actor_user_id=actor.id)
+    TicketWorkflowService.qc_pass_ticket(ticket=ticket, actor_user_id=actor.id)
 
     base_entry = XPLedger.objects.get(reference=f"ticket_base_xp:{ticket.id}")
     bonus_entry = XPLedger.objects.get(
