@@ -1,7 +1,11 @@
 from rest_framework import serializers
 
-from core.utils.constants import EmployeeLevel
-from payroll.models import PayrollMonthly, PayrollMonthlyLine
+from core.utils.constants import EmployeeLevel, PayrollAllowanceDecision
+from payroll.models import (
+    PayrollAllowanceGateDecision,
+    PayrollMonthly,
+    PayrollMonthlyLine,
+)
 
 
 class PayrollMonthlyLineSerializer(serializers.ModelSerializer):
@@ -34,9 +38,38 @@ class PayrollMonthlyLineSerializer(serializers.ModelSerializer):
         return str(EmployeeLevel(obj.level).label)
 
 
+class PayrollAllowanceGateDecisionSerializer(serializers.ModelSerializer):
+    decided_by_username = serializers.CharField(
+        source="decided_by.username", read_only=True
+    )
+
+    class Meta:
+        model = PayrollAllowanceGateDecision
+        fields = (
+            "id",
+            "decision",
+            "decided_by",
+            "decided_by_username",
+            "affected_lines_count",
+            "total_allowance_delta",
+            "note",
+            "payload",
+            "created_at",
+        )
+        read_only_fields = fields
+
+
+class PayrollAllowanceGateDecisionInputSerializer(serializers.Serializer):
+    decision = serializers.ChoiceField(choices=PayrollAllowanceDecision.values)
+    note = serializers.CharField(required=False, allow_blank=True, max_length=500)
+
+
 class PayrollMonthlySerializer(serializers.ModelSerializer):
     month_key = serializers.SerializerMethodField()
     lines = PayrollMonthlyLineSerializer(many=True, read_only=True)
+    allowance_gate_decisions = PayrollAllowanceGateDecisionSerializer(
+        many=True, read_only=True
+    )
 
     class Meta:
         model = PayrollMonthly
@@ -57,6 +90,7 @@ class PayrollMonthlySerializer(serializers.ModelSerializer):
             "total_allowance_amount",
             "total_payout_amount",
             "lines",
+            "allowance_gate_decisions",
             "created_at",
             "updated_at",
         )

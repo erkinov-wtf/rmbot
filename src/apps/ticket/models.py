@@ -2,6 +2,8 @@ from django.db import models
 
 from core.models import AppendOnlyModel, SoftDeleteModel, TimestampedModel
 from core.utils.constants import (
+    SLAAutomationEventSeverity,
+    SLAAutomationEventStatus,
     TicketStatus,
     TicketTransitionAction,
     WorkSessionStatus,
@@ -98,10 +100,31 @@ class StockoutIncident(TimestampedModel):
 
     def __str__(self) -> str:
         status = "active" if self.is_active else "closed"
-        return (
-            f"StockoutIncident#{self.pk} [{status}] "
-            f"start={self.started_at.isoformat()} end={self.ended_at}"
-        )
+        return f"StockoutIncident#{self.pk} [{status}] start={self.started_at.isoformat()} end={self.ended_at}"
+
+
+class SLAAutomationEvent(AppendOnlyModel):
+    rule_key = models.CharField(max_length=64, db_index=True)
+    status = models.CharField(
+        max_length=20, choices=SLAAutomationEventStatus, db_index=True
+    )
+    severity = models.CharField(
+        max_length=20,
+        choices=SLAAutomationEventSeverity,
+        default=SLAAutomationEventSeverity.WARNING,
+    )
+    metric_value = models.FloatField(default=0)
+    threshold_value = models.FloatField(default=0)
+    payload = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["rule_key", "created_at"]),
+            models.Index(fields=["status", "created_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"SLAAutomationEvent#{self.pk} rule={self.rule_key} status={self.status} metric={self.metric_value}"
 
 
 class WorkSession(TimestampedModel, SoftDeleteModel):

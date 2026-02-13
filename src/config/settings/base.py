@@ -171,6 +171,10 @@ if HAS_CELERY:
             "task": "ticket.tasks.detect_stockout_incidents",
             "schedule": crontab(minute="*"),
         },
+        "evaluate-sla-automation": {
+            "task": "ticket.tasks.evaluate_sla_automation",
+            "schedule": crontab(minute="*/5"),
+        },
         "evaluate-levels-weekly": {
             "task": "gamification.tasks.run_weekly_level_evaluation",
             "schedule": crontab(minute=5, hour=0, day_of_week=1),
@@ -257,9 +261,7 @@ LOGGING = {
         },
         "verbose": {
             "format": (
-                "[%(asctime)s] [%(levelname)s] "
-                "%(name)s:%(module)s:%(filename)s:%(lineno)d "
-                "%(funcName)s | %(message)s"
+                "[%(asctime)s] [%(levelname)s] %(name)s:%(module)s:%(filename)s:%(lineno)d %(funcName)s | %(message)s"
             ),
             "datefmt": "%Y-%m-%d %H:%M:%S",
         },

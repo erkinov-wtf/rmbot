@@ -3,13 +3,17 @@ from django.utils import timezone
 
 from attendance.models import AttendanceRecord
 from core.utils.constants import (
+    PayrollAllowanceDecision,
     RoleSlug,
+    SLAAutomationEventSeverity,
+    SLAAutomationEventStatus,
     TicketStatus,
     TicketTransitionAction,
     XPLedgerEntryType,
 )
 from gamification.models import XPLedger
-from ticket.models import TicketTransition
+from payroll.models import PayrollAllowanceGateDecision, PayrollMonthly
+from ticket.models import SLAAutomationEvent, TicketTransition
 
 pytestmark = pytest.mark.django_db
 
@@ -58,6 +62,27 @@ def audit_feed_context(user_factory, assign_roles, bike_factory, ticket_factory)
         work_date=timezone.localdate(),
         check_in_at=timezone.now(),
     )
+    payroll_month = PayrollMonthly.objects.create(
+        month=timezone.localdate().replace(day=1),
+        status="closed",
+    )
+    PayrollAllowanceGateDecision.objects.create(
+        payroll_monthly=payroll_month,
+        decision=PayrollAllowanceDecision.KEEP_GATED,
+        decided_by=ops,
+        affected_lines_count=1,
+        total_allowance_delta=0,
+        note="Keep gate",
+        payload={},
+    )
+    SLAAutomationEvent.objects.create(
+        rule_key="stockout_open_minutes",
+        status=SLAAutomationEventStatus.TRIGGERED,
+        severity=SLAAutomationEventSeverity.CRITICAL,
+        metric_value=25,
+        threshold_value=15,
+        payload={"recommended_action": "notify_ops_and_dispatch_recovery"},
+    )
 
     return {
         "ops": ops,
@@ -83,6 +108,8 @@ def test_returns_mixed_event_feed(authed_client_factory, audit_feed_context):
     assert "ticket_transition" in event_types
     assert "xp_ledger" in event_types
     assert "attendance_check_in" in event_types
+    assert "allowance_gate_decision" in event_types
+    assert "sla_automation" in event_types
 
 
 def test_limit_and_validation(authed_client_factory, audit_feed_context):

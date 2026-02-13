@@ -5,6 +5,7 @@ import pytest
 
 from core.utils.constants import (
     EmployeeLevel,
+    PayrollAllowanceDecision,
     PayrollMonthStatus,
     RoleSlug,
     XPLedgerEntryType,
@@ -235,3 +236,123 @@ def test_payroll_close_applies_sla_allowance_gate_for_l5(
     gate_snapshot = payload["rules_snapshot"]["allowance_gate"]
     assert gate_snapshot["passed"] is False
     assert "stockout_minutes_above_threshold" in gate_snapshot["reasons"]
+
+
+def test_allowance_gate_decision_release_allowances(
+    authed_client_factory,
+    payroll_context,
+    user_factory,
+):
+    l5_user = user_factory(
+        username="payroll_decision_l5",
+        first_name="Decision L5",
+        email="payroll_decision_l5@example.com",
+        level=EmployeeLevel.L5,
+    )
+    l5_xp = XPLedger.objects.create(
+        user=l5_user,
+        amount=200,
+        entry_type=XPLedgerEntryType.ATTENDANCE_PUNCTUALITY,
+        reference="payroll:decision:l5:jan:a",
+        payload={},
+    )
+    XPLedger.all_objects.filter(pk=l5_xp.pk).update(
+        created_at=datetime(2026, 1, 13, 10, 0, tzinfo=BUSINESS_TZ),
+        updated_at=datetime(2026, 1, 13, 10, 0, tzinfo=BUSINESS_TZ),
+    )
+    StockoutIncident.objects.create(
+        started_at=datetime(2026, 1, 18, 11, 0, tzinfo=BUSINESS_TZ),
+        ended_at=datetime(2026, 1, 18, 11, 30, tzinfo=BUSINESS_TZ),
+        is_active=False,
+        duration_minutes=30,
+        ready_count_at_start=0,
+        ready_count_at_end=1,
+    )
+
+    client = authed_client_factory(payroll_context["ops"])
+    close = client.post("/api/v1/payroll/2026-01/close/", {}, format="json")
+    assert close.status_code == 200
+
+    release = client.post(
+        "/api/v1/payroll/2026-01/allowance-gate/decision/",
+        {
+            "decision": PayrollAllowanceDecision.RELEASE_ALLOWANCES,
+            "note": "Manual override",
+        },
+        format="json",
+    )
+    assert release.status_code == 200
+    payload = release.data["data"]
+    lines_by_user = {line["user"]: line for line in payload["lines"]}
+    l5_line = lines_by_user[l5_user.id]
+
+    assert l5_line["allowance_amount"] == 4_000_000
+    assert l5_line["payload"]["allowance_gated"] is False
+    assert l5_line["payload"]["allowance_override_released"] is True
+    assert payload["total_allowance_amount"] == 5_300_000
+    assert payload["allowance_gate_decisions"][-1]["decision"] == (
+        PayrollAllowanceDecision.RELEASE_ALLOWANCES
+    )
+    assert payload["allowance_gate_decisions"][-1]["affected_lines_count"] == 1
+
+    duplicate_release = client.post(
+        "/api/v1/payroll/2026-01/allowance-gate/decision/",
+        {"decision": PayrollAllowanceDecision.RELEASE_ALLOWANCES},
+        format="json",
+    )
+    assert duplicate_release.status_code == 400
+    assert "no gated payroll lines" in duplicate_release.data["error"]["detail"].lower()
+
+
+def test_allowance_gate_decision_permissions_and_approval_lock(
+    authed_client_factory, payroll_context, user_factory
+):
+    l5_user = user_factory(
+        username="payroll_decision_lock_l5",
+        first_name="Decision Lock L5",
+        email="payroll_decision_lock_l5@example.com",
+        level=EmployeeLevel.L5,
+    )
+    l5_xp = XPLedger.objects.create(
+        user=l5_user,
+        amount=150,
+        entry_type=XPLedgerEntryType.ATTENDANCE_PUNCTUALITY,
+        reference="payroll:decision:lock:l5:jan:a",
+        payload={},
+    )
+    XPLedger.all_objects.filter(pk=l5_xp.pk).update(
+        created_at=datetime(2026, 1, 12, 13, 0, tzinfo=BUSINESS_TZ),
+        updated_at=datetime(2026, 1, 12, 13, 0, tzinfo=BUSINESS_TZ),
+    )
+    StockoutIncident.objects.create(
+        started_at=datetime(2026, 1, 16, 10, 0, tzinfo=BUSINESS_TZ),
+        ended_at=datetime(2026, 1, 16, 10, 15, tzinfo=BUSINESS_TZ),
+        is_active=False,
+        duration_minutes=15,
+        ready_count_at_start=0,
+        ready_count_at_end=2,
+    )
+
+    ops_client = authed_client_factory(payroll_context["ops"])
+    regular_client = authed_client_factory(payroll_context["regular"])
+
+    close = ops_client.post("/api/v1/payroll/2026-01/close/", {}, format="json")
+    assert close.status_code == 200
+
+    forbidden = regular_client.post(
+        "/api/v1/payroll/2026-01/allowance-gate/decision/",
+        {"decision": PayrollAllowanceDecision.KEEP_GATED},
+        format="json",
+    )
+    assert forbidden.status_code == 403
+
+    approve = ops_client.post("/api/v1/payroll/2026-01/approve/", {}, format="json")
+    assert approve.status_code == 200
+
+    locked = ops_client.post(
+        "/api/v1/payroll/2026-01/allowance-gate/decision/",
+        {"decision": PayrollAllowanceDecision.KEEP_GATED},
+        format="json",
+    )
+    assert locked.status_code == 400
+    assert "already approved" in locked.data["error"]["detail"].lower()

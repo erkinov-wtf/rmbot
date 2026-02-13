@@ -75,6 +75,14 @@ class RulesService:
                     "min_first_pass_rate_percent": 85,
                     "max_stockout_minutes": 0,
                 },
+                "automation": {
+                    "enabled": True,
+                    "cooldown_minutes": 30,
+                    "max_open_stockout_minutes": 15,
+                    "max_backlog_black_plus_count": 3,
+                    "min_first_pass_rate_percent": 85,
+                    "min_qc_done_tickets": 5,
+                },
             },
         }
 
@@ -261,7 +269,7 @@ class RulesService:
             field="progression.weekly_coupon_amount",
         )
 
-        stockout = sla.get("stockout")
+        stockout = sla.get("stockout", default_sla_config["stockout"])
         if not isinstance(stockout, dict):
             raise ValueError("sla.stockout must be an object.")
         stockout_timezone = stockout.get("timezone")
@@ -284,7 +292,7 @@ class RulesService:
                 "sla.stockout.business_start_hour must be < business_end_hour."
             )
 
-        allowance_gate = sla.get("allowance_gate")
+        allowance_gate = sla.get("allowance_gate", default_sla_config["allowance_gate"])
         if not isinstance(allowance_gate, dict):
             raise ValueError("sla.allowance_gate must be an object.")
         allowance_gate_enabled = allowance_gate.get("enabled")
@@ -304,6 +312,40 @@ class RulesService:
         max_stockout_minutes = cls._require_int(
             allowance_gate.get("max_stockout_minutes"),
             field="sla.allowance_gate.max_stockout_minutes",
+        )
+
+        automation = sla.get("automation", default_sla_config.get("automation", {}))
+        if not isinstance(automation, dict):
+            raise ValueError("sla.automation must be an object.")
+        automation_enabled = automation.get("enabled")
+        if not isinstance(automation_enabled, bool):
+            raise ValueError("sla.automation.enabled must be boolean.")
+        automation_cooldown_minutes = cls._require_int(
+            automation.get("cooldown_minutes"),
+            field="sla.automation.cooldown_minutes",
+        )
+        max_open_stockout_minutes = cls._require_int(
+            automation.get("max_open_stockout_minutes"),
+            field="sla.automation.max_open_stockout_minutes",
+        )
+        max_backlog_black_plus_count = cls._require_int(
+            automation.get("max_backlog_black_plus_count"),
+            field="sla.automation.max_backlog_black_plus_count",
+        )
+        automation_min_first_pass_rate_percent = cls._require_int(
+            automation.get("min_first_pass_rate_percent"),
+            field="sla.automation.min_first_pass_rate_percent",
+        )
+        if (
+            automation_min_first_pass_rate_percent < 0
+            or automation_min_first_pass_rate_percent > 100
+        ):
+            raise ValueError(
+                "sla.automation.min_first_pass_rate_percent must be in 0..100."
+            )
+        min_qc_done_tickets = cls._require_int(
+            automation.get("min_qc_done_tickets"),
+            field="sla.automation.min_qc_done_tickets",
         )
 
         return {
@@ -340,6 +382,16 @@ class RulesService:
                     "gated_levels": allowance_gate_levels,
                     "min_first_pass_rate_percent": min_first_pass_rate_percent,
                     "max_stockout_minutes": max_stockout_minutes,
+                },
+                "automation": {
+                    "enabled": automation_enabled,
+                    "cooldown_minutes": automation_cooldown_minutes,
+                    "max_open_stockout_minutes": max_open_stockout_minutes,
+                    "max_backlog_black_plus_count": max_backlog_black_plus_count,
+                    "min_first_pass_rate_percent": (
+                        automation_min_first_pass_rate_percent
+                    ),
+                    "min_qc_done_tickets": min_qc_done_tickets,
                 },
             },
         }

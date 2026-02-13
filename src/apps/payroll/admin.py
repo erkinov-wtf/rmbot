@@ -1,7 +1,29 @@
 from django.contrib import admin
 
 from core.admin import BaseModelAdmin
-from payroll.models import PayrollMonthly, PayrollMonthlyLine
+from payroll.models import (
+    PayrollAllowanceGateDecision,
+    PayrollMonthly,
+    PayrollMonthlyLine,
+)
+
+
+class PayrollAllowanceGateDecisionInline(admin.TabularInline):
+    model = PayrollAllowanceGateDecision
+    extra = 0
+    can_delete = False
+    fields = (
+        "decision",
+        "decided_by",
+        "affected_lines_count",
+        "total_allowance_delta",
+        "note",
+        "created_at",
+    )
+    readonly_fields = fields
+
+    def has_add_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(PayrollMonthly)
@@ -35,6 +57,7 @@ class PayrollMonthlyAdmin(BaseModelAdmin):
         "created_at",
         "updated_at",
     )
+    inlines = (PayrollAllowanceGateDecisionInline,)
 
     def has_add_permission(self, request):
         return False
@@ -71,6 +94,41 @@ class PayrollMonthlyLineAdmin(BaseModelAdmin):
         "bonus_rate",
         "bonus_amount",
         "total_amount",
+        "payload",
+        "created_at",
+        "updated_at",
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(PayrollAllowanceGateDecision)
+class PayrollAllowanceGateDecisionAdmin(BaseModelAdmin):
+    list_display = (
+        "id",
+        "payroll_monthly",
+        "decision",
+        "decided_by",
+        "affected_lines_count",
+        "total_allowance_delta",
+        "created_at",
+    )
+    list_filter = ("decision",)
+    search_fields = ("id", "payroll_monthly__month", "decided_by__username")
+    readonly_fields = (
+        "payroll_monthly",
+        "decision",
+        "decided_by",
+        "affected_lines_count",
+        "total_allowance_delta",
+        "note",
         "payload",
         "created_at",
         "updated_at",

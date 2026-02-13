@@ -2,6 +2,7 @@ from django.contrib import admin
 
 from core.admin import BaseModelAdmin
 from ticket.models import (
+    SLAAutomationEvent,
     StockoutIncident,
     Ticket,
     TicketTransition,
@@ -137,6 +138,40 @@ class StockoutIncidentAdmin(BaseModelAdmin):
         "duration_minutes",
         "ready_count_at_start",
         "ready_count_at_end",
+        "payload",
+        "created_at",
+        "updated_at",
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(SLAAutomationEvent)
+class SLAAutomationEventAdmin(BaseModelAdmin):
+    list_display = (
+        "id",
+        "rule_key",
+        "status",
+        "severity",
+        "metric_value",
+        "threshold_value",
+        "created_at",
+    )
+    list_filter = ("rule_key", "status", "severity")
+    search_fields = ("id", "rule_key")
+    readonly_fields = (
+        "rule_key",
+        "status",
+        "severity",
+        "metric_value",
+        "threshold_value",
         "payload",
         "created_at",
         "updated_at",

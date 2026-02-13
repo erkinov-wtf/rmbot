@@ -7,15 +7,31 @@ from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 from account.models import User
-from core.utils.constants import EmployeeLevel, PayrollMonthStatus
+from core.utils.constants import (
+    EmployeeLevel,
+    PayrollAllowanceDecision,
+    PayrollMonthStatus,
+)
 from gamification.models import XPLedger
-from payroll.models import PayrollMonthly, PayrollMonthlyLine
+from payroll.models import (
+    PayrollAllowanceGateDecision,
+    PayrollMonthly,
+    PayrollMonthlyLine,
+)
 from rules.services import RulesService
 from ticket.services_stockout import StockoutIncidentService
 
 
 class PayrollService:
     BUSINESS_TZ = ZoneInfo("Asia/Tashkent")
+
+    @staticmethod
+    def _payroll_month_queryset():
+        return (
+            PayrollMonthly.objects.select_related("closed_by", "approved_by")
+            .prefetch_related("lines__user")
+            .prefetch_related("allowance_gate_decisions__decided_by")
+        )
 
     @staticmethod
     def parse_month_token(month_token: str) -> date:
@@ -118,6 +134,26 @@ class PayrollService:
             allowance_gate,
             rules_snapshot,
         )
+
+    @staticmethod
+    def _level_allowances_from_rules_snapshot(
+        payroll_month: PayrollMonthly,
+    ) -> dict[int, int]:
+        rules_snapshot = payroll_month.rules_snapshot or {}
+        config = rules_snapshot.get("config", {})
+        payroll_rules = config.get("payroll", {}) if isinstance(config, dict) else {}
+        raw_allowances = payroll_rules.get("level_allowances", {})
+        if not isinstance(raw_allowances, dict):
+            raw_allowances = {}
+
+        level_allowances: dict[int, int] = {}
+        for level in EmployeeLevel.values:
+            raw = raw_allowances.get(str(level), raw_allowances.get(level, 0))
+            try:
+                level_allowances[int(level)] = max(int(raw or 0), 0)
+            except (TypeError, ValueError):
+                level_allowances[int(level)] = 0
+        return level_allowances
 
     @classmethod
     @transaction.atomic
@@ -284,11 +320,140 @@ class PayrollService:
             ]
         )
 
-        return (
-            PayrollMonthly.objects.select_related("closed_by", "approved_by")
-            .prefetch_related("lines__user")
-            .get(pk=payroll_month.pk)
+        return cls._payroll_month_queryset().get(pk=payroll_month.pk)
+
+    @classmethod
+    @transaction.atomic
+    def apply_allowance_gate_decision(
+        cls,
+        *,
+        month_token: str,
+        actor_user_id: int,
+        decision: str,
+        note: str = "",
+    ) -> PayrollMonthly:
+        if decision not in PayrollAllowanceDecision.values:
+            raise ValueError("Invalid allowance gate decision.")
+
+        month_start = cls.parse_month_token(month_token)
+        payroll_month = (
+            PayrollMonthly.objects.select_for_update().filter(month=month_start).first()
         )
+        if not payroll_month:
+            raise ValueError("Payroll month is not closed yet.")
+        if payroll_month.status == PayrollMonthStatus.DRAFT:
+            raise ValueError("Payroll month must be closed before allowance decisions.")
+        if payroll_month.status == PayrollMonthStatus.APPROVED:
+            raise ValueError(
+                "Payroll month is already approved and allowance decisions are locked."
+            )
+
+        allowance_gate_snapshot = dict(
+            (payroll_month.rules_snapshot or {}).get("allowance_gate", {})
+        )
+        gate_reasons = allowance_gate_snapshot.get("reasons", [])
+        if not isinstance(gate_reasons, list):
+            gate_reasons = []
+
+        if decision == PayrollAllowanceDecision.KEEP_GATED:
+            PayrollAllowanceGateDecision.objects.create(
+                payroll_monthly=payroll_month,
+                decision=decision,
+                decided_by_id=actor_user_id,
+                affected_lines_count=0,
+                total_allowance_delta=0,
+                note=note,
+                payload={
+                    "gate_reasons": gate_reasons,
+                    "rules_version": (payroll_month.rules_snapshot or {}).get(
+                        "version"
+                    ),
+                },
+            )
+            return cls._payroll_month_queryset().get(pk=payroll_month.pk)
+
+        level_allowances = cls._level_allowances_from_rules_snapshot(payroll_month)
+        now_dt = timezone.now()
+        total_allowance_delta = 0
+        affected_lines_count = 0
+
+        lines = list(payroll_month.lines.select_for_update().all())
+        for line in lines:
+            payload = dict(line.payload or {})
+            if not payload.get("allowance_gated"):
+                continue
+            if payload.get("allowance_override_released"):
+                continue
+
+            expected_allowance = int(
+                level_allowances.get(int(line.level), int(line.allowance_amount or 0))
+            )
+            delta = expected_allowance - int(line.allowance_amount or 0)
+            if delta < 0:
+                delta = 0
+
+            line.allowance_amount = expected_allowance
+            line.total_amount = int(line.total_amount or 0) + delta
+            payload["allowance_gated"] = False
+            payload["allowance_override_released"] = True
+            payload["allowance_override_released_at"] = now_dt.isoformat()
+            payload["allowance_override_released_by"] = actor_user_id
+            line.payload = payload
+            line.save(
+                update_fields=[
+                    "allowance_amount",
+                    "total_amount",
+                    "payload",
+                    "updated_at",
+                ]
+            )
+
+            total_allowance_delta += delta
+            affected_lines_count += 1
+
+        if affected_lines_count == 0:
+            raise ValueError("No gated payroll lines are available for release.")
+
+        payroll_month.total_allowance_amount = int(
+            payroll_month.total_allowance_amount
+        ) + int(total_allowance_delta)
+        payroll_month.total_payout_amount = int(
+            payroll_month.total_payout_amount
+        ) + int(total_allowance_delta)
+        rules_snapshot = dict(payroll_month.rules_snapshot or {})
+        rules_snapshot_allowance_gate = dict(rules_snapshot.get("allowance_gate", {}))
+        rules_snapshot_allowance_gate["manual_decision"] = {
+            "decision": decision,
+            "actor_user_id": actor_user_id,
+            "note": note,
+            "affected_lines_count": affected_lines_count,
+            "total_allowance_delta": total_allowance_delta,
+            "applied_at": now_dt.isoformat(),
+        }
+        rules_snapshot["allowance_gate"] = rules_snapshot_allowance_gate
+        payroll_month.rules_snapshot = rules_snapshot
+        payroll_month.save(
+            update_fields=[
+                "rules_snapshot",
+                "total_allowance_amount",
+                "total_payout_amount",
+                "updated_at",
+            ]
+        )
+
+        PayrollAllowanceGateDecision.objects.create(
+            payroll_monthly=payroll_month,
+            decision=decision,
+            decided_by_id=actor_user_id,
+            affected_lines_count=affected_lines_count,
+            total_allowance_delta=total_allowance_delta,
+            note=note,
+            payload={
+                "gate_reasons": gate_reasons,
+                "rules_version": (payroll_month.rules_snapshot or {}).get("version"),
+            },
+        )
+        return cls._payroll_month_queryset().get(pk=payroll_month.pk)
 
     @classmethod
     @transaction.atomic
@@ -313,18 +478,9 @@ class PayrollService:
             update_fields=["status", "approved_at", "approved_by", "updated_at"]
         )
 
-        return (
-            PayrollMonthly.objects.select_related("closed_by", "approved_by")
-            .prefetch_related("lines__user")
-            .get(pk=payroll_month.pk)
-        )
+        return cls._payroll_month_queryset().get(pk=payroll_month.pk)
 
     @classmethod
     def get_payroll_month(cls, *, month_token: str) -> PayrollMonthly | None:
         month_start = cls.parse_month_token(month_token)
-        return (
-            PayrollMonthly.objects.select_related("closed_by", "approved_by")
-            .prefetch_related("lines__user")
-            .filter(month=month_start)
-            .first()
-        )
+        return cls._payroll_month_queryset().filter(month=month_start).first()

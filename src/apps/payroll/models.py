@@ -1,7 +1,11 @@
 from django.db import models
 
-from core.models import TimestampedModel
-from core.utils.constants import EmployeeLevel, PayrollMonthStatus
+from core.models import AppendOnlyModel, TimestampedModel
+from core.utils.constants import (
+    EmployeeLevel,
+    PayrollAllowanceDecision,
+    PayrollMonthStatus,
+)
 
 
 class PayrollMonthly(TimestampedModel):
@@ -83,3 +87,37 @@ class PayrollMonthlyLine(TimestampedModel):
             f"PayrollMonthlyLine#{self.pk} month={self.payroll_monthly.month:%Y-%m} "
             f"user={self.user_id} paid_xp={self.paid_xp}"
         )
+
+
+class PayrollAllowanceGateDecision(AppendOnlyModel):
+    payroll_monthly = models.ForeignKey(
+        PayrollMonthly,
+        on_delete=models.CASCADE,
+        related_name="allowance_gate_decisions",
+    )
+    decision = models.CharField(max_length=30, choices=PayrollAllowanceDecision)
+    decided_by = models.ForeignKey(
+        "account.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    affected_lines_count = models.PositiveIntegerField(default=0)
+    total_allowance_delta = models.BigIntegerField(default=0)
+    note = models.TextField(blank=True, default="")
+    payload = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["payroll_monthly", "created_at"]),
+            models.Index(fields=["decision", "created_at"]),
+        ]
+
+    def __str__(self) -> str:
+        month_str = (
+            self.payroll_monthly.month.strftime("%Y-%m")
+            if self.payroll_monthly
+            else "N/A"
+        )
+        return f"PayrollAllowanceGateDecision#{self.pk} month={month_str} decision={self.decision}"

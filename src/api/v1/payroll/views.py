@@ -2,7 +2,10 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from api.v1.payroll.serializers import PayrollMonthlySerializer
+from api.v1.payroll.serializers import (
+    PayrollAllowanceGateDecisionInputSerializer,
+    PayrollMonthlySerializer,
+)
 from core.api.permissions import HasRole
 from core.api.schema import extend_schema
 from core.api.views import BaseAPIView
@@ -74,6 +77,38 @@ class PayrollMonthApproveAPIView(BaseAPIView):
         try:
             payroll_month = PayrollService.approve_payroll_month(
                 month_token=month, actor_user_id=request.user.id
+            )
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(
+            PayrollMonthlySerializer(payroll_month).data, status=status.HTTP_200_OK
+        )
+
+
+@extend_schema(
+    tags=["Payroll"],
+    summary="Apply allowance gate decision",
+    description=(
+        "Records an Ops decision for SLA-gated allowances on a closed payroll month. "
+        "Decision `release_allowances` restores gated allowance amounts and updates totals."
+    ),
+)
+class PayrollMonthAllowanceDecisionAPIView(BaseAPIView):
+    permission_classes = (IsAuthenticated, PayrollManagerPermission)
+    serializer_class = PayrollAllowanceGateDecisionInputSerializer
+
+    def post(self, request, *args, **kwargs):
+        month = kwargs["month"]
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            payroll_month = PayrollService.apply_allowance_gate_decision(
+                month_token=month,
+                actor_user_id=request.user.id,
+                decision=serializer.validated_data["decision"],
+                note=serializer.validated_data.get("note", ""),
             )
         except ValueError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)

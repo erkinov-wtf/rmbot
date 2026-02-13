@@ -9,7 +9,8 @@ from core.api.schema import extend_schema
 from core.api.views import BaseAPIView
 from core.utils.constants import RoleSlug
 from gamification.models import XPLedger
-from ticket.models import TicketTransition
+from payroll.models import PayrollAllowanceGateDecision
+from ticket.models import SLAAutomationEvent, TicketTransition
 
 
 class HealthSerializer(serializers.Serializer):
@@ -54,7 +55,8 @@ AuditFeedPermission = HasRole.as_any(RoleSlug.SUPER_ADMIN, RoleSlug.OPS_MANAGER)
     summary="List recent audit feed events",
     description=(
         "Returns recent operational events merged from ticket transitions, "
-        "XP ledger changes, and attendance actions."
+        "XP ledger changes, attendance actions, SLA automation actions, and "
+        "payroll allowance-gate decisions."
     ),
 )
 class AuditFeedAPIView(BaseAPIView):
@@ -70,7 +72,7 @@ class AuditFeedAPIView(BaseAPIView):
             )
 
         limit = max(1, min(requested_limit, 200))
-        pool_size = max(limit * 3, 50)
+        pool_size = max(limit * 4, 50)
         events = []
 
         transitions = TicketTransition.objects.select_related(
@@ -136,6 +138,43 @@ class AuditFeedAPIView(BaseAPIView):
                         "work_date": row.work_date.isoformat(),
                     }
                 )
+
+        allowance_gate_decisions = PayrollAllowanceGateDecision.objects.select_related(
+            "decided_by", "payroll_monthly"
+        ).order_by("-created_at")[:pool_size]
+        for decision in allowance_gate_decisions:
+            events.append(
+                {
+                    "timestamp_dt": decision.created_at,
+                    "timestamp": decision.created_at.isoformat(),
+                    "event_type": "allowance_gate_decision",
+                    "entity_id": decision.id,
+                    "payroll_monthly_id": decision.payroll_monthly_id,
+                    "decision": decision.decision,
+                    "decided_by_id": decision.decided_by_id,
+                    "affected_lines_count": decision.affected_lines_count,
+                    "total_allowance_delta": decision.total_allowance_delta,
+                    "note": decision.note,
+                    "payload": decision.payload or {},
+                }
+            )
+
+        sla_events = SLAAutomationEvent.objects.order_by("-created_at")[:pool_size]
+        for event in sla_events:
+            events.append(
+                {
+                    "timestamp_dt": event.created_at,
+                    "timestamp": event.created_at.isoformat(),
+                    "event_type": "sla_automation",
+                    "entity_id": event.id,
+                    "rule_key": event.rule_key,
+                    "status": event.status,
+                    "severity": event.severity,
+                    "metric_value": event.metric_value,
+                    "threshold_value": event.threshold_value,
+                    "payload": event.payload or {},
+                }
+            )
 
         events.sort(key=lambda item: item["timestamp_dt"], reverse=True)
         result = []

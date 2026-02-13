@@ -59,6 +59,8 @@ def test_get_config_bootstraps_defaults(authed_client_factory, rules_context):
     assert payload["config"]["ticket_xp"]["first_pass_bonus"] == 1
     assert payload["config"]["payroll"]["bonus_rate"] == 3000
     assert payload["config"]["progression"]["weekly_coupon_amount"] == 100000
+    assert payload["config"]["sla"]["automation"]["enabled"] is True
+    assert payload["config"]["sla"]["automation"]["cooldown_minutes"] == 30
 
 
 def test_permissions_for_config_mutation(authed_client_factory, rules_context):
