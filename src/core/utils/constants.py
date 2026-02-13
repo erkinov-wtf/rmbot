@@ -91,3 +91,9 @@ class SLAAutomationEventStatus(models.TextChoices):
 class SLAAutomationEventSeverity(models.TextChoices):
     WARNING = "warning", _("Warning")
     CRITICAL = "critical", _("Critical")
+
+
+class SLAAutomationDeliveryAttemptStatus(models.TextChoices):
+    SUCCESS = "success", _("Success")
+    FAILED = "failed", _("Failed")
+    SKIPPED = "skipped", _("Skipped")

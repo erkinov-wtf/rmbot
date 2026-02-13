@@ -2,6 +2,7 @@ from django.contrib import admin
 
 from core.admin import BaseModelAdmin
 from ticket.models import (
+    SLAAutomationDeliveryAttempt,
     SLAAutomationEvent,
     StockoutIncident,
     Ticket,
@@ -172,6 +173,44 @@ class SLAAutomationEventAdmin(BaseModelAdmin):
         "severity",
         "metric_value",
         "threshold_value",
+        "payload",
+        "created_at",
+        "updated_at",
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(SLAAutomationDeliveryAttempt)
+class SLAAutomationDeliveryAttemptAdmin(BaseModelAdmin):
+    list_display = (
+        "id",
+        "event",
+        "attempt_number",
+        "status",
+        "delivered",
+        "should_retry",
+        "retry_backoff_seconds",
+        "created_at",
+    )
+    list_filter = ("status", "delivered", "should_retry")
+    search_fields = ("id", "event__id", "task_id")
+    readonly_fields = (
+        "event",
+        "attempt_number",
+        "status",
+        "delivered",
+        "should_retry",
+        "retry_backoff_seconds",
+        "task_id",
+        "reason",
         "payload",
         "created_at",
         "updated_at",

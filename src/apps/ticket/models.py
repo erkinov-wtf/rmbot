@@ -2,6 +2,7 @@ from django.db import models
 
 from core.models import AppendOnlyModel, SoftDeleteModel, TimestampedModel
 from core.utils.constants import (
+    SLAAutomationDeliveryAttemptStatus,
     SLAAutomationEventSeverity,
     SLAAutomationEventStatus,
     TicketStatus,
@@ -125,6 +126,39 @@ class SLAAutomationEvent(AppendOnlyModel):
 
     def __str__(self) -> str:
         return f"SLAAutomationEvent#{self.pk} rule={self.rule_key} status={self.status} metric={self.metric_value}"
+
+
+class SLAAutomationDeliveryAttempt(AppendOnlyModel):
+    event = models.ForeignKey(
+        SLAAutomationEvent,
+        on_delete=models.CASCADE,
+        related_name="delivery_attempts",
+    )
+    attempt_number = models.PositiveIntegerField(default=1)
+    status = models.CharField(
+        max_length=20,
+        choices=SLAAutomationDeliveryAttemptStatus,
+        db_index=True,
+    )
+    delivered = models.BooleanField(default=False, db_index=True)
+    should_retry = models.BooleanField(default=False, db_index=True)
+    retry_backoff_seconds = models.PositiveIntegerField(default=0)
+    task_id = models.CharField(max_length=128, blank=True, default="")
+    reason = models.CharField(max_length=64, blank=True, default="")
+    payload = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["event", "created_at"]),
+            models.Index(fields=["event", "attempt_number"]),
+            models.Index(fields=["status", "created_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return (
+            f"SLAAutomationDeliveryAttempt#{self.pk} event={self.event_id} "
+            f"attempt={self.attempt_number} status={self.status}"
+        )
 
 
 class WorkSession(TimestampedModel, SoftDeleteModel):

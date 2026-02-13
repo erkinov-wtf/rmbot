@@ -8,13 +8,30 @@ from django.conf import settings
 from django.core.mail import send_mail
 from django.utils import timezone
 
-from ticket.models import SLAAutomationEvent
+from core.utils.constants import SLAAutomationDeliveryAttemptStatus
+from ticket.models import SLAAutomationDeliveryAttempt, SLAAutomationEvent
 
 logger = logging.getLogger(__name__)
 
 
 class SLAAutomationEscalationService:
     DEFAULT_REQUEST_TIMEOUT_SECONDS = 5.0
+    DEFAULT_MAX_RETRIES = 3
+    DEFAULT_RETRY_BACKOFF_SECONDS = 60
+    DEFAULT_RETRY_BACKOFF_MAX_SECONDS = 900
+    NON_RETRYABLE_REASONS = {
+        "event_not_found",
+        "no_channels_configured",
+        "already_delivered",
+    }
+
+    @staticmethod
+    def _parse_int(value: Any, *, default: int, min_value: int = 0) -> int:
+        try:
+            parsed = int(value)
+        except (TypeError, ValueError):
+            parsed = default
+        return max(parsed, min_value)
 
     @staticmethod
     def _split_csv(raw: str | None) -> list[str]:
@@ -30,6 +47,47 @@ class SLAAutomationEscalationService:
         except (TypeError, ValueError):
             parsed = cls.DEFAULT_REQUEST_TIMEOUT_SECONDS
         return max(parsed, 1.0)
+
+    @classmethod
+    def max_retries(cls) -> int:
+        return cls._parse_int(
+            getattr(settings, "SLA_ESCALATION_MAX_RETRIES", cls.DEFAULT_MAX_RETRIES),
+            default=cls.DEFAULT_MAX_RETRIES,
+            min_value=0,
+        )
+
+    @classmethod
+    def _retry_backoff_base_seconds(cls) -> int:
+        return cls._parse_int(
+            getattr(
+                settings,
+                "SLA_ESCALATION_RETRY_BACKOFF_SECONDS",
+                cls.DEFAULT_RETRY_BACKOFF_SECONDS,
+            ),
+            default=cls.DEFAULT_RETRY_BACKOFF_SECONDS,
+            min_value=1,
+        )
+
+    @classmethod
+    def _retry_backoff_max_seconds(cls) -> int:
+        return cls._parse_int(
+            getattr(
+                settings,
+                "SLA_ESCALATION_RETRY_BACKOFF_MAX_SECONDS",
+                cls.DEFAULT_RETRY_BACKOFF_MAX_SECONDS,
+            ),
+            default=cls.DEFAULT_RETRY_BACKOFF_MAX_SECONDS,
+            min_value=1,
+        )
+
+    @classmethod
+    def retry_backoff_seconds(cls, *, retry_index: int) -> int:
+        # retry_index is 1-based (first retry after first failed attempt).
+        normalized_retry_index = max(int(retry_index), 1)
+        base = cls._retry_backoff_base_seconds()
+        max_backoff = max(cls._retry_backoff_max_seconds(), base)
+        backoff = base * (2 ** (normalized_retry_index - 1))
+        return min(backoff, max_backoff)
 
     @classmethod
     def _telegram_bot_token(cls) -> str:
@@ -153,6 +211,7 @@ class SLAAutomationEscalationService:
                 "channel": "telegram",
                 "target": chat_id,
                 "success": True,
+                "retryable": False,
             }
         except Exception as exc:
             logger.exception(
@@ -164,6 +223,7 @@ class SLAAutomationEscalationService:
                 "target": chat_id,
                 "success": False,
                 "error": str(exc),
+                "retryable": True,
             }
 
     @classmethod
@@ -189,6 +249,7 @@ class SLAAutomationEscalationService:
                 "target": ",".join(recipients),
                 "success": True,
                 "delivered_count": int(delivered_count),
+                "retryable": False,
             }
         except Exception as exc:
             logger.exception(
@@ -200,6 +261,7 @@ class SLAAutomationEscalationService:
                 "target": ",".join(recipients),
                 "success": False,
                 "error": str(exc),
+                "retryable": True,
             }
 
     @classmethod
@@ -225,6 +287,7 @@ class SLAAutomationEscalationService:
                 "channel": "ops_webhook",
                 "target": webhook_url,
                 "success": True,
+                "retryable": False,
             }
         except Exception as exc:
             logger.exception(
@@ -236,6 +299,7 @@ class SLAAutomationEscalationService:
                 "target": webhook_url,
                 "success": False,
                 "error": str(exc),
+                "retryable": True,
             }
 
     @classmethod
@@ -254,6 +318,7 @@ class SLAAutomationEscalationService:
                     "target": ",".join(chat_ids),
                     "success": False,
                     "error": "SLA_ESCALATION_TELEGRAM_BOT_TOKEN/BOT_TOKEN is not configured.",
+                    "retryable": False,
                 }
             )
         elif bot_token:
@@ -299,6 +364,73 @@ class SLAAutomationEscalationService:
         return response
 
     @classmethod
+    def _already_delivered(cls, *, event_id: int) -> bool:
+        return SLAAutomationDeliveryAttempt.objects.filter(
+            event_id=event_id,
+            status=SLAAutomationDeliveryAttemptStatus.SUCCESS,
+            delivered=True,
+        ).exists()
+
+    @classmethod
+    def is_retryable_failure(cls, *, response: dict[str, Any]) -> bool:
+        if response.get("delivered") is True:
+            return False
+        reason = response.get("reason")
+        if isinstance(reason, str) and reason in cls.NON_RETRYABLE_REASONS:
+            return False
+        channels = response.get("channels")
+        if not isinstance(channels, list):
+            return False
+        for channel in channels:
+            if (
+                isinstance(channel, dict)
+                and channel.get("success") is False
+                and channel.get("retryable") is True
+            ):
+                return True
+        return False
+
+    @staticmethod
+    def _attempt_status(*, response: dict[str, Any]) -> str:
+        if response.get("reason") == "already_delivered":
+            return SLAAutomationDeliveryAttemptStatus.SKIPPED
+        if response.get("delivered") is True:
+            return SLAAutomationDeliveryAttemptStatus.SUCCESS
+        return SLAAutomationDeliveryAttemptStatus.FAILED
+
+    @staticmethod
+    def _attempt_reason(*, response: dict[str, Any]) -> str:
+        reason = response.get("reason")
+        if not isinstance(reason, str):
+            return ""
+        return reason[:64]
+
+    @classmethod
+    def record_attempt(
+        cls,
+        *,
+        event_id: int,
+        attempt_number: int,
+        task_id: str,
+        response: dict[str, Any],
+        should_retry: bool,
+        retry_backoff_seconds: int,
+    ) -> SLAAutomationDeliveryAttempt | None:
+        if not SLAAutomationEvent.objects.filter(pk=event_id).exists():
+            return None
+        return SLAAutomationDeliveryAttempt.objects.create(
+            event_id=event_id,
+            attempt_number=max(attempt_number, 1),
+            status=cls._attempt_status(response=response),
+            delivered=bool(response.get("delivered")),
+            should_retry=should_retry,
+            retry_backoff_seconds=max(retry_backoff_seconds, 0),
+            task_id=str(task_id or "")[:128],
+            reason=cls._attempt_reason(response=response),
+            payload=response,
+        )
+
+    @classmethod
     def deliver_for_event_id(cls, *, event_id: int) -> dict[str, Any]:
         event = SLAAutomationEvent.objects.filter(pk=event_id).first()
         if event is None:
@@ -307,5 +439,14 @@ class SLAAutomationEscalationService:
                 "delivered": False,
                 "channels": [],
                 "reason": "event_not_found",
+            }
+        if cls._already_delivered(event_id=event.id):
+            return {
+                "event_id": event.id,
+                "rule_key": event.rule_key,
+                "status": event.status,
+                "delivered": True,
+                "channels": [],
+                "reason": "already_delivered",
             }
         return cls.deliver_event(event=event)

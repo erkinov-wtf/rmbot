@@ -268,6 +268,21 @@ SLA_ESCALATION_REQUEST_TIMEOUT_SECONDS = config(
     default=5,
     cast=float,
 )
+SLA_ESCALATION_MAX_RETRIES = config(
+    "SLA_ESCALATION_MAX_RETRIES",
+    default=3,
+    cast=int,
+)
+SLA_ESCALATION_RETRY_BACKOFF_SECONDS = config(
+    "SLA_ESCALATION_RETRY_BACKOFF_SECONDS",
+    default=60,
+    cast=int,
+)
+SLA_ESCALATION_RETRY_BACKOFF_MAX_SECONDS = config(
+    "SLA_ESCALATION_RETRY_BACKOFF_MAX_SECONDS",
+    default=900,
+    cast=int,
+)
 SENTRY_DSN = config("SENTRY_DSN", default="")
 SENTRY_ENVIRONMENT = config(
     "SENTRY_ENVIRONMENT",

@@ -5,8 +5,7 @@ from django.utils import timezone
 
 from rules.services import RulesService
 from ticket.models import StockoutIncident
-from ticket.services_sla_escalation import SLAAutomationEscalationService
-from ticket.tasks import evaluate_sla_automation
+from ticket.tasks import deliver_sla_automation_event, evaluate_sla_automation
 
 pytestmark = pytest.mark.django_db
 
@@ -48,19 +47,14 @@ def test_evaluate_sla_automation_task_dispatches_delivery(
 
     called_event_ids: list[int] = []
 
-    def _fake_deliver_for_event_id(cls, *, event_id: int):
-        called_event_ids.append(event_id)
-        return {
-            "event_id": event_id,
-            "delivered": True,
-            "channels": [{"channel": "telegram", "success": True}],
-        }
+    def _fake_delay(*args, **kwargs):
+        event_id = kwargs.get("event_id")
+        if event_id is None and args:
+            event_id = args[0]
+        if isinstance(event_id, int):
+            called_event_ids.append(event_id)
 
-    monkeypatch.setattr(
-        SLAAutomationEscalationService,
-        "deliver_for_event_id",
-        classmethod(_fake_deliver_for_event_id),
-    )
+    monkeypatch.setattr(deliver_sla_automation_event, "delay", _fake_delay)
 
     result = evaluate_sla_automation()
     assert result["enabled"] is True
@@ -72,7 +66,9 @@ def test_evaluate_sla_automation_task_dispatches_delivery(
     ]
     assert created_event_ids
     assert called_event_ids == created_event_ids
-    assert [row["event_id"] for row in result["delivery"]] == created_event_ids
+    assert result["delivery"] == [
+        {"event_id": event_id, "queued": True} for event_id in created_event_ids
+    ]
 
 
 def test_evaluate_sla_automation_task_skips_delivery_without_events(
@@ -86,19 +82,54 @@ def test_evaluate_sla_automation_task_skips_delivery_without_events(
     )
     _configure_automation(actor_user_id=actor.id)
 
-    called_event_ids: list[int] = []
+    called_count = 0
 
-    def _fake_deliver_for_event_id(cls, *, event_id: int):
-        called_event_ids.append(event_id)
-        return {"event_id": event_id, "delivered": True, "channels": []}
+    def _fake_delay(*args, **kwargs):
+        nonlocal called_count
+        called_count += 1
 
-    monkeypatch.setattr(
-        SLAAutomationEscalationService,
-        "deliver_for_event_id",
-        classmethod(_fake_deliver_for_event_id),
-    )
+    monkeypatch.setattr(deliver_sla_automation_event, "delay", _fake_delay)
 
     result = evaluate_sla_automation()
     assert result["enabled"] is True
     assert result["delivery"] == []
-    assert called_event_ids == []
+    assert called_count == 0
+
+
+def test_evaluate_sla_automation_task_marks_enqueue_errors(
+    user_factory,
+    monkeypatch,
+):
+    actor = user_factory(
+        username="sla_delivery_actor_3",
+        first_name="SLA3",
+        email="sla_delivery_actor_3@example.com",
+    )
+    _configure_automation(actor_user_id=actor.id)
+
+    now = timezone.now()
+    StockoutIncident.objects.create(
+        started_at=now - timedelta(minutes=8),
+        is_active=True,
+        ready_count_at_start=0,
+    )
+
+    def _fake_delay(*args, **kwargs):
+        raise RuntimeError("queue down")
+
+    monkeypatch.setattr(deliver_sla_automation_event, "delay", _fake_delay)
+
+    result = evaluate_sla_automation()
+    created_event_ids = [
+        row["event_id"]
+        for row in result["results"]
+        if row.get("event_created") is True and isinstance(row.get("event_id"), int)
+    ]
+    assert result["delivery"] == [
+        {
+            "event_id": event_id,
+            "queued": False,
+            "reason": "delivery_enqueue_error",
+        }
+        for event_id in created_event_ids
+    ]
