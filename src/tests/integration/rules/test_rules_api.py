@@ -61,6 +61,15 @@ def test_get_config_bootstraps_defaults(authed_client_factory, rules_context):
     assert payload["config"]["progression"]["weekly_coupon_amount"] == 100000
     assert payload["config"]["sla"]["automation"]["enabled"] is True
     assert payload["config"]["sla"]["automation"]["cooldown_minutes"] == 30
+    assert payload["config"]["sla"]["stockout"]["working_weekdays"] == [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+    ]
+    assert payload["config"]["sla"]["stockout"]["holiday_dates"] == []
 
 
 def test_permissions_for_config_mutation(authed_client_factory, rules_context):
@@ -205,6 +214,22 @@ def test_invalid_config_rejected(authed_client_factory, rules_context):
 
     assert resp.status_code == 400
     assert resp.data["success"] is False
+
+
+def test_invalid_stockout_calendar_rules_rejected(authed_client_factory, rules_context):
+    client = authed_client_factory(rules_context["super_admin"])
+    current = client.get(RULES_CONFIG_URL).data["data"]["config"]
+    current["sla"]["stockout"]["holiday_dates"] = ["2026-02-31"]
+
+    resp = client.put(
+        RULES_CONFIG_URL,
+        {"config": current, "reason": "Set invalid holiday date"},
+        format="json",
+    )
+
+    assert resp.status_code == 400
+    assert resp.data["success"] is False
+    assert "holiday_dates" in resp.data["error"]["detail"]
 
 
 def test_ticket_xp_formula_uses_active_rules(

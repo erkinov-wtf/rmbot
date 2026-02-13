@@ -1,6 +1,10 @@
 from django.urls import path
 
-from api.v1.core.views.misc import AuditFeedAPIView, HealthAPIView, TestAPIView
+from api.v1.core.views.misc import (
+    AuditFeedAPIView,
+    HealthAPIView,
+    TestAPIView,
+)
 
 app_name = "misc"
 

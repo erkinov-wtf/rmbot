@@ -2,6 +2,7 @@ import os
 import sys
 from importlib.util import find_spec
 from pathlib import Path
+from urllib.parse import urlparse
 
 import dj_database_url
 from decouple import config
@@ -9,9 +10,16 @@ from decouple import config
 HAS_DRF_SPECTACULAR = find_spec("drf_spectacular") is not None
 HAS_CELERY = find_spec("celery") is not None
 HAS_REDIS_PACKAGE = find_spec("redis") is not None
+HAS_SENTRY_SDK = find_spec("sentry_sdk") is not None
 
 if HAS_CELERY:
     from celery.schedules import crontab
+if HAS_SENTRY_SDK:
+    import sentry_sdk
+    from sentry_sdk.integrations.django import DjangoIntegration
+
+    if HAS_CELERY:
+        from sentry_sdk.integrations.celery import CeleryIntegration
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 IS_TEST_RUN = (
@@ -103,6 +111,7 @@ INSTALLED_APPS = UNFOLD_APPS + DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    "core.middlewares.request_id.RequestIDMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -259,6 +268,55 @@ SLA_ESCALATION_REQUEST_TIMEOUT_SECONDS = config(
     default=5,
     cast=float,
 )
+SENTRY_DSN = config("SENTRY_DSN", default="")
+SENTRY_ENVIRONMENT = config(
+    "SENTRY_ENVIRONMENT",
+    default="development" if DEBUG else "production",
+)
+SENTRY_RELEASE = config("SENTRY_RELEASE", default="")
+SENTRY_TRACES_SAMPLE_RATE = config(
+    "SENTRY_TRACES_SAMPLE_RATE",
+    default=0.0,
+    cast=float,
+)
+SENTRY_PROFILES_SAMPLE_RATE = config(
+    "SENTRY_PROFILES_SAMPLE_RATE",
+    default=0.0,
+    cast=float,
+)
+SENTRY_SEND_DEFAULT_PII = config(
+    "SENTRY_SEND_DEFAULT_PII",
+    default=False,
+    cast=bool,
+)
+
+
+def _clamp_sample_rate(value: float) -> float:
+    return max(0.0, min(1.0, float(value)))
+
+
+def _is_valid_sentry_dsn(value: str) -> bool:
+    parsed = urlparse(value.strip())
+    return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
+
+
+SENTRY_TRACES_SAMPLE_RATE = _clamp_sample_rate(SENTRY_TRACES_SAMPLE_RATE)
+SENTRY_PROFILES_SAMPLE_RATE = _clamp_sample_rate(SENTRY_PROFILES_SAMPLE_RATE)
+SENTRY_ENABLED = bool(HAS_SENTRY_SDK and _is_valid_sentry_dsn(SENTRY_DSN))
+if SENTRY_ENABLED:
+    sentry_integrations = [DjangoIntegration()]
+    if HAS_CELERY:
+        sentry_integrations.append(CeleryIntegration())
+
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        environment=SENTRY_ENVIRONMENT,
+        release=SENTRY_RELEASE or None,
+        traces_sample_rate=SENTRY_TRACES_SAMPLE_RATE,
+        profiles_sample_rate=SENTRY_PROFILES_SAMPLE_RATE,
+        send_default_pii=SENTRY_SEND_DEFAULT_PII,
+        integrations=sentry_integrations,
+    )
 
 # Ensure logs directory exists
 os.makedirs(LOGS_ROOT, exist_ok=True)
@@ -275,7 +333,7 @@ LOGGING = {
         "colored": {
             "()": "colorlog.ColoredFormatter",
             "format": (
-                "%(log_color)s[%(asctime)s] [%(levelname)s] "
+                "%(log_color)s[%(asctime)s] [%(levelname)s] [request_id=%(request_id)s] "
                 "%(name)s:%(module)s:%(filename)s:%(lineno)d "
                 "%(funcName)s | %(message)s"
             ),
@@ -290,7 +348,9 @@ LOGGING = {
         },
         "verbose": {
             "format": (
-                "[%(asctime)s] [%(levelname)s] %(name)s:%(module)s:%(filename)s:%(lineno)d %(funcName)s | %(message)s"
+                "[%(asctime)s] [%(levelname)s] [request_id=%(request_id)s] "
+                "%(name)s:%(module)s:%(filename)s:%(lineno)d "
+                "%(funcName)s | %(message)s"
             ),
             "datefmt": "%Y-%m-%d %H:%M:%S",
         },
@@ -305,6 +365,7 @@ LOGGING = {
                 "*Method:* %(method)s\n"
                 "*Path:* %(path)s\n"
                 "*IP:* %(ip)s\n\n"
+                "*Request ID:* `%(request_id)s`\n\n"
                 "*Traceback:*\n```\n%(traceback)s\n```"
             )
         },
@@ -315,6 +376,7 @@ LOGGING = {
             "level": "INFO",
             "class": "logging.StreamHandler",
             "formatter": "colored",
+            "filters": ["request_context"],
         },
         # Main app log (rotating)
         "app_file": {
@@ -324,6 +386,7 @@ LOGGING = {
             "when": "midnight",
             "backupCount": 30,
             "formatter": "verbose",
+            "filters": ["request_context"],
         },
         # Error log (rotating)
         "error_file": {
@@ -333,6 +396,7 @@ LOGGING = {
             "when": "midnight",
             "backupCount": 60,
             "formatter": "verbose",
+            "filters": ["request_context"],
         },
         # Slow queries
         "slow_queries_file": {
@@ -342,6 +406,7 @@ LOGGING = {
             "when": "midnight",
             "backupCount": 30,
             "formatter": "verbose",
+            "filters": ["request_context"],
         },
         # Telegram alerts
         "telegram_errors": {

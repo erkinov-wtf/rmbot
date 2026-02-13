@@ -59,7 +59,7 @@ class TelegramErrorHandler(logging.Handler):
 
 class RequestContextFilter(logging.Filter):
     """
-    Adds request/user/IP/path/method + traceback info to log records.
+    Adds request/user/IP/path/method/request_id + traceback info to log records.
     """
 
     def filter(self, record):
@@ -70,11 +70,13 @@ class RequestContextFilter(logging.Filter):
             record.method = request.method
             record.path = request.path
             record.ip = request.META.get("REMOTE_ADDR", "-")
+            record.request_id = getattr(request, "request_id", "-")
         else:
             record.user = "Unknown"
             record.method = "-"
             record.path = "-"
             record.ip = "-"
+            record.request_id = "-"
 
         if record.exc_info:
             exc_type, exc_value, exc_tb = record.exc_info
