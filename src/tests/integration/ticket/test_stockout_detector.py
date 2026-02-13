@@ -4,6 +4,7 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from core.utils.constants import BikeStatus, TicketStatus, TicketTransitionAction
+from rules.services import RulesService
 from ticket.models import StockoutIncident, TicketTransition
 from ticket.services_stockout import StockoutIncidentService
 
@@ -45,6 +46,45 @@ def test_stockout_detector_ignores_non_business_window(
     summary = StockoutIncidentService.detect_and_sync(now_utc=non_business_time)
 
     assert summary["action"] == "no_change_idle"
+    assert StockoutIncident.objects.count() == 0
+
+
+def test_stockout_detector_ignores_non_working_weekday(
+    bike_factory,
+):
+    bike_factory(bike_code="RM-SO-1002", status=BikeStatus.BLOCKED, is_active=True)
+
+    sunday_business_hour = datetime(2026, 2, 8, 11, 0, tzinfo=BUSINESS_TZ)
+    summary = StockoutIncidentService.detect_and_sync(now_utc=sunday_business_hour)
+
+    assert summary["action"] == "no_change_idle"
+    assert summary["in_business_window"] is False
+    assert StockoutIncident.objects.count() == 0
+
+
+def test_stockout_detector_ignores_configured_holiday(
+    bike_factory,
+    user_factory,
+):
+    actor = user_factory(
+        username="stockout_rules_actor",
+        first_name="Stockout Rules",
+        email="stockout_rules_actor@example.com",
+    )
+    config = RulesService.get_active_rules_config()
+    config["sla"]["stockout"]["holiday_dates"] = ["2026-02-10"]
+    RulesService.update_rules_config(
+        config=config,
+        actor_user_id=actor.id,
+        reason="Mark holiday for stockout detector test",
+    )
+
+    bike_factory(bike_code="RM-SO-1003", status=BikeStatus.BLOCKED, is_active=True)
+    holiday_business_hour = datetime(2026, 2, 10, 11, 0, tzinfo=BUSINESS_TZ)
+    summary = StockoutIncidentService.detect_and_sync(now_utc=holiday_business_hour)
+
+    assert summary["action"] == "no_change_idle"
+    assert summary["in_business_window"] is False
     assert StockoutIncident.objects.count() == 0
 
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import date, timedelta
 from zoneinfo import ZoneInfo
 
 from django.db import transaction
@@ -17,9 +17,10 @@ class StockoutIncidentService:
     DEFAULT_TIMEZONE = "Asia/Tashkent"
     DEFAULT_BUSINESS_START_HOUR = 10
     DEFAULT_BUSINESS_END_HOUR = 20
+    DEFAULT_WORKING_WEEKDAYS = (1, 2, 3, 4, 5, 6)
 
     @classmethod
-    def _stockout_config(cls) -> tuple[ZoneInfo, int, int]:
+    def _stockout_config(cls) -> dict[str, object]:
         sla_rules = RulesService.get_active_rules_config().get("sla", {})
         stockout_rules = sla_rules.get("stockout", {})
 
@@ -54,18 +55,71 @@ class StockoutIncidentService:
             start_hour = cls.DEFAULT_BUSINESS_START_HOUR
             end_hour = cls.DEFAULT_BUSINESS_END_HOUR
 
-        return business_tz, start_hour, end_hour
+        working_weekdays_raw = stockout_rules.get(
+            "working_weekdays",
+            cls.DEFAULT_WORKING_WEEKDAYS,
+        )
+        parsed_weekdays: set[int] = set()
+        if isinstance(working_weekdays_raw, list):
+            for raw_day in working_weekdays_raw:
+                try:
+                    day = int(raw_day)
+                except (TypeError, ValueError):
+                    continue
+                if 1 <= day <= 7:
+                    parsed_weekdays.add(day)
+        if not parsed_weekdays:
+            parsed_weekdays = set(cls.DEFAULT_WORKING_WEEKDAYS)
+        working_weekdays = sorted(parsed_weekdays)
+
+        holiday_dates_raw = stockout_rules.get("holiday_dates", [])
+        parsed_holidays: set[date] = set()
+        if isinstance(holiday_dates_raw, list):
+            for raw_date in holiday_dates_raw:
+                if not isinstance(raw_date, str):
+                    continue
+                try:
+                    parsed_holidays.add(date.fromisoformat(raw_date.strip()))
+                except ValueError:
+                    continue
+
+        return {
+            "timezone": business_tz,
+            "start_hour": start_hour,
+            "end_hour": end_hour,
+            "working_weekdays": working_weekdays,
+            "holiday_dates": parsed_holidays,
+        }
 
     @classmethod
     def business_window_context(cls, *, now_utc=None) -> dict[str, object]:
         now = now_utc or timezone.now()
-        business_tz, start_hour, end_hour = cls._stockout_config()
+        config = cls._stockout_config()
+        business_tz = config["timezone"]
+        start_hour = int(config["start_hour"])
+        end_hour = int(config["end_hour"])
+        working_weekdays = list(config["working_weekdays"])
+        holiday_dates = set(config["holiday_dates"])
         local_now = now.astimezone(business_tz)
+        local_date = local_now.date()
+        local_iso_weekday = local_now.isoweekday()
+        is_working_weekday = local_iso_weekday in working_weekdays
+        is_holiday = local_date in holiday_dates
+        is_business_day = is_working_weekday and not is_holiday
+        in_business_hours = start_hour <= local_now.hour < end_hour
+        in_business_window = is_business_day and in_business_hours
         return {
             "timezone": getattr(business_tz, "key", cls.DEFAULT_TIMEZONE),
             "start_hour": start_hour,
             "end_hour": end_hour,
-            "in_business_window": start_hour <= local_now.hour < end_hour,
+            "working_weekdays": working_weekdays,
+            "holiday_dates": sorted(day.isoformat() for day in holiday_dates),
+            "local_iso_weekday": local_iso_weekday,
+            "is_working_weekday": is_working_weekday,
+            "is_holiday": is_holiday,
+            "is_business_day": is_business_day,
+            "in_business_hours": in_business_hours,
+            "in_business_window": in_business_window,
             "local_now": local_now,
         }
 
@@ -110,6 +164,8 @@ class StockoutIncidentService:
                     "timezone": window_context["timezone"],
                     "business_start_hour": window_context["start_hour"],
                     "business_end_hour": window_context["end_hour"],
+                    "working_weekdays": window_context["working_weekdays"],
+                    "holiday_dates": window_context["holiday_dates"],
                 },
             )
             return {

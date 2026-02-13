@@ -5,6 +5,7 @@ import hashlib
 import json
 import uuid
 from collections.abc import Mapping
+from datetime import date
 from typing import Any
 
 from django.core.cache import cache
@@ -68,6 +69,8 @@ class RulesService:
                     "timezone": "Asia/Tashkent",
                     "business_start_hour": 10,
                     "business_end_hour": 20,
+                    "working_weekdays": [1, 2, 3, 4, 5, 6],
+                    "holiday_dates": [],
                 },
                 "allowance_gate": {
                     "enabled": True,
@@ -156,6 +159,50 @@ class RulesService:
                 )
             normalized.add(parsed_level)
         return [str(level) for level in sorted(normalized)]
+
+    @staticmethod
+    def _normalize_stockout_working_weekdays(value: Any) -> list[int]:
+        if not isinstance(value, list):
+            raise ValueError("sla.stockout.working_weekdays must be an array.")
+
+        normalized: set[int] = set()
+        for raw_day in value:
+            try:
+                parsed_day = int(raw_day)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    "sla.stockout.working_weekdays values must be integers in 1..7."
+                ) from exc
+            if parsed_day < 1 or parsed_day > 7:
+                raise ValueError(
+                    "sla.stockout.working_weekdays values must be integers in 1..7."
+                )
+            normalized.add(parsed_day)
+
+        if not normalized:
+            raise ValueError("sla.stockout.working_weekdays must not be empty.")
+        return sorted(normalized)
+
+    @staticmethod
+    def _normalize_stockout_holiday_dates(value: Any) -> list[str]:
+        if not isinstance(value, list):
+            raise ValueError("sla.stockout.holiday_dates must be an array.")
+
+        normalized: set[str] = set()
+        for raw_date in value:
+            if not isinstance(raw_date, str):
+                raise ValueError(
+                    "sla.stockout.holiday_dates values must be YYYY-MM-DD strings."
+                )
+            candidate = raw_date.strip()
+            try:
+                parsed_date = date.fromisoformat(candidate)
+            except ValueError as exc:
+                raise ValueError(
+                    "sla.stockout.holiday_dates values must be YYYY-MM-DD strings."
+                ) from exc
+            normalized.add(parsed_date.isoformat())
+        return sorted(normalized)
 
     @classmethod
     def _cache_storage_key(cls, state_cache_key: str) -> str:
@@ -272,15 +319,22 @@ class RulesService:
         stockout = sla.get("stockout", default_sla_config["stockout"])
         if not isinstance(stockout, dict):
             raise ValueError("sla.stockout must be an object.")
+        default_stockout = default_sla_config["stockout"]
         stockout_timezone = stockout.get("timezone")
         if not isinstance(stockout_timezone, str) or not stockout_timezone.strip():
             raise ValueError("sla.stockout.timezone must be a non-empty string.")
         stockout_start_hour = cls._require_int(
-            stockout.get("business_start_hour"),
+            stockout.get(
+                "business_start_hour",
+                default_stockout["business_start_hour"],
+            ),
             field="sla.stockout.business_start_hour",
         )
         stockout_end_hour = cls._require_int(
-            stockout.get("business_end_hour"),
+            stockout.get(
+                "business_end_hour",
+                default_stockout["business_end_hour"],
+            ),
             field="sla.stockout.business_end_hour",
         )
         if stockout_start_hour < 0 or stockout_start_hour > 23:
@@ -291,6 +345,12 @@ class RulesService:
             raise ValueError(
                 "sla.stockout.business_start_hour must be < business_end_hour."
             )
+        stockout_working_weekdays = cls._normalize_stockout_working_weekdays(
+            stockout.get("working_weekdays", default_stockout["working_weekdays"])
+        )
+        stockout_holiday_dates = cls._normalize_stockout_holiday_dates(
+            stockout.get("holiday_dates", default_stockout["holiday_dates"])
+        )
 
         allowance_gate = sla.get("allowance_gate", default_sla_config["allowance_gate"])
         if not isinstance(allowance_gate, dict):
@@ -376,6 +436,8 @@ class RulesService:
                     "timezone": stockout_timezone.strip(),
                     "business_start_hour": stockout_start_hour,
                     "business_end_hour": stockout_end_hour,
+                    "working_weekdays": stockout_working_weekdays,
+                    "holiday_dates": stockout_holiday_dates,
                 },
                 "allowance_gate": {
                     "enabled": allowance_gate_enabled,
