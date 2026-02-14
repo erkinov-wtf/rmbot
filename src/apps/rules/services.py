@@ -17,6 +17,8 @@ from rules.models import RulesConfigAction, RulesConfigState, RulesConfigVersion
 
 
 class RulesService:
+    """Central rules registry with validation, versioning, rollback, and caching."""
+
     RULES_CONFIG_CACHE_PREFIX = "rules:active-config:"
 
     @staticmethod
@@ -85,6 +87,11 @@ class RulesService:
                     "max_backlog_black_plus_count": 3,
                     "min_first_pass_rate_percent": 85,
                     "min_qc_done_tickets": 5,
+                },
+                "escalation": {
+                    "enabled": True,
+                    "default_channels": ["telegram", "email", "ops_webhook"],
+                    "routes": [],
                 },
             },
         }
@@ -203,6 +210,141 @@ class RulesService:
                 ) from exc
             normalized.add(parsed_date.isoformat())
         return sorted(normalized)
+
+    @staticmethod
+    def _normalize_sla_escalation_channels(value: Any, *, field: str) -> list[str]:
+        if not isinstance(value, list):
+            raise ValueError(f"{field} must be an array.")
+
+        allowed = {"telegram", "email", "ops_webhook"}
+        normalized: list[str] = []
+        seen: set[str] = set()
+        for raw in value:
+            if not isinstance(raw, str):
+                raise ValueError(f"{field} values must be strings.")
+            candidate = raw.strip().lower()
+            if candidate not in allowed:
+                raise ValueError(
+                    f"{field} values must be one of: {', '.join(sorted(allowed))}."
+                )
+            if candidate in seen:
+                continue
+            seen.add(candidate)
+            normalized.append(candidate)
+        return normalized
+
+    @classmethod
+    def _normalize_sla_escalation_routes(cls, value: Any) -> list[dict[str, Any]]:
+        if not isinstance(value, list):
+            raise ValueError("sla.escalation.routes must be an array.")
+
+        allowed_keys = {"rule_keys", "severities", "statuses", "repeat", "channels"}
+        allowed_statuses = {"triggered", "resolved"}
+        allowed_severities = {"warning", "critical"}
+
+        normalized_routes: list[dict[str, Any]] = []
+        for idx, raw in enumerate(value):
+            if not isinstance(raw, dict):
+                raise ValueError(f"sla.escalation.routes[{idx}] must be an object.")
+            unknown = sorted(set(raw.keys()) - allowed_keys)
+            if unknown:
+                raise ValueError(
+                    f"sla.escalation.routes[{idx}] has unknown keys: {', '.join(unknown)}."
+                )
+
+            raw_channels = raw.get("channels")
+            channels = cls._normalize_sla_escalation_channels(
+                raw_channels, field=f"sla.escalation.routes[{idx}].channels"
+            )
+
+            rule_keys: list[str] | None = None
+            if "rule_keys" in raw:
+                raw_rule_keys = raw.get("rule_keys")
+                if not isinstance(raw_rule_keys, list):
+                    raise ValueError(
+                        f"sla.escalation.routes[{idx}].rule_keys must be an array."
+                    )
+                cleaned: list[str] = []
+                for rk in raw_rule_keys:
+                    if not isinstance(rk, str):
+                        raise ValueError(
+                            f"sla.escalation.routes[{idx}].rule_keys values must be strings."
+                        )
+                    candidate = rk.strip()
+                    if candidate:
+                        cleaned.append(candidate)
+                rule_keys = cleaned
+
+            severities: list[str] | None = None
+            if "severities" in raw:
+                raw_severities = raw.get("severities")
+                if not isinstance(raw_severities, list):
+                    raise ValueError(
+                        f"sla.escalation.routes[{idx}].severities must be an array."
+                    )
+                cleaned_severities: list[str] = []
+                for sev in raw_severities:
+                    if not isinstance(sev, str):
+                        raise ValueError(
+                            f"sla.escalation.routes[{idx}].severities values must be strings."
+                        )
+                    candidate = sev.strip().lower()
+                    if candidate and candidate not in allowed_severities:
+                        raise ValueError(
+                            f"sla.escalation.routes[{idx}].severities values must be one of: "
+                            f"{', '.join(sorted(allowed_severities))}."
+                        )
+                    if candidate:
+                        cleaned_severities.append(candidate)
+                severities = cleaned_severities
+
+            statuses: list[str] | None = None
+            if "statuses" in raw:
+                raw_statuses = raw.get("statuses")
+                if not isinstance(raw_statuses, list):
+                    raise ValueError(
+                        f"sla.escalation.routes[{idx}].statuses must be an array."
+                    )
+                cleaned_statuses: list[str] = []
+                for st in raw_statuses:
+                    if not isinstance(st, str):
+                        raise ValueError(
+                            f"sla.escalation.routes[{idx}].statuses values must be strings."
+                        )
+                    candidate = st.strip().lower()
+                    if candidate and candidate not in allowed_statuses:
+                        raise ValueError(
+                            f"sla.escalation.routes[{idx}].statuses values must be one of: "
+                            f"{', '.join(sorted(allowed_statuses))}."
+                        )
+                    if candidate:
+                        cleaned_statuses.append(candidate)
+                statuses = cleaned_statuses
+
+            repeat: bool | None = None
+            if "repeat" in raw:
+                raw_repeat = raw.get("repeat")
+                if not isinstance(raw_repeat, bool):
+                    raise ValueError(
+                        f"sla.escalation.routes[{idx}].repeat must be boolean."
+                    )
+                repeat = raw_repeat
+
+            # Only explicit filters are persisted so route matching stays predictable.
+            normalized_route: dict[str, Any] = {
+                "channels": channels,
+            }
+            if rule_keys is not None:
+                normalized_route["rule_keys"] = rule_keys
+            if severities is not None:
+                normalized_route["severities"] = severities
+            if statuses is not None:
+                normalized_route["statuses"] = statuses
+            if repeat is not None:
+                normalized_route["repeat"] = repeat
+            normalized_routes.append(normalized_route)
+
+        return normalized_routes
 
     @classmethod
     def _cache_storage_key(cls, state_cache_key: str) -> str:
@@ -408,6 +550,21 @@ class RulesService:
             field="sla.automation.min_qc_done_tickets",
         )
 
+        escalation = sla.get("escalation", default_sla_config.get("escalation", {}))
+        if not isinstance(escalation, dict):
+            raise ValueError("sla.escalation must be an object.")
+        escalation_enabled = escalation.get("enabled")
+        if not isinstance(escalation_enabled, bool):
+            raise ValueError("sla.escalation.enabled must be boolean.")
+        default_channels = cls._normalize_sla_escalation_channels(
+            escalation.get(
+                "default_channels",
+                default_sla_config.get("escalation", {}).get("default_channels", []),
+            ),
+            field="sla.escalation.default_channels",
+        )
+        routes = cls._normalize_sla_escalation_routes(escalation.get("routes", []))
+
         return {
             "ticket_xp": {
                 "base_divisor": base_divisor,
@@ -454,6 +611,11 @@ class RulesService:
                         automation_min_first_pass_rate_percent
                     ),
                     "min_qc_done_tickets": min_qc_done_tickets,
+                },
+                "escalation": {
+                    "enabled": escalation_enabled,
+                    "default_channels": default_channels,
+                    "routes": routes,
                 },
             },
         }

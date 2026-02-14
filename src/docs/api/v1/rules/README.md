@@ -1,0 +1,40 @@
+# API v1 Rules (`/rules/`)
+
+## Scope
+Documents rules configuration governance endpoints for read/update/history/rollback workflows.
+
+## Access Model
+- `GET` endpoints: `super_admin`, `ops_manager`.
+- `PUT` and rollback actions: `super_admin`.
+
+## Endpoint Reference
+
+### `GET /api/v1/rules/config/`
+- Returns active rules state (version metadata + active config payload + cache token).
+
+### `PUT /api/v1/rules/config/`
+- Validates and normalizes incoming config, then creates a new immutable version and activates it.
+- Optional `reason` is persisted with version metadata.
+
+### `GET /api/v1/rules/config/history/?limit=<1..200>`
+- Returns append-only version history with stored diffs/checksums.
+
+### `POST /api/v1/rules/config/rollback/`
+- Creates a new rollback version that restores selected historical target version.
+
+## Validation and Failure Modes
+- Schema normalization or semantic validation failure -> `400`.
+- No-op config updates are rejected -> `400`.
+- Unknown `target_version` for rollback -> `404` or validation error.
+- Invalid history `limit` -> `400`.
+- Unauthorized write role -> `403`.
+
+## Operational Notes
+- Config updates are append-only; active pointer changes but historical rows remain immutable.
+- Rollback is implemented as a new version, never destructive rewrite.
+
+## Related Code
+- `api/v1/rules/urls.py`
+- `api/v1/rules/views.py`
+- `apps/rules/services.py`
+- `apps/rules/models.py`

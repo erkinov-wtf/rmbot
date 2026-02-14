@@ -20,6 +20,8 @@ from ticket.services_analytics import TicketAnalyticsService
 
 
 class SLAAutomationService:
+    """Evaluates SLA thresholds and emits trigger/resolve automation events."""
+
     RULE_STOCKOUT_OPEN_MINUTES = "stockout_open_minutes"
     RULE_BACKLOG_BLACK_PLUS = "backlog_black_plus_count"
     RULE_FIRST_PASS_RATE = "first_pass_rate_percent"
@@ -222,6 +224,7 @@ class SLAAutomationService:
             event = None
 
             if breached:
+                # First breach triggers immediately; repeated breaches respect cooldown.
                 if (
                     latest is None
                     or latest.status != SLAAutomationEventStatus.TRIGGERED

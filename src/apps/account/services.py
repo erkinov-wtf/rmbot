@@ -15,6 +15,8 @@ logger = logging.getLogger(__name__)
 
 
 class AccountService:
+    """Account and access-request orchestration for bot and API flows."""
+
     PENDING_EMAIL_DOMAIN = "pending.rentmarket.local"
 
     @staticmethod
@@ -64,6 +66,7 @@ class AccountService:
         if phone and User.all_objects.filter(phone=phone).exists():
             raise ValueError("Phone number is already used by another account.")
 
+        # User is pre-created inactive and later activated by moderation approval.
         resolved_username = cls._build_unique_username(
             cls._normalize_username_seed(username, telegram_id)
         )
@@ -387,16 +390,8 @@ class AccountService:
     ) -> str:
         greeting = f"Hello, {first_name}." if first_name else "Hello."
         if approved:
-            return (
-                f"{greeting}\n"
-                "Your access request has been approved. "
-                "You can now use Rent Market."
-            )
-        return (
-            f"{greeting}\n"
-            "Your access request has been denied. "
-            "You can submit a new request using /start."
-        )
+            return f"{greeting}\nYour access request has been approved. You can now use Rent Market."
+        return f"{greeting}\nYour access request has been denied. You can submit a new request using /start."
 
     @staticmethod
     async def _send_telegram_notification(*, telegram_id: int, message: str) -> None:

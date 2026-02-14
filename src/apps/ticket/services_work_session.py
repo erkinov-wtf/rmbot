@@ -11,6 +11,8 @@ from ticket.services_workflow import TicketWorkflowService
 
 
 class TicketWorkSessionService:
+    """Session lifecycle manager for technician work time accounting."""
+
     @classmethod
     @transaction.atomic
     def start_work_session(cls, ticket: Ticket, actor_user_id: int) -> WorkSession:
@@ -198,6 +200,7 @@ class TicketWorkSessionService:
     def _calculate_active_seconds_from_transitions(
         *, session: WorkSession, until_dt
     ) -> int:
+        # Recalculate from transition history to avoid drift from partial updates.
         transitions = session.transitions.order_by("event_at", "id").only(
             "action", "event_at"
         )

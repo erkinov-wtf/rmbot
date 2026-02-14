@@ -1,0 +1,35 @@
+# Ticket Workflow Service (`apps/ticket/services_workflow.py`)
+
+## Scope
+Implements core ticket state machine transitions and completion side effects.
+
+## Execution Flows
+- `assign_ticket`
+- `start_ticket`
+- `move_ticket_to_waiting_qc`
+- `qc_pass_ticket`
+- `qc_fail_ticket`
+- transition logging helper (`log_ticket_transition`)
+
+## Invariants and Contracts
+- Transition source states are strictly validated.
+- Assigned technician ownership is enforced for work transitions.
+- QC pass requires assigned technician context.
+
+## Side Effects
+- Writes `TicketTransition` rows for each workflow action.
+- Updates bike status (`IN_SERVICE` on start, `READY` on QC pass).
+- Appends XP ledger base and optional first-pass bonus entries.
+
+## Failure Modes
+- Invalid source state for requested action.
+- Technician mismatch or missing assignment.
+- Unique in-progress technician constraint violations surfaced as errors.
+
+## Operational Notes
+- XP formula inputs come from active rules (`ticket_xp` section).
+
+## Related Code
+- `apps/ticket/models.py`
+- `apps/gamification/services.py`
+- `apps/rules/services.py`

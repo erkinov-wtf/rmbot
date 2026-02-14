@@ -9,12 +9,15 @@ from django.core.mail import send_mail
 from django.utils import timezone
 
 from core.utils.constants import SLAAutomationDeliveryAttemptStatus
+from rules.services import RulesService
 from ticket.models import SLAAutomationDeliveryAttempt, SLAAutomationEvent
 
 logger = logging.getLogger(__name__)
 
 
 class SLAAutomationEscalationService:
+    """Delivers SLA events to external channels with retry-safe attempt tracking."""
+
     DEFAULT_REQUEST_TIMEOUT_SECONDS = 5.0
     DEFAULT_MAX_RETRIES = 3
     DEFAULT_RETRY_BACKOFF_SECONDS = 60
@@ -23,7 +26,10 @@ class SLAAutomationEscalationService:
         "event_not_found",
         "no_channels_configured",
         "already_delivered",
+        "no_channels_routed",
+        "routing_disabled",
     }
+    ALLOWED_CHANNELS = ("telegram", "email", "ops_webhook")
 
     @staticmethod
     def _parse_int(value: Any, *, default: int, min_value: int = 0) -> int:
@@ -115,6 +121,122 @@ class SLAAutomationEscalationService:
     @staticmethod
     def _event_payload(event: SLAAutomationEvent) -> dict[str, Any]:
         return event.payload if isinstance(event.payload, dict) else {}
+
+    @classmethod
+    def _routing_config(cls) -> dict[str, Any]:
+        default = RulesService.default_rules_config()["sla"].get("escalation", {})
+        if not isinstance(default, dict):
+            default = {}
+
+        rules_config = RulesService.get_active_rules_config()
+        raw = rules_config.get("sla", {}).get("escalation", {})
+        if not isinstance(raw, dict):
+            raw = {}
+
+        enabled = raw.get("enabled", default.get("enabled", True))
+        if not isinstance(enabled, bool):
+            enabled = bool(default.get("enabled", True))
+
+        default_channels = raw.get(
+            "default_channels", default.get("default_channels", [])
+        )
+        if not isinstance(default_channels, list):
+            default_channels = list(default.get("default_channels", []))
+
+        routes = raw.get("routes", default.get("routes", []))
+        if not isinstance(routes, list):
+            routes = list(default.get("routes", []))
+
+        return {
+            "enabled": enabled,
+            "default_channels": [
+                str(item).strip().lower()
+                for item in default_channels
+                if isinstance(item, str) and item.strip()
+            ],
+            "routes": routes,
+        }
+
+    @staticmethod
+    def _event_is_repeat(event: SLAAutomationEvent) -> bool:
+        payload = event.payload if isinstance(event.payload, dict) else {}
+        return payload.get("repeat") is True
+
+    @classmethod
+    def _select_channels_for_event(cls, *, event: SLAAutomationEvent) -> dict[str, Any]:
+        config = cls._routing_config()
+        if config.get("enabled") is not True:
+            return {"enabled": False, "channels": [], "source": "disabled"}
+
+        event_repeat = cls._event_is_repeat(event)
+        event_status = str(event.status or "").strip().lower()
+        event_severity = str(event.severity or "").strip().lower()
+        event_rule_key = str(event.rule_key or "").strip()
+
+        # First matching route wins; fallback goes to default channels.
+        for idx, raw_route in enumerate(config.get("routes") or []):
+            if not isinstance(raw_route, dict):
+                continue
+
+            channels = raw_route.get("channels")
+            if not isinstance(channels, list):
+                continue
+            normalized_channels = [
+                str(ch).strip().lower()
+                for ch in channels
+                if isinstance(ch, str) and ch.strip()
+            ]
+
+            rule_keys = raw_route.get("rule_keys")
+            if isinstance(rule_keys, list):
+                normalized_rule_keys = [
+                    str(rk).strip()
+                    for rk in rule_keys
+                    if isinstance(rk, str) and rk.strip()
+                ]
+                if normalized_rule_keys and event_rule_key not in normalized_rule_keys:
+                    continue
+
+            statuses = raw_route.get("statuses")
+            if isinstance(statuses, list):
+                normalized_statuses = [
+                    str(st).strip().lower()
+                    for st in statuses
+                    if isinstance(st, str) and st.strip()
+                ]
+                if normalized_statuses and event_status not in normalized_statuses:
+                    continue
+
+            severities = raw_route.get("severities")
+            if isinstance(severities, list):
+                normalized_severities = [
+                    str(sev).strip().lower()
+                    for sev in severities
+                    if isinstance(sev, str) and sev.strip()
+                ]
+                if (
+                    normalized_severities
+                    and event_severity not in normalized_severities
+                ):
+                    continue
+
+            repeat = raw_route.get("repeat")
+            if isinstance(repeat, bool) and repeat != event_repeat:
+                continue
+
+            return {
+                "enabled": True,
+                "channels": normalized_channels,
+                "source": "route",
+                "route_index": idx,
+            }
+
+        default_channels = config.get("default_channels") or []
+        return {
+            "enabled": True,
+            "channels": default_channels,
+            "source": "default",
+        }
 
     @classmethod
     def _build_subject(cls, *, event: SLAAutomationEvent) -> str:
@@ -304,52 +426,111 @@ class SLAAutomationEscalationService:
 
     @classmethod
     def deliver_event(cls, *, event: SLAAutomationEvent) -> dict[str, Any]:
+        routing = cls._select_channels_for_event(event=event)
+        if routing.get("enabled") is False:
+            return {
+                "event_id": event.id,
+                "rule_key": event.rule_key,
+                "status": event.status,
+                "delivered": False,
+                "channels": [],
+                "reason": "routing_disabled",
+            }
+
+        selected_channels = [
+            ch for ch in (routing.get("channels") or []) if ch in cls.ALLOWED_CHANNELS
+        ]
+        if not selected_channels:
+            return {
+                "event_id": event.id,
+                "rule_key": event.rule_key,
+                "status": event.status,
+                "delivered": False,
+                "channels": [],
+                "reason": "no_channels_routed",
+            }
+
         message = cls._build_message(event=event)
         subject = cls._build_subject(event=event)
         webhook_payload = cls._build_ops_payload(event=event)
 
         channels: list[dict[str, Any]] = []
-        bot_token = cls._telegram_bot_token()
-        chat_ids = cls._telegram_chat_ids()
-        if chat_ids and not bot_token:
-            channels.append(
-                {
-                    "channel": "telegram",
-                    "target": ",".join(chat_ids),
-                    "success": False,
-                    "error": "SLA_ESCALATION_TELEGRAM_BOT_TOKEN/BOT_TOKEN is not configured.",
-                    "retryable": False,
-                }
-            )
-        elif bot_token:
-            for chat_id in chat_ids:
+        routing_source = str(routing.get("source") or "default")
+
+        if "telegram" in selected_channels:
+            bot_token = cls._telegram_bot_token()
+            chat_ids = cls._telegram_chat_ids()
+            if chat_ids and not bot_token:
                 channels.append(
-                    cls._send_telegram_message(
-                        bot_token=bot_token,
-                        chat_id=chat_id,
+                    {
+                        "channel": "telegram",
+                        "target": ",".join(chat_ids),
+                        "success": False,
+                        "error": "SLA_ESCALATION_TELEGRAM_BOT_TOKEN/BOT_TOKEN is not configured.",
+                        "retryable": False,
+                    }
+                )
+            elif bot_token and chat_ids:
+                for chat_id in chat_ids:
+                    channels.append(
+                        cls._send_telegram_message(
+                            bot_token=bot_token,
+                            chat_id=chat_id,
+                            message=message,
+                        )
+                    )
+            elif routing_source == "route":
+                channels.append(
+                    {
+                        "channel": "telegram",
+                        "target": "",
+                        "success": False,
+                        "error": "SLA_ESCALATION_TELEGRAM_CHAT_IDS is not configured.",
+                        "retryable": False,
+                    }
+                )
+
+        if "email" in selected_channels:
+            email_recipients = cls._email_recipients()
+            if email_recipients:
+                channels.append(
+                    cls._send_email(
+                        recipients=email_recipients,
+                        subject=subject,
                         message=message,
                     )
                 )
-
-        email_recipients = cls._email_recipients()
-        if email_recipients:
-            channels.append(
-                cls._send_email(
-                    recipients=email_recipients,
-                    subject=subject,
-                    message=message,
+            elif routing_source == "route":
+                channels.append(
+                    {
+                        "channel": "email",
+                        "target": "",
+                        "success": False,
+                        "error": "SLA_ESCALATION_EMAIL_RECIPIENTS is not configured.",
+                        "retryable": False,
+                    }
                 )
-            )
 
-        webhook_url = cls._ops_webhook_url()
-        if webhook_url:
-            channels.append(
-                cls._send_ops_webhook(
-                    webhook_url=webhook_url,
-                    webhook_token=cls._ops_webhook_token(),
-                    payload=webhook_payload,
+        if "ops_webhook" in selected_channels:
+            webhook_url = cls._ops_webhook_url()
+            if webhook_url:
+                channels.append(
+                    cls._send_ops_webhook(
+                        webhook_url=webhook_url,
+                        webhook_token=cls._ops_webhook_token(),
+                        payload=webhook_payload,
+                    )
                 )
-            )
+            elif routing_source == "route":
+                channels.append(
+                    {
+                        "channel": "ops_webhook",
+                        "target": "",
+                        "success": False,
+                        "error": "SLA_ESCALATION_OPS_WEBHOOK_URL is not configured.",
+                        "retryable": False,
+                    }
+                )
 
         delivered = any(channel.get("success") is True for channel in channels)
         response = {

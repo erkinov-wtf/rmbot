@@ -13,6 +13,8 @@ from rules.services import RulesService
 
 
 class GamificationService:
+    """Append-only XP ledger writer with idempotent reference handling."""
+
     @staticmethod
     def append_xp_entry(
         *,
@@ -40,6 +42,8 @@ class GamificationService:
 
 
 class ProgressionService:
+    """Weekly progression evaluator that maps raw XP to persisted user levels."""
+
     BUSINESS_TZ = ZoneInfo("Asia/Tashkent")
 
     @staticmethod

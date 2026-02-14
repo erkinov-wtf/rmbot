@@ -14,6 +14,8 @@ from ticket.models import StockoutIncident, Ticket, TicketTransition
 
 
 class StockoutIncidentService:
+    """Detects stockout incidents in rules-defined business time windows."""
+
     DEFAULT_TIMEZONE = "Asia/Tashkent"
     DEFAULT_BUSINESS_START_HOUR = 10
     DEFAULT_BUSINESS_END_HOUR = 20
@@ -108,6 +110,7 @@ class StockoutIncidentService:
         is_business_day = is_working_weekday and not is_holiday
         in_business_hours = start_hour <= local_now.hour < end_hour
         in_business_window = is_business_day and in_business_hours
+        # Context payload is reused by detector, analytics, and SLA services.
         return {
             "timezone": getattr(business_tz, "key", cls.DEFAULT_TIMEZONE),
             "start_hour": start_hour,

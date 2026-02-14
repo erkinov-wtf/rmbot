@@ -23,6 +23,8 @@ from ticket.services_stockout import StockoutIncidentService
 
 
 class PayrollService:
+    """Payroll month close/approve workflow and SLA-aware allowance gating."""
+
     BUSINESS_TZ = ZoneInfo("Asia/Tashkent")
 
     @staticmethod
@@ -176,6 +178,7 @@ class PayrollService:
             next_month_start_dt=next_month_start_dt,
         )
         allowance_gate_reasons: list[str] = []
+        # Gate can suppress allowances for configured levels if SLA goals are missed.
         if allowance_gate["enabled"]:
             if (
                 sla_snapshot["qc"]["first_pass_rate_percent"]

@@ -22,6 +22,8 @@ from ticket.services_stockout import StockoutIncidentService
 
 
 class TicketAnalyticsService:
+    """Aggregates fleet/team operational KPIs for analytics API payloads."""
+
     BUSINESS_TIMEZONE = ZoneInfo("Asia/Tashkent")
     QC_WINDOW_DAYS = 7
 
@@ -81,6 +83,7 @@ class TicketAnalyticsService:
 
         business_window_now = bool(business_window["in_business_window"])
         stockout_now = business_window_now and ready_count == 0
+        # KPI helpers keep the endpoint payload stable while internals evolve.
         backlog_kpis = cls._backlog_kpis(
             active_tickets_qs=active_tickets_qs,
             backlog_counts=backlog_counts,

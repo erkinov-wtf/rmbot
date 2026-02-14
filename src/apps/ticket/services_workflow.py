@@ -15,6 +15,8 @@ from ticket.models import Ticket, TicketTransition
 
 
 class TicketWorkflowService:
+    """Canonical ticket state machine with audit logging and XP side effects."""
+
     @classmethod
     @transaction.atomic
     def assign_ticket(
@@ -133,6 +135,7 @@ class TicketWorkflowService:
         )
 
         base_divisor, first_pass_bonus = cls._ticket_xp_rules()
+        # Base XP is always granted on successful QC PASS completion.
         base_xp = math.ceil((ticket.srt_total_minutes or 0) / base_divisor)
         GamificationService.append_xp_entry(
             user_id=ticket.technician_id,

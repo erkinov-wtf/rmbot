@@ -11,6 +11,8 @@ from rules.services import RulesService
 
 
 class AttendanceService:
+    """Daily attendance check-in/out service with punctuality XP calculation."""
+
     BUSINESS_TZ = ZoneInfo("Asia/Tashkent")
 
     @classmethod
