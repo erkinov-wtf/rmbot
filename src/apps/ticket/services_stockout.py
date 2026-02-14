@@ -4,11 +4,10 @@ from datetime import date, timedelta
 from zoneinfo import ZoneInfo
 
 from django.db import transaction
-from django.db.models import Q
 from django.utils import timezone
 
 from bike.models import Bike
-from core.utils.constants import BikeStatus, TicketStatus, TicketTransitionAction
+from core.utils.constants import TicketStatus, TicketTransitionAction
 from rules.services import RulesService
 from ticket.models import StockoutIncident, Ticket, TicketTransition
 
@@ -128,12 +127,7 @@ class StockoutIncidentService:
 
     @staticmethod
     def _ready_active_bike_count() -> int:
-        return (
-            Bike.objects.filter(deleted_at__isnull=True, is_active=True)
-            .exclude(status=BikeStatus.WRITE_OFF)
-            .filter(status=BikeStatus.READY)
-            .count()
-        )
+        return Bike.domain.ready_active_count()
 
     @classmethod
     @transaction.atomic
@@ -143,12 +137,7 @@ class StockoutIncidentService:
         in_business_window = bool(window_context["in_business_window"])
         ready_count = cls._ready_active_bike_count()
 
-        active_incident = (
-            StockoutIncident.objects.select_for_update()
-            .filter(is_active=True)
-            .order_by("-started_at")
-            .first()
-        )
+        active_incident = StockoutIncident.domain.latest_active_for_update()
 
         if in_business_window and ready_count == 0:
             if active_incident:
@@ -159,17 +148,10 @@ class StockoutIncidentService:
                     "in_business_window": in_business_window,
                 }
 
-            incident = StockoutIncident.objects.create(
+            incident = StockoutIncident.start_incident(
                 started_at=now,
-                is_active=True,
                 ready_count_at_start=ready_count,
-                payload={
-                    "timezone": window_context["timezone"],
-                    "business_start_hour": window_context["start_hour"],
-                    "business_end_hour": window_context["end_hour"],
-                    "working_weekdays": window_context["working_weekdays"],
-                    "holiday_dates": window_context["holiday_dates"],
-                },
+                window_context=window_context,
             )
             return {
                 "action": "started",
@@ -186,22 +168,9 @@ class StockoutIncidentService:
                 "in_business_window": in_business_window,
             }
 
-        overlap_minutes = max(
-            int((now - active_incident.started_at).total_seconds() // 60),
-            0,
-        )
-        active_incident.ended_at = now
-        active_incident.is_active = False
-        active_incident.ready_count_at_end = ready_count
-        active_incident.duration_minutes = overlap_minutes
-        active_incident.save(
-            update_fields=[
-                "ended_at",
-                "is_active",
-                "ready_count_at_end",
-                "duration_minutes",
-                "updated_at",
-            ]
+        overlap_minutes = active_incident.resolve(
+            ended_at=now,
+            ready_count_at_end=ready_count,
         )
         return {
             "action": "resolved",
@@ -210,15 +179,6 @@ class StockoutIncidentService:
             "in_business_window": in_business_window,
             "duration_minutes": overlap_minutes,
         }
-
-    @classmethod
-    def _incident_overlap_minutes(cls, *, incident, start_dt, end_dt, now_utc) -> int:
-        effective_end = incident.ended_at or now_utc
-        overlap_start = max(incident.started_at, start_dt)
-        overlap_end = min(effective_end, end_dt)
-        if overlap_end <= overlap_start:
-            return 0
-        return max(int((overlap_end - overlap_start).total_seconds() // 60), 0)
 
     @classmethod
     def stockout_window_summary(
@@ -230,17 +190,13 @@ class StockoutIncidentService:
     ) -> dict[str, int]:
         now = now_utc or timezone.now()
         incidents = list(
-            StockoutIncident.objects.filter(started_at__lt=end_dt).filter(
-                Q(ended_at__isnull=True) | Q(ended_at__gt=start_dt)
+            StockoutIncident.domain.list_overlapping_window(
+                start_dt=start_dt,
+                end_dt=end_dt,
             )
         )
         total_minutes = sum(
-            cls._incident_overlap_minutes(
-                incident=incident,
-                start_dt=start_dt,
-                end_dt=end_dt,
-                now_utc=now,
-            )
+            incident.overlap_minutes(start_dt=start_dt, end_dt=end_dt, now_utc=now)
             for incident in incidents
         )
         return {
@@ -304,11 +260,7 @@ class StockoutIncidentService:
             end_dt=now,
             now_utc=now,
         )
-        open_incident = (
-            StockoutIncident.objects.filter(is_active=True)
-            .order_by("-started_at")
-            .first()
-        )
+        open_incident = StockoutIncident.domain.latest_active()
         return {
             "window_days": window_days,
             "window_start": window_start.isoformat(),

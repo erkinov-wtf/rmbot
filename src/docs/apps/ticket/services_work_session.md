@@ -1,7 +1,7 @@
 # Ticket Work Session Service (`apps/ticket/services_work_session.py`)
 
 ## Scope
-Controls work session timer lifecycle per ticket/technician.
+Orchestrates work-session lifecycle while delegating transition/state logic to `WorkSession` model methods.
 
 ## Execution Flows
 - `start_work_session`
@@ -17,8 +17,8 @@ Controls work session timer lifecycle per ticket/technician.
 - Session transitions respect state order (`RUNNING <-> PAUSED -> STOPPED`).
 
 ## Side Effects
-- Writes `WorkSession` and `WorkSessionTransition` rows.
-- Recomputes `active_seconds` from transition history for consistency.
+- Writes `WorkSession` and `WorkSessionTransition` rows via model methods.
+- Recomputes `active_seconds` from transition history for consistency (`WorkSession.recalculate_active_seconds`).
 - May auto-start ticket workflow when beginning session from assign/rework states.
 
 ## Failure Modes
@@ -27,8 +27,10 @@ Controls work session timer lifecycle per ticket/technician.
 - Ownership mismatch.
 
 ## Operational Notes
+- Open-session retrieval uses manager helpers (`WorkSession.domain`) to avoid duplicated query logic.
 - Transition-history recomputation avoids timer drift from partial updates.
 
 ## Related Code
 - `apps/ticket/models.py`
+- `apps/ticket/managers.py`
 - `apps/ticket/services_workflow.py`

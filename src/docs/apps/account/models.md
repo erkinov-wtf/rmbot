@@ -20,12 +20,16 @@ Defines identity and onboarding entities (`User`, `Role`, `TelegramProfile`, `Ac
 ## Lifecycle Notes
 - Users may exist inactive before approval.
 - Access requests move through `pending -> approved/rejected`.
+- Core state mutations now expose model methods:
+  - `User.sync_pending_fields`, `User.activate_if_needed`, `User.assign_roles_by_slugs`
+  - `AccessRequest.patch_pending_identity`, `mark_approved`, `mark_rejected`
 
 ## Operational Notes
 - `User.level` is consumed by payroll calculations.
-- Soft-delete-aware managers are used across identity reconciliation flows.
+- Manager-backed domain lookups are used across identity reconciliation flows (`AccessRequest.domain`, `TelegramProfile.domain`).
 
 ## Related Code
+- `apps/account/managers.py`
 - `apps/account/services.py`
 - `api/v1/account/views.py`
 - `bot/routers/start.py`

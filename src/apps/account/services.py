@@ -1,14 +1,12 @@
 import logging
-import re
 from collections.abc import Iterable
 
 from aiogram import Bot
 from asgiref.sync import async_to_sync
 from django.conf import settings
 from django.db import IntegrityError, transaction
-from django.utils import timezone
 
-from account.models import AccessRequest, Role, TelegramProfile, User
+from account.models import AccessRequest, TelegramProfile, User
 from core.utils.constants import AccessRequestStatus
 
 logger = logging.getLogger(__name__)
@@ -18,39 +16,6 @@ class AccountService:
     """Account and access-request orchestration for bot and API flows."""
 
     PENDING_EMAIL_DOMAIN = "pending.rentmarket.local"
-
-    @staticmethod
-    def _normalize_username_seed(raw_username: str | None, telegram_id: int) -> str:
-        seed = raw_username or f"tg_{telegram_id}"
-        normalized = re.sub(r"[^a-zA-Z0-9_]+", "_", seed).strip("_").lower()
-        if not normalized:
-            normalized = f"tg_{telegram_id}"
-        if normalized[0].isdigit():
-            normalized = f"u_{normalized}"
-        return normalized[:120]
-
-    @staticmethod
-    def _build_unique_username(seed: str) -> str:
-        candidate = seed
-        index = 1
-        while User.all_objects.filter(username=candidate).exists():
-            suffix = f"_{index}"
-            candidate = f"{seed[: 150 - len(suffix)]}{suffix}"
-            index += 1
-        return candidate
-
-    @classmethod
-    def _build_unique_email(cls, username: str) -> str:
-        local_base = re.sub(r"[^a-z0-9._+-]+", "", username.lower()) or "user"
-        local_base = local_base[:64]
-        candidate = f"{local_base}@{cls.PENDING_EMAIL_DOMAIN}"
-        index = 1
-        while User.all_objects.filter(email=candidate).exists():
-            suffix = f".{index}"
-            local_part = f"{local_base[: 64 - len(suffix)]}{suffix}"
-            candidate = f"{local_part}@{cls.PENDING_EMAIL_DOMAIN}"
-            index += 1
-        return candidate
 
     @classmethod
     def _create_pending_user(
@@ -63,23 +28,14 @@ class AccountService:
         patronymic: str | None,
         phone: str | None,
     ) -> User:
-        if phone and User.all_objects.filter(phone=phone).exists():
-            raise ValueError("Phone number is already used by another account.")
-
-        # User is pre-created inactive and later activated by moderation approval.
-        resolved_username = cls._build_unique_username(
-            cls._normalize_username_seed(username, telegram_id)
-        )
-        resolved_email = cls._build_unique_email(resolved_username)
-        return User.objects.create_user(
-            username=resolved_username,
-            password=None,
-            first_name=first_name or "Unknown",
+        return User.objects.create_pending_user(
+            telegram_id=telegram_id,
+            username=username,
+            first_name=first_name,
             last_name=last_name,
             patronymic=patronymic,
             phone=phone,
-            email=resolved_email,
-            is_active=False,
+            pending_email_domain=cls.PENDING_EMAIL_DOMAIN,
         )
 
     @staticmethod
@@ -91,23 +47,12 @@ class AccountService:
         patronymic: str | None,
         phone: str | None,
     ) -> User:
-        updates: dict[str, object] = {}
-        if user.deleted_at is not None:
-            updates["deleted_at"] = None
-        if first_name:
-            updates["first_name"] = first_name
-        if last_name:
-            updates["last_name"] = last_name
-        if patronymic:
-            updates["patronymic"] = patronymic
-        if phone and phone != user.phone:
-            if User.all_objects.exclude(pk=user.pk).filter(phone=phone).exists():
-                raise ValueError("Phone number is already used by another account.")
-            updates["phone"] = phone
-        if updates:
-            User.all_objects.filter(pk=user.pk).update(**updates)
-            user.refresh_from_db()
-        return user
+        return user.sync_pending_fields(
+            first_name=first_name,
+            last_name=last_name,
+            patronymic=patronymic,
+            phone=phone,
+        )
 
     @staticmethod
     def _link_telegram_profile_to_user(
@@ -118,27 +63,13 @@ class AccountService:
         first_name: str | None,
         last_name: str | None,
     ) -> TelegramProfile:
-        profile_defaults = {
-            "username": username,
-            "first_name": first_name,
-            "last_name": last_name,
-            "verified_at": timezone.now(),
-            "user": user,
-        }
-        profile, _ = TelegramProfile.all_objects.get_or_create(
+        return TelegramProfile.domain.link_to_user(
             telegram_id=telegram_id,
-            defaults=profile_defaults,
-        )
-        TelegramProfile.all_objects.filter(pk=profile.pk).update(
             user=user,
-            deleted_at=None,
-            verified_at=timezone.now(),
-            username=username or profile.username,
-            first_name=first_name or profile.first_name,
-            last_name=last_name or profile.last_name,
+            username=username,
+            first_name=first_name,
+            last_name=last_name,
         )
-        profile.refresh_from_db()
-        return profile
 
     @staticmethod
     def upsert_telegram_profile(from_user) -> TelegramProfile:
@@ -146,31 +77,11 @@ class AccountService:
         Ensure a TelegramProfile exists for a Telegram user.
         Revives soft-deleted profiles if present (uniqueness on telegram_id).
         """
-        defaults = {
-            "username": getattr(from_user, "username", None),
-            "first_name": getattr(from_user, "first_name", None),
-            "last_name": getattr(from_user, "last_name", None),
-            "language_code": getattr(from_user, "language_code", None),
-            "is_bot": getattr(from_user, "is_bot", False) or False,
-            "is_premium": getattr(from_user, "is_premium", False) or False,
-            "verified_at": timezone.now(),
-        }
-        profile, _ = TelegramProfile.all_objects.get_or_create(
-            telegram_id=from_user.id, defaults=defaults
-        )
-        TelegramProfile.all_objects.filter(pk=profile.pk).update(
-            deleted_at=None, **defaults
-        )
-        profile.refresh_from_db()
-        return profile
+        return TelegramProfile.domain.upsert_from_telegram_user(from_user=from_user)
 
     @staticmethod
     def get_active_profile(telegram_id: int) -> TelegramProfile | None:
-        return (
-            TelegramProfile.objects.select_related("user")
-            .filter(telegram_id=telegram_id)
-            .first()
-        )
+        return TelegramProfile.domain.active_for_telegram(telegram_id=telegram_id)
 
     @staticmethod
     def ensure_pending_access_request(
@@ -185,26 +96,15 @@ class AccountService:
         Create a pending access request if none exists for the telegram user.
         Returns (access_request, created).
         """
-        existing = AccessRequest.all_objects.filter(
-            telegram_id=telegram_id, status=AccessRequestStatus.PENDING
-        ).first()
+        existing = AccessRequest.domain.pending_for_telegram(telegram_id=telegram_id)
         if existing:
-            updates = {}
-            if existing.deleted_at is not None:
-                updates["deleted_at"] = None
-            if phone and not existing.phone:
-                updates["phone"] = phone
-            if note and not existing.note:
-                updates["note"] = note
-            if username and not existing.username:
-                updates["username"] = username
-            if first_name and not existing.first_name:
-                updates["first_name"] = first_name
-            if last_name and not existing.last_name:
-                updates["last_name"] = last_name
-            if updates:
-                AccessRequest.all_objects.filter(pk=existing.pk).update(**updates)
-                existing.refresh_from_db()
+            existing.patch_pending_identity(
+                username=username,
+                first_name=first_name,
+                last_name=last_name,
+                phone=phone,
+                note=note,
+            )
             return existing, False
 
         try:
@@ -218,9 +118,8 @@ class AccountService:
             )
             return created, True
         except IntegrityError:
-            existing = AccessRequest.all_objects.get(
-                telegram_id=telegram_id,
-                status=AccessRequestStatus.PENDING,
+            existing = AccessRequest.domain.pending_for_telegram(
+                telegram_id=telegram_id
             )
             return existing, False
 
@@ -237,10 +136,8 @@ class AccountService:
         phone: str,
         note: str | None = None,
     ) -> tuple[AccessRequest, bool]:
-        existing_profile = (
-            TelegramProfile.all_objects.select_related("user")
-            .filter(telegram_id=telegram_id)
-            .first()
+        existing_profile = TelegramProfile.domain.any_for_telegram(
+            telegram_id=telegram_id
         )
 
         if (
@@ -250,23 +147,15 @@ class AccountService:
         ):
             raise ValueError("You are already registered and linked.")
 
-        if AccessRequest.all_objects.filter(
-            telegram_id=telegram_id,
-            status=AccessRequestStatus.APPROVED,
-        ).exists():
+        if AccessRequest.domain.approved_exists_for_telegram(telegram_id=telegram_id):
             raise ValueError("Your access request was already approved.")
 
-        if AccessRequest.all_objects.filter(
-            telegram_id=telegram_id,
-            user__is_active=True,
-        ).exists():
+        if AccessRequest.domain.active_user_link_exists_for_telegram(
+            telegram_id=telegram_id
+        ):
             raise ValueError("You are already registered and linked.")
 
-        existing = (
-            AccessRequest.all_objects.select_related("user")
-            .filter(telegram_id=telegram_id, status=AccessRequestStatus.PENDING)
-            .first()
-        )
+        existing = AccessRequest.domain.pending_for_telegram(telegram_id=telegram_id)
         if existing:
             pending_user = existing.user
             if pending_user:
@@ -287,18 +176,14 @@ class AccountService:
                     phone=phone,
                 )
 
-            updates: dict[str, object] = {
-                "username": username,
-                "first_name": first_name,
-                "last_name": last_name,
-                "phone": phone,
-                "user": pending_user,
-                "deleted_at": None,
-            }
-            if note and not existing.note:
-                updates["note"] = note
-            AccessRequest.all_objects.filter(pk=existing.pk).update(**updates)
-            existing.refresh_from_db()
+            existing.patch_pending_identity(
+                username=username,
+                first_name=first_name,
+                last_name=last_name,
+                phone=phone,
+                note=note,
+                user=pending_user,
+            )
             cls._link_telegram_profile_to_user(
                 telegram_id=telegram_id,
                 user=pending_user,
@@ -322,15 +207,8 @@ class AccountService:
                 phone=phone,
             )
         else:
-            latest_rejected = (
-                AccessRequest.all_objects.select_related("user")
-                .filter(
-                    telegram_id=telegram_id,
-                    status=AccessRequestStatus.REJECTED,
-                    user__isnull=False,
-                )
-                .order_by("-resolved_at", "-created_at")
-                .first()
+            latest_rejected = AccessRequest.domain.latest_rejected_with_user(
+                telegram_id=telegram_id
             )
             rejected_user = latest_rejected.user if latest_rejected else None
             if rejected_user and not rejected_user.is_active:
@@ -371,18 +249,18 @@ class AccountService:
 
     @staticmethod
     def get_pending_access_request(telegram_id: int) -> AccessRequest | None:
-        return AccessRequest.all_objects.filter(
-            telegram_id=telegram_id,
-            status=AccessRequestStatus.PENDING,
-        ).first()
+        return AccessRequest.domain.pending_for_telegram(telegram_id=telegram_id)
 
     @staticmethod
     @transaction.atomic
     def link_profile_to_user(profile: TelegramProfile, user: User) -> TelegramProfile:
-        profile.user = user
-        profile.deleted_at = None
-        profile.save(update_fields=["user", "deleted_at"])
-        return profile
+        return TelegramProfile.domain.link_to_user(
+            telegram_id=profile.telegram_id,
+            user=user,
+            username=profile.username,
+            first_name=profile.first_name,
+            last_name=profile.last_name,
+        )
 
     @staticmethod
     def _build_access_request_decision_message(
@@ -464,24 +342,9 @@ class AccountService:
             last_name=access_request.last_name,
         )
 
-        if role_slugs:
-            roles = Role.objects.filter(
-                slug__in=list(role_slugs), deleted_at__isnull=True
-            )
-            if roles:
-                user.roles.add(*roles)
-
-        if not user.is_active:
-            User.all_objects.filter(pk=user.pk).update(is_active=True)
-            user.refresh_from_db()
-
-        access_request.status = AccessRequestStatus.APPROVED
-        access_request.user = user
-        access_request.resolved_at = timezone.now()
-        access_request.deleted_at = None
-        access_request.save(
-            update_fields=["status", "user", "resolved_at", "deleted_at"]
-        )
+        user.assign_roles_by_slugs(role_slugs=role_slugs)
+        user.activate_if_needed()
+        access_request.mark_approved(user=user)
         cls._notify_access_request_decision(
             access_request=access_request, approved=True
         )
@@ -493,9 +356,7 @@ class AccountService:
         if access_request.status != AccessRequestStatus.PENDING:
             raise ValueError("Access request is already resolved")
 
-        access_request.status = AccessRequestStatus.REJECTED
-        access_request.resolved_at = timezone.now()
-        access_request.save(update_fields=["status", "resolved_at"])
+        access_request.mark_rejected()
         cls._notify_access_request_decision(
             access_request=access_request, approved=False
         )

@@ -1,5 +1,6 @@
 from django.contrib.auth.base_user import AbstractBaseUser
 from django.db import models
+from django.utils import timezone
 
 from account import managers
 from core.models import SoftDeleteModel, TimestampedModel
@@ -60,6 +61,46 @@ class User(AbstractBaseUser, TimestampedModel, SoftDeleteModel):
 
         return super().save(*args, **kwargs)
 
+    def sync_pending_fields(
+        self,
+        *,
+        first_name: str | None,
+        last_name: str | None,
+        patronymic: str | None,
+        phone: str | None,
+    ) -> "User":
+        updates: dict[str, object] = {}
+        if self.deleted_at is not None:
+            updates["deleted_at"] = None
+        if first_name:
+            updates["first_name"] = first_name
+        if last_name:
+            updates["last_name"] = last_name
+        if patronymic:
+            updates["patronymic"] = patronymic
+        if phone and phone != self.phone:
+            if User.objects.phone_in_use(phone=phone, exclude_user_id=self.pk):
+                raise ValueError("Phone number is already used by another account.")
+            updates["phone"] = phone
+        if updates:
+            User.all_objects.filter(pk=self.pk).update(**updates)
+            self.refresh_from_db()
+        return self
+
+    def activate_if_needed(self) -> "User":
+        if self.is_active:
+            return self
+        User.all_objects.filter(pk=self.pk).update(is_active=True)
+        self.refresh_from_db()
+        return self
+
+    def assign_roles_by_slugs(self, *, role_slugs) -> None:
+        if not role_slugs:
+            return
+        roles = Role.objects.filter(slug__in=list(role_slugs), deleted_at__isnull=True)
+        if roles:
+            self.roles.add(*roles)
+
 
 class UserRole(TimestampedModel, SoftDeleteModel):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="user_roles")
@@ -73,6 +114,8 @@ class UserRole(TimestampedModel, SoftDeleteModel):
 
 
 class TelegramProfile(TimestampedModel, SoftDeleteModel):
+    domain = managers.TelegramProfileDomainManager()
+
     user = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
@@ -94,6 +137,8 @@ class TelegramProfile(TimestampedModel, SoftDeleteModel):
 
 
 class AccessRequest(TimestampedModel, SoftDeleteModel):
+    domain = managers.AccessRequestDomainManager()
+
     telegram_id = models.BigIntegerField(db_index=True)
     username = models.CharField(max_length=32, blank=True, null=True)
     first_name = models.CharField(max_length=255, blank=True, null=True)
@@ -126,6 +171,52 @@ class AccessRequest(TimestampedModel, SoftDeleteModel):
                 name="unique_pending_access_request_per_telegram",
             )
         ]
+
+    def patch_pending_identity(
+        self,
+        *,
+        username: str | None,
+        first_name: str | None,
+        last_name: str | None,
+        phone: str | None,
+        note: str | None,
+        user: User | None = None,
+    ) -> "AccessRequest":
+        updates: dict[str, object] = {"deleted_at": None}
+        if username and not self.username:
+            updates["username"] = username
+        if first_name and not self.first_name:
+            updates["first_name"] = first_name
+        if last_name and not self.last_name:
+            updates["last_name"] = last_name
+        if phone and not self.phone:
+            updates["phone"] = phone
+        if note and not self.note:
+            updates["note"] = note
+        if user is not None:
+            updates["user"] = user
+            updates["username"] = username
+            updates["first_name"] = first_name
+            updates["last_name"] = last_name
+            updates["phone"] = phone
+        if updates:
+            AccessRequest.all_objects.filter(pk=self.pk).update(**updates)
+            self.refresh_from_db()
+        return self
+
+    def mark_approved(self, *, user: User) -> "AccessRequest":
+        self.status = AccessRequestStatus.APPROVED
+        self.user = user
+        self.resolved_at = timezone.now()
+        self.deleted_at = None
+        self.save(update_fields=["status", "user", "resolved_at", "deleted_at"])
+        return self
+
+    def mark_rejected(self) -> "AccessRequest":
+        self.status = AccessRequestStatus.REJECTED
+        self.resolved_at = timezone.now()
+        self.save(update_fields=["status", "resolved_at"])
+        return self
 
     def __str__(self) -> str:
         return f"AccessRequest tg:{self.telegram_id} ({self.status})"

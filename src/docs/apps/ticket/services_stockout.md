@@ -7,7 +7,19 @@ Detects and resolves stockout incidents using rules-defined business windows.
 - Load stockout config (`_stockout_config`).
 - Compute window context (`business_window_context`).
 - Detect/start/resolve incidents (`detect_and_sync`).
-- Aggregate overlap summaries (`stockout_window_summary`, `monthly_sla_snapshot`).
+- Aggregate overlap summaries (`stockout_window_summary`, `monthly_sla_snapshot`, `rolling_stockout_summary`).
+
+## Service vs Domain Responsibilities
+- Service-owned:
+  - business window/calendar calculation,
+  - decision branching (start/resolve/no-op),
+  - SLA snapshot aggregation.
+- Model/manager-owned:
+  - active incident lock/read (`StockoutIncident.domain.latest_active_for_update`),
+  - incident creation (`StockoutIncident.start_incident`),
+  - incident resolution (`StockoutIncident.resolve`),
+  - overlap minute calculation (`StockoutIncident.overlap_minutes`),
+  - overlap window query (`StockoutIncident.domain.list_overlapping_window`).
 
 ## Invariants and Contracts
 - Incidents open only when in business window and ready fleet count is zero.
@@ -22,10 +34,8 @@ Detects and resolves stockout incidents using rules-defined business windows.
 - Invalid rule values are sanitized to safe defaults.
 - Out-of-window conditions do not trigger incidents.
 
-## Operational Notes
-- Service is invoked periodically by Celery schedule and by manual management command.
-
 ## Related Code
 - `apps/ticket/models.py`
+- `apps/ticket/managers.py`
 - `apps/rules/services.py`
 - `apps/ticket/tasks.py`

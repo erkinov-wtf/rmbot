@@ -63,7 +63,9 @@ class AttendanceService:
     @classmethod
     def get_today_record(cls, user_id: int) -> AttendanceRecord | None:
         today = cls._business_date(timezone.now())
-        return AttendanceRecord.objects.filter(user_id=user_id, work_date=today).first()
+        return AttendanceRecord.domain.for_user_on_date(
+            user_id=user_id, work_date=today
+        )
 
     @classmethod
     @transaction.atomic
@@ -71,26 +73,17 @@ class AttendanceService:
         now_dt = timezone.now()
         today = cls._business_date(now_dt)
 
-        record = AttendanceRecord.all_objects.filter(
-            user_id=user_id, work_date=today
-        ).first()
-        if record and record.deleted_at is not None:
-            record.deleted_at = None
-            record.save(update_fields=["deleted_at"])
-            record.refresh_from_db()
-
-        if record and record.check_in_at:
-            raise ValueError("Already checked in for today.")
-
+        record = AttendanceRecord.domain.get_or_restore_for_user_on_date(
+            user_id=user_id,
+            work_date=today,
+        )
         if not record:
             record = AttendanceRecord.objects.create(
                 user_id=user_id,
                 work_date=today,
-                check_in_at=now_dt,
             )
-        else:
-            record.check_in_at = now_dt
-            record.save(update_fields=["check_in_at"])
+
+        record.mark_check_in(check_in_at=now_dt)
 
         xp_amount = cls._punctuality_xp(record.check_in_at)
         reference = f"attendance_checkin:{user_id}:{today.isoformat()}"
@@ -113,14 +106,12 @@ class AttendanceService:
     def check_out(cls, user_id: int) -> AttendanceRecord:
         now_dt = timezone.now()
         today = cls._business_date(now_dt)
-        record = AttendanceRecord.objects.filter(
-            user_id=user_id, work_date=today
-        ).first()
-        if not record or not record.check_in_at:
+        record = AttendanceRecord.domain.for_user_on_date(
+            user_id=user_id,
+            work_date=today,
+        )
+        if not record:
             raise ValueError("Cannot check out before check in.")
-        if record.check_out_at:
-            raise ValueError("Already checked out for today.")
 
-        record.check_out_at = now_dt
-        record.save(update_fields=["check_out_at"])
+        record.mark_check_out(check_out_at=now_dt)
         return record

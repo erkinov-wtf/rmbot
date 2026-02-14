@@ -4,7 +4,7 @@
 Handles append-only XP posting and weekly progression evaluations.
 
 ## Execution Flows
-- XP append with idempotency guard (`append_xp_entry`).
+- XP append orchestration (`append_xp_entry`) delegating idempotent writes to `XPLedger.objects.append_entry`.
 - Weekly evaluation (`run_weekly_level_evaluation`) from XP aggregates.
 - Level mapping (`map_raw_xp_to_level`) with monotonic threshold assumptions.
 - Coupon issuance for level-up events.

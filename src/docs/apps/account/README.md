@@ -5,6 +5,7 @@ Covers identity, role linkage, Telegram profile binding, and access-request mode
 
 ## Navigation
 - `docs/apps/account/models.md`
+- `docs/apps/account/managers.md`
 - `docs/apps/account/services.md`
 
 ## Maintenance Rules
@@ -13,6 +14,7 @@ Covers identity, role linkage, Telegram profile binding, and access-request mode
 
 ## Related Code
 - `apps/account/models.py`
+- `apps/account/managers.py`
 - `apps/account/services.py`
 - `api/v1/account/`
 - `bot/routers/start.py`

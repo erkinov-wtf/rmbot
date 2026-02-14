@@ -5,6 +5,7 @@ Covers bike registry entities and BikeCode normalization/lookup/suggestion logic
 
 ## Navigation
 - `docs/apps/bike/models.md`
+- `docs/apps/bike/managers.md`
 - `docs/apps/bike/services.md`
 
 ## Maintenance Rules
@@ -12,5 +13,6 @@ Covers bike registry entities and BikeCode normalization/lookup/suggestion logic
 
 ## Related Code
 - `apps/bike/models.py`
+- `apps/bike/managers.py`
 - `apps/bike/services.py`
 - `api/v1/bike/`

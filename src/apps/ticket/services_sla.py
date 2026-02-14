@@ -11,7 +11,6 @@ from core.utils.constants import (
 )
 from rules.services import RulesService
 from ticket.models import (
-    ACTIVE_TICKET_STATUSES,
     SLAAutomationEvent,
     StockoutIncident,
     Ticket,
@@ -86,11 +85,7 @@ class SLAAutomationService:
 
     @classmethod
     def _collect_metrics(cls, *, now_utc) -> dict[str, int | float | bool]:
-        open_incident = (
-            StockoutIncident.objects.filter(is_active=True)
-            .order_by("-started_at")
-            .first()
-        )
+        open_incident = StockoutIncident.domain.latest_active()
         open_stockout_minutes = 0
         if open_incident:
             open_stockout_minutes = max(
@@ -98,11 +93,9 @@ class SLAAutomationService:
                 0,
             )
 
-        backlog_black_plus_count = Ticket.objects.filter(
-            deleted_at__isnull=True,
-            status__in=ACTIVE_TICKET_STATUSES,
-            flag_minutes__gt=180,
-        ).count()
+        backlog_black_plus_count = Ticket.domain.backlog_black_plus_count(
+            min_flag_minutes=180
+        )
 
         fleet_summary = TicketAnalyticsService.fleet_summary()
         qc_totals = fleet_summary.get("qc", {}).get("totals", {})
@@ -119,27 +112,13 @@ class SLAAutomationService:
 
     @classmethod
     def _latest_rule_event(cls, *, rule_key: str) -> SLAAutomationEvent | None:
-        return (
-            SLAAutomationEvent.objects.filter(rule_key=rule_key)
-            .order_by("-created_at")
-            .first()
-        )
+        return SLAAutomationEvent.domain.latest_for_rule(rule_key=rule_key)
 
     @staticmethod
     def _latest_event_time(
         event: SLAAutomationEvent, *, fallback_now: datetime
     ) -> datetime:
-        payload = event.payload if isinstance(event.payload, dict) else {}
-        raw = payload.get("evaluated_at")
-        if isinstance(raw, str):
-            try:
-                parsed = datetime.fromisoformat(raw)
-                if parsed.tzinfo is None:
-                    parsed = timezone.make_aware(parsed, timezone.utc)
-                return parsed
-            except ValueError:
-                pass
-        return event.created_at or fallback_now
+        return event.evaluated_at_or_created(fallback_now=fallback_now)
 
     @classmethod
     def _create_event(
@@ -152,7 +131,7 @@ class SLAAutomationService:
         threshold_value: float,
         payload: dict[str, Any],
     ) -> SLAAutomationEvent:
-        return SLAAutomationEvent.objects.create(
+        return SLAAutomationEvent.create_event(
             rule_key=rule_key,
             status=status,
             severity=severity,

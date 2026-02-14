@@ -4,7 +4,7 @@ from rest_framework import serializers
 
 from bike.models import Bike
 from bike.services import BikeService
-from ticket.models import ACTIVE_TICKET_STATUSES, Ticket
+from ticket.models import Ticket
 
 
 class TicketSerializer(serializers.ModelSerializer):
@@ -134,11 +134,7 @@ class TicketSerializer(serializers.ModelSerializer):
             attrs["bike"] = bike
             attrs["_create_bike"] = False
             attrs["_bike_creation_reason"] = None
-            if Ticket.objects.filter(
-                bike=bike,
-                status__in=ACTIVE_TICKET_STATUSES,
-                deleted_at__isnull=True,
-            ).exists():
+            if Ticket.domain.has_active_for_bike(bike=bike):
                 raise serializers.ValidationError(
                     {"bike_code": "An active ticket already exists for this bike."}
                 )
@@ -192,11 +188,7 @@ class TicketSerializer(serializers.ModelSerializer):
                     ) from None
                 created = False
 
-            if Ticket.objects.filter(
-                bike=bike,
-                status__in=ACTIVE_TICKET_STATUSES,
-                deleted_at__isnull=True,
-            ).exists():
+            if Ticket.domain.has_active_for_bike(bike=bike):
                 raise serializers.ValidationError(
                     {"bike_code": "An active ticket already exists for this bike."}
                 )

@@ -6,8 +6,8 @@ Implements attendance check-in/check-out and punctuality XP posting with rules-d
 ## Execution Flows
 - Resolve attendance rules (`_attendance_rules`).
 - Resolve business date (`_business_date`).
-- Check-in (`check_in`) with XP append.
-- Check-out (`check_out`).
+- Check-in orchestration (`check_in`) with model-level `mark_check_in` + XP append.
+- Check-out orchestration (`check_out`) with model-level `mark_check_out`.
 
 ## Invariants and Contracts
 - One attendance record per user/work-date.
@@ -30,5 +30,6 @@ Implements attendance check-in/check-out and punctuality XP posting with rules-d
 
 ## Related Code
 - `apps/attendance/models.py`
+- `apps/attendance/managers.py`
 - `apps/gamification/services.py`
 - `apps/rules/services.py`

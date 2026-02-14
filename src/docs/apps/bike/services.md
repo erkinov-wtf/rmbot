@@ -1,13 +1,13 @@
 # Bike Services (`apps/bike/services.py`)
 
 ## Scope
-Provides BikeCode normalization, validation, lookup, and suggestion capabilities.
+Provides BikeCode normalization/validation and delegates read/query behavior to bike managers.
 
 ## Execution Flows
 - Normalize code (`normalize_bike_code`).
 - Validate code format (`is_valid_bike_code`).
-- Active-bike lookup (`get_by_code`).
-- Multi-stage suggestion (`suggest_codes`).
+- Active-bike lookup via `Bike.domain.find_by_code` (`get_by_code`).
+- Multi-stage suggestion via `Bike.domain.suggest_codes` (`suggest_codes`).
 
 ## Invariants and Contracts
 - Canonical BikeCode normalization is uppercase without whitespace.
@@ -27,5 +27,6 @@ Provides BikeCode normalization, validation, lookup, and suggestion capabilities
 
 ## Related Code
 - `apps/bike/models.py`
+- `apps/bike/managers.py`
 - `api/v1/bike/views.py`
 - `api/v1/ticket/serializers/ticket.py`

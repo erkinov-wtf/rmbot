@@ -15,6 +15,7 @@ Defines append-only XP and progression event records.
 
 ## Lifecycle Notes
 - Records are append-only; correction should be represented by compensating entries/events.
+- `XPLedger.objects` now uses a custom append-only manager with idempotent writer helper (`append_entry`).
 
 ## Operational Notes
 - These tables are the audit source for XP/progression calculations.

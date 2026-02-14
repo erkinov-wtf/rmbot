@@ -1,10 +1,38 @@
-from django.db import models
+from django.db import IntegrityError, models
 
-from core.models import AppendOnlyModel
+from core.models import AppendOnlyManager, AppendOnlyModel
 from core.utils.constants import EmployeeLevel, XPLedgerEntryType
 
 
+class XPLedgerManager(AppendOnlyManager):
+    def append_entry(
+        self,
+        *,
+        user_id: int,
+        amount: int,
+        entry_type: str,
+        reference: str,
+        description: str | None = None,
+        payload: dict | None = None,
+    ):
+        try:
+            entry = self.create(
+                user_id=user_id,
+                amount=amount,
+                entry_type=entry_type,
+                reference=reference,
+                description=description,
+                payload=payload or {},
+            )
+            return entry, True
+        except IntegrityError:
+            existing = self.get(reference=reference)
+            return existing, False
+
+
 class XPLedger(AppendOnlyModel):
+    objects = XPLedgerManager()
+
     user = models.ForeignKey(
         "account.User", on_delete=models.PROTECT, related_name="xp_ledger_entries"
     )

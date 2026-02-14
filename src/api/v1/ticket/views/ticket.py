@@ -6,7 +6,6 @@ from core.api.schema import extend_schema
 from core.api.views import BaseModelViewSet
 from core.utils.constants import TicketTransitionAction
 from ticket.models import Ticket
-from ticket.services_workflow import TicketWorkflowService
 
 
 class TicketViewSet(BaseModelViewSet):
@@ -53,8 +52,7 @@ class TicketViewSet(BaseModelViewSet):
     def perform_create(self, serializer):
         ticket = serializer.save(master=self.request.user)
         intake_metadata = serializer.get_intake_metadata()
-        TicketWorkflowService.log_ticket_transition(
-            ticket=ticket,
+        ticket.add_transition(
             from_status=None,
             to_status=ticket.status,
             action=TicketTransitionAction.CREATED,

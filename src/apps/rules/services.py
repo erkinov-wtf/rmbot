@@ -10,7 +10,6 @@ from typing import Any
 
 from django.core.cache import cache
 from django.db import transaction
-from django.db.models import Max
 
 from core.utils.constants import EmployeeLevel
 from rules.models import RulesConfigAction, RulesConfigState, RulesConfigVersion
@@ -640,40 +639,24 @@ class RulesService:
             return {"changes": {path or "root": {"before": before, "after": after}}}
         return {"changes": {}}
 
-    @staticmethod
-    def _next_version_number() -> int:
-        current = (
-            RulesConfigVersion.objects.aggregate(max_version=Max("version")).get(
-                "max_version"
-            )
-            or 0
-        )
-        return int(current) + 1
-
     @classmethod
     @transaction.atomic
     def ensure_rules_state(cls) -> RulesConfigState:
-        state = (
-            RulesConfigState.objects.select_for_update()
-            .select_related("active_version")
-            .first()
-        )
+        state = RulesConfigState.domain.get_singleton_for_update()
         if state:
             return state
 
         config = cls.default_rules_config()
-        version = RulesConfigVersion.objects.create(
-            version=1,
+        version = RulesConfigVersion.domain.create_version_entry(
             action=RulesConfigAction.BOOTSTRAP,
             config=config,
             diff={"changes": {}},
             checksum=cls._checksum(config),
             reason="Bootstrap default rules",
-            created_by=None,
+            created_by_id=None,
             source_version=None,
         )
-        state = RulesConfigState.objects.create(
-            singleton=True,
+        state = RulesConfigState.domain.create_singleton(
             active_version=version,
             cache_key=uuid.uuid4().hex,
         )
@@ -687,9 +670,7 @@ class RulesService:
     def get_active_rules_state(cls) -> RulesConfigState:
         with transaction.atomic():
             state = cls.ensure_rules_state()
-        return RulesConfigState.objects.select_related(
-            "active_version", "active_version__created_by"
-        ).get(pk=state.pk)
+        return RulesConfigState.domain.get_with_related(state_id=state.pk)
 
     @classmethod
     def get_active_rules_config(cls) -> dict[str, Any]:
@@ -719,8 +700,7 @@ class RulesService:
             raise ValueError("No config changes detected.")
 
         diff = cls._diff_rules(current_version.config, normalized)
-        new_version = RulesConfigVersion.objects.create(
-            version=cls._next_version_number(),
+        new_version = RulesConfigVersion.domain.create_version_entry(
             action=RulesConfigAction.UPDATE,
             config=normalized,
             diff=diff,
@@ -730,17 +710,13 @@ class RulesService:
             source_version=current_version,
         )
 
-        state.active_version = new_version
-        state.cache_key = uuid.uuid4().hex
-        state.save(update_fields=["active_version", "cache_key", "updated_at"])
+        state.activate_version(active_version=new_version, cache_key=uuid.uuid4().hex)
         cls._invalidate_cached_active_config(state_cache_key=previous_cache_key)
         cls._set_cached_active_config(
             state_cache_key=state.cache_key,
             config_payload=new_version.config,
         )
-        return RulesConfigState.objects.select_related(
-            "active_version", "active_version__created_by"
-        ).get(pk=state.pk)
+        return RulesConfigState.domain.get_with_related(state_id=state.pk)
 
     @classmethod
     @transaction.atomic
@@ -754,9 +730,9 @@ class RulesService:
         state = cls.ensure_rules_state()
         previous_cache_key = state.cache_key
         current_version = state.active_version
-        target_version = RulesConfigVersion.objects.filter(
-            version=target_version_number
-        ).first()
+        target_version = RulesConfigVersion.domain.get_by_version_number(
+            version_number=target_version_number
+        )
         if not target_version:
             raise ValueError("Target version does not exist.")
         if target_version.id == current_version.id:
@@ -764,8 +740,7 @@ class RulesService:
 
         restored_config = copy.deepcopy(target_version.config)
         diff = cls._diff_rules(current_version.config, restored_config)
-        new_version = RulesConfigVersion.objects.create(
-            version=cls._next_version_number(),
+        new_version = RulesConfigVersion.domain.create_version_entry(
             action=RulesConfigAction.ROLLBACK,
             config=restored_config,
             diff=diff,
@@ -775,23 +750,14 @@ class RulesService:
             source_version=target_version,
         )
 
-        state.active_version = new_version
-        state.cache_key = uuid.uuid4().hex
-        state.save(update_fields=["active_version", "cache_key", "updated_at"])
+        state.activate_version(active_version=new_version, cache_key=uuid.uuid4().hex)
         cls._invalidate_cached_active_config(state_cache_key=previous_cache_key)
         cls._set_cached_active_config(
             state_cache_key=state.cache_key,
             config_payload=new_version.config,
         )
-        return RulesConfigState.objects.select_related(
-            "active_version", "active_version__created_by"
-        ).get(pk=state.pk)
+        return RulesConfigState.domain.get_with_related(state_id=state.pk)
 
     @staticmethod
     def list_rules_versions(*, limit: int = 50) -> list[RulesConfigVersion]:
-        capped_limit = max(1, min(limit, 200))
-        return list(
-            RulesConfigVersion.objects.select_related(
-                "created_by", "source_version"
-            ).order_by("-version")[:capped_limit]
-        )
+        return RulesConfigVersion.domain.latest_versions(limit=limit)

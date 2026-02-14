@@ -1,13 +1,13 @@
 # Account Services (`apps/account/services.py`)
 
 ## Scope
-Coordinates access onboarding, identity reconciliation, moderation outcomes, and Telegram notifications.
+Coordinates access onboarding and moderation workflows while delegating first-level state/query logic to account models/managers.
 
 ## Execution Flows
 - Bot onboarding: `ensure_pending_access_request_from_bot`.
 - Approval: `approve_access_request`.
 - Rejection: `reject_access_request`.
-- Profile linking/upsert: `upsert_telegram_profile`, `_link_telegram_profile_to_user`.
+- Profile linking/upsert: `upsert_telegram_profile`, `_link_telegram_profile_to_user` (delegating to `TelegramProfile.domain`).
 
 ## Invariants and Contracts
 - One effective pending access request per Telegram user.
@@ -29,8 +29,10 @@ Coordinates access onboarding, identity reconciliation, moderation outcomes, and
 ## Operational Notes
 - Notification sending is skipped for tests and missing `BOT_TOKEN`.
 - Integrity races on pending request creation are resolved by read-after-catch strategy.
+- Service is orchestration-focused; identity patching/status transitions live on model methods.
 
 ## Related Code
 - `apps/account/models.py`
+- `apps/account/managers.py`
 - `bot/routers/start.py`
 - `api/v1/account/views.py`

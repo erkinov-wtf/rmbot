@@ -1,7 +1,7 @@
 # Ticket Workflow Service (`apps/ticket/services_workflow.py`)
 
 ## Scope
-Implements core ticket state machine transitions and completion side effects.
+Orchestrates core ticket transitions while delegating state mutation rules to model methods.
 
 ## Execution Flows
 - `assign_ticket`
@@ -12,9 +12,8 @@ Implements core ticket state machine transitions and completion side effects.
 - transition logging helper (`log_ticket_transition`)
 
 ## Invariants and Contracts
-- Transition source states are strictly validated.
-- Assigned technician ownership is enforced for work transitions.
-- QC pass requires assigned technician context.
+- Validation/state mutation ownership lives in `Ticket` model methods.
+- Service remains responsible for cross-aggregate orchestration (bike status + XP side effects).
 
 ## Side Effects
 - Writes `TicketTransition` rows for each workflow action.
@@ -31,5 +30,6 @@ Implements core ticket state machine transitions and completion side effects.
 
 ## Related Code
 - `apps/ticket/models.py`
+- `apps/ticket/managers.py`
 - `apps/gamification/services.py`
 - `apps/rules/services.py`

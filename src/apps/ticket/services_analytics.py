@@ -17,7 +17,7 @@ from core.utils.constants import (
     TicketTransitionAction,
 )
 from gamification.models import XPLedger
-from ticket.models import ACTIVE_TICKET_STATUSES, Ticket, TicketTransition
+from ticket.models import Ticket, TicketTransition
 from ticket.services_stockout import StockoutIncidentService
 
 
@@ -35,7 +35,7 @@ class TicketAnalyticsService:
         )
         now_local = business_window["local_now"]
 
-        bikes_qs = Bike.objects.filter(deleted_at__isnull=True)
+        bikes_qs = Bike.domain.all()
         bikes_by_status = dict(
             bikes_qs.values("status")
             .annotate(total=Count("id"))
@@ -51,12 +51,9 @@ class TicketAnalyticsService:
             round((ready_count / active_count) * 100, 2) if active_count else 0.0
         )
 
-        active_tickets_qs = Ticket.objects.filter(
-            deleted_at__isnull=True,
-            status__in=ACTIVE_TICKET_STATUSES,
-        )
+        active_tickets_qs = Ticket.domain.active_workflow()
         ticket_counts = dict(
-            Ticket.objects.filter(deleted_at__isnull=True)
+            Ticket.domain.all()
             .values("status")
             .annotate(total=Count("id"))
             .values_list("status", "total")
@@ -187,8 +184,7 @@ class TicketAnalyticsService:
                 "members": [],
             }
 
-        tickets_done_qs = Ticket.objects.filter(
-            deleted_at__isnull=True,
+        tickets_done_qs = Ticket.domain.filter(
             technician_id__in=technician_ids,
             status=TicketStatus.DONE,
             done_at__date__gte=start_date,
@@ -233,8 +229,7 @@ class TicketAnalyticsService:
             .values_list("user_id", "total")
         )
         attendance_days = dict(
-            AttendanceRecord.objects.filter(
-                deleted_at__isnull=True,
+            AttendanceRecord.domain.filter(
                 user_id__in=technician_ids,
                 work_date__gte=start_date,
                 work_date__lte=end_date,
@@ -245,8 +240,7 @@ class TicketAnalyticsService:
             .values_list("user_id", "total")
         )
         in_progress_counts = dict(
-            Ticket.objects.filter(
-                deleted_at__isnull=True,
+            Ticket.domain.filter(
                 technician_id__in=technician_ids,
                 status=TicketStatus.IN_PROGRESS,
             )
@@ -413,8 +407,7 @@ class TicketAnalyticsService:
         start_date = end_date - timedelta(days=window_days - 1)
 
         done_records = list(
-            Ticket.objects.filter(
-                deleted_at__isnull=True,
+            Ticket.domain.filter(
                 status=TicketStatus.DONE,
                 done_at__date__gte=start_date,
                 done_at__date__lte=end_date,

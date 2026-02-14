@@ -1,11 +1,9 @@
 import math
 
-from django.db import IntegrityError, transaction
+from django.db import transaction
 from django.utils import timezone
 
 from core.utils.constants import (
-    BikeStatus,
-    TicketStatus,
     TicketTransitionAction,
     XPLedgerEntryType,
 )
@@ -22,22 +20,10 @@ class TicketWorkflowService:
     def assign_ticket(
         cls, ticket: Ticket, technician_id: int, actor_user_id: int | None = None
     ) -> Ticket:
-        from_status = ticket.status
-        if ticket.status not in (
-            TicketStatus.NEW,
-            TicketStatus.ASSIGNED,
-            TicketStatus.REWORK,
-        ):
-            raise ValueError("Ticket cannot be assigned in current status.")
-
-        ticket.technician_id = technician_id
-        ticket.assigned_at = timezone.now()
-
-        if ticket.status == TicketStatus.NEW:
-            ticket.status = TicketStatus.ASSIGNED
-            ticket.save(update_fields=["technician", "assigned_at", "status"])
-        else:
-            ticket.save(update_fields=["technician", "assigned_at"])
+        from_status = ticket.assign_to_technician(
+            technician_id=technician_id,
+            assigned_at=timezone.now(),
+        )
 
         cls.log_ticket_transition(
             ticket=ticket,
@@ -52,28 +38,11 @@ class TicketWorkflowService:
     @classmethod
     @transaction.atomic
     def start_ticket(cls, ticket: Ticket, actor_user_id: int) -> Ticket:
-        from_status = ticket.status
-        if ticket.status not in (TicketStatus.ASSIGNED, TicketStatus.REWORK):
-            raise ValueError("Ticket can be started only from ASSIGNED or REWORK.")
-        if not ticket.technician_id:
-            raise ValueError("Ticket has no assigned technician.")
-        if ticket.technician_id != actor_user_id:
-            raise ValueError("Only assigned technician can start this ticket.")
-
-        ticket.status = TicketStatus.IN_PROGRESS
-        update_fields = ["status"]
-        if not ticket.started_at:
-            ticket.started_at = timezone.now()
-            update_fields.append("started_at")
-
-        try:
-            ticket.save(update_fields=update_fields)
-        except IntegrityError as exc:
-            raise ValueError("Technician already has an IN_PROGRESS ticket.") from exc
-
-        if ticket.bike.status != BikeStatus.IN_SERVICE:
-            ticket.bike.status = BikeStatus.IN_SERVICE
-            ticket.bike.save(update_fields=["status"])
+        from_status = ticket.start_progress(
+            actor_user_id=actor_user_id,
+            started_at=timezone.now(),
+        )
+        ticket.bike.mark_in_service()
 
         cls.log_ticket_transition(
             ticket=ticket,
@@ -87,14 +56,7 @@ class TicketWorkflowService:
     @classmethod
     @transaction.atomic
     def move_ticket_to_waiting_qc(cls, ticket: Ticket, actor_user_id: int) -> Ticket:
-        from_status = ticket.status
-        if ticket.status != TicketStatus.IN_PROGRESS:
-            raise ValueError("Ticket can be sent to QC only from IN_PROGRESS.")
-        if not ticket.technician_id or ticket.technician_id != actor_user_id:
-            raise ValueError("Only assigned technician can send ticket to QC.")
-
-        ticket.status = TicketStatus.WAITING_QC
-        ticket.save(update_fields=["status"])
+        from_status = ticket.move_to_waiting_qc(actor_user_id=actor_user_id)
         cls.log_ticket_transition(
             ticket=ticket,
             from_status=from_status,
@@ -107,24 +69,9 @@ class TicketWorkflowService:
     @classmethod
     @transaction.atomic
     def qc_pass_ticket(cls, ticket: Ticket, actor_user_id: int | None = None) -> Ticket:
-        from_status = ticket.status
-        if ticket.status != TicketStatus.WAITING_QC:
-            raise ValueError("QC PASS allowed only from WAITING_QC.")
-        if not ticket.technician_id:
-            raise ValueError("Ticket must have an assigned technician before QC PASS.")
-
-        had_rework = TicketTransition.objects.filter(
-            ticket=ticket,
-            action=TicketTransitionAction.QC_FAIL,
-        ).exists()
-
-        ticket.status = TicketStatus.DONE
-        ticket.done_at = timezone.now()
-        ticket.save(update_fields=["status", "done_at"])
-
-        if ticket.bike.status != BikeStatus.READY:
-            ticket.bike.status = BikeStatus.READY
-            ticket.bike.save(update_fields=["status"])
+        had_rework = TicketTransition.domain.has_qc_fail_for_ticket(ticket=ticket)
+        from_status = ticket.mark_qc_pass(done_at=timezone.now())
+        ticket.bike.mark_ready()
 
         cls.log_ticket_transition(
             ticket=ticket,
@@ -169,13 +116,7 @@ class TicketWorkflowService:
     @classmethod
     @transaction.atomic
     def qc_fail_ticket(cls, ticket: Ticket, actor_user_id: int | None = None) -> Ticket:
-        from_status = ticket.status
-        if ticket.status != TicketStatus.WAITING_QC:
-            raise ValueError("QC FAIL allowed only from WAITING_QC.")
-
-        ticket.status = TicketStatus.REWORK
-        ticket.done_at = None
-        ticket.save(update_fields=["status", "done_at"])
+        from_status = ticket.mark_qc_fail()
         cls.log_ticket_transition(
             ticket=ticket,
             from_status=from_status,
@@ -195,14 +136,13 @@ class TicketWorkflowService:
         note: str | None = None,
         metadata: dict | None = None,
     ) -> TicketTransition:
-        return TicketTransition.objects.create(
-            ticket=ticket,
+        return ticket.add_transition(
             from_status=from_status,
             to_status=to_status,
             action=action,
-            actor_id=actor_user_id,
+            actor_user_id=actor_user_id,
             note=note,
-            metadata=metadata or {},
+            metadata=metadata,
         )
 
     @staticmethod

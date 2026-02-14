@@ -1,7 +1,7 @@
 # Payroll Services (`apps/payroll/services.py`)
 
 ## Scope
-Implements payroll month close, allowance decision, and approval workflows.
+Implements payroll month close, allowance decision, and approval orchestration using model-level state APIs.
 
 ## Execution Flows
 - Parse month + compute month bounds.
@@ -30,9 +30,11 @@ Implements payroll month close, allowance decision, and approval workflows.
 ## Operational Notes
 - Allowance gate thresholds derive from active rules SLA section.
 - Snapshot storage makes historical payroll reproducible.
+- Service delegates status mutation and line mutation to `PayrollMonthly` / `PayrollMonthlyLine` methods.
 
 ## Related Code
 - `apps/payroll/models.py`
+- `apps/payroll/managers.py`
 - `apps/rules/services.py`
 - `apps/ticket/services_stockout.py`
 - `api/v1/payroll/views.py`

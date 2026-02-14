@@ -5,6 +5,7 @@ Covers payroll month snapshot lifecycle, allowance gate decisions, and approval 
 
 ## Navigation
 - `docs/apps/payroll/models.md`
+- `docs/apps/payroll/managers.md`
 - `docs/apps/payroll/services.md`
 
 ## Maintenance Rules
@@ -12,5 +13,6 @@ Covers payroll month snapshot lifecycle, allowance gate decisions, and approval 
 
 ## Related Code
 - `apps/payroll/models.py`
+- `apps/payroll/managers.py`
 - `apps/payroll/services.py`
 - `api/v1/payroll/`

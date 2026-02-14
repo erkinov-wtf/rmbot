@@ -5,6 +5,7 @@ Covers ticket lifecycle, work sessions, stockout detection, SLA automation, esca
 
 ## Navigation
 - `docs/apps/ticket/models.md`
+- `docs/apps/ticket/managers.md`
 - `docs/apps/ticket/services_workflow.md`
 - `docs/apps/ticket/services_work_session.md`
 - `docs/apps/ticket/services_analytics.md`
@@ -17,6 +18,7 @@ Covers ticket lifecycle, work sessions, stockout detection, SLA automation, esca
 
 ## Related Code
 - `apps/ticket/models.py`
+- `apps/ticket/managers.py`
 - `apps/ticket/services_*.py`
 - `apps/ticket/tasks.py`
 - `api/v1/ticket/`

@@ -8,7 +8,6 @@ from django.conf import settings
 from django.core.mail import send_mail
 from django.utils import timezone
 
-from core.utils.constants import SLAAutomationDeliveryAttemptStatus
 from rules.services import RulesService
 from ticket.models import SLAAutomationDeliveryAttempt, SLAAutomationEvent
 
@@ -120,7 +119,7 @@ class SLAAutomationEscalationService:
 
     @staticmethod
     def _event_payload(event: SLAAutomationEvent) -> dict[str, Any]:
-        return event.payload if isinstance(event.payload, dict) else {}
+        return event.payload_data()
 
     @classmethod
     def _routing_config(cls) -> dict[str, Any]:
@@ -159,8 +158,7 @@ class SLAAutomationEscalationService:
 
     @staticmethod
     def _event_is_repeat(event: SLAAutomationEvent) -> bool:
-        payload = event.payload if isinstance(event.payload, dict) else {}
-        return payload.get("repeat") is True
+        return event.is_repeat()
 
     @classmethod
     def _select_channels_for_event(cls, *, event: SLAAutomationEvent) -> dict[str, Any]:
@@ -546,11 +544,9 @@ class SLAAutomationEscalationService:
 
     @classmethod
     def _already_delivered(cls, *, event_id: int) -> bool:
-        return SLAAutomationDeliveryAttempt.objects.filter(
-            event_id=event_id,
-            status=SLAAutomationDeliveryAttemptStatus.SUCCESS,
-            delivered=True,
-        ).exists()
+        return SLAAutomationDeliveryAttempt.domain.has_success_for_event(
+            event_id=event_id
+        )
 
     @classmethod
     def is_retryable_failure(cls, *, response: dict[str, Any]) -> bool:
@@ -571,21 +567,6 @@ class SLAAutomationEscalationService:
                 return True
         return False
 
-    @staticmethod
-    def _attempt_status(*, response: dict[str, Any]) -> str:
-        if response.get("reason") == "already_delivered":
-            return SLAAutomationDeliveryAttemptStatus.SKIPPED
-        if response.get("delivered") is True:
-            return SLAAutomationDeliveryAttemptStatus.SUCCESS
-        return SLAAutomationDeliveryAttemptStatus.FAILED
-
-    @staticmethod
-    def _attempt_reason(*, response: dict[str, Any]) -> str:
-        reason = response.get("reason")
-        if not isinstance(reason, str):
-            return ""
-        return reason[:64]
-
     @classmethod
     def record_attempt(
         cls,
@@ -597,23 +578,21 @@ class SLAAutomationEscalationService:
         should_retry: bool,
         retry_backoff_seconds: int,
     ) -> SLAAutomationDeliveryAttempt | None:
-        if not SLAAutomationEvent.objects.filter(pk=event_id).exists():
+        event = SLAAutomationEvent.domain.get_by_id(event_id=event_id)
+        if event is None:
             return None
-        return SLAAutomationDeliveryAttempt.objects.create(
-            event_id=event_id,
-            attempt_number=max(attempt_number, 1),
-            status=cls._attempt_status(response=response),
-            delivered=bool(response.get("delivered")),
+        return SLAAutomationDeliveryAttempt.create_from_delivery_response(
+            event=event,
+            attempt_number=attempt_number,
+            task_id=task_id,
+            response=response,
             should_retry=should_retry,
-            retry_backoff_seconds=max(retry_backoff_seconds, 0),
-            task_id=str(task_id or "")[:128],
-            reason=cls._attempt_reason(response=response),
-            payload=response,
+            retry_backoff_seconds=retry_backoff_seconds,
         )
 
     @classmethod
     def deliver_for_event_id(cls, *, event_id: int) -> dict[str, Any]:
-        event = SLAAutomationEvent.objects.filter(pk=event_id).first()
+        event = SLAAutomationEvent.domain.get_by_id(event_id=event_id)
         if event is None:
             return {
                 "event_id": event_id,

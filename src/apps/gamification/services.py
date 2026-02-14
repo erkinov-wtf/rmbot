@@ -25,20 +25,14 @@ class GamificationService:
         description: str | None = None,
         payload: dict | None = None,
     ) -> tuple[XPLedger, bool]:
-        try:
-            entry = XPLedger.objects.create(
-                user_id=user_id,
-                amount=amount,
-                entry_type=entry_type,
-                reference=reference,
-                description=description,
-                payload=payload or {},
-            )
-            return entry, True
-        except IntegrityError:
-            # Idempotent behavior for repeated operations with same reference.
-            existing = XPLedger.objects.get(reference=reference)
-            return existing, False
+        return XPLedger.objects.append_entry(
+            user_id=user_id,
+            amount=amount,
+            entry_type=entry_type,
+            reference=reference,
+            description=description,
+            payload=payload,
+        )
 
 
 class ProgressionService:
