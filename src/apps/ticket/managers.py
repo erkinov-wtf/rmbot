@@ -5,12 +5,14 @@ from django.db.models import Q
 
 from core.utils.constants import (
     SLAAutomationDeliveryAttemptStatus,
+    TicketColor,
     TicketStatus,
     TicketTransitionAction,
     WorkSessionStatus,
 )
 
 ACTIVE_WORKFLOW_STATUSES = (
+    TicketStatus.UNDER_REVIEW,
     TicketStatus.NEW,
     TicketStatus.ASSIGNED,
     TicketStatus.IN_PROGRESS,
@@ -54,10 +56,11 @@ class TicketDomainManager(models.Manager.from_queryset(TicketQuerySet)):
         )
 
     def backlog_black_plus_count(self, *, min_flag_minutes: int = 180) -> int:
+        del min_flag_minutes
         return (
             self.get_queryset()
             .active_workflow()
-            .filter(flag_minutes__gt=max(min_flag_minutes, 0))
+            .filter(flag_color=TicketColor.BLACK_PLUS)
             .count()
         )
 

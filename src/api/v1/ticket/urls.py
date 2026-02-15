@@ -45,6 +45,11 @@ urlpatterns = [
         name="ticket-qc-fail",
     ),
     path(
+        "<int:pk>/manual-metrics/",
+        TicketWorkflowViewSet.as_view({"post": "manual_metrics"}),
+        name="ticket-manual-metrics",
+    ),
+    path(
         "<int:pk>/work-session/pause/",
         TicketWorkSessionViewSet.as_view({"post": "pause"}),
         name="ticket-work-session-pause",

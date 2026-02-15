@@ -77,7 +77,7 @@ known-first-party = [
     "account",
     "api",
     "attendance",
-    "bike",
+    "inventory",
     "bot",
     "config",
     "core",

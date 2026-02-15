@@ -5,11 +5,13 @@ from rest_framework.response import Response
 
 from api.v1.ticket.permissions import (
     TicketAssignPermission,
+    TicketManualMetricsPermission,
     TicketQCPermission,
     TicketWorkPermission,
 )
 from api.v1.ticket.serializers import (
     TicketAssignSerializer,
+    TicketManualMetricsSerializer,
     TicketSerializer,
     TicketTransitionSerializer,
 )
@@ -21,11 +23,20 @@ from ticket.services_workflow import TicketWorkflowService
 
 class TicketWorkflowViewSet(BaseViewSet):
     serializer_class = TicketAssignSerializer
-    queryset = Ticket.objects.select_related("inventory_item", "master", "technician")
+    queryset = Ticket.objects.select_related(
+        "inventory_item", "master", "technician"
+    ).prefetch_related("part_specs__inventory_item_part")
+
+    def get_serializer_class(self):
+        if self.action == "manual_metrics":
+            return TicketManualMetricsSerializer
+        return super().get_serializer_class()
 
     def get_permissions(self):
         if self.action == "assign":
             permission_classes = (IsAuthenticated, TicketAssignPermission)
+        elif self.action == "manual_metrics":
+            permission_classes = (IsAuthenticated, TicketManualMetricsPermission)
         elif self.action in {"start", "to_waiting_qc"}:
             permission_classes = (IsAuthenticated, TicketWorkPermission)
         elif self.action in {"qc_pass", "qc_fail"}:
@@ -125,6 +136,27 @@ class TicketWorkflowViewSet(BaseViewSet):
             )
         except ValueError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(TicketSerializer(ticket).data, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        tags=["Tickets / Workflow"],
+        summary="Set ticket manual metrics",
+        description=(
+            "Manually overrides ticket flag color and XP amount, and marks the "
+            "ticket as manual metrics mode."
+        ),
+    )
+    def manual_metrics(self, request, pk: int, *args, **kwargs):
+        ticket = self._ticket(pk)
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        TicketWorkflowService.set_manual_ticket_metrics(
+            ticket=ticket,
+            flag_color=serializer.validated_data["flag_color"],
+            xp_amount=serializer.validated_data["xp_amount"],
+            actor_user_id=request.user.id,
+        )
         return Response(TicketSerializer(ticket).data, status=status.HTTP_200_OK)
 
     def _ticket(self, pk: int) -> Ticket:

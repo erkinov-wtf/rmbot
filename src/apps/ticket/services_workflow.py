@@ -5,6 +5,7 @@ from django.utils import timezone
 
 from core.services.notifications import UserNotificationService
 from core.utils.constants import (
+    TicketStatus,
     TicketTransitionAction,
     WorkSessionStatus,
     XPLedgerEntryType,
@@ -33,7 +34,11 @@ class TicketWorkflowService:
             to_status=ticket.status,
             action=TicketTransitionAction.ASSIGNED,
             actor_user_id=actor_user_id,
-            metadata={"technician_id": technician_id},
+            metadata={
+                "technician_id": technician_id,
+                "review_approved": from_status
+                in (TicketStatus.UNDER_REVIEW, TicketStatus.NEW),
+            },
         )
         UserNotificationService.notify_ticket_assigned(
             ticket=ticket,
@@ -111,8 +116,8 @@ class TicketWorkflowService:
         )
 
         base_divisor, first_pass_bonus = cls._ticket_xp_rules()
-        # Base XP is always granted on successful QC PASS completion.
-        base_xp = math.ceil((ticket.srt_total_minutes or 0) / base_divisor)
+        # Base XP comes from resolved ticket metrics (auto/manual), with formula fallback.
+        base_xp = cls._base_ticket_xp(ticket=ticket, base_divisor=base_divisor)
         GamificationService.append_xp_entry(
             user_id=ticket.technician_id,
             amount=base_xp,
@@ -123,6 +128,8 @@ class TicketWorkflowService:
                 "ticket_id": ticket.id,
                 "srt_total_minutes": ticket.srt_total_minutes,
                 "formula_divisor": base_divisor,
+                "is_manual": bool(ticket.is_manual),
+                "resolved_ticket_xp": int(ticket.xp_amount or 0),
                 "qc_pass": True,
             },
         )
@@ -167,6 +174,22 @@ class TicketWorkflowService:
         )
         return ticket
 
+    @classmethod
+    @transaction.atomic
+    def set_manual_ticket_metrics(
+        cls,
+        *,
+        ticket: Ticket,
+        flag_color: str,
+        xp_amount: int,
+        actor_user_id: int | None = None,
+    ) -> Ticket:
+        ticket.apply_manual_metrics(flag_color=flag_color, xp_amount=xp_amount)
+        ticket.save(
+            update_fields=["flag_color", "xp_amount", "is_manual", "updated_at"]
+        )
+        return ticket
+
     @staticmethod
     def log_ticket_transition(
         ticket: Ticket,
@@ -197,3 +220,10 @@ class TicketWorkflowService:
         if first_pass_bonus < 0:
             first_pass_bonus = 0
         return base_divisor, first_pass_bonus
+
+    @staticmethod
+    def _base_ticket_xp(*, ticket: Ticket, base_divisor: int) -> int:
+        resolved_xp = int(ticket.xp_amount or 0)
+        if resolved_xp > 0:
+            return resolved_xp
+        return math.ceil((ticket.srt_total_minutes or 0) / max(base_divisor, 1))

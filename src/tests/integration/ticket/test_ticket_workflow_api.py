@@ -53,7 +53,7 @@ def workflow_context(
     ticket = ticket_factory(
         inventory_item=inventory_item,
         master=master,
-        status=TicketStatus.NEW,
+        status=TicketStatus.UNDER_REVIEW,
         title="Workflow ticket",
     )
 
@@ -68,8 +68,8 @@ def workflow_context(
     }
 
 
-def test_master_can_assign_technician(authed_client_factory, workflow_context):
-    client = authed_client_factory(workflow_context["master"])
+def test_admin_can_assign_technician(authed_client_factory, workflow_context):
+    client = authed_client_factory(workflow_context["ops"])
     ticket = workflow_context["ticket"]
     tech = workflow_context["tech"]
 
@@ -202,8 +202,8 @@ def test_transition_history_endpoint_returns_ordered_audit_records(
 ):
     ticket = workflow_context["ticket"]
 
-    master_client = authed_client_factory(workflow_context["master"])
-    master_client.post(
+    ops_client = authed_client_factory(workflow_context["ops"])
+    ops_client.post(
         f"/api/v1/tickets/{ticket.id}/assign/",
         {"technician_id": workflow_context["tech"].id},
         format="json",
@@ -226,11 +226,42 @@ def test_transition_history_endpoint_returns_ordered_audit_records(
     assert transitions[2].action == TicketTransitionAction.TO_WAITING_QC
     assert transitions[3].action == TicketTransitionAction.QC_PASS
 
-    history_resp = master_client.get(f"/api/v1/tickets/{ticket.id}/transitions/")
+    history_resp = ops_client.get(f"/api/v1/tickets/{ticket.id}/transitions/")
     assert history_resp.status_code == 200
     history = history_resp.data["results"]
     assert len(history) == 4
     assert history[0]["action"] == TicketTransitionAction.QC_PASS
+
+
+def test_manual_metrics_requires_admin_role(authed_client_factory, workflow_context):
+    ticket = workflow_context["ticket"]
+    tech_client = authed_client_factory(workflow_context["tech"])
+
+    resp = tech_client.post(
+        f"/api/v1/tickets/{ticket.id}/manual-metrics/",
+        {"flag_color": "black", "xp_amount": 30},
+        format="json",
+    )
+
+    assert resp.status_code == 403
+
+
+def test_admin_can_set_manual_metrics(authed_client_factory, workflow_context):
+    ticket = workflow_context["ticket"]
+    ops_client = authed_client_factory(workflow_context["ops"])
+
+    resp = ops_client.post(
+        f"/api/v1/tickets/{ticket.id}/manual-metrics/",
+        {"flag_color": "black_plus", "xp_amount": 77},
+        format="json",
+    )
+
+    assert resp.status_code == 200
+    ticket.refresh_from_db()
+    assert ticket.flag_color == "black_plus"
+    assert ticket.xp_amount == 77
+    assert ticket.is_manual is True
+    assert resp.data["data"]["is_manual"] is True
 
 
 def test_workflow_actions_emit_notification_events(
@@ -282,8 +313,8 @@ def test_workflow_actions_emit_notification_events(
         classmethod(_capture("qc_pass")),
     )
 
-    master_client = authed_client_factory(workflow_context["master"])
-    assign_resp = master_client.post(
+    ops_client = authed_client_factory(workflow_context["ops"])
+    assign_resp = ops_client.post(
         f"/api/v1/tickets/{ticket.id}/assign/",
         {"technician_id": workflow_context["tech"].id},
         format="json",

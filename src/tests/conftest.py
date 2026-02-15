@@ -114,7 +114,7 @@ def ticket_factory(db, inventory_item_factory, user_factory) -> Callable[..., Ti
         payload = {
             "inventory_item": inventory_item,
             "master": master,
-            "status": overrides.pop("status", TicketStatus.NEW),
+            "status": overrides.pop("status", TicketStatus.UNDER_REVIEW),
             "title": overrides.pop("title", "Ticket"),
         }
         payload.update(overrides)

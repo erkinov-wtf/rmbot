@@ -12,6 +12,7 @@ from attendance.models import AttendanceRecord
 from core.utils.constants import (
     InventoryItemStatus,
     RoleSlug,
+    TicketColor,
     TicketStatus,
     TicketTransitionAction,
 )
@@ -59,17 +60,13 @@ class TicketAnalyticsService:
             .values_list("status", "total")
         )
         backlog_counts = {
-            "green": active_tickets_qs.filter(flag_minutes__lte=30).count(),
-            "yellow": active_tickets_qs.filter(
-                flag_minutes__gte=31, flag_minutes__lte=60
+            "green": active_tickets_qs.filter(flag_color=TicketColor.GREEN).count(),
+            "yellow": active_tickets_qs.filter(flag_color=TicketColor.YELLOW).count(),
+            "red": active_tickets_qs.filter(flag_color=TicketColor.RED).count(),
+            "black": active_tickets_qs.filter(flag_color=TicketColor.BLACK).count(),
+            "black_plus": active_tickets_qs.filter(
+                flag_color=TicketColor.BLACK_PLUS
             ).count(),
-            "red": active_tickets_qs.filter(
-                flag_minutes__gte=61, flag_minutes__lte=120
-            ).count(),
-            "black": active_tickets_qs.filter(
-                flag_minutes__gte=121, flag_minutes__lte=180
-            ).count(),
-            "black_plus": active_tickets_qs.filter(flag_minutes__gt=180).count(),
         }
         backlog_total = sum(backlog_counts.values())
         active_status_counts = dict(
@@ -118,6 +115,7 @@ class TicketAnalyticsService:
             },
             "tickets": {
                 "active_total": active_tickets_qs.count(),
+                "under_review": ticket_counts.get(TicketStatus.UNDER_REVIEW, 0),
                 "new": ticket_counts.get(TicketStatus.NEW, 0),
                 "assigned": ticket_counts.get(TicketStatus.ASSIGNED, 0),
                 "in_progress": ticket_counts.get(TicketStatus.IN_PROGRESS, 0),
@@ -129,6 +127,9 @@ class TicketAnalyticsService:
                 "total": backlog_total,
                 "flag_buckets": backlog_counts,
                 "status_buckets": {
+                    "under_review": active_status_counts.get(
+                        TicketStatus.UNDER_REVIEW, 0
+                    ),
                     "new": active_status_counts.get(TicketStatus.NEW, 0),
                     "assigned": active_status_counts.get(TicketStatus.ASSIGNED, 0),
                     "in_progress": active_status_counts.get(

@@ -4,10 +4,14 @@ from api.v1.ticket.serializers.transitions import (
     TicketTransitionSerializer,
     WorkSessionTransitionSerializer,
 )
-from api.v1.ticket.serializers.workflow import TicketAssignSerializer
+from api.v1.ticket.serializers.workflow import (
+    TicketAssignSerializer,
+    TicketManualMetricsSerializer,
+)
 
 __all__ = [
     "TicketAssignSerializer",
+    "TicketManualMetricsSerializer",
     "TicketSerializer",
     "TicketTransitionSerializer",
     "WorkSessionSerializer",

@@ -32,7 +32,16 @@ class InventoryItemStatus(models.TextChoices):
     WRITE_OFF = "write_off", _("Write Off")
 
 
+class TicketColor(models.TextChoices):
+    GREEN = "green", _("Green")
+    YELLOW = "yellow", _("Yellow")
+    RED = "red", _("Red")
+    BLACK = "black", _("Black")
+    BLACK_PLUS = "black_plus", _("Black Plus")
+
+
 class TicketStatus(models.TextChoices):
+    UNDER_REVIEW = "under_review", _("Under Review")
     NEW = "new", _("New")
     ASSIGNED = "assigned", _("Assigned")
     IN_PROGRESS = "in_progress", _("In Progress")

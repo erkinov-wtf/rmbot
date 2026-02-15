@@ -1,3 +1,4 @@
+import math
 from datetime import datetime
 
 from django.db import IntegrityError, models
@@ -8,6 +9,7 @@ from core.utils.constants import (
     SLAAutomationDeliveryAttemptStatus,
     SLAAutomationEventSeverity,
     SLAAutomationEventStatus,
+    TicketColor,
     TicketStatus,
     TicketTransitionAction,
     WorkSessionStatus,
@@ -24,6 +26,7 @@ from ticket.managers import (
 )
 
 ACTIVE_TICKET_STATUSES = [
+    TicketStatus.UNDER_REVIEW,
     TicketStatus.NEW,
     TicketStatus.ASSIGNED,
     TicketStatus.IN_PROGRESS,
@@ -62,10 +65,18 @@ class Ticket(TimestampedModel, SoftDeleteModel):
     )
     srt_approved_at = models.DateTimeField(null=True, blank=True)
     flag_minutes = models.PositiveIntegerField(default=0)
+    flag_color = models.CharField(
+        max_length=20,
+        choices=TicketColor,
+        default=TicketColor.GREEN,
+        db_index=True,
+    )
+    xp_amount = models.PositiveIntegerField(default=0)
+    is_manual = models.BooleanField(default=False, db_index=True)
     status = models.CharField(
         max_length=20,
         choices=TicketStatus,
-        default=TicketStatus.NEW,
+        default=TicketStatus.UNDER_REVIEW,
         db_index=True,
     )
     assigned_at = models.DateTimeField(null=True, blank=True)
@@ -99,6 +110,7 @@ class Ticket(TimestampedModel, SoftDeleteModel):
     def assign_to_technician(self, *, technician_id: int, assigned_at=None) -> str:
         from_status = self.status
         if self.status not in (
+            TicketStatus.UNDER_REVIEW,
             TicketStatus.NEW,
             TicketStatus.ASSIGNED,
             TicketStatus.REWORK,
@@ -108,11 +120,38 @@ class Ticket(TimestampedModel, SoftDeleteModel):
         self.technician_id = technician_id
         self.assigned_at = assigned_at or timezone.now()
         update_fields = ["technician", "assigned_at"]
-        if self.status == TicketStatus.NEW:
+        if self.status in (TicketStatus.UNDER_REVIEW, TicketStatus.NEW):
             self.status = TicketStatus.ASSIGNED
             update_fields.append("status")
         self.save(update_fields=update_fields)
         return from_status
+
+    @staticmethod
+    def flag_color_from_minutes(*, total_minutes: int) -> str:
+        minutes = max(int(total_minutes or 0), 0)
+        if minutes <= 30:
+            return TicketColor.GREEN
+        if minutes <= 60:
+            return TicketColor.YELLOW
+        if minutes <= 120:
+            return TicketColor.RED
+        if minutes <= 180:
+            return TicketColor.BLACK
+        return TicketColor.BLACK_PLUS
+
+    def apply_auto_metrics(self, *, total_minutes: int, xp_divisor: int) -> None:
+        normalized_minutes = max(int(total_minutes or 0), 0)
+        normalized_divisor = max(int(xp_divisor or 0), 1)
+        self.srt_total_minutes = normalized_minutes
+        self.flag_minutes = normalized_minutes
+        self.flag_color = self.flag_color_from_minutes(total_minutes=normalized_minutes)
+        self.xp_amount = math.ceil(normalized_minutes / normalized_divisor)
+        self.is_manual = False
+
+    def apply_manual_metrics(self, *, flag_color: str, xp_amount: int) -> None:
+        self.flag_color = str(flag_color)
+        self.xp_amount = max(int(xp_amount or 0), 0)
+        self.is_manual = True
 
     def start_progress(self, *, actor_user_id: int, started_at=None) -> str:
         from_status = self.status
@@ -190,6 +229,45 @@ class Ticket(TimestampedModel, SoftDeleteModel):
 
     def __str__(self) -> str:
         return f"Ticket#{self.pk} {self.inventory_item.serial_number} [{self.status}]"
+
+
+class TicketPartSpec(TimestampedModel, SoftDeleteModel):
+    ticket = models.ForeignKey(
+        Ticket, on_delete=models.CASCADE, related_name="part_specs"
+    )
+    inventory_item_part = models.ForeignKey(
+        "inventory.InventoryItemPart",
+        on_delete=models.PROTECT,
+        related_name="ticket_specs",
+    )
+    color = models.CharField(max_length=20, choices=TicketColor, db_index=True)
+    comment = models.TextField(blank=True, default="")
+    minutes = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        indexes = [
+            models.Index(
+                fields=["ticket", "inventory_item_part"],
+                name="ticket_tick_ticket__e64d6c_idx",
+            ),
+            models.Index(
+                fields=["ticket", "color"],
+                name="ticket_tick_ticket__235363_idx",
+            ),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["ticket", "inventory_item_part"],
+                condition=models.Q(deleted_at__isnull=True),
+                name="unique_ticket_part_spec_per_part",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return (
+            f"TicketPartSpec#{self.pk} ticket={self.ticket_id} "
+            f"part={self.inventory_item_part_id} color={self.color}"
+        )
 
 
 class StockoutIncident(TimestampedModel):

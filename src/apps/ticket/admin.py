@@ -6,6 +6,7 @@ from ticket.models import (
     SLAAutomationEvent,
     StockoutIncident,
     Ticket,
+    TicketPartSpec,
     TicketTransition,
     WorkSession,
     WorkSessionTransition,
@@ -21,6 +22,9 @@ class TicketAdmin(BaseModelAdmin):
         "technician",
         "status",
         "srt_total_minutes",
+        "xp_amount",
+        "flag_color",
+        "is_manual",
         "created_at",
     )
     list_filter = ("status",)
@@ -30,6 +34,20 @@ class TicketAdmin(BaseModelAdmin):
         "master__username",
         "technician__username",
     )
+
+
+@admin.register(TicketPartSpec)
+class TicketPartSpecAdmin(BaseModelAdmin):
+    list_display = (
+        "id",
+        "ticket",
+        "inventory_item_part",
+        "color",
+        "minutes",
+        "created_at",
+    )
+    list_filter = ("color",)
+    search_fields = ("id", "ticket__id", "inventory_item_part__name")
 
 
 @admin.register(WorkSession)

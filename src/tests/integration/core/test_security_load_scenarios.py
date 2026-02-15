@@ -69,7 +69,7 @@ def test_rbac_bypass_burst_cannot_assign_ticket(
     ticket = ticket_factory(
         inventory_item=inventory_item_factory(serial_number="RM-RBAC-0001"),
         master=master,
-        status=TicketStatus.NEW,
+        status=TicketStatus.UNDER_REVIEW,
         title="RBAC test",
     )
 
@@ -88,6 +88,6 @@ def test_rbac_bypass_burst_cannot_assign_ticket(
         assert resp.status_code == 403
 
     ticket.refresh_from_db()
-    assert ticket.status == TicketStatus.NEW
+    assert ticket.status == TicketStatus.UNDER_REVIEW
     assert ticket.technician_id is None
     assert TicketTransition.objects.filter(ticket=ticket).count() == 0

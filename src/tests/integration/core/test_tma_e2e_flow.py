@@ -14,6 +14,7 @@ from core.utils.constants import (
     TicketStatus,
     WorkSessionStatus,
 )
+from inventory.models import InventoryItemPart
 from ticket.models import WorkSession
 
 pytestmark = pytest.mark.django_db
@@ -75,6 +76,11 @@ def test_tma_e2e_master_to_technician_to_qc(
         first_name="Technician",
         email="tma_technician@example.com",
     )
+    ops = user_factory(
+        username="tma_ops",
+        first_name="Ops",
+        email="tma_ops@example.com",
+    )
     qc = user_factory(
         username="tma_qc",
         first_name="QC",
@@ -83,6 +89,7 @@ def test_tma_e2e_master_to_technician_to_qc(
 
     assign_roles(master, RoleSlug.MASTER)
     assign_roles(technician, RoleSlug.TECHNICIAN)
+    assign_roles(ops, RoleSlug.OPS_MANAGER)
     assign_roles(qc, RoleSlug.QC_INSPECTOR)
 
     TelegramProfile.objects.create(user=master, telegram_id=50001, username="master_tg")
@@ -91,6 +98,7 @@ def test_tma_e2e_master_to_technician_to_qc(
         telegram_id=50002,
         username="technician_tg",
     )
+    TelegramProfile.objects.create(user=ops, telegram_id=50004, username="ops_tg")
     TelegramProfile.objects.create(user=qc, telegram_id=50003, username="qc_tg")
 
     master_client = _client_from_tma_verify(
@@ -115,6 +123,17 @@ def test_tma_e2e_master_to_technician_to_qc(
             "is_bot": False,
         },
     )
+    ops_client = _client_from_tma_verify(
+        api_client=api_client,
+        bot_token=tma_settings.BOT_TOKEN,
+        user_payload={
+            "id": 50004,
+            "username": "ops_tg",
+            "first_name": "Ops",
+            "last_name": "Flow",
+            "is_bot": False,
+        },
+    )
     qc_client = _client_from_tma_verify(
         api_client=api_client,
         bot_token=tma_settings.BOT_TOKEN,
@@ -130,6 +149,9 @@ def test_tma_e2e_master_to_technician_to_qc(
     inventory_item = inventory_item_factory(
         serial_number="RM-TMA-0001", status=InventoryItemStatus.READY, is_active=True
     )
+    part_a = InventoryItemPart.objects.create(name="RM-TMA-PART-A")
+    part_b = InventoryItemPart.objects.create(name="RM-TMA-PART-B")
+    inventory_item.parts.set([part_a, part_b])
 
     create = master_client.post(
         "/api/v1/tickets/create/",
@@ -137,15 +159,28 @@ def test_tma_e2e_master_to_technician_to_qc(
             "serial_number": inventory_item.serial_number,
             "title": "TMA E2E flow ticket",
             "checklist_snapshot": [f"Task {idx}" for idx in range(1, 11)],
-            "srt_total_minutes": 45,
-            "approve_srt": True,
+            "part_specs": [
+                {
+                    "part_id": part_a.id,
+                    "color": "green",
+                    "comment": "Inspect",
+                    "minutes": 20,
+                },
+                {
+                    "part_id": part_b.id,
+                    "color": "yellow",
+                    "comment": "Repair",
+                    "minutes": 25,
+                },
+            ],
         },
         format="json",
     )
     assert create.status_code == 201
     ticket_id = create.data["data"]["id"]
+    assert create.data["data"]["status"] == TicketStatus.UNDER_REVIEW
 
-    assign = master_client.post(
+    assign = ops_client.post(
         f"/api/v1/tickets/{ticket_id}/assign/",
         {"technician_id": technician.id},
         format="json",

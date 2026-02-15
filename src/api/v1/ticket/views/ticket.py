@@ -10,11 +10,17 @@ from ticket.models import Ticket
 
 class TicketViewSet(BaseModelViewSet):
     serializer_class = TicketSerializer
-    queryset = Ticket.objects.select_related(
-        "inventory_item",
-        "master",
-        "technician",
-    ).order_by("-created_at")
+    queryset = (
+        Ticket.objects.select_related(
+            "inventory_item",
+            "master",
+            "technician",
+        )
+        .prefetch_related(
+            "part_specs__inventory_item_part",
+        )
+        .order_by("-created_at")
+    )
 
     def get_permissions(self):
         if self.action == "create":
@@ -28,9 +34,9 @@ class TicketViewSet(BaseModelViewSet):
         summary="Create ticket",
         description=(
             "Creates a new ticket intake by inventory-item serial number with "
-            "checklist snapshot and master-approved SRT, then records the initial "
-            "workflow transition. Unknown serials require explicit confirm-create and "
-            "a reason."
+            "part-level specs, auto-computed ticket metrics (minutes/flag/XP), and "
+            "initial UNDER_REVIEW status. Unknown serials require explicit "
+            "confirm-create and a reason."
         ),
     )
     def create(self, request, *args, **kwargs):
@@ -58,6 +64,9 @@ class TicketViewSet(BaseModelViewSet):
                 "srt_total_minutes": ticket.srt_total_minutes,
                 "srt_approved": bool(ticket.srt_approved_at),
                 "checklist_items_count": len(ticket.checklist_snapshot or []),
+                "flag_color": ticket.flag_color,
+                "xp_amount": ticket.xp_amount,
+                "is_manual": ticket.is_manual,
                 **intake_metadata,
             },
         )

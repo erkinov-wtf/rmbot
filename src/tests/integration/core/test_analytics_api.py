@@ -101,9 +101,10 @@ def test_fleet_analytics_returns_operational_counters(
         inventory_item=inventory_item_ready,
         master=master,
         technician=technician,
-        status=TicketStatus.NEW,
+        status=TicketStatus.UNDER_REVIEW,
         title="New ticket",
         flag_minutes=10,
+        flag_color="green",
     )
     Ticket.objects.create(
         inventory_item=inventory_item_in_service,
@@ -112,6 +113,7 @@ def test_fleet_analytics_returns_operational_counters(
         status=TicketStatus.IN_PROGRESS,
         title="In progress ticket",
         flag_minutes=75,
+        flag_color="red",
     )
     Ticket.objects.create(
         inventory_item=inventory_item_waiting_qc,
@@ -120,6 +122,7 @@ def test_fleet_analytics_returns_operational_counters(
         status=TicketStatus.WAITING_QC,
         title="Waiting QC ticket",
         flag_minutes=130,
+        flag_color="black",
     )
     Ticket.objects.create(
         inventory_item=inventory_item_done,
@@ -138,14 +141,14 @@ def test_fleet_analytics_returns_operational_counters(
     data = resp.data["data"]
     assert data["fleet"]["total"] == 6
     assert data["fleet"]["active"] == 4
-    assert data["tickets"]["new"] == 1
+    assert data["tickets"]["under_review"] == 1
     assert data["tickets"]["in_progress"] == 1
     assert data["tickets"]["waiting_qc"] == 1
     assert data["tickets"]["done"] == 1
     assert data["backlog"]["flag_buckets"]["green"] == 1
     assert data["backlog"]["flag_buckets"]["red"] == 1
     assert data["backlog"]["flag_buckets"]["black"] == 1
-    assert data["backlog"]["status_buckets"]["new"] == 1
+    assert data["backlog"]["status_buckets"]["under_review"] == 1
     assert data["backlog"]["status_buckets"]["in_progress"] == 1
     assert data["backlog"]["kpis"]["red_or_worse_count"] == 2
     assert data["backlog"]["kpis"]["black_or_worse_count"] == 1

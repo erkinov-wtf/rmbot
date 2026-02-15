@@ -25,7 +25,7 @@ def test_enforces_one_active_ticket_per_inventory_item(
     Ticket.objects.create(
         inventory_item=inventory_item_a,
         master=master,
-        status=TicketStatus.NEW,
+        status=TicketStatus.UNDER_REVIEW,
         title="Initial intake",
     )
 

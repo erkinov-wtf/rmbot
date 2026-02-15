@@ -1,10 +1,42 @@
+import math
+
 from django.db import IntegrityError
 from django.utils import timezone
 from rest_framework import serializers
 
-from inventory.models import InventoryItem
+from core.utils.constants import TicketColor
+from inventory.models import InventoryItem, InventoryItemPart
 from inventory.services import InventoryItemService
-from ticket.models import Ticket
+from rules.services import RulesService
+from ticket.models import Ticket, TicketPartSpec
+
+
+class TicketPartSpecInputSerializer(serializers.Serializer):
+    part_id = serializers.IntegerField(min_value=1)
+    color = serializers.ChoiceField(choices=TicketColor.choices)
+    comment = serializers.CharField(required=False, allow_blank=True, default="")
+    minutes = serializers.IntegerField(min_value=1)
+
+    def validate_comment(self, value: str) -> str:
+        return value.strip()
+
+
+class TicketPartSpecSerializer(serializers.ModelSerializer):
+    part_id = serializers.IntegerField(source="inventory_item_part_id", read_only=True)
+    part_name = serializers.CharField(source="inventory_item_part.name", read_only=True)
+
+    class Meta:
+        model = TicketPartSpec
+        fields = (
+            "id",
+            "part_id",
+            "part_name",
+            "color",
+            "comment",
+            "minutes",
+            "created_at",
+            "updated_at",
+        )
 
 
 class TicketSerializer(serializers.ModelSerializer):
@@ -20,9 +52,22 @@ class TicketSerializer(serializers.ModelSerializer):
         required=False,
         allow_blank=False,
     )
-    checklist_snapshot = serializers.JSONField(required=True)
-    srt_total_minutes = serializers.IntegerField(required=True)
-    approve_srt = serializers.BooleanField(write_only=True, required=True)
+    technician = serializers.PrimaryKeyRelatedField(read_only=True)
+    checklist_snapshot = serializers.JSONField(required=False)
+    part_specs = TicketPartSpecInputSerializer(
+        many=True, write_only=True, required=True
+    )
+    ticket_parts = TicketPartSpecSerializer(
+        source="part_specs", many=True, read_only=True
+    )
+    srt_total_minutes = serializers.IntegerField(read_only=True)
+    flag_minutes = serializers.IntegerField(read_only=True)
+    xp_amount = serializers.IntegerField(required=False, min_value=0)
+    flag_color = serializers.ChoiceField(choices=TicketColor.choices, required=False)
+    is_manual = serializers.BooleanField(read_only=True)
+    approve_srt = serializers.BooleanField(
+        write_only=True, required=False, default=False
+    )
 
     class Meta:
         model = Ticket
@@ -36,11 +81,16 @@ class TicketSerializer(serializers.ModelSerializer):
             "technician",
             "title",
             "checklist_snapshot",
+            "part_specs",
+            "ticket_parts",
             "srt_total_minutes",
             "srt_approved_by",
             "srt_approved_at",
             "approve_srt",
             "flag_minutes",
+            "flag_color",
+            "xp_amount",
+            "is_manual",
             "status",
             "assigned_at",
             "started_at",
@@ -52,6 +102,7 @@ class TicketSerializer(serializers.ModelSerializer):
             "id",
             "inventory_item",
             "master",
+            "technician",
             "status",
             "assigned_at",
             "started_at",
@@ -60,16 +111,16 @@ class TicketSerializer(serializers.ModelSerializer):
             "updated_at",
             "srt_approved_by",
             "srt_approved_at",
+            "srt_total_minutes",
+            "flag_minutes",
+            "is_manual",
+            "ticket_parts",
         )
 
     def validate_checklist_snapshot(self, value):
         if not isinstance(value, list):
             raise serializers.ValidationError(
                 "checklist_snapshot must be an array of checklist items."
-            )
-        if len(value) < 10:
-            raise serializers.ValidationError(
-                "checklist_snapshot must include at least 10 items."
             )
         invalid_indexes = [
             idx
@@ -80,13 +131,6 @@ class TicketSerializer(serializers.ModelSerializer):
             first_bad = invalid_indexes[0]
             raise serializers.ValidationError(
                 f"checklist_snapshot[{first_bad}] must be a non-empty task string or object with non-empty 'task'."
-            )
-        return value
-
-    def validate_srt_total_minutes(self, value: int) -> int:
-        if value <= 0:
-            raise serializers.ValidationError(
-                "srt_total_minutes must be greater than 0."
             )
         return value
 
@@ -156,10 +200,43 @@ class TicketSerializer(serializers.ModelSerializer):
                         )
                     }
                 )
-        if not attrs.get("approve_srt"):
-            raise serializers.ValidationError(
-                {"approve_srt": "SRT must be approved by Master during intake."}
-            )
+
+        raw_part_specs = attrs.get("part_specs") or []
+        normalized_specs, part_ids, total_minutes = self._resolve_part_specs(
+            part_specs=raw_part_specs,
+            inventory_item=inventory_item,
+            creating_inventory_item=bool(attrs.get("_create_inventory_item")),
+        )
+        attrs["_part_specs"] = normalized_specs
+        attrs["_part_ids"] = part_ids
+        attrs["_total_minutes"] = total_minutes
+
+        auto_flag_color = Ticket.flag_color_from_minutes(total_minutes=total_minutes)
+        xp_divisor = self._ticket_xp_divisor()
+        auto_xp_amount = math.ceil(total_minutes / xp_divisor)
+
+        manual_flag_color = attrs.get("flag_color")
+        manual_xp_amount = attrs.get("xp_amount")
+        if manual_flag_color is not None or manual_xp_amount is not None:
+            if manual_flag_color is None or manual_xp_amount is None:
+                raise serializers.ValidationError(
+                    {
+                        "flag_color": (
+                            "Manual override requires both flag_color and xp_amount."
+                        )
+                    }
+                )
+            attrs["flag_color"] = manual_flag_color
+            attrs["xp_amount"] = int(manual_xp_amount)
+            attrs["is_manual"] = True
+        else:
+            attrs["flag_color"] = auto_flag_color
+            attrs["xp_amount"] = auto_xp_amount
+            attrs["is_manual"] = False
+
+        attrs["srt_total_minutes"] = total_minutes
+        attrs["flag_minutes"] = total_minutes
+        attrs.setdefault("checklist_snapshot", [])
         return attrs
 
     def create(self, validated_data):
@@ -172,10 +249,17 @@ class TicketSerializer(serializers.ModelSerializer):
         inventory_item_creation_reason = validated_data.pop(
             "_inventory_item_creation_reason", None
         )
+        part_specs = validated_data.pop("_part_specs", [])
+        part_ids = validated_data.pop("_part_ids", [])
+        total_minutes = int(validated_data.pop("_total_minutes", 0) or 0)
+        approve_srt = bool(validated_data.pop("approve_srt", False))
+        validated_data.pop("part_specs", None)
 
         self._resolved_serial_number = serial_number
         self._inventory_item_created_during_intake = False
         self._inventory_item_creation_reason = None
+        self._resolved_total_minutes = total_minutes
+        self._resolved_part_specs_count = len(part_specs)
 
         if create_inventory_item:
             default_inventory = InventoryItemService.get_default_inventory()
@@ -219,6 +303,9 @@ class TicketSerializer(serializers.ModelSerializer):
                     ) from None
                 created = False
 
+            if part_ids:
+                inventory_item.parts.set(part_ids)
+
             if Ticket.domain.has_active_for_inventory_item(
                 inventory_item=inventory_item
             ):
@@ -233,12 +320,25 @@ class TicketSerializer(serializers.ModelSerializer):
             self._inventory_item_created_during_intake = created
             self._inventory_item_creation_reason = inventory_item_creation_reason
 
-        validated_data.pop("approve_srt", None)
         request = self.context.get("request")
-        if request and request.user and request.user.is_authenticated:
+        if approve_srt and request and request.user and request.user.is_authenticated:
             validated_data["srt_approved_by"] = request.user
             validated_data["srt_approved_at"] = timezone.now()
-        return super().create(validated_data)
+
+        ticket = super().create(validated_data)
+        TicketPartSpec.objects.bulk_create(
+            [
+                TicketPartSpec(
+                    ticket=ticket,
+                    inventory_item_part_id=spec["part_id"],
+                    color=spec["color"],
+                    comment=spec["comment"],
+                    minutes=spec["minutes"],
+                )
+                for spec in part_specs
+            ]
+        )
+        return ticket
 
     def get_intake_metadata(self) -> dict[str, object]:
         return {
@@ -251,6 +351,10 @@ class TicketSerializer(serializers.ModelSerializer):
                 "_inventory_item_creation_reason",
                 None,
             ),
+            "total_minutes": int(getattr(self, "_resolved_total_minutes", 0) or 0),
+            "part_specs_count": int(
+                getattr(self, "_resolved_part_specs_count", 0) or 0
+            ),
         }
 
     @staticmethod
@@ -261,3 +365,90 @@ class TicketSerializer(serializers.ModelSerializer):
             task = item.get("task")
             return isinstance(task, str) and bool(task.strip())
         return False
+
+    @staticmethod
+    def _ticket_xp_divisor() -> int:
+        rules = RulesService.get_active_rules_config()
+        ticket_rules = rules.get("ticket_xp", {})
+        divisor = int(ticket_rules.get("base_divisor", 20) or 20)
+        if divisor <= 0:
+            return 20
+        return divisor
+
+    @staticmethod
+    def _resolve_part_specs(
+        *,
+        part_specs: list[dict],
+        inventory_item: InventoryItem | None,
+        creating_inventory_item: bool,
+    ) -> tuple[list[dict], list[int], int]:
+        if not part_specs:
+            raise serializers.ValidationError(
+                {"part_specs": "part_specs must contain at least one part entry."}
+            )
+
+        provided_ids = [int(item["part_id"]) for item in part_specs]
+        if len(set(provided_ids)) != len(provided_ids):
+            raise serializers.ValidationError(
+                {"part_specs": "Each part_id must appear only once."}
+            )
+
+        parts_by_id = {
+            part.id: part
+            for part in InventoryItemPart.objects.filter(id__in=provided_ids).only(
+                "id", "name"
+            )
+        }
+        missing_part_ids = sorted(set(provided_ids) - set(parts_by_id.keys()))
+        if missing_part_ids:
+            raise serializers.ValidationError(
+                {
+                    "part_specs": (
+                        "Unknown part ids: "
+                        f"{', '.join(str(part_id) for part_id in missing_part_ids)}."
+                    )
+                }
+            )
+
+        if inventory_item and not creating_inventory_item:
+            item_part_ids = set(inventory_item.parts.values_list("id", flat=True))
+            if not item_part_ids:
+                raise serializers.ValidationError(
+                    {
+                        "part_specs": (
+                            "Selected inventory item has no parts. Add parts before "
+                            "creating tickets."
+                        )
+                    }
+                )
+            provided_id_set = set(provided_ids)
+            missing_item_parts = sorted(item_part_ids - provided_id_set)
+            unexpected_parts = sorted(provided_id_set - item_part_ids)
+            if missing_item_parts or unexpected_parts:
+                detail = []
+                if missing_item_parts:
+                    detail.append(
+                        "missing required part ids: "
+                        + ", ".join(str(part_id) for part_id in missing_item_parts)
+                    )
+                if unexpected_parts:
+                    detail.append(
+                        "unexpected part ids: "
+                        + ", ".join(str(part_id) for part_id in unexpected_parts)
+                    )
+                raise serializers.ValidationError({"part_specs": "; ".join(detail)})
+
+        normalized: list[dict] = []
+        total_minutes = 0
+        for item in part_specs:
+            minutes = int(item["minutes"])
+            total_minutes += minutes
+            normalized.append(
+                {
+                    "part_id": int(item["part_id"]),
+                    "color": item["color"],
+                    "comment": str(item.get("comment", "")).strip(),
+                    "minutes": minutes,
+                }
+            )
+        return normalized, sorted(set(provided_ids)), total_minutes
