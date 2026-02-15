@@ -8,7 +8,6 @@ Documents business-domain modules in `apps/` with focus on models, services, and
 - `docs/apps/attendance/README.md`
 - `docs/apps/inventory/README.md`
 - `docs/apps/gamification/README.md`
-- `docs/apps/payroll/README.md`
 - `docs/apps/rules/README.md`
 - `docs/apps/ticket/README.md`
 

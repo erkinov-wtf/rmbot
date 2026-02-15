@@ -19,7 +19,6 @@ from core.utils.constants import (
 from gamification.models import XPLedger
 from inventory.models import InventoryItem
 from ticket.models import Ticket, TicketTransition
-from ticket.services_stockout import StockoutIncidentService
 
 
 class TicketAnalyticsService:
@@ -31,10 +30,7 @@ class TicketAnalyticsService:
     @classmethod
     def fleet_summary(cls) -> dict[str, object]:
         now_utc = timezone.now()
-        business_window = StockoutIncidentService.business_window_context(
-            now_utc=now_utc
-        )
-        now_local = business_window["local_now"]
+        now_local = timezone.localtime(now_utc, cls.BUSINESS_TIMEZONE)
 
         inventory_items_qs = InventoryItem.domain.all()
         items_by_status = dict(
@@ -71,8 +67,6 @@ class TicketAnalyticsService:
             .values_list("status", "total")
         )
 
-        business_window_now = bool(business_window["in_business_window"])
-        stockout_now = business_window_now and ready_count == 0
         # KPI helpers keep the endpoint payload stable while internals evolve.
         backlog_kpis = cls._backlog_kpis(
             active_tickets_qs=active_tickets_qs,
@@ -83,19 +77,10 @@ class TicketAnalyticsService:
             availability_pct=availability_pct,
             active_count=active_count,
             ready_count=ready_count,
-            business_window_now=business_window_now,
-            business_window_timezone=str(business_window["timezone"]),
-            business_window_start_hour=int(business_window["start_hour"]),
-            business_window_end_hour=int(business_window["end_hour"]),
-            stockout_now=stockout_now,
             backlog_red_or_worse=backlog_kpis["red_or_worse_count"],
             backlog_black_or_worse=backlog_kpis["black_or_worse_count"],
         )
         qc_kpis = cls._qc_kpis(now_utc=now_utc, days=cls.QC_WINDOW_DAYS)
-        stockout_incidents = StockoutIncidentService.rolling_stockout_summary(
-            now_utc=now_utc,
-            days=30,
-        )
 
         return {
             "generated_at": now_utc.isoformat(),
@@ -138,11 +123,9 @@ class TicketAnalyticsService:
             },
             "kpis": {
                 "availability_percent": availability_pct,
-                "stockout_now": stockout_now,
             },
             "sla": sla_snapshot,
             "qc": qc_kpis,
-            "stockout_incidents": stockout_incidents,
         }
 
     @classmethod
@@ -361,29 +344,14 @@ class TicketAnalyticsService:
         availability_pct: float,
         active_count: int,
         ready_count: int,
-        business_window_now: bool,
-        business_window_timezone: str,
-        business_window_start_hour: int,
-        business_window_end_hour: int,
-        stockout_now: bool,
         backlog_red_or_worse: int,
         backlog_black_or_worse: int,
     ) -> dict[str, object]:
         return {
-            "business_window": {
-                "timezone": business_window_timezone,
-                "start_hour": business_window_start_hour,
-                "end_hour": business_window_end_hour,
-                "in_window_now": business_window_now,
-            },
             "availability": {
                 "percent": availability_pct,
                 "ready": ready_count,
                 "active": active_count,
-            },
-            "stockout": {
-                "is_now": stockout_now,
-                "ready_count": ready_count,
             },
             "backlog_pressure": {
                 "red_or_worse": backlog_red_or_worse,

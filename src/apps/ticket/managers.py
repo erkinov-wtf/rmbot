@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 from django.db import models
-from django.db.models import Q
 
 from core.utils.constants import (
-    SLAAutomationDeliveryAttemptStatus,
     TicketColor,
     TicketStatus,
     TicketTransitionAction,
@@ -63,68 +61,6 @@ class TicketDomainManager(models.Manager.from_queryset(TicketQuerySet)):
             .filter(flag_color=TicketColor.RED)
             .count()
         )
-
-
-class StockoutIncidentQuerySet(models.QuerySet):
-    def active(self):
-        return self.filter(is_active=True)
-
-    def latest_started(self):
-        return self.order_by("-started_at")
-
-    def overlapping_window(self, *, start_dt, end_dt):
-        return self.filter(started_at__lt=end_dt).filter(
-            Q(ended_at__isnull=True) | Q(ended_at__gt=start_dt)
-        )
-
-
-class StockoutIncidentDomainManager(
-    models.Manager.from_queryset(StockoutIncidentQuerySet)
-):
-    def latest_active(self):
-        return self.get_queryset().active().latest_started().first()
-
-    def latest_active_for_update(self):
-        return self.get_queryset().select_for_update().active().latest_started().first()
-
-    def list_overlapping_window(self, *, start_dt, end_dt):
-        return self.get_queryset().overlapping_window(start_dt=start_dt, end_dt=end_dt)
-
-
-class SLAAutomationEventQuerySet(models.QuerySet):
-    def for_rule(self, *, rule_key: str):
-        return self.filter(rule_key=rule_key)
-
-    def latest_first(self):
-        return self.order_by("-created_at")
-
-
-class SLAAutomationEventDomainManager(
-    models.Manager.from_queryset(SLAAutomationEventQuerySet)
-):
-    def latest_for_rule(self, *, rule_key: str):
-        return self.get_queryset().for_rule(rule_key=rule_key).latest_first().first()
-
-    def get_by_id(self, *, event_id: int):
-        return self.get_queryset().filter(pk=event_id).first()
-
-
-class SLAAutomationDeliveryAttemptQuerySet(models.QuerySet):
-    def for_event(self, *, event_id: int):
-        return self.filter(event_id=event_id)
-
-    def successful(self):
-        return self.filter(
-            status=SLAAutomationDeliveryAttemptStatus.SUCCESS,
-            delivered=True,
-        )
-
-
-class SLAAutomationDeliveryAttemptDomainManager(
-    models.Manager.from_queryset(SLAAutomationDeliveryAttemptQuerySet)
-):
-    def has_success_for_event(self, *, event_id: int) -> bool:
-        return self.get_queryset().for_event(event_id=event_id).successful().exists()
 
 
 class WorkSessionQuerySet(models.QuerySet):

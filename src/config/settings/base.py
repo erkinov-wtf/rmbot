@@ -100,7 +100,6 @@ LOCAL_APPS = [
     "inventory",
     "core",
     "gamification",
-    "payroll",
     "rules",
     "api",
     "bot",
@@ -177,14 +176,6 @@ CELERY_TASK_IGNORE_RESULT = True
 CELERY_BEAT_SCHEDULE = {}
 if HAS_CELERY:
     CELERY_BEAT_SCHEDULE = {
-        "detect-stockout-incidents": {
-            "task": "ticket.tasks.detect_stockout_incidents",
-            "schedule": crontab(minute="*"),
-        },
-        "evaluate-sla-automation": {
-            "task": "ticket.tasks.evaluate_sla_automation",
-            "schedule": crontab(minute="*/5"),
-        },
         "evaluate-levels-weekly": {
             "task": "gamification.tasks.run_weekly_level_evaluation",
             "schedule": crontab(minute=5, hour=0, day_of_week=1),
@@ -239,50 +230,6 @@ TMA_INIT_DATA_MAX_FUTURE_SKEW_SECONDS = config(
 )
 TMA_INIT_DATA_REPLAY_TTL_SECONDS = config(
     "TMA_INIT_DATA_REPLAY_TTL_SECONDS", default=300, cast=int
-)
-SLA_ESCALATION_TELEGRAM_BOT_TOKEN = config(
-    "SLA_ESCALATION_TELEGRAM_BOT_TOKEN",
-    default="",
-)
-SLA_ESCALATION_TELEGRAM_CHAT_IDS = config(
-    "SLA_ESCALATION_TELEGRAM_CHAT_IDS",
-    default="",
-)
-SLA_ESCALATION_EMAIL_RECIPIENTS = config(
-    "SLA_ESCALATION_EMAIL_RECIPIENTS",
-    default="",
-)
-SLA_ESCALATION_EMAIL_SUBJECT_PREFIX = config(
-    "SLA_ESCALATION_EMAIL_SUBJECT_PREFIX",
-    default="[Rent Market SLA]",
-)
-SLA_ESCALATION_OPS_WEBHOOK_URL = config(
-    "SLA_ESCALATION_OPS_WEBHOOK_URL",
-    default="",
-)
-SLA_ESCALATION_OPS_WEBHOOK_TOKEN = config(
-    "SLA_ESCALATION_OPS_WEBHOOK_TOKEN",
-    default="",
-)
-SLA_ESCALATION_REQUEST_TIMEOUT_SECONDS = config(
-    "SLA_ESCALATION_REQUEST_TIMEOUT_SECONDS",
-    default=5,
-    cast=float,
-)
-SLA_ESCALATION_MAX_RETRIES = config(
-    "SLA_ESCALATION_MAX_RETRIES",
-    default=3,
-    cast=int,
-)
-SLA_ESCALATION_RETRY_BACKOFF_SECONDS = config(
-    "SLA_ESCALATION_RETRY_BACKOFF_SECONDS",
-    default=60,
-    cast=int,
-)
-SLA_ESCALATION_RETRY_BACKOFF_MAX_SECONDS = config(
-    "SLA_ESCALATION_RETRY_BACKOFF_MAX_SECONDS",
-    default=900,
-    cast=int,
 )
 SENTRY_DSN = config("SENTRY_DSN", default="")
 SENTRY_ENVIRONMENT = config(
@@ -479,7 +426,7 @@ if HAS_DRF_SPECTACULAR:
     SPECTACULAR_SETTINGS = {
         "TITLE": "Rent Market API",
         "DESCRIPTION": (
-            "Versioned API documentation for operations, payroll, rules, and bot-linked auth."
+            "Versioned API documentation for operations, rules, and bot-linked auth."
         ),
         "VERSION": "v1",
         "SERVE_INCLUDE_SCHEMA": False,
@@ -520,10 +467,6 @@ if HAS_DRF_SPECTACULAR:
             {
                 "name": "XP Ledger",
                 "description": "Gamification XP ledger query surface.",
-            },
-            {
-                "name": "Payroll",
-                "description": "Monthly payroll close/approve and snapshots.",
             },
             {
                 "name": "Rules Engine",

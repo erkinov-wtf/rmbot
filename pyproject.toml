@@ -82,7 +82,6 @@ known-first-party = [
     "config",
     "core",
     "gamification",
-    "payroll",
     "rules",
     "ticket",
 ]

@@ -1,12 +1,8 @@
-from datetime import datetime
-from zoneinfo import ZoneInfo
-
 import pytest
 from django.core.cache import cache
 
-from core.utils.constants import RoleSlug, TicketStatus, XPLedgerEntryType
+from core.utils.constants import RoleSlug, TicketStatus
 from gamification.models import XPLedger
-from payroll.models import PayrollMonthly
 from rules.models import RulesConfigVersion
 from rules.services import RulesService
 from ticket.services_workflow import TicketWorkflowService
@@ -57,19 +53,7 @@ def test_get_config_bootstraps_defaults(authed_client_factory, rules_context):
     assert payload["active_version"] == 1
     assert payload["config"]["ticket_xp"]["base_divisor"] == 20
     assert payload["config"]["ticket_xp"]["first_pass_bonus"] == 1
-    assert payload["config"]["payroll"]["bonus_rate"] == 3000
     assert payload["config"]["progression"]["weekly_coupon_amount"] == 100000
-    assert payload["config"]["sla"]["automation"]["enabled"] is True
-    assert payload["config"]["sla"]["automation"]["cooldown_minutes"] == 30
-    assert payload["config"]["sla"]["stockout"]["working_weekdays"] == [
-        1,
-        2,
-        3,
-        4,
-        5,
-        6,
-    ]
-    assert payload["config"]["sla"]["stockout"]["holiday_dates"] == []
 
 
 def test_permissions_for_config_mutation(authed_client_factory, rules_context):
@@ -155,16 +139,22 @@ def test_rollback_restores_previous_version(authed_client_factory, rules_context
     client = authed_client_factory(rules_context["super_admin"])
     base = client.get(RULES_CONFIG_URL).data["data"]["config"]
 
-    cfg_v2 = {**base, "payroll": {**base["payroll"], "bonus_rate": 4500}}
+    cfg_v2 = {
+        **base,
+        "progression": {**base["progression"], "weekly_coupon_amount": 200000},
+    }
     resp_v2 = client.put(
         RULES_CONFIG_URL,
-        {"config": cfg_v2, "reason": "Raise bonus rate"},
+        {"config": cfg_v2, "reason": "Raise coupon amount"},
         format="json",
     )
     assert resp_v2.status_code == 200
     assert resp_v2.data["data"]["active_version"] == 2
 
-    cfg_v3 = {**cfg_v2, "payroll": {**cfg_v2["payroll"], "bonus_rate": 5000}}
+    cfg_v3 = {
+        **cfg_v2,
+        "progression": {**cfg_v2["progression"], "weekly_coupon_amount": 300000},
+    }
     resp_v3 = client.put(
         RULES_CONFIG_URL, {"config": cfg_v3, "reason": "Raise again"}, format="json"
     )
@@ -179,7 +169,7 @@ def test_rollback_restores_previous_version(authed_client_factory, rules_context
     assert rollback.status_code == 200
     data = rollback.data["data"]
     assert data["active_version"] == 4
-    assert data["config"]["payroll"]["bonus_rate"] == 4500
+    assert data["config"]["progression"]["weekly_coupon_amount"] == 200000
 
     latest = RulesConfigVersion.objects.order_by("-version").first()
     assert latest is not None
@@ -202,11 +192,15 @@ def test_invalid_config_rejected(authed_client_factory, rules_context):
                 "grace_cutoff": "10:20",
                 "timezone": "Asia/Tashkent",
             },
-            "payroll": {
-                "fix_salary": 3000000,
-                "bonus_rate": 3000,
-                "level_caps": {"1": 100},
-                "level_allowances": {"1": 0},
+            "progression": {
+                "level_thresholds": {
+                    "1": 0,
+                    "2": 200,
+                    "3": 450,
+                    "4": 750,
+                    "5": 1100,
+                },
+                "weekly_coupon_amount": 100000,
             },
         }
     }
@@ -214,22 +208,6 @@ def test_invalid_config_rejected(authed_client_factory, rules_context):
 
     assert resp.status_code == 400
     assert resp.data["success"] is False
-
-
-def test_invalid_stockout_calendar_rules_rejected(authed_client_factory, rules_context):
-    client = authed_client_factory(rules_context["super_admin"])
-    current = client.get(RULES_CONFIG_URL).data["data"]["config"]
-    current["sla"]["stockout"]["holiday_dates"] = ["2026-02-31"]
-
-    resp = client.put(
-        RULES_CONFIG_URL,
-        {"config": current, "reason": "Set invalid holiday date"},
-        format="json",
-    )
-
-    assert resp.status_code == 400
-    assert resp.data["success"] is False
-    assert "holiday_dates" in resp.data["error"]["detail"]
 
 
 def test_ticket_xp_formula_uses_active_rules(
@@ -267,51 +245,3 @@ def test_ticket_xp_formula_uses_active_rules(
     )
     assert base_entry.amount == 5  # ceil(45/10)
     assert bonus_entry.amount == 2
-
-
-def test_payroll_formula_uses_active_rules(
-    authed_client_factory, rules_context, user_factory
-):
-    actor = rules_context["super_admin"]
-    current = RulesService.get_active_rules_config()
-    current["payroll"]["bonus_rate"] = 100
-    current["payroll"]["fix_salary"] = 1_000
-    current["payroll"]["level_caps"]["1"] = 50
-    current["payroll"]["level_allowances"]["1"] = 10
-
-    RulesService.update_rules_config(
-        config=current, actor_user_id=actor.id, reason="Payroll override"
-    )
-
-    tech = user_factory(
-        username="rules_payroll_l1",
-        first_name="Rules L1",
-        email="rules_payroll_l1@example.com",
-        level=1,
-    )
-    XPLedger.objects.create(
-        user=tech,
-        amount=120,
-        entry_type=XPLedgerEntryType.ATTENDANCE_PUNCTUALITY,
-        reference="rules_payroll_xp_1",
-        payload={},
-    )
-    XPLedger.all_objects.filter(reference="rules_payroll_xp_1").update(
-        created_at=datetime(2026, 1, 11, 11, 0, tzinfo=ZoneInfo("Asia/Tashkent")),
-        updated_at=datetime(2026, 1, 11, 11, 0, tzinfo=ZoneInfo("Asia/Tashkent")),
-    )
-
-    client = authed_client_factory(actor)
-    resp = client.post("/api/v1/payroll/2026-01/close/", {}, format="json")
-
-    assert resp.status_code == 200
-    line = resp.data["data"]["lines"][0]
-    assert line["raw_xp"] == 120
-    assert line["paid_xp"] == 50
-    assert line["bonus_amount"] == 5000
-    assert line["fix_salary"] == 1000
-    assert line["allowance_amount"] == 10
-    assert line["total_amount"] == 6010
-
-    payroll_month = PayrollMonthly.objects.get(month="2026-01-01")
-    assert payroll_month.rules_snapshot["version"] >= 2

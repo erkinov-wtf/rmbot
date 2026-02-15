@@ -159,7 +159,6 @@ def test_fleet_analytics_returns_operational_counters(
     assert data["sla"]["backlog_pressure"]["red_or_worse"] == 2
     assert data["qc"]["window_days"] == 7
     assert len(data["qc"]["trend"]) == 7
-    assert data["stockout_incidents"]["window_days"] == 30
 
 
 def test_fleet_analytics_returns_qc_trend_and_totals(

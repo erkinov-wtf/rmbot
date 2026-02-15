@@ -1,7 +1,7 @@
 # Inventory Models (`apps/inventory/models.py`)
 
 ## Scope
-Defines inventory entities used by ticket intake, stockout detection, and analytics.
+Defines inventory entities used by ticket intake and analytics.
 
 ## Model Inventory
 - `Inventory`: top-level grouping (place/warehouse for items).
@@ -13,7 +13,7 @@ Defines inventory entities used by ticket intake, stockout detection, and analyt
 - `Inventory.name`, `InventoryItemCategory.name`, and `InventoryItemPart.name` are unique.
 - `InventoryItem.serial_number` is unique.
 - `InventoryItem` requires `inventory` + `category`; `parts` is optional M2M.
-- Status/activity indexed for fleet analytics and stockout detection queries.
+- Status/activity indexed for fleet analytics queries.
 
 ## Lifecycle Notes
 - Inventory items may be created via admin/API or ticket-intake confirm-create path.
@@ -27,4 +27,3 @@ Defines inventory entities used by ticket intake, stockout detection, and analyt
 - `apps/inventory/services.py`
 - `apps/inventory/managers.py`
 - `api/v1/inventory/views.py`
-- `apps/ticket/services_stockout.py`

@@ -30,7 +30,7 @@ Documents XP ledger read endpoint used by user history and operational auditing 
 
 ## Operational Notes
 - Ledger rows are append-only and should be treated as immutable audit state.
-- Query results are consumed by payroll/progression and operator investigations.
+- Query results are consumed by progression flows and operator investigations.
 
 ## Related Code
 - `api/v1/gamification/urls.py`

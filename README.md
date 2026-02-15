@@ -40,11 +40,6 @@ uv run python -m celery -A config worker --loglevel=INFO
 uv run python -m celery -A config beat --loglevel=INFO
 ```
 
-Manual stockout detector run:
-```
-uv run python src/manage.py detect_stockouts
-```
-
 Access onboarding note:
 - New access requests are submitted through Telegram bot `/start` onboarding only.
 - Managers approve/reject via `/api/v1/users/access-requests/{id}/approve|reject/`.

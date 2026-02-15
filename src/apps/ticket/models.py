@@ -1,14 +1,10 @@
 import math
-from datetime import datetime
 
 from django.db import IntegrityError, models
 from django.utils import timezone
 
 from core.models import AppendOnlyModel, SoftDeleteModel, TimestampedModel
 from core.utils.constants import (
-    SLAAutomationDeliveryAttemptStatus,
-    SLAAutomationEventSeverity,
-    SLAAutomationEventStatus,
     TicketColor,
     TicketStatus,
     TicketTransitionAction,
@@ -16,9 +12,6 @@ from core.utils.constants import (
     WorkSessionTransitionAction,
 )
 from ticket.managers import (
-    SLAAutomationDeliveryAttemptDomainManager,
-    SLAAutomationEventDomainManager,
-    StockoutIncidentDomainManager,
     TicketDomainManager,
     TicketTransitionDomainManager,
     WorkSessionDomainManager,
@@ -282,215 +275,6 @@ class TicketPartSpec(TimestampedModel, SoftDeleteModel):
         return (
             f"TicketPartSpec#{self.pk} ticket={self.ticket_id} "
             f"part={self.inventory_item_part_id} color={self.color}"
-        )
-
-
-class StockoutIncident(TimestampedModel):
-    domain = StockoutIncidentDomainManager()
-
-    started_at = models.DateTimeField(db_index=True)
-    ended_at = models.DateTimeField(null=True, blank=True, db_index=True)
-    is_active = models.BooleanField(default=True, db_index=True)
-    duration_minutes = models.PositiveIntegerField(default=0)
-    ready_count_at_start = models.PositiveIntegerField(default=0)
-    ready_count_at_end = models.PositiveIntegerField(null=True, blank=True)
-    payload = models.JSONField(default=dict, blank=True)
-
-    class Meta:
-        indexes = [
-            models.Index(fields=["is_active", "started_at"]),
-            models.Index(fields=["started_at", "ended_at"]),
-        ]
-
-    @classmethod
-    def start_incident(
-        cls,
-        *,
-        started_at,
-        ready_count_at_start: int,
-        window_context: dict[str, object],
-    ) -> "StockoutIncident":
-        payload = {
-            "timezone": window_context["timezone"],
-            "business_start_hour": window_context["start_hour"],
-            "business_end_hour": window_context["end_hour"],
-            "working_weekdays": window_context["working_weekdays"],
-            "holiday_dates": window_context["holiday_dates"],
-        }
-        return cls.objects.create(
-            started_at=started_at,
-            is_active=True,
-            ready_count_at_start=max(int(ready_count_at_start), 0),
-            payload=payload,
-        )
-
-    def resolve(self, *, ended_at, ready_count_at_end: int) -> int:
-        duration_minutes = max(
-            int((ended_at - self.started_at).total_seconds() // 60),
-            0,
-        )
-        self.ended_at = ended_at
-        self.is_active = False
-        self.ready_count_at_end = max(int(ready_count_at_end), 0)
-        self.duration_minutes = duration_minutes
-        self.save(
-            update_fields=[
-                "ended_at",
-                "is_active",
-                "ready_count_at_end",
-                "duration_minutes",
-                "updated_at",
-            ]
-        )
-        return duration_minutes
-
-    def overlap_minutes(self, *, start_dt, end_dt, now_utc) -> int:
-        effective_end = self.ended_at or now_utc
-        overlap_start = max(self.started_at, start_dt)
-        overlap_end = min(effective_end, end_dt)
-        if overlap_end <= overlap_start:
-            return 0
-        return max(int((overlap_end - overlap_start).total_seconds() // 60), 0)
-
-    def __str__(self) -> str:
-        status = "active" if self.is_active else "closed"
-        return f"StockoutIncident#{self.pk} [{status}] start={self.started_at.isoformat()} end={self.ended_at}"
-
-
-class SLAAutomationEvent(AppendOnlyModel):
-    domain = SLAAutomationEventDomainManager()
-
-    rule_key = models.CharField(max_length=64, db_index=True)
-    status = models.CharField(
-        max_length=20, choices=SLAAutomationEventStatus, db_index=True
-    )
-    severity = models.CharField(
-        max_length=20,
-        choices=SLAAutomationEventSeverity,
-        default=SLAAutomationEventSeverity.WARNING,
-    )
-    metric_value = models.FloatField(default=0)
-    threshold_value = models.FloatField(default=0)
-    payload = models.JSONField(default=dict, blank=True)
-
-    class Meta:
-        indexes = [
-            models.Index(fields=["rule_key", "created_at"]),
-            models.Index(fields=["status", "created_at"]),
-        ]
-
-    @classmethod
-    def create_event(
-        cls,
-        *,
-        rule_key: str,
-        status: str,
-        severity: str,
-        metric_value: float,
-        threshold_value: float,
-        payload: dict,
-    ) -> "SLAAutomationEvent":
-        return cls.objects.create(
-            rule_key=rule_key,
-            status=status,
-            severity=severity,
-            metric_value=metric_value,
-            threshold_value=threshold_value,
-            payload=payload,
-        )
-
-    def payload_data(self) -> dict:
-        return self.payload if isinstance(self.payload, dict) else {}
-
-    def is_repeat(self) -> bool:
-        return self.payload_data().get("repeat") is True
-
-    def evaluated_at_or_created(self, *, fallback_now: datetime) -> datetime:
-        raw = self.payload_data().get("evaluated_at")
-        if isinstance(raw, str):
-            try:
-                parsed = datetime.fromisoformat(raw)
-                if parsed.tzinfo is None:
-                    parsed = timezone.make_aware(parsed, timezone.utc)
-                return parsed
-            except ValueError:
-                pass
-        return self.created_at or fallback_now
-
-    def __str__(self) -> str:
-        return f"SLAAutomationEvent#{self.pk} rule={self.rule_key} status={self.status} metric={self.metric_value}"
-
-
-class SLAAutomationDeliveryAttempt(AppendOnlyModel):
-    domain = SLAAutomationDeliveryAttemptDomainManager()
-
-    event = models.ForeignKey(
-        SLAAutomationEvent,
-        on_delete=models.CASCADE,
-        related_name="delivery_attempts",
-    )
-    attempt_number = models.PositiveIntegerField(default=1)
-    status = models.CharField(
-        max_length=20,
-        choices=SLAAutomationDeliveryAttemptStatus,
-        db_index=True,
-    )
-    delivered = models.BooleanField(default=False, db_index=True)
-    should_retry = models.BooleanField(default=False, db_index=True)
-    retry_backoff_seconds = models.PositiveIntegerField(default=0)
-    task_id = models.CharField(max_length=128, blank=True, default="")
-    reason = models.CharField(max_length=64, blank=True, default="")
-    payload = models.JSONField(default=dict, blank=True)
-
-    class Meta:
-        indexes = [
-            models.Index(fields=["event", "created_at"]),
-            models.Index(fields=["event", "attempt_number"]),
-            models.Index(fields=["status", "created_at"]),
-        ]
-
-    @staticmethod
-    def status_from_response(*, response: dict) -> str:
-        if response.get("reason") == "already_delivered":
-            return SLAAutomationDeliveryAttemptStatus.SKIPPED
-        if response.get("delivered") is True:
-            return SLAAutomationDeliveryAttemptStatus.SUCCESS
-        return SLAAutomationDeliveryAttemptStatus.FAILED
-
-    @staticmethod
-    def reason_from_response(*, response: dict) -> str:
-        reason = response.get("reason")
-        if not isinstance(reason, str):
-            return ""
-        return reason[:64]
-
-    @classmethod
-    def create_from_delivery_response(
-        cls,
-        *,
-        event: SLAAutomationEvent,
-        attempt_number: int,
-        task_id: str,
-        response: dict,
-        should_retry: bool,
-        retry_backoff_seconds: int,
-    ) -> "SLAAutomationDeliveryAttempt":
-        return cls.objects.create(
-            event=event,
-            attempt_number=max(int(attempt_number), 1),
-            status=cls.status_from_response(response=response),
-            delivered=bool(response.get("delivered")),
-            should_retry=bool(should_retry),
-            retry_backoff_seconds=max(int(retry_backoff_seconds), 0),
-            task_id=str(task_id or "")[:128],
-            reason=cls.reason_from_response(response=response),
-            payload=response,
-        )
-
-    def __str__(self) -> str:
-        return (
-            f"SLAAutomationDeliveryAttempt#{self.pk} event={self.event_id} "
-            f"attempt={self.attempt_number} status={self.status}"
         )
 
 

@@ -22,7 +22,7 @@ Documents URL composition and ASGI/WSGI/Celery bootstrapping contracts for runti
 
 ## Scheduling Contracts
 - Beat schedule is defined in settings when Celery integration is available.
-- Current periodic jobs include stockout detection, SLA evaluation, and weekly level evaluation.
+- Current periodic jobs include weekly level evaluation.
 
 ## Failure Modes
 - Entrypoint/profile mismatch can silently alter auth/cache/runtime behavior.

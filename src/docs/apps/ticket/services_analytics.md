@@ -4,7 +4,7 @@
 Builds fleet and team KPI aggregates for analytics endpoints.
 
 ## Execution Flows
-- Fleet snapshot (`fleet_summary`): availability, backlog, SLA pressure, QC trend, stockout rollups.
+- Fleet snapshot (`fleet_summary`): availability, backlog, SLA pressure, and QC trend.
 - Team snapshot (`team_summary`): per-technician output and period totals.
 
 ## Invariants and Contracts
@@ -18,11 +18,9 @@ Builds fleet and team KPI aggregates for analytics endpoints.
 - No active technicians -> returns empty members with summary defaults.
 
 ## Operational Notes
-- Uses stockout business-window context and incident summaries.
 - Uses ticket transitions to infer first-pass QC rate.
 - Backlog flag buckets use three colors only: `green`, `yellow`, `red`.
 
 ## Related Code
 - `apps/ticket/models.py`
-- `apps/ticket/services_stockout.py`
 - `api/v1/core/views/analytics.py`

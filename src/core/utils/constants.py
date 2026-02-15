@@ -77,30 +77,3 @@ class XPLedgerEntryType(models.TextChoices):
         "ticket_qc_first_pass_bonus",
         _("Ticket QC First Pass Bonus"),
     )
-
-
-class PayrollMonthStatus(models.TextChoices):
-    DRAFT = "draft", _("Draft")
-    CLOSED = "closed", _("Closed")
-    APPROVED = "approved", _("Approved")
-
-
-class PayrollAllowanceDecision(models.TextChoices):
-    KEEP_GATED = "keep_gated", _("Keep Gated")
-    RELEASE_ALLOWANCES = "release_allowances", _("Release Allowances")
-
-
-class SLAAutomationEventStatus(models.TextChoices):
-    TRIGGERED = "triggered", _("Triggered")
-    RESOLVED = "resolved", _("Resolved")
-
-
-class SLAAutomationEventSeverity(models.TextChoices):
-    WARNING = "warning", _("Warning")
-    CRITICAL = "critical", _("Critical")
-
-
-class SLAAutomationDeliveryAttemptStatus(models.TextChoices):
-    SUCCESS = "success", _("Success")
-    FAILED = "failed", _("Failed")
-    SKIPPED = "skipped", _("Skipped")

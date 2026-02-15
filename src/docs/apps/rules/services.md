@@ -33,7 +33,6 @@ Provides default rules, strict normalization, versioned update/rollback orchestr
 
 ## Operational Notes
 - Consumers should read/update rules only via service methods.
-- SLA escalation routing rules are validated in the same normalization pass.
 
 ## Related Code
 - `apps/rules/models.py`

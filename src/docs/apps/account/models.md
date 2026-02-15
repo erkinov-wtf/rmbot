@@ -25,7 +25,7 @@ Defines identity and onboarding entities (`User`, `Role`, `TelegramProfile`, `Ac
   - `AccessRequest.patch_pending_identity`, `mark_approved`, `mark_rejected`
 
 ## Operational Notes
-- `User.level` is consumed by payroll calculations.
+- `User.level` is consumed by progression calculations.
 - Manager-backed domain lookups are used across identity reconciliation flows (`AccessRequest.domain`, `TelegramProfile.domain`).
 
 ## Related Code

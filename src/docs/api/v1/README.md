@@ -6,7 +6,7 @@ Entry index for endpoint-centric technical docs under `/api/v1/`.
 ## Access Model
 - Default: JWT-authenticated endpoints.
 - Public exceptions: auth/token endpoints and misc health/test.
-- Role-gated domains: users moderation, analytics, rules, payroll, ticket actions.
+- Role-gated domains: users moderation, analytics, rules, ticket actions.
 
 ## Endpoint Reference
 - Users + access moderation: `docs/api/v1/account/README.md`
@@ -14,7 +14,6 @@ Entry index for endpoint-centric technical docs under `/api/v1/`.
 - Inventory + serial-number suggestions: `docs/api/v1/inventory/README.md`
 - Core auth/analytics/misc: `docs/api/v1/core/README.md`
 - XP ledger: `docs/api/v1/gamification/README.md`
-- Payroll monthly snapshot + allowance gate: `docs/api/v1/payroll/README.md`
 - Rules config versioning + rollback: `docs/api/v1/rules/README.md`
 - Ticket lifecycle + work sessions: `docs/api/v1/ticket/README.md`
 
