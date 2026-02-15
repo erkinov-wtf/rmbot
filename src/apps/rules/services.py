@@ -25,6 +25,7 @@ class RulesService:
             "ticket_xp": {
                 "base_divisor": 20,
                 "first_pass_bonus": 1,
+                "qc_status_update_xp": 1,
             },
             "attendance": {
                 "on_time_xp": 2,
@@ -151,6 +152,10 @@ class RulesService:
         first_pass_bonus = cls._require_int(
             ticket_xp.get("first_pass_bonus"), field="ticket_xp.first_pass_bonus"
         )
+        qc_status_update_xp = cls._require_int(
+            ticket_xp.get("qc_status_update_xp", 1),
+            field="ticket_xp.qc_status_update_xp",
+        )
 
         on_time_xp = cls._require_int(
             attendance.get("on_time_xp"),
@@ -211,6 +216,7 @@ class RulesService:
             "ticket_xp": {
                 "base_divisor": base_divisor,
                 "first_pass_bonus": first_pass_bonus,
+                "qc_status_update_xp": qc_status_update_xp,
             },
             "attendance": {
                 "on_time_xp": on_time_xp,

@@ -77,3 +77,7 @@ class XPTransactionEntryType(models.TextChoices):
         "ticket_qc_first_pass_bonus",
         _("Ticket QC First Pass Bonus"),
     )
+    TICKET_QC_STATUS_UPDATE = (
+        "ticket_qc_status_update",
+        _("Ticket QC Status Update"),
+    )

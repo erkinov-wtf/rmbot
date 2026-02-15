@@ -16,10 +16,6 @@ class HealthSerializer(serializers.Serializer):
     status = serializers.CharField()
 
 
-class TestSerializer(serializers.Serializer):
-    message = serializers.CharField()
-
-
 class AuditFeedEventSerializer(serializers.Serializer):
     def to_representation(self, instance):
         return instance
@@ -36,19 +32,6 @@ class HealthAPIView(generics.RetrieveAPIView):
 
     def retrieve(self, request, *args, **kwargs):
         return Response(data={"status": "ok"}, status=200)
-
-
-@extend_schema(
-    tags=["System / Health"],
-    summary="Connectivity smoke test",
-    description="Simple endpoint to verify API reachability and response flow.",
-)
-class TestAPIView(generics.RetrieveAPIView):
-    permission_classes = []
-    serializer_class = TestSerializer
-
-    def retrieve(self, request, *args, **kwargs):
-        return Response(data={"message": "This is a test endpoint."}, status=200)
 
 
 AuditFeedPermission = HasRole.as_any(RoleSlug.SUPER_ADMIN, RoleSlug.OPS_MANAGER)

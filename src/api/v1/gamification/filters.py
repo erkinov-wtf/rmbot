@@ -93,6 +93,7 @@ class XPTransactionFilterSet(filters.FilterSet):
             Q(payload__ticket_id=ticket_id)
             | Q(reference=f"ticket_base_xp:{ticket_id}")
             | Q(reference=f"ticket_qc_first_pass_bonus:{ticket_id}")
+            | Q(reference__startswith=f"ticket_qc_status_update:{ticket_id}:")
         )
 
     def filter_ordering(self, queryset, name, value):

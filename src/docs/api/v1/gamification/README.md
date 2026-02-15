@@ -17,7 +17,7 @@ Documents XP transaction read endpoint used by user history and operational audi
 - Supports filtering by:
   - `user_id`
   - `ticket_id`
-  - `entry_type` (`attendance_punctuality`, `ticket_base_xp`, `ticket_qc_first_pass_bonus`)
+  - `entry_type` (`attendance_punctuality`, `ticket_base_xp`, `ticket_qc_first_pass_bonus`, `ticket_qc_status_update`)
   - `reference` (contains match)
   - `created_from` / `created_to` (`YYYY-MM-DD`)
   - `amount_min` / `amount_max`

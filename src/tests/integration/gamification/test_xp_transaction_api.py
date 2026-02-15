@@ -47,6 +47,13 @@ def transactions_context(user_factory, assign_roles):
     )
     XPTransaction.objects.create(
         user=tech_one,
+        amount=1,
+        entry_type=XPTransactionEntryType.TICKET_QC_STATUS_UPDATE,
+        reference="ticket_qc_status_update:101:501",
+        payload={},
+    )
+    XPTransaction.objects.create(
+        user=tech_one,
         amount=2,
         entry_type=XPTransactionEntryType.ATTENDANCE_PUNCTUALITY,
         reference="attendance_checkin:tech_one:2026-02-11",
@@ -74,11 +81,11 @@ def test_regular_user_sees_only_own_entries(
     resp = client.get(TRANSACTIONS_URL)
 
     assert resp.status_code == 200
-    assert resp.data["total_count"] == 3
+    assert resp.data["total_count"] == 4
     assert resp.data["page"] == 1
     assert resp.data["per_page"] == 10
     entries = resp.data["results"]
-    assert len(entries) == 3
+    assert len(entries) == 4
     assert all(item["user"] == transactions_context["tech_one"].id for item in entries)
 
 
@@ -108,10 +115,11 @@ def test_ops_can_filter_by_user_and_ticket(authed_client_factory, transactions_c
         f"{TRANSACTIONS_URL}?user_id={transactions_context['tech_one'].id}&ticket_id=101"
     )
     assert by_ticket.status_code == 200
-    assert len(by_ticket.data["results"]) == 2
+    assert len(by_ticket.data["results"]) == 3
     refs = {item["reference"] for item in by_ticket.data["results"]}
     assert "ticket_base_xp:101" in refs
     assert "ticket_qc_first_pass_bonus:101" in refs
+    assert "ticket_qc_status_update:101:501" in refs
 
 
 def test_ops_can_filter_by_reference_date_range_and_amount(
@@ -137,7 +145,7 @@ def test_ops_can_filter_by_reference_date_range_and_amount(
     created_from = timezone.now().date().isoformat()
     by_created_from = client.get(f"{TRANSACTIONS_URL}?created_from={created_from}")
     assert by_created_from.status_code == 200
-    assert by_created_from.data["total_count"] == 3
+    assert by_created_from.data["total_count"] == 4
 
 
 def test_pagination_works_for_ops(authed_client_factory, transactions_context):
@@ -148,7 +156,7 @@ def test_pagination_works_for_ops(authed_client_factory, transactions_context):
     assert page_one.data["per_page"] == 2
     assert page_one.data["page"] == 1
     assert len(page_one.data["results"]) == 2
-    assert page_one.data["total_count"] == 4
+    assert page_one.data["total_count"] == 5
 
     page_two = client.get(f"{TRANSACTIONS_URL}?per_page=2&page=2")
     assert page_two.status_code == 200

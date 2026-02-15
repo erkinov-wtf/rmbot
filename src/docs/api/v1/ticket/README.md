@@ -22,8 +22,8 @@ Documents ticket intake, workflow transitions, QC outcomes, and work-session tim
 - `POST /api/v1/tickets/{id}/assign/`: assign technician (allowed only after admin review approval).
 - `POST /api/v1/tickets/{id}/start/`: move into `IN_PROGRESS` and auto-start a running work session for the assigned technician.
 - `POST /api/v1/tickets/{id}/to-waiting-qc/`: move to `WAITING_QC` only after the active work session is explicitly stopped.
-- `POST /api/v1/tickets/{id}/qc-pass/`: finalize `DONE`, set inventory item ready, append XP entries.
-- `POST /api/v1/tickets/{id}/qc-fail/`: move to `REWORK`.
+- `POST /api/v1/tickets/{id}/qc-pass/`: finalize `DONE`, set inventory item ready, append technician base XP, checker status-update XP, and conditional first-pass bonus.
+- `POST /api/v1/tickets/{id}/qc-fail/`: move to `REWORK` and append checker status-update XP.
 - `POST /api/v1/tickets/{id}/manual-metrics/`: admin override for `flag_color`/`xp_amount`; also persists review approval metadata.
 - `GET /api/v1/tickets/{id}/transitions/`: paginated list of append-only workflow transitions.
 
@@ -51,6 +51,7 @@ Documents ticket intake, workflow transitions, QC outcomes, and work-session tim
 ## Operational Notes
 - Ticket transitions and work-session history are append-only audit streams.
 - `qc-pass` has cross-domain side effects (inventory-item state + XP transactions).
+- First-pass bonus is only awarded when there is no prior rework (`qc-fail`) and total active work time is within planned duration (`<= total_duration`).
 - Work-session active seconds are derived from transition history, not mutable counters only.
 
 ## Related Code

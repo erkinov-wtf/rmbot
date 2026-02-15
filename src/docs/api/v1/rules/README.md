@@ -15,6 +15,10 @@ Documents rules configuration governance endpoints for read/update/history/rollb
 ### `PUT /api/v1/rules/config/`
 - Validates and normalizes incoming config, then creates a new immutable version and activates it.
 - Optional `reason` is persisted with version metadata.
+- Config includes `ticket_xp` section for ticket/QC rewards:
+  - `base_divisor`
+  - `first_pass_bonus`
+  - `qc_status_update_xp`
 - Config includes `work_session` section for pause-budget controls:
   - `daily_pause_limit_minutes`
   - `timezone`

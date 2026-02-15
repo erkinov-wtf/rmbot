@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from django.db import models
+from django.db.models.functions import Coalesce
 
 from core.utils.constants import (
     TicketColor,
@@ -130,6 +131,14 @@ class WorkSessionDomainManager(models.Manager.from_queryset(WorkSessionQuerySet)
                 models.Q(ended_at__isnull=True) | models.Q(ended_at__gte=window_start)
             )
         )
+
+    def total_active_seconds_for_ticket(self, *, ticket) -> int:
+        aggregate = (
+            self.get_queryset()
+            .for_ticket(ticket)
+            .aggregate(total_seconds=Coalesce(models.Sum("active_seconds"), 0))
+        )
+        return int(aggregate.get("total_seconds") or 0)
 
 
 class TicketTransitionDomainManager(models.Manager):

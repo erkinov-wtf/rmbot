@@ -53,6 +53,7 @@ def test_get_config_bootstraps_defaults(authed_client_factory, rules_context):
     assert payload["active_version"] == 1
     assert payload["config"]["ticket_xp"]["base_divisor"] == 20
     assert payload["config"]["ticket_xp"]["first_pass_bonus"] == 1
+    assert payload["config"]["ticket_xp"]["qc_status_update_xp"] == 1
     assert payload["config"]["work_session"]["daily_pause_limit_minutes"] == 30
     assert payload["config"]["progression"]["weekly_coupon_amount"] == 100000
 
@@ -244,6 +245,7 @@ def test_ticket_xp_formula_uses_active_rules(
     current = RulesService.get_active_rules_config()
     current["ticket_xp"]["base_divisor"] = 10
     current["ticket_xp"]["first_pass_bonus"] = 2
+    current["ticket_xp"]["qc_status_update_xp"] = 3
 
     RulesService.update_rules_config(
         config=current, actor_user_id=actor.id, reason="Formula override"

@@ -107,7 +107,7 @@ class TicketWorkflowService:
         from_status = ticket.mark_qc_pass(finished_at=timezone.now())
         ticket.inventory_item.mark_ready()
 
-        cls.log_ticket_transition(
+        transition = cls.log_ticket_transition(
             ticket=ticket,
             from_status=from_status,
             to_status=ticket.status,
@@ -115,7 +115,11 @@ class TicketWorkflowService:
             actor_user_id=actor_user_id,
         )
 
-        base_divisor, first_pass_bonus = cls._ticket_xp_rules()
+        (
+            base_divisor,
+            first_pass_bonus,
+            qc_status_update_xp,
+        ) = cls._ticket_xp_rules()
         # Base XP comes from resolved ticket metrics (auto/manual), with formula fallback.
         base_xp = cls._base_ticket_xp(ticket=ticket, base_divisor=base_divisor)
         GamificationService.append_xp_entry(
@@ -133,9 +137,19 @@ class TicketWorkflowService:
                 "qc_pass": True,
             },
         )
+        cls._award_qc_status_update_xp(
+            ticket=ticket,
+            transition=transition,
+            actor_user_id=actor_user_id,
+            amount=qc_status_update_xp,
+        )
 
         awarded_first_pass_bonus = 0
-        if not had_rework and first_pass_bonus > 0:
+        if cls._is_first_pass_bonus_eligible(
+            ticket=ticket,
+            had_rework=had_rework,
+            first_pass_bonus=first_pass_bonus,
+        ):
             awarded_first_pass_bonus = first_pass_bonus
             GamificationService.append_xp_entry(
                 user_id=ticket.technician_id,
@@ -147,6 +161,7 @@ class TicketWorkflowService:
                     "ticket_id": ticket.id,
                     "first_pass": True,
                     "first_pass_bonus": first_pass_bonus,
+                    "within_total_duration": True,
                 },
             )
         UserNotificationService.notify_ticket_qc_pass(
@@ -161,12 +176,19 @@ class TicketWorkflowService:
     @transaction.atomic
     def qc_fail_ticket(cls, ticket: Ticket, actor_user_id: int | None = None) -> Ticket:
         from_status = ticket.mark_qc_fail()
-        cls.log_ticket_transition(
+        transition = cls.log_ticket_transition(
             ticket=ticket,
             from_status=from_status,
             to_status=ticket.status,
             action=TicketTransitionAction.QC_FAIL,
             actor_user_id=actor_user_id,
+        )
+        _, _, qc_status_update_xp = cls._ticket_xp_rules()
+        cls._award_qc_status_update_xp(
+            ticket=ticket,
+            transition=transition,
+            actor_user_id=actor_user_id,
+            amount=qc_status_update_xp,
         )
         UserNotificationService.notify_ticket_qc_fail(
             ticket=ticket,
@@ -216,7 +238,7 @@ class TicketWorkflowService:
         )
 
     @staticmethod
-    def _ticket_xp_rules() -> tuple[int, int]:
+    def _ticket_xp_rules() -> tuple[int, int, int]:
         rules = RulesService.get_active_rules_config()
         ticket_rules = rules.get("ticket_xp", {})
         base_divisor = int(ticket_rules.get("base_divisor", 20) or 20)
@@ -225,7 +247,10 @@ class TicketWorkflowService:
         first_pass_bonus = int(ticket_rules.get("first_pass_bonus", 1) or 0)
         if first_pass_bonus < 0:
             first_pass_bonus = 0
-        return base_divisor, first_pass_bonus
+        qc_status_update_xp = int(ticket_rules.get("qc_status_update_xp", 1) or 0)
+        if qc_status_update_xp < 0:
+            qc_status_update_xp = 0
+        return base_divisor, first_pass_bonus, qc_status_update_xp
 
     @staticmethod
     def _base_ticket_xp(*, ticket: Ticket, base_divisor: int) -> int:
@@ -233,3 +258,47 @@ class TicketWorkflowService:
         if resolved_xp > 0:
             return resolved_xp
         return math.ceil((ticket.total_duration or 0) / max(base_divisor, 1))
+
+    @staticmethod
+    def _is_first_pass_bonus_eligible(
+        *,
+        ticket: Ticket,
+        had_rework: bool,
+        first_pass_bonus: int,
+    ) -> bool:
+        if had_rework:
+            return False
+
+        if first_pass_bonus <= 0:
+            return False
+
+        total_duration_minutes = max(int(ticket.total_duration or 0), 0)
+        actual_work_seconds = WorkSession.domain.total_active_seconds_for_ticket(
+            ticket=ticket
+        )
+        return actual_work_seconds <= (total_duration_minutes * 60)
+
+    @staticmethod
+    def _award_qc_status_update_xp(
+        *,
+        ticket: Ticket,
+        transition: TicketTransition,
+        actor_user_id: int | None,
+        amount: int,
+    ) -> None:
+        if not actor_user_id or amount <= 0:
+            return
+
+        GamificationService.append_xp_entry(
+            user_id=actor_user_id,
+            amount=amount,
+            entry_type=XPTransactionEntryType.TICKET_QC_STATUS_UPDATE,
+            reference=f"ticket_qc_status_update:{ticket.id}:{transition.id}",
+            description="QC status update XP",
+            payload={
+                "ticket_id": ticket.id,
+                "ticket_transition_id": transition.id,
+                "qc_action": transition.action,
+                "qc_status_update_xp": amount,
+            },
+        )
