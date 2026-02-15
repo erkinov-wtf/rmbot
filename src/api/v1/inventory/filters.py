@@ -2,26 +2,30 @@ from django.db.models import Q
 from django_filters import rest_framework as filters
 from rest_framework.exceptions import ValidationError
 
-from bike.models import Bike
-from bike.services import BikeService
-from core.utils.constants import BikeStatus
+from core.utils.constants import InventoryItemStatus
+from inventory.models import InventoryItem
+from inventory.services import InventoryItemService
 
 ORDERING_CHOICES = (
     ("created_at", "created_at"),
     ("-created_at", "-created_at"),
     ("updated_at", "updated_at"),
     ("-updated_at", "-updated_at"),
-    ("bike_code", "bike_code"),
-    ("-bike_code", "-bike_code"),
+    ("serial_number", "serial_number"),
+    ("-serial_number", "-serial_number"),
     ("status", "status"),
     ("-status", "-status"),
 )
 
 
-class BikeFilterSet(filters.FilterSet):
+class InventoryItemFilterSet(filters.FilterSet):
     q = filters.CharFilter(method="filter_q")
-    bike_code = filters.CharFilter(method="filter_bike_code")
-    status = filters.ChoiceFilter(field_name="status", choices=BikeStatus.choices)
+    serial_number = filters.CharFilter(method="filter_serial_number")
+    inventory = filters.NumberFilter(field_name="inventory_id")
+    category = filters.NumberFilter(field_name="category_id")
+    status = filters.ChoiceFilter(
+        field_name="status", choices=InventoryItemStatus.choices
+    )
     is_active = filters.BooleanFilter(field_name="is_active")
     has_active_ticket = filters.BooleanFilter(method="filter_has_active_ticket")
     created_from = filters.DateFilter(field_name="created_at__date", lookup_expr="gte")
@@ -31,10 +35,12 @@ class BikeFilterSet(filters.FilterSet):
     ordering = filters.ChoiceFilter(method="filter_ordering", choices=ORDERING_CHOICES)
 
     class Meta:
-        model = Bike
+        model = InventoryItem
         fields = (
             "q",
-            "bike_code",
+            "serial_number",
+            "inventory",
+            "category",
             "status",
             "is_active",
             "has_active_ticket",
@@ -68,21 +74,21 @@ class BikeFilterSet(filters.FilterSet):
         return queryset
 
     def filter_q(self, queryset, name, value):
-        query = BikeService.normalize_bike_code(value)
-        if len(query) < BikeService.SUGGESTION_MIN_CHARS:
+        query = InventoryItemService.normalize_serial_number(value)
+        if len(query) < InventoryItemService.SUGGESTION_MIN_CHARS:
             raise ValidationError({"q": "q must contain at least 2 characters."})
 
-        suggestions = BikeService.suggest_codes(
+        suggestions = InventoryItemService.suggest_serial_numbers(
             query,
-            limit=BikeService.LIST_SEARCH_SUGGESTION_LIMIT,
+            limit=InventoryItemService.LIST_SEARCH_SUGGESTION_LIMIT,
         )
         return queryset.filter(
-            Q(bike_code__icontains=query) | Q(bike_code__in=suggestions)
+            Q(serial_number__icontains=query) | Q(serial_number__in=suggestions)
         )
 
-    def filter_bike_code(self, queryset, name, value):
-        normalized_bike_code = BikeService.normalize_bike_code(value)
-        return queryset.by_code(normalized_bike_code)
+    def filter_serial_number(self, queryset, name, value):
+        normalized_serial_number = InventoryItemService.normalize_serial_number(value)
+        return queryset.by_serial_number(normalized_serial_number)
 
     @staticmethod
     def filter_has_active_ticket(queryset, name, value):

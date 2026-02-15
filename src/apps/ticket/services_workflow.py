@@ -49,7 +49,7 @@ class TicketWorkflowService:
             actor_user_id=actor_user_id,
             started_at=now_dt,
         )
-        ticket.bike.mark_in_service()
+        ticket.inventory_item.mark_in_service()
 
         cls.log_ticket_transition(
             ticket=ticket,
@@ -100,7 +100,7 @@ class TicketWorkflowService:
     def qc_pass_ticket(cls, ticket: Ticket, actor_user_id: int | None = None) -> Ticket:
         had_rework = TicketTransition.domain.has_qc_fail_for_ticket(ticket=ticket)
         from_status = ticket.mark_qc_pass(done_at=timezone.now())
-        ticket.bike.mark_ready()
+        ticket.inventory_item.mark_ready()
 
         cls.log_ticket_transition(
             ticket=ticket,

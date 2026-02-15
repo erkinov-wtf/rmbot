@@ -22,7 +22,7 @@ Documents ticket intake, workflow transitions, QC outcomes, and work-session tim
 - `POST /api/v1/tickets/{id}/assign/`: assign technician.
 - `POST /api/v1/tickets/{id}/start/`: move into `IN_PROGRESS` and auto-start a running work session for the assigned technician.
 - `POST /api/v1/tickets/{id}/to-waiting-qc/`: move to `WAITING_QC` only after the active work session is explicitly stopped.
-- `POST /api/v1/tickets/{id}/qc-pass/`: finalize `DONE`, set bike ready, append XP entries.
+- `POST /api/v1/tickets/{id}/qc-pass/`: finalize `DONE`, set inventory item ready, append XP entries.
 - `POST /api/v1/tickets/{id}/qc-fail/`: move to `REWORK`.
 - `GET /api/v1/tickets/{id}/transitions/`: paginated list of append-only workflow transitions.
 
@@ -34,11 +34,11 @@ Documents ticket intake, workflow transitions, QC outcomes, and work-session tim
 
 ## Validation and Failure Modes
 - Intake constraints:
-  - one active ticket per bike
+  - one active ticket per inventory item
   - one `IN_PROGRESS` ticket per technician
   - checklist minimum item count
-  - unknown bike requires explicit confirm + reason
-  - archived bike code requires restore path, not implicit recreate
+  - unknown serial number requires explicit confirm + reason to create inventory item
+  - archived inventory item serial requires restore path, not implicit recreate
 - Invalid state transitions/session actions -> `400`.
 - Moving to QC while latest work session is not `STOPPED` -> `400`.
 - Unauthorized role for action -> `403`.
@@ -46,7 +46,7 @@ Documents ticket intake, workflow transitions, QC outcomes, and work-session tim
 
 ## Operational Notes
 - Ticket transitions and work-session history are append-only audit streams.
-- `qc-pass` has cross-domain side effects (bike state + XP ledger).
+- `qc-pass` has cross-domain side effects (inventory-item state + XP ledger).
 - Work-session active seconds are derived from transition history, not mutable counters only.
 
 ## Related Code

@@ -21,7 +21,7 @@ from ticket.services_workflow import TicketWorkflowService
 
 class TicketWorkflowViewSet(BaseViewSet):
     serializer_class = TicketAssignSerializer
-    queryset = Ticket.objects.select_related("bike", "master", "technician")
+    queryset = Ticket.objects.select_related("inventory_item", "master", "technician")
 
     def get_permissions(self):
         if self.action == "assign":

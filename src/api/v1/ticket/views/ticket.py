@@ -10,9 +10,11 @@ from ticket.models import Ticket
 
 class TicketViewSet(BaseModelViewSet):
     serializer_class = TicketSerializer
-    queryset = Ticket.objects.select_related("bike", "master", "technician").order_by(
-        "-created_at"
-    )
+    queryset = Ticket.objects.select_related(
+        "inventory_item",
+        "master",
+        "technician",
+    ).order_by("-created_at")
 
     def get_permissions(self):
         if self.action == "create":
@@ -25,9 +27,10 @@ class TicketViewSet(BaseModelViewSet):
         tags=["Tickets / Workflow"],
         summary="Create ticket",
         description=(
-            "Creates a new ticket intake by bike_code with checklist snapshot and "
-            "master-approved SRT, then records the initial workflow transition. "
-            "Unknown bike codes require explicit confirm-create and a reason."
+            "Creates a new ticket intake by inventory-item serial number with "
+            "checklist snapshot and master-approved SRT, then records the initial "
+            "workflow transition. Unknown serials require explicit confirm-create and "
+            "a reason."
         ),
     )
     def create(self, request, *args, **kwargs):
@@ -36,7 +39,9 @@ class TicketViewSet(BaseModelViewSet):
     @extend_schema(
         tags=["Tickets / Workflow"],
         summary="Retrieve ticket",
-        description="Returns a single ticket with bike, master, and technician data.",
+        description=(
+            "Returns a single ticket with inventory item, master, and technician data."
+        ),
     )
     def retrieve(self, request, *args, **kwargs):
         return super().retrieve(request, *args, **kwargs)

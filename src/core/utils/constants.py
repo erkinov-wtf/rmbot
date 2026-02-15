@@ -24,7 +24,7 @@ class AccessRequestStatus(models.TextChoices):
     REJECTED = "rejected", _("Rejected")
 
 
-class BikeStatus(models.TextChoices):
+class InventoryItemStatus(models.TextChoices):
     READY = "ready", _("Ready")
     IN_SERVICE = "in_service", _("In Service")
     RENTED = "rented", _("Rented")

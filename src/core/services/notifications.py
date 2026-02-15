@@ -60,7 +60,7 @@ class UserNotificationService:
             [
                 "Ticket assigned.",
                 f"Ticket: #{ticket.id}",
-                f"Bike: {cls._bike_code(ticket)}",
+                f"Serial number: {cls._serial_number(ticket)}",
                 f"Technician: {cls._display_name_by_user_id(ticket.technician_id)}",
                 f"Assigned by: {cls._display_name_by_user_id(actor_user_id)}",
                 f"Status: {ticket.status}",
@@ -81,7 +81,7 @@ class UserNotificationService:
             [
                 "Ticket work started.",
                 f"Ticket: #{ticket.id}",
-                f"Bike: {cls._bike_code(ticket)}",
+                f"Serial number: {cls._serial_number(ticket)}",
                 f"Technician: {cls._display_name_by_user_id(ticket.technician_id)}",
                 f"Started by: {cls._display_name_by_user_id(actor_user_id)}",
                 f"Status: {ticket.status}",
@@ -102,7 +102,7 @@ class UserNotificationService:
             [
                 "Ticket is waiting for QC.",
                 f"Ticket: #{ticket.id}",
-                f"Bike: {cls._bike_code(ticket)}",
+                f"Serial number: {cls._serial_number(ticket)}",
                 f"Technician: {cls._display_name_by_user_id(ticket.technician_id)}",
                 f"Moved by: {cls._display_name_by_user_id(actor_user_id)}",
                 f"Status: {ticket.status}",
@@ -134,7 +134,7 @@ class UserNotificationService:
             [
                 "Ticket passed QC.",
                 f"Ticket: #{ticket.id}",
-                f"Bike: {cls._bike_code(ticket)}",
+                f"Serial number: {cls._serial_number(ticket)}",
                 f"Technician: {cls._display_name_by_user_id(ticket.technician_id)}",
                 f"QC by: {cls._display_name_by_user_id(actor_user_id)}",
                 f"Status: {ticket.status}",
@@ -156,7 +156,7 @@ class UserNotificationService:
             [
                 "Ticket failed QC and moved to rework.",
                 f"Ticket: #{ticket.id}",
-                f"Bike: {cls._bike_code(ticket)}",
+                f"Serial number: {cls._serial_number(ticket)}",
                 f"Technician: {cls._display_name_by_user_id(ticket.technician_id)}",
                 f"QC by: {cls._display_name_by_user_id(actor_user_id)}",
                 f"Status: {ticket.status}",
@@ -318,6 +318,6 @@ class UserNotificationService:
         return user.username or f"user#{user.id}"
 
     @staticmethod
-    def _bike_code(ticket: Ticket) -> str:
-        bike = getattr(ticket, "bike", None)
-        return getattr(bike, "bike_code", "") or "unknown"
+    def _serial_number(ticket: Ticket) -> str:
+        inventory_item = getattr(ticket, "inventory_item", None)
+        return getattr(inventory_item, "serial_number", "") or "unknown"

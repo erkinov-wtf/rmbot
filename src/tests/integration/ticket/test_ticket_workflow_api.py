@@ -2,7 +2,7 @@ import pytest
 
 from core.services.notifications import UserNotificationService
 from core.utils.constants import (
-    BikeStatus,
+    InventoryItemStatus,
     RoleSlug,
     TicketStatus,
     TicketTransitionAction,
@@ -14,7 +14,9 @@ pytestmark = pytest.mark.django_db
 
 
 @pytest.fixture
-def workflow_context(user_factory, assign_roles, bike_factory, ticket_factory):
+def workflow_context(
+    user_factory, assign_roles, inventory_item_factory, ticket_factory
+):
     master = user_factory(
         username="wf_master",
         first_name="Master",
@@ -47,9 +49,9 @@ def workflow_context(user_factory, assign_roles, bike_factory, ticket_factory):
     assign_roles(other_tech, RoleSlug.TECHNICIAN)
     assign_roles(qc, RoleSlug.QC_INSPECTOR)
 
-    bike = bike_factory(bike_code="RM-WF-0001")
+    inventory_item = inventory_item_factory(serial_number="RM-WF-0001")
     ticket = ticket_factory(
-        bike=bike,
+        inventory_item=inventory_item,
         master=master,
         status=TicketStatus.NEW,
         title="Workflow ticket",
@@ -61,7 +63,7 @@ def workflow_context(user_factory, assign_roles, bike_factory, ticket_factory):
         "tech": tech,
         "other_tech": other_tech,
         "qc": qc,
-        "bike": bike,
+        "inventory_item": inventory_item,
         "ticket": ticket,
     }
 
@@ -100,9 +102,9 @@ def test_only_assigned_technician_can_start(authed_client_factory, workflow_cont
     assert allowed.status_code == 200
 
     ticket.refresh_from_db()
-    workflow_context["bike"].refresh_from_db()
+    workflow_context["inventory_item"].refresh_from_db()
     assert ticket.status == TicketStatus.IN_PROGRESS
-    assert workflow_context["bike"].status == BikeStatus.IN_SERVICE
+    assert workflow_context["inventory_item"].status == InventoryItemStatus.IN_SERVICE
     assert WorkSession.objects.filter(
         ticket=ticket,
         technician=workflow_context["tech"],
@@ -131,13 +133,13 @@ def test_technician_moves_to_waiting_qc(authed_client_factory, workflow_context)
     assert ticket.status == TicketStatus.WAITING_QC
 
 
-def test_qc_pass_marks_done_and_sets_bike_ready(
+def test_qc_pass_marks_done_and_sets_inventory_item_ready(
     authed_client_factory, workflow_context
 ):
     ticket = workflow_context["ticket"]
-    bike = workflow_context["bike"]
-    bike.status = BikeStatus.IN_SERVICE
-    bike.save(update_fields=["status"])
+    inventory_item = workflow_context["inventory_item"]
+    inventory_item.status = InventoryItemStatus.IN_SERVICE
+    inventory_item.save(update_fields=["status"])
     ticket.status = TicketStatus.WAITING_QC
     ticket.technician = workflow_context["tech"]
     ticket.save(update_fields=["status", "technician"])
@@ -147,10 +149,10 @@ def test_qc_pass_marks_done_and_sets_bike_ready(
 
     assert resp.status_code == 200
     ticket.refresh_from_db()
-    bike.refresh_from_db()
+    inventory_item.refresh_from_db()
     assert ticket.status == TicketStatus.DONE
     assert ticket.done_at is not None
-    assert bike.status == BikeStatus.READY
+    assert inventory_item.status == InventoryItemStatus.READY
 
 
 def test_qc_fail_moves_to_rework_then_technician_can_restart(

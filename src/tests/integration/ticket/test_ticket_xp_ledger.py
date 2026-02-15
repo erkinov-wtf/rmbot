@@ -14,7 +14,9 @@ pytestmark = pytest.mark.django_db
 
 
 @pytest.fixture
-def xp_ticket_context(user_factory, assign_roles, bike_factory, ticket_factory):
+def xp_ticket_context(
+    user_factory, assign_roles, inventory_item_factory, ticket_factory
+):
     technician = user_factory(
         username="xp_tech",
         first_name="XP Tech",
@@ -27,11 +29,11 @@ def xp_ticket_context(user_factory, assign_roles, bike_factory, ticket_factory):
         first_name="XP Master",
         email="xp_master@example.com",
     )
-    bike = bike_factory(bike_code="RM-XP-0001")
+    inventory_item = inventory_item_factory(serial_number="RM-XP-0001")
 
     def _make_waiting_qc_ticket(srt_minutes: int = 45):
         return ticket_factory(
-            bike=bike,
+            inventory_item=inventory_item,
             master=master,
             technician=technician,
             status=TicketStatus.WAITING_QC,

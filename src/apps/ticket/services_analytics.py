@@ -9,14 +9,14 @@ from django.utils import timezone
 
 from account.models import User
 from attendance.models import AttendanceRecord
-from bike.models import Bike
 from core.utils.constants import (
-    BikeStatus,
+    InventoryItemStatus,
     RoleSlug,
     TicketStatus,
     TicketTransitionAction,
 )
 from gamification.models import XPLedger
+from inventory.models import InventoryItem
 from ticket.models import Ticket, TicketTransition
 from ticket.services_stockout import StockoutIncidentService
 
@@ -35,18 +35,18 @@ class TicketAnalyticsService:
         )
         now_local = business_window["local_now"]
 
-        bikes_qs = Bike.domain.all()
-        bikes_by_status = dict(
-            bikes_qs.values("status")
+        inventory_items_qs = InventoryItem.domain.all()
+        items_by_status = dict(
+            inventory_items_qs.values("status")
             .annotate(total=Count("id"))
             .values_list("status", "total")
         )
 
-        active_fleet_qs = bikes_qs.filter(is_active=True).exclude(
-            status=BikeStatus.WRITE_OFF
+        active_fleet_qs = inventory_items_qs.filter(is_active=True).exclude(
+            status=InventoryItemStatus.WRITE_OFF
         )
         active_count = active_fleet_qs.count()
-        ready_count = active_fleet_qs.filter(status=BikeStatus.READY).count()
+        ready_count = active_fleet_qs.filter(status=InventoryItemStatus.READY).count()
         availability_pct = (
             round((ready_count / active_count) * 100, 2) if active_count else 0.0
         )
@@ -108,13 +108,13 @@ class TicketAnalyticsService:
             "generated_at": now_utc.isoformat(),
             "local_time": now_local.isoformat(),
             "fleet": {
-                "total": bikes_qs.count(),
+                "total": inventory_items_qs.count(),
                 "active": active_count,
                 "ready": ready_count,
-                "in_service": bikes_by_status.get(BikeStatus.IN_SERVICE, 0),
-                "rented": bikes_by_status.get(BikeStatus.RENTED, 0),
-                "blocked": bikes_by_status.get(BikeStatus.BLOCKED, 0),
-                "write_off": bikes_by_status.get(BikeStatus.WRITE_OFF, 0),
+                "in_service": items_by_status.get(InventoryItemStatus.IN_SERVICE, 0),
+                "rented": items_by_status.get(InventoryItemStatus.RENTED, 0),
+                "blocked": items_by_status.get(InventoryItemStatus.BLOCKED, 0),
+                "write_off": items_by_status.get(InventoryItemStatus.WRITE_OFF, 0),
             },
             "tickets": {
                 "active_total": active_tickets_qs.count(),

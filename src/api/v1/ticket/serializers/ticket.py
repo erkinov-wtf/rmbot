@@ -2,19 +2,23 @@ from django.db import IntegrityError
 from django.utils import timezone
 from rest_framework import serializers
 
-from bike.models import Bike
-from bike.services import BikeService
+from inventory.models import InventoryItem
+from inventory.services import InventoryItemService
 from ticket.models import Ticket
 
 
 class TicketSerializer(serializers.ModelSerializer):
-    bike = serializers.PrimaryKeyRelatedField(read_only=True)
-    bike_code = serializers.CharField(write_only=True, required=True)
-    confirm_create_bike = serializers.BooleanField(
-        write_only=True, required=False, default=False
+    inventory_item = serializers.PrimaryKeyRelatedField(read_only=True)
+    serial_number = serializers.CharField(write_only=True, required=True)
+    confirm_create_inventory_item = serializers.BooleanField(
+        write_only=True,
+        required=False,
+        default=False,
     )
-    bike_creation_reason = serializers.CharField(
-        write_only=True, required=False, allow_blank=False
+    inventory_item_creation_reason = serializers.CharField(
+        write_only=True,
+        required=False,
+        allow_blank=False,
     )
     checklist_snapshot = serializers.JSONField(required=True)
     srt_total_minutes = serializers.IntegerField(required=True)
@@ -24,10 +28,10 @@ class TicketSerializer(serializers.ModelSerializer):
         model = Ticket
         fields = (
             "id",
-            "bike",
-            "bike_code",
-            "confirm_create_bike",
-            "bike_creation_reason",
+            "inventory_item",
+            "serial_number",
+            "confirm_create_inventory_item",
+            "inventory_item_creation_reason",
             "master",
             "technician",
             "title",
@@ -46,7 +50,7 @@ class TicketSerializer(serializers.ModelSerializer):
         )
         read_only_fields = (
             "id",
-            "bike",
+            "inventory_item",
             "master",
             "status",
             "assigned_at",
@@ -87,56 +91,70 @@ class TicketSerializer(serializers.ModelSerializer):
         return value
 
     def validate(self, attrs):
-        raw_bike_code = attrs.get("bike_code", "")
-        bike_code = BikeService.normalize_bike_code(raw_bike_code)
-        if not BikeService.is_valid_bike_code(bike_code):
+        raw_serial_number = attrs.get("serial_number", "")
+        serial_number = InventoryItemService.normalize_serial_number(raw_serial_number)
+        if not InventoryItemService.is_valid_serial_number(serial_number):
             raise serializers.ValidationError(
-                {"bike_code": ("bike_code must match pattern RM-[A-Z0-9-]{4,29}.")}
+                {
+                    "serial_number": (
+                        "serial_number must match pattern RM-[A-Z0-9-]{4,29}."
+                    )
+                }
             )
-        attrs["bike_code"] = bike_code
+        attrs["serial_number"] = serial_number
 
-        bike = BikeService.get_by_code(bike_code)
-        if bike is None:
-            archived_bike = Bike.all_objects.filter(
-                bike_code__iexact=bike_code,
+        inventory_item = InventoryItemService.get_by_serial_number(serial_number)
+        if inventory_item is None:
+            archived_inventory_item = InventoryItem.all_objects.filter(
+                serial_number__iexact=serial_number,
                 deleted_at__isnull=False,
             ).first()
-            if archived_bike is not None:
+            if archived_inventory_item is not None:
                 raise serializers.ValidationError(
                     {
-                        "bike_code": (
-                            f"Bike '{bike_code}' is archived. Restore the existing bike "
-                            "before creating a ticket."
+                        "serial_number": (
+                            f"Inventory item '{serial_number}' is archived. Restore "
+                            "the existing item before creating a ticket."
                         )
                     }
                 )
 
-            suggestions = BikeService.suggest_codes(bike_code)
-            if not attrs.get("confirm_create_bike"):
+            suggestions = InventoryItemService.suggest_serial_numbers(serial_number)
+            if not attrs.get("confirm_create_inventory_item"):
                 message = (
-                    f"Bike '{bike_code}' was not found. "
-                    "Set confirm_create_bike=true and provide bike_creation_reason to create it."
+                    f"Inventory item '{serial_number}' was not found. "
+                    "Set confirm_create_inventory_item=true and provide "
+                    "inventory_item_creation_reason to create it."
                 )
                 if suggestions:
                     message += f" Closest matches: {', '.join(suggestions)}."
-                raise serializers.ValidationError({"bike_code": message})
-            if not attrs.get("bike_creation_reason"):
+                raise serializers.ValidationError({"serial_number": message})
+            if not attrs.get("inventory_item_creation_reason"):
                 raise serializers.ValidationError(
                     {
-                        "bike_creation_reason": (
-                            "bike_creation_reason is required when confirm_create_bike=true."
+                        "inventory_item_creation_reason": (
+                            "inventory_item_creation_reason is required when "
+                            "confirm_create_inventory_item=true."
                         )
                     }
                 )
-            attrs["_create_bike"] = True
-            attrs["_bike_creation_reason"] = attrs["bike_creation_reason"].strip()
+            attrs["_create_inventory_item"] = True
+            attrs["_inventory_item_creation_reason"] = attrs[
+                "inventory_item_creation_reason"
+            ].strip()
         else:
-            attrs["bike"] = bike
-            attrs["_create_bike"] = False
-            attrs["_bike_creation_reason"] = None
-            if Ticket.domain.has_active_for_bike(bike=bike):
+            attrs["inventory_item"] = inventory_item
+            attrs["_create_inventory_item"] = False
+            attrs["_inventory_item_creation_reason"] = None
+            if Ticket.domain.has_active_for_inventory_item(
+                inventory_item=inventory_item
+            ):
                 raise serializers.ValidationError(
-                    {"bike_code": "An active ticket already exists for this bike."}
+                    {
+                        "serial_number": (
+                            "An active ticket already exists for this inventory item."
+                        )
+                    }
                 )
         if not attrs.get("approve_srt"):
             raise serializers.ValidationError(
@@ -145,56 +163,75 @@ class TicketSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
-        bike_code = validated_data.pop("bike_code")
-        validated_data.pop("confirm_create_bike", None)
-        validated_data.pop("bike_creation_reason", None)
-        create_bike = bool(validated_data.pop("_create_bike", False))
-        bike_creation_reason = validated_data.pop("_bike_creation_reason", None)
+        serial_number = validated_data.pop("serial_number")
+        validated_data.pop("confirm_create_inventory_item", None)
+        validated_data.pop("inventory_item_creation_reason", None)
+        create_inventory_item = bool(
+            validated_data.pop("_create_inventory_item", False)
+        )
+        inventory_item_creation_reason = validated_data.pop(
+            "_inventory_item_creation_reason", None
+        )
 
-        self._resolved_bike_code = bike_code
-        self._bike_created_during_intake = False
-        self._bike_creation_reason = None
+        self._resolved_serial_number = serial_number
+        self._inventory_item_created_during_intake = False
+        self._inventory_item_creation_reason = None
 
-        if create_bike:
+        if create_inventory_item:
+            default_inventory = InventoryItemService.get_default_inventory()
+            default_category = InventoryItemService.get_default_category()
             try:
-                bike, created = Bike.objects.get_or_create(
-                    bike_code=bike_code,
-                    defaults={"is_active": True},
+                inventory_item, created = InventoryItem.objects.get_or_create(
+                    serial_number=serial_number,
+                    defaults={
+                        "name": serial_number,
+                        "inventory": default_inventory,
+                        "category": default_category,
+                        "is_active": True,
+                    },
                 )
             except IntegrityError:
-                archived_bike = Bike.all_objects.filter(
-                    bike_code__iexact=bike_code,
+                archived_inventory_item = InventoryItem.all_objects.filter(
+                    serial_number__iexact=serial_number,
                     deleted_at__isnull=False,
                 ).first()
-                if archived_bike is not None:
+                if archived_inventory_item is not None:
                     raise serializers.ValidationError(
                         {
-                            "bike_code": (
-                                f"Bike '{bike_code}' is archived. Restore the existing bike "
-                                "before creating a ticket."
+                            "serial_number": (
+                                f"Inventory item '{serial_number}' is archived. "
+                                "Restore the existing item before creating a ticket."
                             )
                         }
                     ) from None
 
-                bike = BikeService.get_by_code(bike_code)
-                if bike is None:
+                inventory_item = InventoryItemService.get_by_serial_number(
+                    serial_number
+                )
+                if inventory_item is None:
                     raise serializers.ValidationError(
                         {
-                            "bike_code": (
-                                "bike_code conflict detected while creating the bike. "
-                                "Retry the request."
+                            "serial_number": (
+                                "serial_number conflict detected while creating the "
+                                "inventory item. Retry the request."
                             )
                         }
                     ) from None
                 created = False
 
-            if Ticket.domain.has_active_for_bike(bike=bike):
+            if Ticket.domain.has_active_for_inventory_item(
+                inventory_item=inventory_item
+            ):
                 raise serializers.ValidationError(
-                    {"bike_code": "An active ticket already exists for this bike."}
+                    {
+                        "serial_number": (
+                            "An active ticket already exists for this inventory item."
+                        )
+                    }
                 )
-            validated_data["bike"] = bike
-            self._bike_created_during_intake = created
-            self._bike_creation_reason = bike_creation_reason
+            validated_data["inventory_item"] = inventory_item
+            self._inventory_item_created_during_intake = created
+            self._inventory_item_creation_reason = inventory_item_creation_reason
 
         validated_data.pop("approve_srt", None)
         request = self.context.get("request")
@@ -205,11 +242,15 @@ class TicketSerializer(serializers.ModelSerializer):
 
     def get_intake_metadata(self) -> dict[str, object]:
         return {
-            "bike_code": getattr(self, "_resolved_bike_code", None),
-            "bike_created_during_intake": bool(
-                getattr(self, "_bike_created_during_intake", False)
+            "serial_number": getattr(self, "_resolved_serial_number", None),
+            "inventory_item_created_during_intake": bool(
+                getattr(self, "_inventory_item_created_during_intake", False)
             ),
-            "bike_creation_reason": getattr(self, "_bike_creation_reason", None),
+            "inventory_item_creation_reason": getattr(
+                self,
+                "_inventory_item_creation_reason",
+                None,
+            ),
         }
 
     @staticmethod

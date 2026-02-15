@@ -3,7 +3,11 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from core.utils.constants import BikeStatus, TicketStatus, TicketTransitionAction
+from core.utils.constants import (
+    InventoryItemStatus,
+    TicketStatus,
+    TicketTransitionAction,
+)
 from rules.services import RulesService
 from ticket.models import StockoutIncident, TicketTransition
 from ticket.services_stockout import StockoutIncidentService
@@ -14,9 +18,13 @@ BUSINESS_TZ = ZoneInfo("Asia/Tashkent")
 
 
 def test_stockout_detector_starts_and_resolves_incident(
-    bike_factory,
+    inventory_item_factory,
 ):
-    bike_factory(bike_code="RM-SO-0001", status=BikeStatus.IN_SERVICE, is_active=True)
+    inventory_item_factory(
+        serial_number="RM-SO-0001",
+        status=InventoryItemStatus.IN_SERVICE,
+        is_active=True,
+    )
 
     started_at = datetime(2026, 2, 9, 11, 0, tzinfo=BUSINESS_TZ)
     started_summary = StockoutIncidentService.detect_and_sync(now_utc=started_at)
@@ -26,7 +34,9 @@ def test_stockout_detector_starts_and_resolves_incident(
     assert incident.is_active is True
     assert incident.ended_at is None
 
-    bike_factory(bike_code="RM-SO-0002", status=BikeStatus.READY, is_active=True)
+    inventory_item_factory(
+        serial_number="RM-SO-0002", status=InventoryItemStatus.READY, is_active=True
+    )
     resolved_at = started_at + timedelta(minutes=17)
     resolved_summary = StockoutIncidentService.detect_and_sync(now_utc=resolved_at)
     assert resolved_summary["action"] == "resolved"
@@ -38,9 +48,11 @@ def test_stockout_detector_starts_and_resolves_incident(
 
 
 def test_stockout_detector_ignores_non_business_window(
-    bike_factory,
+    inventory_item_factory,
 ):
-    bike_factory(bike_code="RM-SO-1001", status=BikeStatus.BLOCKED, is_active=True)
+    inventory_item_factory(
+        serial_number="RM-SO-1001", status=InventoryItemStatus.BLOCKED, is_active=True
+    )
 
     non_business_time = datetime(2026, 2, 9, 21, 30, tzinfo=BUSINESS_TZ)
     summary = StockoutIncidentService.detect_and_sync(now_utc=non_business_time)
@@ -50,9 +62,11 @@ def test_stockout_detector_ignores_non_business_window(
 
 
 def test_stockout_detector_ignores_non_working_weekday(
-    bike_factory,
+    inventory_item_factory,
 ):
-    bike_factory(bike_code="RM-SO-1002", status=BikeStatus.BLOCKED, is_active=True)
+    inventory_item_factory(
+        serial_number="RM-SO-1002", status=InventoryItemStatus.BLOCKED, is_active=True
+    )
 
     sunday_business_hour = datetime(2026, 2, 8, 11, 0, tzinfo=BUSINESS_TZ)
     summary = StockoutIncidentService.detect_and_sync(now_utc=sunday_business_hour)
@@ -63,7 +77,7 @@ def test_stockout_detector_ignores_non_working_weekday(
 
 
 def test_stockout_detector_ignores_configured_holiday(
-    bike_factory,
+    inventory_item_factory,
     user_factory,
 ):
     actor = user_factory(
@@ -79,7 +93,9 @@ def test_stockout_detector_ignores_configured_holiday(
         reason="Mark holiday for stockout detector test",
     )
 
-    bike_factory(bike_code="RM-SO-1003", status=BikeStatus.BLOCKED, is_active=True)
+    inventory_item_factory(
+        serial_number="RM-SO-1003", status=InventoryItemStatus.BLOCKED, is_active=True
+    )
     holiday_business_hour = datetime(2026, 2, 10, 11, 0, tzinfo=BUSINESS_TZ)
     summary = StockoutIncidentService.detect_and_sync(now_utc=holiday_business_hour)
 
@@ -90,7 +106,7 @@ def test_stockout_detector_ignores_configured_holiday(
 
 def test_monthly_sla_snapshot_contains_qc_and_stockout_stats(
     ticket_factory,
-    bike_factory,
+    inventory_item_factory,
     user_factory,
 ):
     master = user_factory(
@@ -104,14 +120,14 @@ def test_monthly_sla_snapshot_contains_qc_and_stockout_stats(
         email="stockout_technician@example.com",
     )
     first_pass_ticket = ticket_factory(
-        bike=bike_factory(bike_code="RM-SLA-0001"),
+        inventory_item=inventory_item_factory(serial_number="RM-SLA-0001"),
         master=master,
         technician=technician,
         status=TicketStatus.DONE,
         done_at=datetime(2026, 1, 8, 14, 0, tzinfo=BUSINESS_TZ),
     )
     rework_ticket = ticket_factory(
-        bike=bike_factory(bike_code="RM-SLA-0002"),
+        inventory_item=inventory_item_factory(serial_number="RM-SLA-0002"),
         master=master,
         technician=technician,
         status=TicketStatus.DONE,

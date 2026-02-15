@@ -8,7 +8,12 @@ import pytest
 from rest_framework.test import APIClient
 
 from account.models import TelegramProfile
-from core.utils.constants import BikeStatus, RoleSlug, TicketStatus, WorkSessionStatus
+from core.utils.constants import (
+    InventoryItemStatus,
+    RoleSlug,
+    TicketStatus,
+    WorkSessionStatus,
+)
 from ticket.models import WorkSession
 
 pytestmark = pytest.mark.django_db
@@ -58,7 +63,7 @@ def test_tma_e2e_master_to_technician_to_qc(
     tma_settings,
     user_factory,
     assign_roles,
-    bike_factory,
+    inventory_item_factory,
 ):
     master = user_factory(
         username="tma_master",
@@ -122,14 +127,14 @@ def test_tma_e2e_master_to_technician_to_qc(
         },
     )
 
-    bike = bike_factory(
-        bike_code="RM-TMA-0001", status=BikeStatus.READY, is_active=True
+    inventory_item = inventory_item_factory(
+        serial_number="RM-TMA-0001", status=InventoryItemStatus.READY, is_active=True
     )
 
     create = master_client.post(
         "/api/v1/tickets/create/",
         {
-            "bike_code": bike.bike_code,
+            "serial_number": inventory_item.serial_number,
             "title": "TMA E2E flow ticket",
             "checklist_snapshot": [f"Task {idx}" for idx in range(1, 11)],
             "srt_total_minutes": 45,

@@ -6,8 +6,8 @@ from zoneinfo import ZoneInfo
 from django.db import transaction
 from django.utils import timezone
 
-from bike.models import Bike
 from core.utils.constants import TicketStatus, TicketTransitionAction
+from inventory.models import InventoryItem
 from rules.services import RulesService
 from ticket.models import StockoutIncident, Ticket, TicketTransition
 
@@ -126,8 +126,8 @@ class StockoutIncidentService:
         }
 
     @staticmethod
-    def _ready_active_bike_count() -> int:
-        return Bike.domain.ready_active_count()
+    def _ready_active_inventory_item_count() -> int:
+        return InventoryItem.domain.ready_active_count()
 
     @classmethod
     @transaction.atomic
@@ -135,7 +135,7 @@ class StockoutIncidentService:
         now = now_utc or timezone.now()
         window_context = cls.business_window_context(now_utc=now)
         in_business_window = bool(window_context["in_business_window"])
-        ready_count = cls._ready_active_bike_count()
+        ready_count = cls._ready_active_inventory_item_count()
 
         active_incident = StockoutIncident.domain.latest_active_for_update()
 

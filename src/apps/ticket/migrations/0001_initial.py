@@ -9,7 +9,7 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ("bike", "0001_initial"),
+        ("inventory", "0001_initial"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
@@ -67,11 +67,11 @@ class Migration(migrations.Migration):
                 ("started_at", models.DateTimeField(blank=True, null=True)),
                 ("done_at", models.DateTimeField(blank=True, null=True)),
                 (
-                    "bike",
+                    "inventory_item",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.PROTECT,
                         related_name="tickets",
-                        to="bike.bike",
+                        to="inventory.inventoryitem",
                     ),
                 ),
                 (
@@ -119,8 +119,8 @@ class Migration(migrations.Migration):
                                 ],
                             ),
                         ),
-                        fields=("bike",),
-                        name="unique_active_ticket_per_bike",
+                        fields=("inventory_item",),
+                        name="unique_active_ticket_per_inventory_item",
                     ),
                     models.UniqueConstraint(
                         condition=models.Q(

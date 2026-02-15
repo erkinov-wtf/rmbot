@@ -7,7 +7,9 @@ from ticket.models import Ticket
 pytestmark = pytest.mark.django_db
 
 
-def test_enforces_one_active_ticket_per_bike(user_factory, bike_factory):
+def test_enforces_one_active_ticket_per_inventory_item(
+    user_factory, inventory_item_factory
+):
     master = user_factory(
         username="master_user",
         first_name="Master",
@@ -18,10 +20,10 @@ def test_enforces_one_active_ticket_per_bike(user_factory, bike_factory):
         first_name="Tech",
         email="tech@example.com",
     )
-    bike_a = bike_factory(bike_code="RM-0001")
+    inventory_item_a = inventory_item_factory(serial_number="RM-0001")
 
     Ticket.objects.create(
-        bike=bike_a,
+        inventory_item=inventory_item_a,
         master=master,
         status=TicketStatus.NEW,
         title="Initial intake",
@@ -30,7 +32,7 @@ def test_enforces_one_active_ticket_per_bike(user_factory, bike_factory):
     with pytest.raises(IntegrityError):
         with transaction.atomic():
             Ticket.objects.create(
-                bike=bike_a,
+                inventory_item=inventory_item_a,
                 master=master,
                 status=TicketStatus.ASSIGNED,
                 technician=technician,
@@ -38,7 +40,7 @@ def test_enforces_one_active_ticket_per_bike(user_factory, bike_factory):
             )
 
 
-def test_enforces_wip_one_per_technician(user_factory, bike_factory):
+def test_enforces_wip_one_per_technician(user_factory, inventory_item_factory):
     master = user_factory(
         username="master_user2",
         first_name="Master",
@@ -49,11 +51,11 @@ def test_enforces_wip_one_per_technician(user_factory, bike_factory):
         first_name="Tech",
         email="tech2@example.com",
     )
-    bike_a = bike_factory(bike_code="RM-0002")
-    bike_b = bike_factory(bike_code="RM-0003")
+    inventory_item_a = inventory_item_factory(serial_number="RM-0002")
+    inventory_item_b = inventory_item_factory(serial_number="RM-0003")
 
     Ticket.objects.create(
-        bike=bike_a,
+        inventory_item=inventory_item_a,
         master=master,
         technician=technician,
         status=TicketStatus.IN_PROGRESS,
@@ -63,7 +65,7 @@ def test_enforces_wip_one_per_technician(user_factory, bike_factory):
     with pytest.raises(IntegrityError):
         with transaction.atomic():
             Ticket.objects.create(
-                bike=bike_b,
+                inventory_item=inventory_item_b,
                 master=master,
                 technician=technician,
                 status=TicketStatus.IN_PROGRESS,

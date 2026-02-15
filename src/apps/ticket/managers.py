@@ -26,8 +26,8 @@ class TicketQuerySet(models.QuerySet):
     def in_progress(self):
         return self.filter(status=TicketStatus.IN_PROGRESS)
 
-    def for_bike(self, bike):
-        return self.filter(bike=bike)
+    def for_inventory_item(self, inventory_item):
+        return self.filter(inventory_item=inventory_item)
 
     def for_technician(self, *, technician_id: int):
         return self.filter(technician_id=technician_id)
@@ -37,8 +37,13 @@ class TicketDomainManager(models.Manager.from_queryset(TicketQuerySet)):
     def get_queryset(self):
         return super().get_queryset().filter(deleted_at__isnull=True)
 
-    def has_active_for_bike(self, *, bike) -> bool:
-        return self.get_queryset().for_bike(bike).active_workflow().exists()
+    def has_active_for_inventory_item(self, *, inventory_item) -> bool:
+        return (
+            self.get_queryset()
+            .for_inventory_item(inventory_item)
+            .active_workflow()
+            .exists()
+        )
 
     def has_in_progress_for_technician(self, *, technician_id: int) -> bool:
         return (

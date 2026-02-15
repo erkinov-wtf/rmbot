@@ -15,7 +15,9 @@ pytestmark = pytest.mark.django_db
 
 
 @pytest.fixture
-def work_session_context(user_factory, assign_roles, bike_factory, ticket_factory):
+def work_session_context(
+    user_factory, assign_roles, inventory_item_factory, ticket_factory
+):
     master = user_factory(
         username="ws_master",
         first_name="Master",
@@ -35,9 +37,9 @@ def work_session_context(user_factory, assign_roles, bike_factory, ticket_factor
     assign_roles(tech, RoleSlug.TECHNICIAN)
     assign_roles(other_tech, RoleSlug.TECHNICIAN)
 
-    bike = bike_factory(bike_code="RM-WS-0001")
+    inventory_item = inventory_item_factory(serial_number="RM-WS-0001")
     ticket = ticket_factory(
-        bike=bike,
+        inventory_item=inventory_item,
         master=master,
         technician=tech,
         status=TicketStatus.ASSIGNED,

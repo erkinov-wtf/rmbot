@@ -16,7 +16,7 @@ from ticket.models import (
 class TicketAdmin(BaseModelAdmin):
     list_display = (
         "id",
-        "bike",
+        "inventory_item",
         "master",
         "technician",
         "status",
@@ -26,7 +26,7 @@ class TicketAdmin(BaseModelAdmin):
     list_filter = ("status",)
     search_fields = (
         "id",
-        "bike__bike_code",
+        "inventory_item__serial_number",
         "master__username",
         "technician__username",
     )

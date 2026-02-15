@@ -233,7 +233,7 @@ def test_invalid_stockout_calendar_rules_rejected(authed_client_factory, rules_c
 
 
 def test_ticket_xp_formula_uses_active_rules(
-    rules_context, bike_factory, ticket_factory, user_factory
+    rules_context, inventory_item_factory, ticket_factory, user_factory
 ):
     actor = rules_context["super_admin"]
     current = RulesService.get_active_rules_config()
@@ -249,9 +249,9 @@ def test_ticket_xp_formula_uses_active_rules(
         first_name="Rules Tech",
         email="rules_xp_tech@example.com",
     )
-    bike = bike_factory(bike_code="RM-RULES-0001")
+    inventory_item = inventory_item_factory(serial_number="RM-RULES-0001")
     ticket = ticket_factory(
-        bike=bike,
+        inventory_item=inventory_item,
         master=actor,
         technician=technician,
         status=TicketStatus.WAITING_QC,

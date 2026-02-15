@@ -16,7 +16,7 @@ from ticket.services_work_session import TicketWorkSessionService
 
 class TicketWorkSessionViewSet(BaseViewSet):
     serializer_class = WorkSessionSerializer
-    queryset = Ticket.objects.select_related("bike", "master", "technician")
+    queryset = Ticket.objects.select_related("inventory_item", "master", "technician")
 
     def get_permissions(self):
         if self.action in {"pause", "resume", "stop"}:

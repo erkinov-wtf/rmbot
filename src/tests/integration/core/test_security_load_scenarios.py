@@ -44,7 +44,7 @@ def test_rbac_bypass_burst_cannot_assign_ticket(
     authed_client_factory,
     user_factory,
     assign_roles,
-    bike_factory,
+    inventory_item_factory,
     ticket_factory,
 ):
     master = user_factory(
@@ -67,7 +67,7 @@ def test_rbac_bypass_burst_cannot_assign_ticket(
     assign_roles(technician, RoleSlug.TECHNICIAN)
 
     ticket = ticket_factory(
-        bike=bike_factory(bike_code="RM-RBAC-0001"),
+        inventory_item=inventory_item_factory(serial_number="RM-RBAC-0001"),
         master=master,
         status=TicketStatus.NEW,
         title="RBAC test",

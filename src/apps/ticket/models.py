@@ -35,8 +35,10 @@ ACTIVE_TICKET_STATUSES = [
 class Ticket(TimestampedModel, SoftDeleteModel):
     domain = TicketDomainManager()
 
-    bike = models.ForeignKey(
-        "bike.Bike", on_delete=models.PROTECT, related_name="tickets"
+    inventory_item = models.ForeignKey(
+        "inventory.InventoryItem",
+        on_delete=models.PROTECT,
+        related_name="tickets",
     )
     master = models.ForeignKey(
         "account.User", on_delete=models.PROTECT, related_name="created_tickets"
@@ -77,11 +79,11 @@ class Ticket(TimestampedModel, SoftDeleteModel):
         ]
         constraints = [
             models.UniqueConstraint(
-                fields=["bike"],
+                fields=["inventory_item"],
                 condition=models.Q(
                     status__in=ACTIVE_TICKET_STATUSES, deleted_at__isnull=True
                 ),
-                name="unique_active_ticket_per_bike",
+                name="unique_active_ticket_per_inventory_item",
             ),
             models.UniqueConstraint(
                 fields=["technician"],
@@ -187,7 +189,7 @@ class Ticket(TimestampedModel, SoftDeleteModel):
         )
 
     def __str__(self) -> str:
-        return f"Ticket#{self.pk} {self.bike.bike_code} [{self.status}]"
+        return f"Ticket#{self.pk} {self.inventory_item.serial_number} [{self.status}]"
 
 
 class StockoutIncident(TimestampedModel):

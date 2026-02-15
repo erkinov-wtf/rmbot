@@ -11,6 +11,11 @@ Centralized user-facing notification orchestration for cross-domain events, curr
 - `notify_ticket_qc_pass`: QC pass/closure + XP summary to master + technician.
 - `notify_ticket_qc_fail`: QC fail/rework update to master + technician.
 
+Ticket workflow notifications include:
+- ticket id,
+- inventory item serial number (from `ticket.inventory_item.serial_number`),
+- actor and relevant assignee/QC context.
+
 ## Recipient Resolution Rules
 - User-recipient notifications resolve through active `User` rows and linked active `TelegramProfile` rows.
 - Role-recipient notifications resolve users by role slug (`qc_inspector`) and then map to Telegram IDs.

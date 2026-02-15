@@ -5,8 +5,9 @@ import pytest
 from rest_framework.test import APIClient
 
 from account.models import Role, User
-from bike.models import Bike
 from core.utils.constants import RoleSlug, TicketStatus
+from inventory.models import InventoryItem
+from inventory.services import InventoryItemService
 from ticket.models import Ticket
 
 ROLE_NAMES = {
@@ -74,23 +75,44 @@ def assign_roles(role_factory) -> Callable[..., User]:
 
 
 @pytest.fixture
-def bike_factory(db) -> Callable[..., Bike]:
+def inventory_item_factory(db) -> Callable[..., InventoryItem]:
     seq = itertools.count(1000)
 
-    def _create_bike(**overrides) -> Bike:
-        code = overrides.pop("bike_code", f"RM-{next(seq):04d}")
-        return Bike.objects.create(bike_code=code, **overrides)
+    def _create_inventory_item(**overrides) -> InventoryItem:
+        serial_number = overrides.pop(
+            "serial_number",
+            overrides.pop("serial_number", f"RM-{next(seq):04d}"),
+        )
+        inventory = overrides.pop(
+            "inventory",
+            InventoryItemService.get_default_inventory(),
+        )
+        category = overrides.pop(
+            "category",
+            InventoryItemService.get_default_category(),
+        )
+        name = overrides.pop("name", serial_number)
+        return InventoryItem.objects.create(
+            serial_number=serial_number,
+            name=name,
+            inventory=inventory,
+            category=category,
+            **overrides,
+        )
 
-    return _create_bike
+    return _create_inventory_item
 
 
 @pytest.fixture
-def ticket_factory(db, bike_factory, user_factory) -> Callable[..., Ticket]:
+def ticket_factory(db, inventory_item_factory, user_factory) -> Callable[..., Ticket]:
     def _create_ticket(**overrides) -> Ticket:
-        bike = overrides.pop("bike", bike_factory())
+        inventory_item = overrides.pop(
+            "inventory_item",
+            overrides.pop("inventory", inventory_item_factory()),
+        )
         master = overrides.pop("master", user_factory(first_name="Master"))
         payload = {
-            "bike": bike,
+            "inventory_item": inventory_item,
             "master": master,
             "status": overrides.pop("status", TicketStatus.NEW),
             "title": overrides.pop("title", "Ticket"),

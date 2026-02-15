@@ -5,7 +5,7 @@ from django.utils import timezone
 
 from attendance.models import AttendanceRecord
 from core.utils.constants import (
-    BikeStatus,
+    InventoryItemStatus,
     RoleSlug,
     TicketStatus,
     TicketTransitionAction,
@@ -71,28 +71,34 @@ def test_analytics_endpoints_require_ops_or_super_admin(
 
 
 def test_fleet_analytics_returns_operational_counters(
-    authed_client_factory, analytics_users, bike_factory
+    authed_client_factory, analytics_users, inventory_item_factory
 ):
     master = analytics_users["master"]
     technician = analytics_users["technician"]
 
-    bike_ready = bike_factory(
-        bike_code="RM-FA-0001", status=BikeStatus.READY, is_active=True
+    inventory_item_ready = inventory_item_factory(
+        serial_number="RM-FA-0001", status=InventoryItemStatus.READY, is_active=True
     )
-    bike_in_service = bike_factory(
-        bike_code="RM-FA-0002", status=BikeStatus.IN_SERVICE, is_active=True
+    inventory_item_in_service = inventory_item_factory(
+        serial_number="RM-FA-0002",
+        status=InventoryItemStatus.IN_SERVICE,
+        is_active=True,
     )
-    bike_waiting_qc = bike_factory(
-        bike_code="RM-FA-0003", status=BikeStatus.READY, is_active=True
+    inventory_item_waiting_qc = inventory_item_factory(
+        serial_number="RM-FA-0003", status=InventoryItemStatus.READY, is_active=True
     )
-    bike_done = bike_factory(
-        bike_code="RM-FA-0004", status=BikeStatus.READY, is_active=True
+    inventory_item_done = inventory_item_factory(
+        serial_number="RM-FA-0004", status=InventoryItemStatus.READY, is_active=True
     )
-    bike_factory(bike_code="RM-FA-0005", status=BikeStatus.WRITE_OFF, is_active=True)
-    bike_factory(bike_code="RM-FA-0006", status=BikeStatus.READY, is_active=False)
+    inventory_item_factory(
+        serial_number="RM-FA-0005", status=InventoryItemStatus.WRITE_OFF, is_active=True
+    )
+    inventory_item_factory(
+        serial_number="RM-FA-0006", status=InventoryItemStatus.READY, is_active=False
+    )
 
     Ticket.objects.create(
-        bike=bike_ready,
+        inventory_item=inventory_item_ready,
         master=master,
         technician=technician,
         status=TicketStatus.NEW,
@@ -100,7 +106,7 @@ def test_fleet_analytics_returns_operational_counters(
         flag_minutes=10,
     )
     Ticket.objects.create(
-        bike=bike_in_service,
+        inventory_item=inventory_item_in_service,
         master=master,
         technician=technician,
         status=TicketStatus.IN_PROGRESS,
@@ -108,7 +114,7 @@ def test_fleet_analytics_returns_operational_counters(
         flag_minutes=75,
     )
     Ticket.objects.create(
-        bike=bike_waiting_qc,
+        inventory_item=inventory_item_waiting_qc,
         master=master,
         technician=technician,
         status=TicketStatus.WAITING_QC,
@@ -116,7 +122,7 @@ def test_fleet_analytics_returns_operational_counters(
         flag_minutes=130,
     )
     Ticket.objects.create(
-        bike=bike_done,
+        inventory_item=inventory_item_done,
         master=master,
         technician=technician,
         status=TicketStatus.DONE,
@@ -154,14 +160,14 @@ def test_fleet_analytics_returns_operational_counters(
 
 
 def test_fleet_analytics_returns_qc_trend_and_totals(
-    authed_client_factory, analytics_users, bike_factory
+    authed_client_factory, analytics_users, inventory_item_factory
 ):
     master = analytics_users["master"]
     technician = analytics_users["technician"]
     now = timezone.now()
 
     first_pass_ticket = Ticket.objects.create(
-        bike=bike_factory(bike_code="RM-QC-0001"),
+        inventory_item=inventory_item_factory(serial_number="RM-QC-0001"),
         master=master,
         technician=technician,
         status=TicketStatus.DONE,
@@ -170,7 +176,7 @@ def test_fleet_analytics_returns_qc_trend_and_totals(
         flag_minutes=15,
     )
     rework_ticket = Ticket.objects.create(
-        bike=bike_factory(bike_code="RM-QC-0002"),
+        inventory_item=inventory_item_factory(serial_number="RM-QC-0002"),
         master=master,
         technician=technician,
         status=TicketStatus.DONE,
@@ -217,14 +223,14 @@ def test_fleet_analytics_returns_qc_trend_and_totals(
 
 
 def test_team_analytics_returns_member_metrics(
-    authed_client_factory, analytics_users, bike_factory
+    authed_client_factory, analytics_users, inventory_item_factory
 ):
     master = analytics_users["master"]
     technician = analytics_users["technician"]
     now = timezone.now()
 
     ticket_first_pass = Ticket.objects.create(
-        bike=bike_factory(bike_code="RM-TA-0001"),
+        inventory_item=inventory_item_factory(serial_number="RM-TA-0001"),
         master=master,
         technician=technician,
         status=TicketStatus.DONE,
@@ -233,7 +239,7 @@ def test_team_analytics_returns_member_metrics(
         flag_minutes=10,
     )
     ticket_rework = Ticket.objects.create(
-        bike=bike_factory(bike_code="RM-TA-0002"),
+        inventory_item=inventory_item_factory(serial_number="RM-TA-0002"),
         master=master,
         technician=technician,
         status=TicketStatus.DONE,

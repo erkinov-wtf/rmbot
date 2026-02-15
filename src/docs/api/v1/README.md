@@ -11,7 +11,7 @@ Entry index for endpoint-centric technical docs under `/api/v1/`.
 ## Endpoint Reference
 - Users + access moderation: `docs/api/v1/account/README.md`
 - Attendance: `docs/api/v1/attendance/README.md`
-- Bikes + bike-code suggestions: `docs/api/v1/bike/README.md`
+- Inventory + serial-number suggestions: `docs/api/v1/inventory/README.md`
 - Core auth/analytics/misc: `docs/api/v1/core/README.md`
 - XP ledger: `docs/api/v1/gamification/README.md`
 - Payroll monthly snapshot + allowance gate: `docs/api/v1/payroll/README.md`

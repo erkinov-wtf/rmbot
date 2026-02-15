@@ -26,7 +26,7 @@ Defines workflow, work-session, stockout, and SLA automation persistence for ope
   - `SLAAutomationDeliveryAttempt.create_from_delivery_response`
 
 ## Invariants and Constraints
-- One active ticket per bike.
+- One active ticket per inventory item.
 - One `IN_PROGRESS` ticket per technician.
 - One open work session per ticket and per technician.
 - Transition/event/attempt entities remain append-only where designed.

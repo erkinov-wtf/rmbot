@@ -97,7 +97,7 @@ if HAS_DRF_SPECTACULAR:
 LOCAL_APPS = [
     "account",
     "attendance",
-    "bike",
+    "inventory",
     "core",
     "gamification",
     "payroll",
@@ -502,8 +502,8 @@ if HAS_DRF_SPECTACULAR:
                 "description": "Daily check-in/check-out and attendance state.",
             },
             {
-                "name": "Bikes",
-                "description": "Bike fleet registration and listing.",
+                "name": "Inventory",
+                "description": "Inventory structure and item lifecycle endpoints.",
             },
             {
                 "name": "Analytics",

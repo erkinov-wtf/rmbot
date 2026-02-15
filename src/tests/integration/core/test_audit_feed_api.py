@@ -22,7 +22,9 @@ AUDIT_FEED_URL = "/api/v1/misc/audit-feed/"
 
 
 @pytest.fixture
-def audit_feed_context(user_factory, assign_roles, bike_factory, ticket_factory):
+def audit_feed_context(
+    user_factory, assign_roles, inventory_item_factory, ticket_factory
+):
     ops = user_factory(
         username="audit_ops",
         first_name="Ops",
@@ -35,9 +37,9 @@ def audit_feed_context(user_factory, assign_roles, bike_factory, ticket_factory)
     )
     assign_roles(ops, RoleSlug.OPS_MANAGER)
 
-    bike = bike_factory(bike_code="RM-AUD-0001")
+    inventory_item = inventory_item_factory(serial_number="RM-AUD-0001")
     ticket = ticket_factory(
-        bike=bike,
+        inventory_item=inventory_item,
         master=ops,
         technician=ops,
         status=TicketStatus.DONE,

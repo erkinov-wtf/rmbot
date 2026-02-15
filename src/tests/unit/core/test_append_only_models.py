@@ -9,15 +9,15 @@ pytestmark = pytest.mark.django_db
 
 
 @pytest.fixture
-def append_only_context(user_factory, bike_factory, ticket_factory):
+def append_only_context(user_factory, inventory_item_factory, ticket_factory):
     user = user_factory(
         username="append_only_user",
         first_name="Append",
         email="append_only_user@example.com",
     )
-    bike = bike_factory(bike_code="RM-APP-0001")
+    inventory_item = inventory_item_factory(serial_number="RM-APP-0001")
     ticket = ticket_factory(
-        bike=bike,
+        inventory_item=inventory_item,
         master=user,
         technician=user,
         status=TicketStatus.DONE,
