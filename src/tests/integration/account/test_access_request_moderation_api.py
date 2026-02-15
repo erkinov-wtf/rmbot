@@ -1,7 +1,7 @@
 import pytest
 
 from account.models import AccessRequest, TelegramProfile
-from account.services import AccountService
+from core.services.notifications import UserNotificationService
 from core.utils.constants import AccessRequestStatus, RoleSlug
 
 pytestmark = pytest.mark.django_db
@@ -78,8 +78,8 @@ def test_approve_links_profile_and_assigns_roles(
         )
 
     monkeypatch.setattr(
-        AccountService,
-        "_notify_access_request_decision",
+        UserNotificationService,
+        "notify_access_request_decision",
         classmethod(_fake_notify),
     )
 
@@ -155,8 +155,8 @@ def test_reject_marks_request_as_rejected(
         )
 
     monkeypatch.setattr(
-        AccountService,
-        "_notify_access_request_decision",
+        UserNotificationService,
+        "notify_access_request_decision",
         classmethod(_fake_notify),
     )
 

@@ -7,6 +7,7 @@ Documents shared platform behavior used across all apps: base models, API envelo
 - `docs/core/models_and_deletion.md`
 - `docs/core/api/README.md`
 - `docs/core/utils/README.md`
+- `docs/core/notifications.md`
 
 ## Maintenance Rules
 - Keep core docs current when changing shared contracts used by multiple apps.
@@ -17,3 +18,4 @@ Documents shared platform behavior used across all apps: base models, API envelo
 - `core/api/`
 - `core/middlewares/`
 - `core/utils/`
+- `core/services/notifications.py`

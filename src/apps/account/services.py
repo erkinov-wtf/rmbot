@@ -1,15 +1,10 @@
-import logging
 from collections.abc import Iterable
 
-from aiogram import Bot
-from asgiref.sync import async_to_sync
-from django.conf import settings
 from django.db import IntegrityError, transaction
 
 from account.models import AccessRequest, TelegramProfile, User
+from core.services.notifications import UserNotificationService
 from core.utils.constants import AccessRequestStatus
-
-logger = logging.getLogger(__name__)
 
 
 class AccountService:
@@ -262,49 +257,6 @@ class AccountService:
             last_name=profile.last_name,
         )
 
-    @staticmethod
-    def _build_access_request_decision_message(
-        *, approved: bool, first_name: str | None
-    ) -> str:
-        greeting = f"Hello, {first_name}." if first_name else "Hello."
-        if approved:
-            return f"{greeting}\nYour access request has been approved. You can now use Rent Market."
-        return f"{greeting}\nYour access request has been denied. You can submit a new request using /start."
-
-    @staticmethod
-    async def _send_telegram_notification(*, telegram_id: int, message: str) -> None:
-        bot = Bot(token=settings.BOT_TOKEN)
-        try:
-            await bot.send_message(chat_id=telegram_id, text=message)
-        finally:
-            await bot.session.close()
-
-    @classmethod
-    def _notify_access_request_decision(
-        cls, *, access_request: AccessRequest, approved: bool
-    ) -> None:
-        if getattr(settings, "IS_TEST_RUN", False):
-            return
-        if not settings.BOT_TOKEN:
-            logger.info(
-                "Skip access-request decision notification: BOT_TOKEN is not configured."
-            )
-            return
-
-        message = cls._build_access_request_decision_message(
-            approved=approved, first_name=access_request.first_name
-        )
-        try:
-            async_to_sync(cls._send_telegram_notification)(
-                telegram_id=access_request.telegram_id,
-                message=message,
-            )
-        except Exception:
-            logger.exception(
-                "Failed to send access-request decision notification for telegram_id=%s.",
-                access_request.telegram_id,
-            )
-
     @classmethod
     @transaction.atomic
     def approve_access_request(
@@ -345,8 +297,9 @@ class AccountService:
         user.assign_roles_by_slugs(role_slugs=role_slugs)
         user.activate_if_needed()
         access_request.mark_approved(user=user)
-        cls._notify_access_request_decision(
-            access_request=access_request, approved=True
+        UserNotificationService.notify_access_request_decision(
+            access_request=access_request,
+            approved=True,
         )
         return access_request
 
@@ -357,7 +310,8 @@ class AccountService:
             raise ValueError("Access request is already resolved")
 
         access_request.mark_rejected()
-        cls._notify_access_request_decision(
-            access_request=access_request, approved=False
+        UserNotificationService.notify_access_request_decision(
+            access_request=access_request,
+            approved=False,
         )
         return access_request

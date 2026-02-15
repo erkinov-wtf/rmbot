@@ -3,6 +3,7 @@ import math
 from django.db import transaction
 from django.utils import timezone
 
+from core.services.notifications import UserNotificationService
 from core.utils.constants import (
     TicketTransitionAction,
     WorkSessionStatus,
@@ -34,6 +35,10 @@ class TicketWorkflowService:
             actor_user_id=actor_user_id,
             metadata={"technician_id": technician_id},
         )
+        UserNotificationService.notify_ticket_assigned(
+            ticket=ticket,
+            actor_user_id=actor_user_id,
+        )
         return ticket
 
     @classmethod
@@ -58,6 +63,10 @@ class TicketWorkflowService:
             actor_user_id=actor_user_id,
             started_at=now_dt,
         )
+        UserNotificationService.notify_ticket_started(
+            ticket=ticket,
+            actor_user_id=actor_user_id,
+        )
         return ticket
 
     @classmethod
@@ -78,6 +87,10 @@ class TicketWorkflowService:
             from_status=from_status,
             to_status=ticket.status,
             action=TicketTransitionAction.TO_WAITING_QC,
+            actor_user_id=actor_user_id,
+        )
+        UserNotificationService.notify_ticket_waiting_qc(
+            ticket=ticket,
             actor_user_id=actor_user_id,
         )
         return ticket
@@ -114,7 +127,9 @@ class TicketWorkflowService:
             },
         )
 
+        awarded_first_pass_bonus = 0
         if not had_rework and first_pass_bonus > 0:
+            awarded_first_pass_bonus = first_pass_bonus
             GamificationService.append_xp_entry(
                 user_id=ticket.technician_id,
                 amount=first_pass_bonus,
@@ -127,6 +142,12 @@ class TicketWorkflowService:
                     "first_pass_bonus": first_pass_bonus,
                 },
             )
+        UserNotificationService.notify_ticket_qc_pass(
+            ticket=ticket,
+            actor_user_id=actor_user_id,
+            base_xp=base_xp,
+            first_pass_bonus=awarded_first_pass_bonus,
+        )
         return ticket
 
     @classmethod
@@ -138,6 +159,10 @@ class TicketWorkflowService:
             from_status=from_status,
             to_status=ticket.status,
             action=TicketTransitionAction.QC_FAIL,
+            actor_user_id=actor_user_id,
+        )
+        UserNotificationService.notify_ticket_qc_fail(
+            ticket=ticket,
             actor_user_id=actor_user_id,
         )
         return ticket

@@ -18,7 +18,7 @@ Coordinates access onboarding and moderation workflows while delegating first-le
 ## Side Effects
 - Creates/reactivates inactive users during onboarding.
 - Assigns roles and activates users on approval.
-- Sends Telegram approval/rejection notifications (best effort).
+- Triggers access-decision notifications via `core.services.notifications.UserNotificationService` (best effort).
 
 ## Failure Modes
 - Request already resolved.
@@ -27,12 +27,13 @@ Coordinates access onboarding and moderation workflows while delegating first-le
 - Notification delivery failures (logged, non-blocking).
 
 ## Operational Notes
-- Notification sending is skipped for tests and missing `BOT_TOKEN`.
+- Notification transport policy lives in shared core notification service (test skip, `BOT_TOKEN` guard, on-commit dispatch).
 - Integrity races on pending request creation are resolved by read-after-catch strategy.
 - Service is orchestration-focused; identity patching/status transitions live on model methods.
 
 ## Related Code
 - `apps/account/models.py`
 - `apps/account/managers.py`
+- `core/services/notifications.py`
 - `bot/routers/start.py`
 - `api/v1/account/views.py`

@@ -20,6 +20,7 @@ Orchestrates core ticket transitions while delegating state mutation rules to mo
 - Updates bike status (`IN_SERVICE` on start, `READY` on QC pass).
 - Starts a `WorkSession` automatically when `start_ticket` succeeds.
 - Appends XP ledger base and optional first-pass bonus entries.
+- Triggers user-facing Telegram notifications for assignment/start/waiting-QC/QC pass/QC fail via shared core notification service.
 
 ## Failure Modes
 - Invalid source state for requested action.
@@ -29,9 +30,11 @@ Orchestrates core ticket transitions while delegating state mutation rules to mo
 
 ## Operational Notes
 - XP formula inputs come from active rules (`ticket_xp` section).
+- Notification dispatch is deferred to transaction commit and is best-effort (non-blocking).
 
 ## Related Code
 - `apps/ticket/models.py`
 - `apps/ticket/managers.py`
 - `apps/gamification/services.py`
 - `apps/rules/services.py`
+- `core/services/notifications.py`

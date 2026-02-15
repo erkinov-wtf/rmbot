@@ -1,5 +1,6 @@
 import pytest
 
+from core.services.notifications import UserNotificationService
 from core.utils.constants import (
     BikeStatus,
     RoleSlug,
@@ -228,3 +229,113 @@ def test_transition_history_endpoint_returns_ordered_audit_records(
     history = history_resp.data["results"]
     assert len(history) == 4
     assert history[0]["action"] == TicketTransitionAction.QC_PASS
+
+
+def test_workflow_actions_emit_notification_events(
+    authed_client_factory, workflow_context, monkeypatch
+):
+    events: list[dict] = []
+    ticket = workflow_context["ticket"]
+    ticket.srt_total_minutes = 40
+    ticket.save(update_fields=["srt_total_minutes"])
+
+    def _capture(event_name: str):
+        def _inner(cls, **kwargs):
+            payload = {
+                "event": event_name,
+                "ticket_id": kwargs["ticket"].id,
+                "actor_user_id": kwargs.get("actor_user_id"),
+            }
+            if "base_xp" in kwargs:
+                payload["base_xp"] = kwargs["base_xp"]
+            if "first_pass_bonus" in kwargs:
+                payload["first_pass_bonus"] = kwargs["first_pass_bonus"]
+            events.append(payload)
+
+        return _inner
+
+    monkeypatch.setattr(
+        UserNotificationService,
+        "notify_ticket_assigned",
+        classmethod(_capture("assigned")),
+    )
+    monkeypatch.setattr(
+        UserNotificationService,
+        "notify_ticket_started",
+        classmethod(_capture("started")),
+    )
+    monkeypatch.setattr(
+        UserNotificationService,
+        "notify_ticket_waiting_qc",
+        classmethod(_capture("to_waiting_qc")),
+    )
+    monkeypatch.setattr(
+        UserNotificationService,
+        "notify_ticket_qc_fail",
+        classmethod(_capture("qc_fail")),
+    )
+    monkeypatch.setattr(
+        UserNotificationService,
+        "notify_ticket_qc_pass",
+        classmethod(_capture("qc_pass")),
+    )
+
+    master_client = authed_client_factory(workflow_context["master"])
+    assign_resp = master_client.post(
+        f"/api/v1/tickets/{ticket.id}/assign/",
+        {"technician_id": workflow_context["tech"].id},
+        format="json",
+    )
+    assert assign_resp.status_code == 200
+
+    tech_client = authed_client_factory(workflow_context["tech"])
+    start_resp = tech_client.post(
+        f"/api/v1/tickets/{ticket.id}/start/", {}, format="json"
+    )
+    assert start_resp.status_code == 200
+    stop_resp = tech_client.post(
+        f"/api/v1/tickets/{ticket.id}/work-session/stop/", {}, format="json"
+    )
+    assert stop_resp.status_code == 200
+    to_qc_resp = tech_client.post(
+        f"/api/v1/tickets/{ticket.id}/to-waiting-qc/", {}, format="json"
+    )
+    assert to_qc_resp.status_code == 200
+
+    qc_client = authed_client_factory(workflow_context["qc"])
+    fail_resp = qc_client.post(
+        f"/api/v1/tickets/{ticket.id}/qc-fail/", {}, format="json"
+    )
+    assert fail_resp.status_code == 200
+
+    restart_resp = tech_client.post(
+        f"/api/v1/tickets/{ticket.id}/start/",
+        {},
+        format="json",
+    )
+    assert restart_resp.status_code == 200
+    stop_again_resp = tech_client.post(
+        f"/api/v1/tickets/{ticket.id}/work-session/stop/", {}, format="json"
+    )
+    assert stop_again_resp.status_code == 200
+    to_qc_again_resp = tech_client.post(
+        f"/api/v1/tickets/{ticket.id}/to-waiting-qc/", {}, format="json"
+    )
+    assert to_qc_again_resp.status_code == 200
+
+    pass_resp = qc_client.post(
+        f"/api/v1/tickets/{ticket.id}/qc-pass/", {}, format="json"
+    )
+    assert pass_resp.status_code == 200
+
+    assert [event["event"] for event in events] == [
+        "assigned",
+        "started",
+        "to_waiting_qc",
+        "qc_fail",
+        "started",
+        "to_waiting_qc",
+        "qc_pass",
+    ]
+    assert events[-1]["base_xp"] >= 0
+    assert events[-1]["first_pass_bonus"] == 0
