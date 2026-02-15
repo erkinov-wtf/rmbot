@@ -18,7 +18,7 @@ Evaluates SLA thresholds and emits trigger/resolve automation events for operati
   - latest event reads per rule (`SLAAutomationEvent.domain.latest_for_rule`),
   - event creation (`SLAAutomationEvent.create_event`),
   - event timestamp extraction (`evaluated_at_or_created`),
-  - backlog pressure query (`Ticket.domain.backlog_black_plus_count`),
+  - backlog pressure query (`Ticket.domain.backlog_black_plus_count`, mapped to red-severity backlog count),
   - active stockout lookup (`StockoutIncident.domain.latest_active`).
 
 ## Invariants and Contracts

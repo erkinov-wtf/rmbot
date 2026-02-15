@@ -60,7 +60,7 @@ class TicketDomainManager(models.Manager.from_queryset(TicketQuerySet)):
         return (
             self.get_queryset()
             .active_workflow()
-            .filter(flag_color=TicketColor.BLACK_PLUS)
+            .filter(flag_color=TicketColor.RED)
             .count()
         )
 

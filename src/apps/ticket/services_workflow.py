@@ -104,7 +104,7 @@ class TicketWorkflowService:
     @transaction.atomic
     def qc_pass_ticket(cls, ticket: Ticket, actor_user_id: int | None = None) -> Ticket:
         had_rework = TicketTransition.domain.has_qc_fail_for_ticket(ticket=ticket)
-        from_status = ticket.mark_qc_pass(done_at=timezone.now())
+        from_status = ticket.mark_qc_pass(finished_at=timezone.now())
         ticket.inventory_item.mark_ready()
 
         cls.log_ticket_transition(
@@ -126,7 +126,7 @@ class TicketWorkflowService:
             description="Ticket completion base XP",
             payload={
                 "ticket_id": ticket.id,
-                "srt_total_minutes": ticket.srt_total_minutes,
+                "total_duration": ticket.total_duration,
                 "formula_divisor": base_divisor,
                 "is_manual": bool(ticket.is_manual),
                 "resolved_ticket_xp": int(ticket.xp_amount or 0),
@@ -185,9 +185,15 @@ class TicketWorkflowService:
         actor_user_id: int | None = None,
     ) -> Ticket:
         ticket.apply_manual_metrics(flag_color=flag_color, xp_amount=xp_amount)
-        ticket.save(
-            update_fields=["flag_color", "xp_amount", "is_manual", "updated_at"]
-        )
+        update_fields = ["flag_color", "xp_amount", "is_manual", "updated_at"]
+        if actor_user_id:
+            ticket.approved_by_id = actor_user_id
+            ticket.approved_at = timezone.now()
+            update_fields.extend(["approved_by", "approved_at"])
+            if ticket.status == TicketStatus.UNDER_REVIEW:
+                ticket.status = TicketStatus.NEW
+                update_fields.append("status")
+        ticket.save(update_fields=update_fields)
         return ticket
 
     @staticmethod
@@ -226,4 +232,4 @@ class TicketWorkflowService:
         resolved_xp = int(ticket.xp_amount or 0)
         if resolved_xp > 0:
             return resolved_xp
-        return math.ceil((ticket.srt_total_minutes or 0) / max(base_divisor, 1))
+        return math.ceil((ticket.total_duration or 0) / max(base_divisor, 1))

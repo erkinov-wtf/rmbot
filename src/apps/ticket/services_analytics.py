@@ -63,10 +63,6 @@ class TicketAnalyticsService:
             "green": active_tickets_qs.filter(flag_color=TicketColor.GREEN).count(),
             "yellow": active_tickets_qs.filter(flag_color=TicketColor.YELLOW).count(),
             "red": active_tickets_qs.filter(flag_color=TicketColor.RED).count(),
-            "black": active_tickets_qs.filter(flag_color=TicketColor.BLACK).count(),
-            "black_plus": active_tickets_qs.filter(
-                flag_color=TicketColor.BLACK_PLUS
-            ).count(),
         }
         backlog_total = sum(backlog_counts.values())
         active_status_counts = dict(
@@ -188,8 +184,8 @@ class TicketAnalyticsService:
         tickets_done_qs = Ticket.domain.filter(
             technician_id__in=technician_ids,
             status=TicketStatus.DONE,
-            done_at__date__gte=start_date,
-            done_at__date__lte=end_date,
+            finished_at__date__gte=start_date,
+            finished_at__date__lte=end_date,
         )
         done_counts = dict(
             tickets_done_qs.values("technician_id")
@@ -348,14 +344,8 @@ class TicketAnalyticsService:
             )
             total_age_minutes += ticket_age_minutes
 
-        red_or_worse = (
-            int(backlog_counts.get("red", 0))
-            + int(backlog_counts.get("black", 0))
-            + int(backlog_counts.get("black_plus", 0))
-        )
-        black_or_worse = int(backlog_counts.get("black", 0)) + int(
-            backlog_counts.get("black_plus", 0)
-        )
+        red_or_worse = int(backlog_counts.get("red", 0))
+        black_or_worse = red_or_worse
 
         return {
             "avg_flag_minutes": round(total_flag_minutes / total, 2),
@@ -410,9 +400,9 @@ class TicketAnalyticsService:
         done_records = list(
             Ticket.domain.filter(
                 status=TicketStatus.DONE,
-                done_at__date__gte=start_date,
-                done_at__date__lte=end_date,
-            ).values("id", "done_at__date")
+                finished_at__date__gte=start_date,
+                finished_at__date__lte=end_date,
+            ).values("id", "finished_at__date")
         )
         done_ticket_ids = [record["id"] for record in done_records]
 
@@ -447,7 +437,7 @@ class TicketAnalyticsService:
 
         for record in done_records:
             ticket_id = int(record["id"])
-            done_date = record["done_at__date"]
+            done_date = record["finished_at__date"]
             done_by_date[done_date] += 1
             if ticket_id in qc_failed_ticket_ids:
                 rework_by_date[done_date] += 1

@@ -14,6 +14,7 @@ Orchestrates core ticket transitions while delegating state mutation rules to mo
 ## Invariants and Contracts
 - Validation/state mutation ownership lives in `Ticket` model methods.
 - Service remains responsible for cross-aggregate orchestration (inventory-item status + XP side effects).
+- Assignment is blocked until ticket admin-review metadata (`approved_by`, `approved_at`) is present.
 
 ## Side Effects
 - Writes `TicketTransition` rows for each workflow action.
@@ -30,6 +31,7 @@ Orchestrates core ticket transitions while delegating state mutation rules to mo
 
 ## Operational Notes
 - XP formula inputs come from active rules (`ticket_xp` section).
+- Admin manual-metrics updates also persist review approval metadata and move `UNDER_REVIEW` tickets to `NEW`.
 - Notification dispatch is deferred to transaction commit and is best-effort (non-blocking).
 
 ## Related Code

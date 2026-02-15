@@ -219,8 +219,8 @@ class StockoutIncidentService:
             Ticket.objects.filter(
                 deleted_at__isnull=True,
                 status=TicketStatus.DONE,
-                done_at__gte=month_start_dt,
-                done_at__lt=next_month_start_dt,
+                finished_at__gte=month_start_dt,
+                finished_at__lt=next_month_start_dt,
             ).values_list("id", flat=True)
         )
         done_total = len(done_ticket_ids)

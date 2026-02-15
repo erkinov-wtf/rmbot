@@ -61,9 +61,8 @@ class TicketViewSet(BaseModelViewSet):
             action=TicketTransitionAction.CREATED,
             actor_user_id=self.request.user.id,
             metadata={
-                "srt_total_minutes": ticket.srt_total_minutes,
-                "srt_approved": bool(ticket.srt_approved_at),
-                "checklist_items_count": len(ticket.checklist_snapshot or []),
+                "total_duration": ticket.total_duration,
+                "review_approved": bool(ticket.approved_at),
                 "flag_color": ticket.flag_color,
                 "xp_amount": ticket.xp_amount,
                 "is_manual": ticket.is_manual,

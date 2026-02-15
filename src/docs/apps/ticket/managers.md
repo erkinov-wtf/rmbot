@@ -13,7 +13,7 @@ Defines domain query helpers for ticket/work-session lifecycle, stockout trackin
 - `WorkSessionTransitionDomainManager`
 
 ## Execution Notes
-- `Ticket.domain` centralizes active-workflow and technician-state lookups plus backlog pressure count (`backlog_black_plus_count`).
+- `Ticket.domain` centralizes active-workflow and technician-state lookups plus backlog pressure count (`backlog_black_plus_count`, currently mapped to red-severity backlog volume).
 - `StockoutIncident.domain` centralizes active incident lookup (including `select_for_update`) and window-overlap selection.
 - `SLAAutomationEvent.domain` centralizes latest-per-rule and id-based reads.
 - `SLAAutomationDeliveryAttempt.domain` centralizes success-existence checks for idempotent delivery behavior.

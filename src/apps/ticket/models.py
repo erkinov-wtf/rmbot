@@ -54,16 +54,15 @@ class Ticket(TimestampedModel, SoftDeleteModel):
         related_name="assigned_tickets",
     )
     title = models.CharField(max_length=255, blank=True, null=True)
-    checklist_snapshot = models.JSONField(default=list, blank=True)
-    srt_total_minutes = models.PositiveIntegerField(default=0)
-    srt_approved_by = models.ForeignKey(
+    total_duration = models.PositiveIntegerField(default=0)
+    approved_by = models.ForeignKey(
         "account.User",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name="srt_approved_tickets",
+        related_name="approved_tickets",
     )
-    srt_approved_at = models.DateTimeField(null=True, blank=True)
+    approved_at = models.DateTimeField(null=True, blank=True)
     flag_minutes = models.PositiveIntegerField(default=0)
     flag_color = models.CharField(
         max_length=20,
@@ -81,7 +80,7 @@ class Ticket(TimestampedModel, SoftDeleteModel):
     )
     assigned_at = models.DateTimeField(null=True, blank=True)
     started_at = models.DateTimeField(null=True, blank=True)
-    done_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         indexes = [
@@ -116,6 +115,11 @@ class Ticket(TimestampedModel, SoftDeleteModel):
             TicketStatus.REWORK,
         ):
             raise ValueError("Ticket cannot be assigned in current status.")
+        if (
+            self.status in (TicketStatus.UNDER_REVIEW, TicketStatus.NEW)
+            and not self.is_admin_reviewed
+        ):
+            raise ValueError("Ticket must pass admin review before assignment.")
 
         self.technician_id = technician_id
         self.assigned_at = assigned_at or timezone.now()
@@ -126,6 +130,21 @@ class Ticket(TimestampedModel, SoftDeleteModel):
         self.save(update_fields=update_fields)
         return from_status
 
+    @property
+    def is_admin_reviewed(self) -> bool:
+        return bool(self.approved_by_id and self.approved_at)
+
+    def mark_admin_review_approved(self, *, approved_by_id: int, approved_at=None):
+        if not approved_by_id:
+            raise ValueError("approved_by_id is required for admin review approval.")
+        self.approved_by_id = approved_by_id
+        self.approved_at = approved_at or timezone.now()
+        update_fields = ["approved_by", "approved_at"]
+        if self.status == TicketStatus.UNDER_REVIEW:
+            self.status = TicketStatus.NEW
+            update_fields.append("status")
+        self.save(update_fields=update_fields)
+
     @staticmethod
     def flag_color_from_minutes(*, total_minutes: int) -> str:
         minutes = max(int(total_minutes or 0), 0)
@@ -133,16 +152,12 @@ class Ticket(TimestampedModel, SoftDeleteModel):
             return TicketColor.GREEN
         if minutes <= 60:
             return TicketColor.YELLOW
-        if minutes <= 120:
-            return TicketColor.RED
-        if minutes <= 180:
-            return TicketColor.BLACK
-        return TicketColor.BLACK_PLUS
+        return TicketColor.RED
 
     def apply_auto_metrics(self, *, total_minutes: int, xp_divisor: int) -> None:
         normalized_minutes = max(int(total_minutes or 0), 0)
         normalized_divisor = max(int(xp_divisor or 0), 1)
-        self.srt_total_minutes = normalized_minutes
+        self.total_duration = normalized_minutes
         self.flag_minutes = normalized_minutes
         self.flag_color = self.flag_color_from_minutes(total_minutes=normalized_minutes)
         self.xp_amount = math.ceil(normalized_minutes / normalized_divisor)
@@ -185,7 +200,7 @@ class Ticket(TimestampedModel, SoftDeleteModel):
         self.save(update_fields=["status"])
         return from_status
 
-    def mark_qc_pass(self, *, done_at=None) -> str:
+    def mark_qc_pass(self, *, finished_at=None) -> str:
         from_status = self.status
         if self.status != TicketStatus.WAITING_QC:
             raise ValueError("QC PASS allowed only from WAITING_QC.")
@@ -193,8 +208,8 @@ class Ticket(TimestampedModel, SoftDeleteModel):
             raise ValueError("Ticket must have an assigned technician before QC PASS.")
 
         self.status = TicketStatus.DONE
-        self.done_at = done_at or timezone.now()
-        self.save(update_fields=["status", "done_at"])
+        self.finished_at = finished_at or timezone.now()
+        self.save(update_fields=["status", "finished_at"])
         return from_status
 
     def mark_qc_fail(self) -> str:
@@ -203,8 +218,8 @@ class Ticket(TimestampedModel, SoftDeleteModel):
             raise ValueError("QC FAIL allowed only from WAITING_QC.")
 
         self.status = TicketStatus.REWORK
-        self.done_at = None
-        self.save(update_fields=["status", "done_at"])
+        self.finished_at = None
+        self.save(update_fields=["status", "finished_at"])
         return from_status
 
     def add_transition(

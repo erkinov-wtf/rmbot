@@ -122,14 +122,14 @@ def test_fleet_analytics_returns_operational_counters(
         status=TicketStatus.WAITING_QC,
         title="Waiting QC ticket",
         flag_minutes=130,
-        flag_color="black",
+        flag_color="red",
     )
     Ticket.objects.create(
         inventory_item=inventory_item_done,
         master=master,
         technician=technician,
         status=TicketStatus.DONE,
-        done_at=timezone.now(),
+        finished_at=timezone.now(),
         title="Done ticket",
         flag_minutes=5,
     )
@@ -146,12 +146,12 @@ def test_fleet_analytics_returns_operational_counters(
     assert data["tickets"]["waiting_qc"] == 1
     assert data["tickets"]["done"] == 1
     assert data["backlog"]["flag_buckets"]["green"] == 1
-    assert data["backlog"]["flag_buckets"]["red"] == 1
-    assert data["backlog"]["flag_buckets"]["black"] == 1
+    assert data["backlog"]["flag_buckets"]["red"] == 2
+    assert data["backlog"]["flag_buckets"]["yellow"] == 0
     assert data["backlog"]["status_buckets"]["under_review"] == 1
     assert data["backlog"]["status_buckets"]["in_progress"] == 1
     assert data["backlog"]["kpis"]["red_or_worse_count"] == 2
-    assert data["backlog"]["kpis"]["black_or_worse_count"] == 1
+    assert data["backlog"]["kpis"]["black_or_worse_count"] == 2
     assert data["backlog"]["kpis"]["avg_flag_minutes"] == 71.67
     assert (
         data["sla"]["availability"]["percent"] == data["kpis"]["availability_percent"]
@@ -174,7 +174,7 @@ def test_fleet_analytics_returns_qc_trend_and_totals(
         master=master,
         technician=technician,
         status=TicketStatus.DONE,
-        done_at=now - timedelta(days=1),
+        finished_at=now - timedelta(days=1),
         title="QC first pass",
         flag_minutes=15,
     )
@@ -183,7 +183,7 @@ def test_fleet_analytics_returns_qc_trend_and_totals(
         master=master,
         technician=technician,
         status=TicketStatus.DONE,
-        done_at=now,
+        finished_at=now,
         title="QC with rework",
         flag_minutes=95,
     )
@@ -237,7 +237,7 @@ def test_team_analytics_returns_member_metrics(
         master=master,
         technician=technician,
         status=TicketStatus.DONE,
-        done_at=now - timedelta(days=1),
+        finished_at=now - timedelta(days=1),
         title="First pass",
         flag_minutes=10,
     )
@@ -246,7 +246,7 @@ def test_team_analytics_returns_member_metrics(
         master=master,
         technician=technician,
         status=TicketStatus.DONE,
-        done_at=now,
+        finished_at=now,
         title="Had rework",
         flag_minutes=80,
     )

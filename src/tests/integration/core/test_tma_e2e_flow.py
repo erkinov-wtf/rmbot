@@ -158,7 +158,6 @@ def test_tma_e2e_master_to_technician_to_qc(
         {
             "serial_number": inventory_item.serial_number,
             "title": "TMA E2E flow ticket",
-            "checklist_snapshot": [f"Task {idx}" for idx in range(1, 11)],
             "part_specs": [
                 {
                     "part_id": part_a.id,
@@ -179,6 +178,14 @@ def test_tma_e2e_master_to_technician_to_qc(
     assert create.status_code == 201
     ticket_id = create.data["data"]["id"]
     assert create.data["data"]["status"] == TicketStatus.UNDER_REVIEW
+
+    review = ops_client.post(
+        f"/api/v1/tickets/{ticket_id}/manual-metrics/",
+        {"flag_color": "yellow", "xp_amount": 3},
+        format="json",
+    )
+    assert review.status_code == 200
+    assert review.data["data"]["status"] == TicketStatus.NEW
 
     assign = ops_client.post(
         f"/api/v1/tickets/{ticket_id}/assign/",

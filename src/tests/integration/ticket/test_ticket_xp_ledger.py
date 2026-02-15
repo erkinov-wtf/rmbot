@@ -37,7 +37,7 @@ def xp_ticket_context(
             master=master,
             technician=technician,
             status=TicketStatus.WAITING_QC,
-            srt_total_minutes=srt_minutes,
+            total_duration=srt_minutes,
             title="XP ticket",
         )
 

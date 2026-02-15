@@ -21,7 +21,7 @@ class TicketAdmin(BaseModelAdmin):
         "master",
         "technician",
         "status",
-        "srt_total_minutes",
+        "total_duration",
         "xp_amount",
         "flag_color",
         "is_manual",

@@ -4,7 +4,7 @@ from django.db import IntegrityError
 from django.utils import timezone
 from rest_framework import serializers
 
-from core.utils.constants import TicketColor
+from core.utils.constants import RoleSlug, TicketColor, TicketStatus
 from inventory.models import InventoryItem, InventoryItemPart
 from inventory.services import InventoryItemService
 from rules.services import RulesService
@@ -53,19 +53,18 @@ class TicketSerializer(serializers.ModelSerializer):
         allow_blank=False,
     )
     technician = serializers.PrimaryKeyRelatedField(read_only=True)
-    checklist_snapshot = serializers.JSONField(required=False)
     part_specs = TicketPartSpecInputSerializer(
         many=True, write_only=True, required=True
     )
     ticket_parts = TicketPartSpecSerializer(
         source="part_specs", many=True, read_only=True
     )
-    srt_total_minutes = serializers.IntegerField(read_only=True)
+    total_duration = serializers.IntegerField(read_only=True)
     flag_minutes = serializers.IntegerField(read_only=True)
     xp_amount = serializers.IntegerField(required=False, min_value=0)
     flag_color = serializers.ChoiceField(choices=TicketColor.choices, required=False)
     is_manual = serializers.BooleanField(read_only=True)
-    approve_srt = serializers.BooleanField(
+    approve_review = serializers.BooleanField(
         write_only=True, required=False, default=False
     )
 
@@ -80,13 +79,12 @@ class TicketSerializer(serializers.ModelSerializer):
             "master",
             "technician",
             "title",
-            "checklist_snapshot",
             "part_specs",
             "ticket_parts",
-            "srt_total_minutes",
-            "srt_approved_by",
-            "srt_approved_at",
-            "approve_srt",
+            "total_duration",
+            "approved_by",
+            "approved_at",
+            "approve_review",
             "flag_minutes",
             "flag_color",
             "xp_amount",
@@ -94,7 +92,7 @@ class TicketSerializer(serializers.ModelSerializer):
             "status",
             "assigned_at",
             "started_at",
-            "done_at",
+            "finished_at",
             "created_at",
             "updated_at",
         )
@@ -106,35 +104,36 @@ class TicketSerializer(serializers.ModelSerializer):
             "status",
             "assigned_at",
             "started_at",
-            "done_at",
+            "finished_at",
             "created_at",
             "updated_at",
-            "srt_approved_by",
-            "srt_approved_at",
-            "srt_total_minutes",
+            "approved_by",
+            "approved_at",
+            "total_duration",
             "flag_minutes",
             "is_manual",
             "ticket_parts",
         )
 
-    def validate_checklist_snapshot(self, value):
-        if not isinstance(value, list):
-            raise serializers.ValidationError(
-                "checklist_snapshot must be an array of checklist items."
-            )
-        invalid_indexes = [
-            idx
-            for idx, item in enumerate(value)
-            if not self._is_valid_checklist_item(item)
-        ]
-        if invalid_indexes:
-            first_bad = invalid_indexes[0]
-            raise serializers.ValidationError(
-                f"checklist_snapshot[{first_bad}] must be a non-empty task string or object with non-empty 'task'."
-            )
-        return value
-
     def validate(self, attrs):
+        request = self.context.get("request")
+        if attrs.get("approve_review"):
+            if not request or not request.user or not request.user.is_authenticated:
+                raise serializers.ValidationError(
+                    {
+                        "approve_review": (
+                            "Authenticated admin user is required for approve_review."
+                        )
+                    }
+                )
+            if not request.user.roles.filter(
+                slug__in=[RoleSlug.SUPER_ADMIN, RoleSlug.OPS_MANAGER],
+                deleted_at__isnull=True,
+            ).exists():
+                raise serializers.ValidationError(
+                    {"approve_review": "Only admin users can approve ticket review."}
+                )
+
         raw_serial_number = attrs.get("serial_number", "")
         serial_number = InventoryItemService.normalize_serial_number(raw_serial_number)
         if not InventoryItemService.is_valid_serial_number(serial_number):
@@ -234,9 +233,8 @@ class TicketSerializer(serializers.ModelSerializer):
             attrs["xp_amount"] = auto_xp_amount
             attrs["is_manual"] = False
 
-        attrs["srt_total_minutes"] = total_minutes
+        attrs["total_duration"] = total_minutes
         attrs["flag_minutes"] = total_minutes
-        attrs.setdefault("checklist_snapshot", [])
         return attrs
 
     def create(self, validated_data):
@@ -252,7 +250,7 @@ class TicketSerializer(serializers.ModelSerializer):
         part_specs = validated_data.pop("_part_specs", [])
         part_ids = validated_data.pop("_part_ids", [])
         total_minutes = int(validated_data.pop("_total_minutes", 0) or 0)
-        approve_srt = bool(validated_data.pop("approve_srt", False))
+        approve_review = bool(validated_data.pop("approve_review", False))
         validated_data.pop("part_specs", None)
 
         self._resolved_serial_number = serial_number
@@ -321,9 +319,16 @@ class TicketSerializer(serializers.ModelSerializer):
             self._inventory_item_creation_reason = inventory_item_creation_reason
 
         request = self.context.get("request")
-        if approve_srt and request and request.user and request.user.is_authenticated:
-            validated_data["srt_approved_by"] = request.user
-            validated_data["srt_approved_at"] = timezone.now()
+        if (
+            approve_review
+            and request
+            and request.user
+            and request.user.is_authenticated
+        ):
+            validated_data["approved_by"] = request.user
+            validated_data["approved_at"] = timezone.now()
+            if validated_data.get("status") == TicketStatus.UNDER_REVIEW:
+                validated_data["status"] = TicketStatus.NEW
 
         ticket = super().create(validated_data)
         TicketPartSpec.objects.bulk_create(
@@ -356,15 +361,6 @@ class TicketSerializer(serializers.ModelSerializer):
                 getattr(self, "_resolved_part_specs_count", 0) or 0
             ),
         }
-
-    @staticmethod
-    def _is_valid_checklist_item(item) -> bool:
-        if isinstance(item, str):
-            return bool(item.strip())
-        if isinstance(item, dict):
-            task = item.get("task")
-            return isinstance(task, str) and bool(task.strip())
-        return False
 
     @staticmethod
     def _ticket_xp_divisor() -> int:

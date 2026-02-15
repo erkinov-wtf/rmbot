@@ -34,8 +34,11 @@ Defines workflow, work-session, stockout, and SLA automation persistence for ope
 - Transition/event/attempt entities remain append-only where designed.
 
 ## Operational Notes
-- Ticket default status is `UNDER_REVIEW`; assignment transitions it into active workflow.
-- Ticket metrics (`srt_total_minutes`, `flag_minutes`, `flag_color`, `xp_amount`) are computed from ticket part specs unless manually overridden.
+- Ticket default status is `UNDER_REVIEW`; it must be admin-reviewed (`approved_by` + `approved_at`) before assignment.
+- Admin review can move `UNDER_REVIEW -> NEW`, after which assignment transitions the ticket into active workflow.
+- Ticket metrics (`total_duration`, `flag_minutes`, `flag_color`, `xp_amount`) are computed from ticket part specs unless manually overridden.
+- Ticket completion timestamp is stored in `finished_at`.
+- Ticket and part-spec colors are constrained to `green`, `yellow`, and `red`.
 - Service classes orchestrate rule evaluation/delivery flows while model methods own first-level state transitions and append-only row creation.
 
 ## Related Code

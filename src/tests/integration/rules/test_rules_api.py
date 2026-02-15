@@ -255,7 +255,7 @@ def test_ticket_xp_formula_uses_active_rules(
         master=actor,
         technician=technician,
         status=TicketStatus.WAITING_QC,
-        srt_total_minutes=45,
+        total_duration=45,
         title="Rules ticket XP",
     )
 

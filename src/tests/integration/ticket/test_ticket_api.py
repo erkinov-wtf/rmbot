@@ -14,7 +14,6 @@ def _payload(context: dict, **overrides):
     payload = {
         "serial_number": context["inventory_item"].serial_number,
         "title": "Diagnostics",
-        "checklist_snapshot": ["Task 1"],
         "part_specs": [
             {
                 "part_id": context["part_a"].id,
@@ -84,7 +83,7 @@ def test_master_can_create_ticket_with_auto_metrics(
     assert payload["status"] == TicketStatus.UNDER_REVIEW
     assert payload["technician"] is None
     assert payload["inventory_item"] == ticket_api_context["inventory_item"].id
-    assert payload["srt_total_minutes"] == 45
+    assert payload["total_duration"] == 45
     assert payload["flag_minutes"] == 45
     assert payload["flag_color"] == "yellow"
     assert payload["xp_amount"] == 3
@@ -168,7 +167,7 @@ def test_ticket_create_manual_override_sets_manual_mode(
         CREATE_URL,
         _payload(
             ticket_api_context,
-            flag_color="black_plus",
+            flag_color="red",
             xp_amount=99,
         ),
         format="json",
@@ -176,7 +175,7 @@ def test_ticket_create_manual_override_sets_manual_mode(
 
     assert resp.status_code == 201
     payload = resp.data["data"]
-    assert payload["flag_color"] == "black_plus"
+    assert payload["flag_color"] == "red"
     assert payload["xp_amount"] == 99
     assert payload["is_manual"] is True
 

@@ -1,4 +1,5 @@
 import pytest
+from django.utils import timezone
 
 from core.services.notifications import UserNotificationService
 from core.utils.constants import (
@@ -72,6 +73,10 @@ def test_admin_can_assign_technician(authed_client_factory, workflow_context):
     client = authed_client_factory(workflow_context["ops"])
     ticket = workflow_context["ticket"]
     tech = workflow_context["tech"]
+    ticket.approved_by = workflow_context["ops"]
+    ticket.approved_at = timezone.now()
+    ticket.status = TicketStatus.NEW
+    ticket.save(update_fields=["approved_by", "approved_at", "status"])
 
     resp = client.post(
         f"/api/v1/tickets/{ticket.id}/assign/",
@@ -84,6 +89,23 @@ def test_admin_can_assign_technician(authed_client_factory, workflow_context):
     assert ticket.status == TicketStatus.ASSIGNED
     assert ticket.technician_id == tech.id
     assert ticket.assigned_at is not None
+
+
+def test_cannot_assign_technician_before_admin_review(
+    authed_client_factory, workflow_context
+):
+    client = authed_client_factory(workflow_context["ops"])
+    ticket = workflow_context["ticket"]
+    tech = workflow_context["tech"]
+
+    resp = client.post(
+        f"/api/v1/tickets/{ticket.id}/assign/",
+        {"technician_id": tech.id},
+        format="json",
+    )
+
+    assert resp.status_code == 400
+    assert "admin review" in resp.data["error"]["detail"].lower()
 
 
 def test_only_assigned_technician_can_start(authed_client_factory, workflow_context):
@@ -151,7 +173,7 @@ def test_qc_pass_marks_done_and_sets_inventory_item_ready(
     ticket.refresh_from_db()
     inventory_item.refresh_from_db()
     assert ticket.status == TicketStatus.DONE
-    assert ticket.done_at is not None
+    assert ticket.finished_at is not None
     assert inventory_item.status == InventoryItemStatus.READY
 
 
@@ -203,6 +225,12 @@ def test_transition_history_endpoint_returns_ordered_audit_records(
     ticket = workflow_context["ticket"]
 
     ops_client = authed_client_factory(workflow_context["ops"])
+    review_resp = ops_client.post(
+        f"/api/v1/tickets/{ticket.id}/manual-metrics/",
+        {"flag_color": "yellow", "xp_amount": 3},
+        format="json",
+    )
+    assert review_resp.status_code == 200
     ops_client.post(
         f"/api/v1/tickets/{ticket.id}/assign/",
         {"technician_id": workflow_context["tech"].id},
@@ -239,7 +267,7 @@ def test_manual_metrics_requires_admin_role(authed_client_factory, workflow_cont
 
     resp = tech_client.post(
         f"/api/v1/tickets/{ticket.id}/manual-metrics/",
-        {"flag_color": "black", "xp_amount": 30},
+        {"flag_color": "red", "xp_amount": 30},
         format="json",
     )
 
@@ -252,15 +280,18 @@ def test_admin_can_set_manual_metrics(authed_client_factory, workflow_context):
 
     resp = ops_client.post(
         f"/api/v1/tickets/{ticket.id}/manual-metrics/",
-        {"flag_color": "black_plus", "xp_amount": 77},
+        {"flag_color": "red", "xp_amount": 77},
         format="json",
     )
 
     assert resp.status_code == 200
     ticket.refresh_from_db()
-    assert ticket.flag_color == "black_plus"
+    assert ticket.flag_color == "red"
     assert ticket.xp_amount == 77
     assert ticket.is_manual is True
+    assert ticket.approved_by_id == workflow_context["ops"].id
+    assert ticket.approved_at is not None
+    assert ticket.status == TicketStatus.NEW
     assert resp.data["data"]["is_manual"] is True
 
 
@@ -269,8 +300,8 @@ def test_workflow_actions_emit_notification_events(
 ):
     events: list[dict] = []
     ticket = workflow_context["ticket"]
-    ticket.srt_total_minutes = 40
-    ticket.save(update_fields=["srt_total_minutes"])
+    ticket.total_duration = 40
+    ticket.save(update_fields=["total_duration"])
 
     def _capture(event_name: str):
         def _inner(cls, **kwargs):
@@ -314,6 +345,12 @@ def test_workflow_actions_emit_notification_events(
     )
 
     ops_client = authed_client_factory(workflow_context["ops"])
+    review_resp = ops_client.post(
+        f"/api/v1/tickets/{ticket.id}/manual-metrics/",
+        {"flag_color": "yellow", "xp_amount": 2},
+        format="json",
+    )
+    assert review_resp.status_code == 200
     assign_resp = ops_client.post(
         f"/api/v1/tickets/{ticket.id}/assign/",
         {"technician_id": workflow_context["tech"].id},

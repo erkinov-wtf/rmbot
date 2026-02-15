@@ -36,8 +36,6 @@ class TicketColor(models.TextChoices):
     GREEN = "green", _("Green")
     YELLOW = "yellow", _("Yellow")
     RED = "red", _("Red")
-    BLACK = "black", _("Black")
-    BLACK_PLUS = "black_plus", _("Black Plus")
 
 
 class TicketStatus(models.TextChoices):

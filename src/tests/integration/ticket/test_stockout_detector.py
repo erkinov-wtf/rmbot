@@ -124,14 +124,14 @@ def test_monthly_sla_snapshot_contains_qc_and_stockout_stats(
         master=master,
         technician=technician,
         status=TicketStatus.DONE,
-        done_at=datetime(2026, 1, 8, 14, 0, tzinfo=BUSINESS_TZ),
+        finished_at=datetime(2026, 1, 8, 14, 0, tzinfo=BUSINESS_TZ),
     )
     rework_ticket = ticket_factory(
         inventory_item=inventory_item_factory(serial_number="RM-SLA-0002"),
         master=master,
         technician=technician,
         status=TicketStatus.DONE,
-        done_at=datetime(2026, 1, 9, 16, 0, tzinfo=BUSINESS_TZ),
+        finished_at=datetime(2026, 1, 9, 16, 0, tzinfo=BUSINESS_TZ),
     )
     TicketTransition.objects.create(
         ticket=rework_ticket,

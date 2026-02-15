@@ -20,6 +20,7 @@ Builds fleet and team KPI aggregates for analytics endpoints.
 ## Operational Notes
 - Uses stockout business-window context and incident summaries.
 - Uses ticket transitions to infer first-pass QC rate.
+- Backlog flag buckets use three colors only: `green`, `yellow`, `red`.
 
 ## Related Code
 - `apps/ticket/models.py`
