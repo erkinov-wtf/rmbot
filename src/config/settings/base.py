@@ -180,6 +180,10 @@ if HAS_CELERY:
             "task": "gamification.tasks.run_weekly_level_evaluation",
             "schedule": crontab(minute=5, hour=0, day_of_week=1),
         },
+        "enforce-daily-work-session-pause-limits": {
+            "task": "ticket.tasks.enforce_daily_pause_limits",
+            "schedule": 60.0,
+        },
     }
 
 AUTH_PASSWORD_VALIDATORS = [

@@ -15,6 +15,9 @@ Documents rules configuration governance endpoints for read/update/history/rollb
 ### `PUT /api/v1/rules/config/`
 - Validates and normalizes incoming config, then creates a new immutable version and activates it.
 - Optional `reason` is persisted with version metadata.
+- Config includes `work_session` section for pause-budget controls:
+  - `daily_pause_limit_minutes`
+  - `timezone`
 
 ### `GET /api/v1/rules/config/history/`
 - Returns paginated append-only version history with stored diffs/checksums.

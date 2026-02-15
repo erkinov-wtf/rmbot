@@ -1,4 +1,5 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import pytest
 from django.utils import timezone
@@ -9,9 +10,24 @@ from core.utils.constants import (
     WorkSessionStatus,
     WorkSessionTransitionAction,
 )
+from rules.services import RulesService
 from ticket.models import WorkSession, WorkSessionTransition
+from ticket.services_work_session import TicketWorkSessionService
 
 pytestmark = pytest.mark.django_db
+
+
+def _configure_pause_limit_rules(*, actor_user_id: int, limit_minutes: int) -> None:
+    config = RulesService.get_active_rules_config()
+    config["work_session"] = {
+        "daily_pause_limit_minutes": limit_minutes,
+        "timezone": "Asia/Tashkent",
+    }
+    RulesService.update_rules_config(
+        config=config,
+        actor_user_id=actor_user_id,
+        reason="Work session pause-limit test override",
+    )
 
 
 @pytest.fixture
@@ -213,3 +229,109 @@ def test_rework_ticket_can_restart_via_ticket_start_then_return_to_qc(
     assert to_qc.status_code == 200
     ticket.refresh_from_db()
     assert ticket.status == TicketStatus.WAITING_QC
+
+
+def test_pause_fails_when_daily_limit_is_fully_reached(
+    authed_client_factory, work_session_context
+):
+    _configure_pause_limit_rules(
+        actor_user_id=work_session_context["master"].id,
+        limit_minutes=0,
+    )
+
+    client = authed_client_factory(work_session_context["tech"])
+    ticket = work_session_context["ticket"]
+    start = client.post(f"/api/v1/tickets/{ticket.id}/start/", {}, format="json")
+    assert start.status_code == 200
+
+    pause = client.post(
+        f"/api/v1/tickets/{ticket.id}/work-session/pause/",
+        {},
+        format="json",
+    )
+    assert pause.status_code == 400
+    assert "daily pause limit" in pause.data["error"]["detail"].lower()
+
+
+def test_paused_session_is_auto_resumed_when_pause_limit_is_consumed(
+    work_session_context,
+):
+    _configure_pause_limit_rules(
+        actor_user_id=work_session_context["master"].id,
+        limit_minutes=1,
+    )
+    ticket = work_session_context["ticket"]
+    technician_id = work_session_context["tech"].id
+
+    now_dt = timezone.now()
+    session = WorkSession.start_for_ticket(
+        ticket=ticket,
+        actor_user_id=technician_id,
+        started_at=now_dt - timedelta(minutes=5),
+    )
+    session.pause(
+        actor_user_id=technician_id,
+        paused_at=now_dt - timedelta(seconds=70),
+    )
+    resumed_count = (
+        TicketWorkSessionService.auto_resume_paused_sessions_if_limit_reached(
+            technician_id=technician_id,
+            now_dt=now_dt,
+        )
+    )
+
+    assert resumed_count == 1
+    session.refresh_from_db()
+    assert session.status == WorkSessionStatus.RUNNING
+    assert session.last_started_at == now_dt
+    latest_transition = (
+        WorkSessionTransition.objects.filter(work_session=session)
+        .order_by("-event_at", "-id")
+        .first()
+    )
+    assert latest_transition is not None
+    assert latest_transition.action == WorkSessionTransitionAction.RESUMED
+    assert latest_transition.metadata.get("auto_resumed") is True
+
+
+def test_pause_limit_resets_after_midnight(
+    work_session_context,
+):
+    _configure_pause_limit_rules(
+        actor_user_id=work_session_context["master"].id,
+        limit_minutes=1,
+    )
+    ticket = work_session_context["ticket"]
+    technician_id = work_session_context["tech"].id
+    business_tz = ZoneInfo("Asia/Tashkent")
+
+    start_dt = datetime(2026, 2, 16, 23, 55, tzinfo=business_tz)
+    pause_dt = datetime(2026, 2, 16, 23, 59, tzinfo=business_tz)
+    now_dt = datetime(2026, 2, 17, 0, 0, 30, tzinfo=business_tz)
+
+    session = WorkSession.start_for_ticket(
+        ticket=ticket,
+        actor_user_id=technician_id,
+        started_at=start_dt,
+    )
+    session.pause(
+        actor_user_id=technician_id,
+        paused_at=pause_dt,
+    )
+
+    resumed_count = (
+        TicketWorkSessionService.auto_resume_paused_sessions_if_limit_reached(
+            technician_id=technician_id,
+            now_dt=now_dt,
+        )
+    )
+    assert resumed_count == 0
+
+    session.refresh_from_db()
+    assert session.status == WorkSessionStatus.PAUSED
+
+    remaining_seconds = TicketWorkSessionService.get_remaining_pause_seconds_today(
+        technician_id=technician_id,
+        now_dt=now_dt,
+    )
+    assert 0 < remaining_seconds <= 30

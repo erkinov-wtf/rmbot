@@ -23,6 +23,8 @@ Provides default rules, strict normalization, versioned update/rollback orchestr
 ## Invariants and Contracts
 - Unknown top-level keys are rejected.
 - Progression thresholds are non-decreasing; L1 threshold fixed at zero.
+- `work_session.daily_pause_limit_minutes` must be a non-negative integer.
+- `attendance.timezone` and `work_session.timezone` must be non-empty strings.
 - Updates/rollbacks always create new immutable version rows.
 - Cache key rotates on each activation change.
 

@@ -69,6 +69,9 @@ class WorkSessionQuerySet(models.QuerySet):
             status__in=[WorkSessionStatus.RUNNING, WorkSessionStatus.PAUSED]
         )
 
+    def paused(self):
+        return self.filter(status=WorkSessionStatus.PAUSED)
+
     def for_ticket(self, ticket):
         return self.filter(ticket=ticket)
 
@@ -108,6 +111,24 @@ class WorkSessionDomainManager(models.Manager.from_queryset(WorkSessionQuerySet)
             .for_technician(technician_id=technician_id)
             .order_by("-created_at", "-id")
             .first()
+        )
+
+    def paused_sessions(self, *, technician_id: int | None = None):
+        queryset = self.get_queryset().paused()
+        if technician_id is not None:
+            queryset = queryset.for_technician(technician_id=technician_id)
+        return queryset
+
+    def for_technician_overlapping_window(
+        self, *, technician_id: int, window_start, window_end
+    ):
+        return (
+            self.get_queryset()
+            .for_technician(technician_id=technician_id)
+            .filter(started_at__lt=window_end)
+            .filter(
+                models.Q(ended_at__isnull=True) | models.Q(ended_at__gte=window_start)
+            )
         )
 
 

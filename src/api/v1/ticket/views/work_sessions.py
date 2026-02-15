@@ -28,7 +28,10 @@ class TicketWorkSessionViewSet(BaseViewSet):
     @extend_schema(
         tags=["Tickets / Work Sessions"],
         summary="Pause ticket work session",
-        description="Pauses the active work session timer for the specified ticket.",
+        description=(
+            "Pauses the active work session timer for the specified ticket. "
+            "Pause is limited by daily technician budget from rules config."
+        ),
     )
     def pause(self, request, pk: int, *args, **kwargs):
         ticket = self._ticket(pk)
@@ -43,7 +46,10 @@ class TicketWorkSessionViewSet(BaseViewSet):
     @extend_schema(
         tags=["Tickets / Work Sessions"],
         summary="Resume ticket work session",
-        description="Resumes a paused work session timer for the specified ticket.",
+        description=(
+            "Resumes a paused work session timer for the specified ticket. "
+            "Paused sessions can also resume automatically when daily pause budget is exhausted."
+        ),
     )
     def resume(self, request, pk: int, *args, **kwargs):
         ticket = self._ticket(pk)

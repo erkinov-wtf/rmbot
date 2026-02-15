@@ -53,6 +53,7 @@ def test_get_config_bootstraps_defaults(authed_client_factory, rules_context):
     assert payload["active_version"] == 1
     assert payload["config"]["ticket_xp"]["base_divisor"] == 20
     assert payload["config"]["ticket_xp"]["first_pass_bonus"] == 1
+    assert payload["config"]["work_session"]["daily_pause_limit_minutes"] == 30
     assert payload["config"]["progression"]["weekly_coupon_amount"] == 100000
 
 
@@ -73,6 +74,28 @@ def test_permissions_for_config_mutation(authed_client_factory, rules_context):
     )
     assert allowed.status_code == 200
     assert allowed.data["data"]["active_version"] == 2
+
+
+def test_update_persists_work_session_pause_limit(authed_client_factory, rules_context):
+    client = authed_client_factory(rules_context["super_admin"])
+    base = client.get(RULES_CONFIG_URL).data["data"]["config"]
+    updated = {
+        **base,
+        "work_session": {
+            **base["work_session"],
+            "daily_pause_limit_minutes": 45,
+        },
+    }
+
+    resp = client.put(
+        RULES_CONFIG_URL,
+        {"config": updated, "reason": "Adjust pause limit"},
+        format="json",
+    )
+    assert resp.status_code == 200
+    assert (
+        resp.data["data"]["config"]["work_session"]["daily_pause_limit_minutes"] == 45
+    )
 
 
 def test_update_changes_cache_key_and_history(authed_client_factory, rules_context):
@@ -190,6 +213,10 @@ def test_invalid_config_rejected(authed_client_factory, rules_context):
                 "late_xp": -1,
                 "on_time_cutoff": "10:00",
                 "grace_cutoff": "10:20",
+                "timezone": "Asia/Tashkent",
+            },
+            "work_session": {
+                "daily_pause_limit_minutes": 30,
                 "timezone": "Asia/Tashkent",
             },
             "progression": {

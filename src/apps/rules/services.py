@@ -34,6 +34,10 @@ class RulesService:
                 "grace_cutoff": "10:20",
                 "timezone": "Asia/Tashkent",
             },
+            "work_session": {
+                "daily_pause_limit_minutes": 30,
+                "timezone": "Asia/Tashkent",
+            },
             "progression": {
                 "level_thresholds": {
                     str(EmployeeLevel.L1): 0,
@@ -120,19 +124,22 @@ class RulesService:
         if not isinstance(raw_config, dict):
             raise ValueError("config must be a JSON object.")
 
-        allowed_keys = {"ticket_xp", "attendance", "progression"}
+        allowed_keys = {"ticket_xp", "attendance", "work_session", "progression"}
         unknown_keys = sorted(set(raw_config.keys()) - allowed_keys)
         if unknown_keys:
             raise ValueError(f"Unknown config keys: {', '.join(unknown_keys)}.")
 
         ticket_xp = raw_config.get("ticket_xp")
         attendance = raw_config.get("attendance")
+        work_session = raw_config.get("work_session")
         progression = raw_config.get("progression")
 
         if not isinstance(ticket_xp, dict):
             raise ValueError("ticket_xp must be an object.")
         if not isinstance(attendance, dict):
             raise ValueError("attendance must be an object.")
+        if not isinstance(work_session, dict):
+            raise ValueError("work_session must be an object.")
         if not isinstance(progression, dict):
             raise ValueError("progression must be an object.")
 
@@ -181,6 +188,17 @@ class RulesService:
         if not isinstance(timezone_value, str) or not timezone_value.strip():
             raise ValueError("attendance.timezone must be a non-empty string.")
 
+        daily_pause_limit_minutes = cls._require_int(
+            work_session.get("daily_pause_limit_minutes"),
+            field="work_session.daily_pause_limit_minutes",
+        )
+        work_session_timezone = work_session.get("timezone")
+        if (
+            not isinstance(work_session_timezone, str)
+            or not work_session_timezone.strip()
+        ):
+            raise ValueError("work_session.timezone must be a non-empty string.")
+
         level_thresholds = cls._normalize_level_map(
             progression.get("level_thresholds"), field="progression.level_thresholds"
         )
@@ -201,6 +219,10 @@ class RulesService:
                 "on_time_cutoff": on_time_cutoff,
                 "grace_cutoff": grace_cutoff,
                 "timezone": timezone_value,
+            },
+            "work_session": {
+                "daily_pause_limit_minutes": daily_pause_limit_minutes,
+                "timezone": work_session_timezone,
             },
             "progression": {
                 "level_thresholds": level_thresholds,

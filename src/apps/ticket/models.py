@@ -402,7 +402,13 @@ class WorkSession(TimestampedModel, SoftDeleteModel):
             total_seconds += max(0, int((until_dt - running_since).total_seconds()))
         return total_seconds
 
-    def pause(self, *, actor_user_id: int, paused_at=None) -> None:
+    def pause(
+        self,
+        *,
+        actor_user_id: int,
+        paused_at=None,
+        metadata: dict | None = None,
+    ) -> None:
         if self.status != WorkSessionStatus.RUNNING:
             raise ValueError("Work session can be paused only from RUNNING state.")
 
@@ -413,13 +419,20 @@ class WorkSession(TimestampedModel, SoftDeleteModel):
             to_status=WorkSessionStatus.PAUSED,
             actor_user_id=actor_user_id,
             event_at=now_dt,
+            metadata=metadata,
         )
         self.active_seconds = self.recalculate_active_seconds(until_dt=now_dt)
         self.status = WorkSessionStatus.PAUSED
         self.last_started_at = None
         self.save(update_fields=["active_seconds", "status", "last_started_at"])
 
-    def resume(self, *, actor_user_id: int, resumed_at=None) -> None:
+    def resume(
+        self,
+        *,
+        actor_user_id: int,
+        resumed_at=None,
+        metadata: dict | None = None,
+    ) -> None:
         if self.status != WorkSessionStatus.PAUSED:
             raise ValueError("Work session can be resumed only from PAUSED state.")
 
@@ -430,6 +443,7 @@ class WorkSession(TimestampedModel, SoftDeleteModel):
             to_status=WorkSessionStatus.RUNNING,
             actor_user_id=actor_user_id,
             event_at=now_dt,
+            metadata=metadata,
         )
         self.status = WorkSessionStatus.RUNNING
         self.last_started_at = now_dt

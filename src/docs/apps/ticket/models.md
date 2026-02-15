@@ -29,6 +29,7 @@ Defines workflow and work-session persistence for operational execution and anal
 - Ticket metrics (`total_duration`, `flag_minutes`, `flag_color`, `xp_amount`) are computed from ticket part specs unless manually overridden.
 - Ticket completion timestamp is stored in `finished_at`.
 - Ticket and part-spec colors are constrained to `green`, `yellow`, and `red`.
+- Work-session pause/resume transitions may include metadata for pause-budget enforcement (remaining budget / auto-resume reason).
 - Service classes orchestrate rule evaluation/delivery flows while model methods own first-level state transitions and append-only row creation.
 
 ## Related Code

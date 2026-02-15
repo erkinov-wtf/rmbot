@@ -42,6 +42,8 @@ Documents ticket intake, workflow transitions, QC outcomes, and work-session tim
 - Ticket assignment requires prior admin review approval (`approved_by`, `approved_at`).
 - Allowed ticket colors are `green`, `yellow`, `red` (including part-spec and manual-metrics inputs).
 - Invalid state transitions/session actions -> `400`.
+- Daily work-session pause budget is enforced per technician (`work_session.daily_pause_limit_minutes`); pause fails when exhausted.
+- Paused sessions are auto-resumed when today's pause budget is consumed, and budget resets after local midnight (`work_session.timezone`).
 - Moving to QC while latest work session is not `STOPPED` -> `400`.
 - Unauthorized role for action -> `403`.
 - Missing/invalid JWT -> `401`.
