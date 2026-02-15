@@ -1,12 +1,12 @@
 from django.db.models import Q
-from rest_framework import generics, serializers, status
+from rest_framework import generics, serializers
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from attendance.models import AttendanceRecord
 from core.api.permissions import HasRole
 from core.api.schema import extend_schema
-from core.api.views import BaseAPIView
+from core.api.views import ListAPIView
 from core.utils.constants import RoleSlug
 from gamification.models import XPLedger
 from payroll.models import PayrollAllowanceGateDecision
@@ -19,6 +19,11 @@ class HealthSerializer(serializers.Serializer):
 
 class TestSerializer(serializers.Serializer):
     message = serializers.CharField()
+
+
+class AuditFeedEventSerializer(serializers.Serializer):
+    def to_representation(self, instance):
+        return instance
 
 
 @extend_schema(
@@ -59,20 +64,21 @@ AuditFeedPermission = HasRole.as_any(RoleSlug.SUPER_ADMIN, RoleSlug.OPS_MANAGER)
         "payroll allowance-gate decisions."
     ),
 )
-class AuditFeedAPIView(BaseAPIView):
+class AuditFeedAPIView(ListAPIView):
     permission_classes = (IsAuthenticated, AuditFeedPermission)
+    serializer_class = AuditFeedEventSerializer
 
-    def get(self, request, *args, **kwargs):
-        try:
-            requested_limit = int(request.query_params.get("limit", "50"))
-        except ValueError:
-            return Response(
-                {"detail": "limit must be an integer"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        limit = max(1, min(requested_limit, 200))
-        pool_size = max(limit * 4, 50)
+    def get_queryset(self):
+        requested_page = self._safe_positive_int(
+            raw_value=self.request.query_params.get("page"),
+            fallback=1,
+        )
+        default_per_page = getattr(self.pagination_class, "page_size", 10)
+        requested_per_page = self._safe_positive_int(
+            raw_value=self.request.query_params.get("per_page"),
+            fallback=default_per_page,
+        )
+        pool_size = min(max(requested_page * requested_per_page * 4, 50), 5000)
         events = []
 
         transitions = TicketTransition.objects.select_related(
@@ -177,10 +183,16 @@ class AuditFeedAPIView(BaseAPIView):
             )
 
         events.sort(key=lambda item: item["timestamp_dt"], reverse=True)
-        result = []
-        for item in events[:limit]:
-            payload = dict(item)
+        for payload in events:
             payload.pop("timestamp_dt", None)
-            result.append(payload)
+        return events
 
-        return Response(result, status=status.HTTP_200_OK)
+    @staticmethod
+    def _safe_positive_int(*, raw_value: str | None, fallback: int) -> int:
+        try:
+            parsed_value = int(raw_value)
+            if parsed_value > 0:
+                return parsed_value
+        except (TypeError, ValueError):
+            pass
+        return fallback

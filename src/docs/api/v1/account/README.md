@@ -13,7 +13,13 @@ Documents authenticated identity lookup and manager moderation endpoints for bot
 - Returns current user profile, role slugs, and linked Telegram profile snapshot for client bootstrap.
 
 ### `GET /api/v1/users/access-requests/?status=<pending|approved|rejected>`
-- Lists moderation queue filtered by status (default `pending`).
+- Lists paginated moderation queue filtered by status (default `pending`).
+- Optional query parameters:
+  - `status` (`pending`, `approved`, `rejected`)
+  - `ordering` (`created_at`, `-created_at`, `resolved_at`, `-resolved_at`)
+- Pagination parameters:
+  - `page`
+  - `per_page`
 
 ### `POST /api/v1/users/access-requests/{id}/approve/`
 - Approves pending request, activates linked pre-created user, and optionally assigns `role_slugs`.
@@ -37,5 +43,6 @@ Documents authenticated identity lookup and manager moderation endpoints for bot
 ## Related Code
 - `api/v1/account/urls.py`
 - `api/v1/account/views.py`
+- `api/v1/account/filters.py`
 - `apps/account/services.py`
 - `apps/account/models.py`

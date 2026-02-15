@@ -1,107 +1,34 @@
-from django.db.models import Q
-from rest_framework import status
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
 
+from api.v1.gamification.filters import XPLedgerFilterSet, can_view_all_ledger_entries
 from api.v1.gamification.serializers import XPLedgerSerializer
 from core.api.schema import extend_schema
-from core.api.views import BaseAPIView
-from core.utils.constants import RoleSlug, XPLedgerEntryType
+from core.api.views import ListAPIView
 from gamification.models import XPLedger
-
-PRIVILEGED_LEDGER_VIEW_ROLES = {RoleSlug.SUPER_ADMIN, RoleSlug.OPS_MANAGER}
 
 
 @extend_schema(
     tags=["XP Ledger"],
     summary="List XP ledger entries",
-    description="Returns XP ledger entries with optional filters. Regular users can only see their own entries.",
+    description=(
+        "Returns paginated XP ledger entries with optional filters. Regular users "
+        "can only see their own entries."
+    ),
 )
-class XPLedgerListAPIView(BaseAPIView):
+class XPLedgerListAPIView(ListAPIView):
     permission_classes = (IsAuthenticated,)
+    serializer_class = XPLedgerSerializer
+    queryset = XPLedger.objects.select_related("user").order_by("-created_at", "-id")
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = XPLedgerFilterSet
 
-    def get(self, request, *args, **kwargs):
-        role_slugs = set(request.user.roles.values_list("slug", flat=True))
-        can_view_all = bool(role_slugs & PRIVILEGED_LEDGER_VIEW_ROLES)
+    def get_queryset(self):
+        queryset = self.queryset
+        if self._can_view_all():
+            return queryset
 
-        user_id_raw = request.query_params.get("user_id")
-        ticket_id_raw = request.query_params.get("ticket_id")
-        entry_type = request.query_params.get("entry_type")
-        limit_raw = request.query_params.get("limit", "100")
+        return queryset.filter(user_id=self.request.user.id)
 
-        try:
-            limit = int(limit_raw)
-        except ValueError:
-            return Response(
-                {"detail": "limit must be an integer"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        if limit < 1 or limit > 500:
-            return Response(
-                {"detail": "limit must be between 1 and 500"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        user_id = None
-        if user_id_raw is not None:
-            try:
-                user_id = int(user_id_raw)
-            except ValueError:
-                return Response(
-                    {"detail": "user_id must be an integer"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-            if user_id < 1:
-                return Response(
-                    {"detail": "user_id must be a positive integer"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-        ticket_id = None
-        if ticket_id_raw is not None:
-            try:
-                ticket_id = int(ticket_id_raw)
-            except ValueError:
-                return Response(
-                    {"detail": "ticket_id must be an integer"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-            if ticket_id < 1:
-                return Response(
-                    {"detail": "ticket_id must be a positive integer"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-        if entry_type and entry_type not in XPLedgerEntryType.values:
-            return Response(
-                {
-                    "detail": f"Invalid entry_type value. Allowed: {', '.join(XPLedgerEntryType.values)}"
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        queryset = XPLedger.objects.select_related("user").order_by("-created_at")
-
-        if can_view_all:
-            if user_id is not None:
-                queryset = queryset.filter(user_id=user_id)
-        else:
-            if user_id is not None and user_id != request.user.id:
-                return Response(
-                    {"detail": "You can only view your own XP ledger entries."},
-                    status=status.HTTP_403_FORBIDDEN,
-                )
-            queryset = queryset.filter(user_id=request.user.id)
-
-        if ticket_id is not None:
-            queryset = queryset.filter(
-                Q(payload__ticket_id=ticket_id)
-                | Q(reference=f"ticket_base_xp:{ticket_id}")
-                | Q(reference=f"ticket_qc_first_pass_bonus:{ticket_id}")
-            )
-
-        if entry_type:
-            queryset = queryset.filter(entry_type=entry_type)
-
-        serializer = XPLedgerSerializer(queryset[:limit], many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+    def _can_view_all(self) -> bool:
+        return can_view_all_ledger_entries(self.request.user)

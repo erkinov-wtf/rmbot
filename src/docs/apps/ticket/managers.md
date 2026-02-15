@@ -17,6 +17,7 @@ Defines domain query helpers for ticket/work-session lifecycle, stockout trackin
 - `StockoutIncident.domain` centralizes active incident lookup (including `select_for_update`) and window-overlap selection.
 - `SLAAutomationEvent.domain` centralizes latest-per-rule and id-based reads.
 - `SLAAutomationDeliveryAttempt.domain` centralizes success-existence checks for idempotent delivery behavior.
+- `WorkSession.domain` provides both open-session retrieval and latest-session lookup per ticket/technician for workflow gating.
 - Transition managers provide read helpers:
   - QC-fail existence lookup (`has_qc_fail_for_ticket`)
   - ticket-scoped work-session transition history (`history_for_ticket`)

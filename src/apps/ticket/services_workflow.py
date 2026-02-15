@@ -5,11 +5,12 @@ from django.utils import timezone
 
 from core.utils.constants import (
     TicketTransitionAction,
+    WorkSessionStatus,
     XPLedgerEntryType,
 )
 from gamification.services import GamificationService
 from rules.services import RulesService
-from ticket.models import Ticket, TicketTransition
+from ticket.models import Ticket, TicketTransition, WorkSession
 
 
 class TicketWorkflowService:
@@ -38,9 +39,10 @@ class TicketWorkflowService:
     @classmethod
     @transaction.atomic
     def start_ticket(cls, ticket: Ticket, actor_user_id: int) -> Ticket:
+        now_dt = timezone.now()
         from_status = ticket.start_progress(
             actor_user_id=actor_user_id,
-            started_at=timezone.now(),
+            started_at=now_dt,
         )
         ticket.bike.mark_in_service()
 
@@ -51,11 +53,25 @@ class TicketWorkflowService:
             action=TicketTransitionAction.STARTED,
             actor_user_id=actor_user_id,
         )
+        WorkSession.start_for_ticket(
+            ticket=ticket,
+            actor_user_id=actor_user_id,
+            started_at=now_dt,
+        )
         return ticket
 
     @classmethod
     @transaction.atomic
     def move_ticket_to_waiting_qc(cls, ticket: Ticket, actor_user_id: int) -> Ticket:
+        latest_session = WorkSession.domain.get_latest_for_ticket_and_technician(
+            ticket=ticket,
+            technician_id=actor_user_id,
+        )
+        if latest_session is None or latest_session.status != WorkSessionStatus.STOPPED:
+            raise ValueError(
+                "Work session must be stopped before moving ticket to waiting QC."
+            )
+
         from_status = ticket.move_to_waiting_qc(actor_user_id=actor_user_id)
         cls.log_ticket_transition(
             ticket=ticket,

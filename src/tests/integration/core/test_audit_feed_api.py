@@ -98,10 +98,10 @@ def test_requires_ops_or_super_admin(authed_client_factory, audit_feed_context):
 
 def test_returns_mixed_event_feed(authed_client_factory, audit_feed_context):
     client = authed_client_factory(audit_feed_context["ops"])
-    resp = client.get(f"{AUDIT_FEED_URL}?limit=20")
+    resp = client.get(f"{AUDIT_FEED_URL}?per_page=20")
 
     assert resp.status_code == 200
-    feed = resp.data["data"]
+    feed = resp.data["results"]
     assert len(feed) >= 3
 
     event_types = {event["event_type"] for event in feed}
@@ -112,13 +112,11 @@ def test_returns_mixed_event_feed(authed_client_factory, audit_feed_context):
     assert "sla_automation" in event_types
 
 
-def test_limit_and_validation(authed_client_factory, audit_feed_context):
+def test_pagination_works(authed_client_factory, audit_feed_context):
     client = authed_client_factory(audit_feed_context["ops"])
 
-    invalid = client.get(f"{AUDIT_FEED_URL}?limit=abc")
-    assert invalid.status_code == 400
-    assert invalid.data["success"] is False
-
-    limited = client.get(f"{AUDIT_FEED_URL}?limit=1")
+    limited = client.get(f"{AUDIT_FEED_URL}?per_page=1&page=1")
     assert limited.status_code == 200
-    assert len(limited.data["data"]) == 1
+    assert limited.data["per_page"] == 1
+    assert limited.data["page"] == 1
+    assert len(limited.data["results"]) == 1

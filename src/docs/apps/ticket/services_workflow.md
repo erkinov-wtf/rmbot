@@ -18,12 +18,14 @@ Orchestrates core ticket transitions while delegating state mutation rules to mo
 ## Side Effects
 - Writes `TicketTransition` rows for each workflow action.
 - Updates bike status (`IN_SERVICE` on start, `READY` on QC pass).
+- Starts a `WorkSession` automatically when `start_ticket` succeeds.
 - Appends XP ledger base and optional first-pass bonus entries.
 
 ## Failure Modes
 - Invalid source state for requested action.
 - Technician mismatch or missing assignment.
 - Unique in-progress technician constraint violations surfaced as errors.
+- `move_ticket_to_waiting_qc` is blocked until the latest ticket session for that technician is `STOPPED`.
 
 ## Operational Notes
 - XP formula inputs come from active rules (`ticket_xp` section).

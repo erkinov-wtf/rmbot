@@ -56,8 +56,8 @@ def test_list_requires_privileged_role(authed_client_factory, moderation_context
     moderator_client = authed_client_factory(moderation_context["moderator"])
     allowed = moderator_client.get(LIST_URL)
     assert allowed.status_code == 200
-    assert len(allowed.data["data"]) == 1
-    assert allowed.data["data"][0]["status"] == AccessRequestStatus.PENDING
+    assert len(allowed.data["results"]) == 1
+    assert allowed.data["results"][0]["status"] == AccessRequestStatus.PENDING
 
 
 def test_approve_links_profile_and_assigns_roles(

@@ -9,6 +9,7 @@ Provides reusable attendance retrieval helpers for business-date operations.
 
 ## Execution Notes
 - `for_user_on_date` resolves today's row lookup with soft-delete filtering.
+- `for_work_date` returns alive attendance rows for a specific work date.
 - `get_or_restore_for_user_on_date` revives soft-deleted records before service writes.
 
 ## Invariants and Contracts

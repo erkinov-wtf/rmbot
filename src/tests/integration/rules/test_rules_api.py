@@ -117,9 +117,9 @@ def test_update_changes_cache_key_and_history(authed_client_factory, rules_conte
     assert after["config"]["ticket_xp"]["base_divisor"] == 10
     assert after["config"]["ticket_xp"]["first_pass_bonus"] == 2
 
-    history_resp = client.get(f"{RULES_HISTORY_URL}?limit=2")
+    history_resp = client.get(f"{RULES_HISTORY_URL}?per_page=2")
     assert history_resp.status_code == 200
-    items = history_resp.data["data"]
+    items = history_resp.data["results"]
     assert len(items) >= 2
     assert items[0]["action"] == "update"
     assert items[0]["source_version_number"] == 1

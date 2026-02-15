@@ -2,6 +2,7 @@ import logging
 import queue
 import threading
 import traceback
+from collections.abc import Mapping
 
 import requests
 
@@ -65,11 +66,15 @@ class RequestContextFilter(logging.Filter):
     def filter(self, record):
         request = getattr(record, "request", None)
 
-        if request:
-            record.user = getattr(request.user, "username", "Anonymous")
-            record.method = request.method
-            record.path = request.path
-            record.ip = request.META.get("REMOTE_ADDR", "-")
+        if self._is_request_context(request):
+            user = getattr(request, "user", None)
+            record.user = getattr(user, "username", "Anonymous")
+            record.method = getattr(request, "method", "-")
+            record.path = getattr(request, "path", "-")
+            meta = getattr(request, "META", {})
+            record.ip = (
+                meta.get("REMOTE_ADDR", "-") if isinstance(meta, Mapping) else "-"
+            )
             record.request_id = getattr(request, "request_id", "-")
         else:
             record.user = "Unknown"
@@ -87,3 +92,15 @@ class RequestContextFilter(logging.Filter):
             record.traceback = "No traceback"
 
         return True
+
+    @staticmethod
+    def _is_request_context(request) -> bool:
+        """
+        Guard against non-HTTP objects (for example socket instances in devserver logs).
+        """
+        return (
+            request is not None
+            and hasattr(request, "method")
+            and hasattr(request, "path")
+            and hasattr(request, "META")
+        )

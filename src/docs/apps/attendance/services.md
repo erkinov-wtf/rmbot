@@ -2,10 +2,13 @@
 
 ## Scope
 Implements attendance check-in/check-out and punctuality XP posting with rules-driven time logic.
+API callers are privileged managers who pass a technician user ID to record attendance on behalf of technicians.
 
 ## Execution Flows
 - Resolve attendance rules (`_attendance_rules`).
 - Resolve business date (`_business_date`).
+- Resolve punctuality label (`resolve_punctuality_status`) as `early` / `on_time` / `late`.
+- Filtered day list read (`list_today_records`) by date, technician, and punctuality label.
 - Check-in orchestration (`check_in`) with model-level `mark_check_in` + XP append.
 - Check-out orchestration (`check_out`) with model-level `mark_check_out`.
 

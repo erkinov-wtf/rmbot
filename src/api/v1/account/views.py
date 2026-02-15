@@ -1,10 +1,12 @@
 from django.shortcuts import get_object_or_404
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from account.models import AccessRequest
 from account.services import AccountService
+from api.v1.account.filters import AccessRequestFilterSet
 from api.v1.account.serializers import (
     AccessRequestApproveSerializer,
     AccessRequestSerializer,
@@ -12,7 +14,7 @@ from api.v1.account.serializers import (
 )
 from core.api.permissions import HasRole
 from core.api.schema import extend_schema
-from core.api.views import BaseAPIView
+from core.api.views import BaseAPIView, ListAPIView
 from core.utils.constants import AccessRequestStatus, RoleSlug
 
 AccessRequestManagerPermission = HasRole.as_any(
@@ -39,27 +41,14 @@ class MeAPIView(BaseAPIView):
     summary="List access requests by status",
     description="Lists onboarding access requests filtered by status for manager roles.",
 )
-class AccessRequestListAPIView(BaseAPIView):
+class AccessRequestListAPIView(ListAPIView):
     serializer_class = AccessRequestSerializer
+    queryset = AccessRequest.objects.select_related("user").order_by(
+        "-created_at", "-id"
+    )
     permission_classes = (IsAuthenticated, AccessRequestManagerPermission)
-
-    def get(self, request, *args, **kwargs):
-        status_query = request.query_params.get("status", AccessRequestStatus.PENDING)
-        if status_query not in AccessRequestStatus.values:
-            return Response(
-                {
-                    "detail": f"Invalid status value. Allowed: {', '.join(AccessRequestStatus.values)}"
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        queryset = (
-            AccessRequest.objects.select_related("user")
-            .filter(status=status_query)
-            .order_by("-created_at")
-        )
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = AccessRequestFilterSet
 
 
 @extend_schema(

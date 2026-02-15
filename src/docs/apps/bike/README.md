@@ -1,7 +1,7 @@
 # Bike App Docs
 
 ## Scope
-Covers bike registry entities and BikeCode normalization/lookup/suggestion logic.
+Covers bike registry entities, BikeCode normalization/lookup/suggestion logic, and list-filter query primitives used by bike CRUD APIs.
 
 ## Navigation
 - `docs/apps/bike/models.md`
@@ -9,7 +9,7 @@ Covers bike registry entities and BikeCode normalization/lookup/suggestion logic
 - `docs/apps/bike/services.md`
 
 ## Maintenance Rules
-- Update docs when BikeCode format/validation/suggestion behavior changes.
+- Update docs when BikeCode format/validation/suggestion behavior or bike list filtering behavior changes.
 
 ## Related Code
 - `apps/bike/models.py`

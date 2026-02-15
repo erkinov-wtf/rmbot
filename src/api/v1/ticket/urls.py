@@ -1,8 +1,10 @@
 from django.urls import path
 
 from api.v1.ticket.views import (
+    TicketTransitionListAPIView,
     TicketViewSet,
     TicketWorkflowViewSet,
+    TicketWorkSessionHistoryListAPIView,
     TicketWorkSessionViewSet,
 )
 
@@ -19,7 +21,7 @@ urlpatterns = [
     ),
     path(
         "<int:pk>/transitions/",
-        TicketWorkflowViewSet.as_view({"get": "transitions"}),
+        TicketTransitionListAPIView.as_view(),
         name="ticket-transitions",
     ),
     path(
@@ -43,11 +45,6 @@ urlpatterns = [
         name="ticket-qc-fail",
     ),
     path(
-        "<int:pk>/work-session/start/",
-        TicketWorkSessionViewSet.as_view({"post": "start"}),
-        name="ticket-work-session-start",
-    ),
-    path(
         "<int:pk>/work-session/pause/",
         TicketWorkSessionViewSet.as_view({"post": "pause"}),
         name="ticket-work-session-pause",
@@ -64,7 +61,7 @@ urlpatterns = [
     ),
     path(
         "<int:pk>/work-session/history/",
-        TicketWorkSessionViewSet.as_view({"get": "history"}),
+        TicketWorkSessionHistoryListAPIView.as_view(),
         name="ticket-work-session-history",
     ),
 ]

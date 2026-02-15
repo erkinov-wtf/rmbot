@@ -1,7 +1,9 @@
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from api.v1.rules.filters import RulesConfigHistoryFilterSet
 from api.v1.rules.serializers import (
     RulesConfigRollbackSerializer,
     RulesConfigUpdateSerializer,
@@ -9,8 +11,9 @@ from api.v1.rules.serializers import (
 )
 from core.api.permissions import HasRole
 from core.api.schema import extend_schema
-from core.api.views import BaseAPIView
+from core.api.views import BaseAPIView, ListAPIView
 from core.utils.constants import RoleSlug
+from rules.models import RulesConfigVersion
 from rules.services import RulesService
 
 RulesReadPermission = HasRole.as_any(RoleSlug.SUPER_ADMIN, RoleSlug.OPS_MANAGER)
@@ -90,26 +93,9 @@ class RulesConfigRollbackAPIView(BaseAPIView):
     summary="List rules config version history",
     description="Returns recent rules config versions with metadata and change diff snapshots.",
 )
-class RulesConfigHistoryAPIView(BaseAPIView):
+class RulesConfigHistoryAPIView(ListAPIView):
     permission_classes = (IsAuthenticated, RulesReadPermission)
-
-    def get(self, request, *args, **kwargs):
-        limit_raw = request.query_params.get("limit", "50")
-        try:
-            limit = int(limit_raw)
-        except ValueError:
-            return Response(
-                {"detail": "limit must be an integer"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        if limit < 1 or limit > 200:
-            return Response(
-                {"detail": "limit must be between 1 and 200"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        history = RulesService.list_rules_versions(limit=limit)
-        return Response(
-            RulesConfigVersionSerializer(history, many=True).data,
-            status=status.HTTP_200_OK,
-        )
+    serializer_class = RulesConfigVersionSerializer
+    queryset = RulesConfigVersion.domain.get_queryset().with_related().ordered_latest()
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = RulesConfigHistoryFilterSet

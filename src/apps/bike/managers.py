@@ -4,7 +4,15 @@ import difflib
 
 from django.db import models
 
-from core.utils.constants import BikeStatus
+from core.utils.constants import BikeStatus, TicketStatus
+
+ACTIVE_TICKET_STATUSES = (
+    TicketStatus.NEW,
+    TicketStatus.ASSIGNED,
+    TicketStatus.IN_PROGRESS,
+    TicketStatus.WAITING_QC,
+    TicketStatus.REWORK,
+)
 
 
 class BikeQuerySet(models.QuerySet):
@@ -16,6 +24,39 @@ class BikeQuerySet(models.QuerySet):
 
     def by_code(self, bike_code: str):
         return self.filter(bike_code__iexact=bike_code)
+
+    def by_code_contains(self, query: str):
+        return self.filter(bike_code__icontains=query)
+
+    def with_status(self, status: str):
+        return self.filter(status=status)
+
+    def with_is_active(self, is_active: bool):
+        return self.filter(is_active=is_active)
+
+    def created_from(self, value):
+        return self.filter(created_at__date__gte=value)
+
+    def created_to(self, value):
+        return self.filter(created_at__date__lte=value)
+
+    def updated_from(self, value):
+        return self.filter(updated_at__date__gte=value)
+
+    def updated_to(self, value):
+        return self.filter(updated_at__date__lte=value)
+
+    def with_active_ticket(self):
+        return self.filter(
+            tickets__status__in=ACTIVE_TICKET_STATUSES,
+            tickets__deleted_at__isnull=True,
+        ).distinct()
+
+    def without_active_ticket(self):
+        return self.exclude(
+            tickets__status__in=ACTIVE_TICKET_STATUSES,
+            tickets__deleted_at__isnull=True,
+        ).distinct()
 
 
 class BikeDomainManager(models.Manager.from_queryset(BikeQuerySet)):

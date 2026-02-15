@@ -157,6 +157,15 @@ class WorkSessionDomainManager(models.Manager.from_queryset(WorkSessionQuerySet)
             .first()
         )
 
+    def get_latest_for_ticket_and_technician(self, *, ticket, technician_id: int):
+        return (
+            self.get_queryset()
+            .for_ticket(ticket)
+            .for_technician(technician_id=technician_id)
+            .order_by("-created_at", "-id")
+            .first()
+        )
+
 
 class TicketTransitionDomainManager(models.Manager):
     def has_qc_fail_for_ticket(self, *, ticket) -> bool:

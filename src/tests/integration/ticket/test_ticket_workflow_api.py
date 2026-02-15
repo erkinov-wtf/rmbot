@@ -5,8 +5,9 @@ from core.utils.constants import (
     RoleSlug,
     TicketStatus,
     TicketTransitionAction,
+    WorkSessionStatus,
 )
-from ticket.models import TicketTransition
+from ticket.models import TicketTransition, WorkSession
 
 pytestmark = pytest.mark.django_db
 
@@ -101,15 +102,27 @@ def test_only_assigned_technician_can_start(authed_client_factory, workflow_cont
     workflow_context["bike"].refresh_from_db()
     assert ticket.status == TicketStatus.IN_PROGRESS
     assert workflow_context["bike"].status == BikeStatus.IN_SERVICE
+    assert WorkSession.objects.filter(
+        ticket=ticket,
+        technician=workflow_context["tech"],
+        status=WorkSessionStatus.RUNNING,
+    ).exists()
 
 
 def test_technician_moves_to_waiting_qc(authed_client_factory, workflow_context):
     ticket = workflow_context["ticket"]
-    ticket.status = TicketStatus.IN_PROGRESS
+    ticket.status = TicketStatus.ASSIGNED
     ticket.technician = workflow_context["tech"]
     ticket.save(update_fields=["status", "technician"])
 
     client = authed_client_factory(workflow_context["tech"])
+    start = client.post(f"/api/v1/tickets/{ticket.id}/start/", {}, format="json")
+    assert start.status_code == 200
+    stop = client.post(
+        f"/api/v1/tickets/{ticket.id}/work-session/stop/", {}, format="json"
+    )
+    assert stop.status_code == 200
+
     resp = client.post(f"/api/v1/tickets/{ticket.id}/to-waiting-qc/", {}, format="json")
 
     assert resp.status_code == 200
@@ -162,6 +175,25 @@ def test_qc_fail_moves_to_rework_then_technician_can_restart(
     assert ticket.status == TicketStatus.IN_PROGRESS
 
 
+def test_cannot_move_to_waiting_qc_with_non_stopped_work_session(
+    authed_client_factory, workflow_context
+):
+    ticket = workflow_context["ticket"]
+    ticket.status = TicketStatus.ASSIGNED
+    ticket.technician = workflow_context["tech"]
+    ticket.save(update_fields=["status", "technician"])
+
+    tech_client = authed_client_factory(workflow_context["tech"])
+    start = tech_client.post(f"/api/v1/tickets/{ticket.id}/start/", {}, format="json")
+    assert start.status_code == 200
+
+    to_qc = tech_client.post(
+        f"/api/v1/tickets/{ticket.id}/to-waiting-qc/", {}, format="json"
+    )
+    assert to_qc.status_code == 400
+    assert "work session must be stopped" in to_qc.data["error"]["detail"].lower()
+
+
 def test_transition_history_endpoint_returns_ordered_audit_records(
     authed_client_factory, workflow_context
 ):
@@ -176,6 +208,9 @@ def test_transition_history_endpoint_returns_ordered_audit_records(
 
     tech_client = authed_client_factory(workflow_context["tech"])
     tech_client.post(f"/api/v1/tickets/{ticket.id}/start/", {}, format="json")
+    tech_client.post(
+        f"/api/v1/tickets/{ticket.id}/work-session/stop/", {}, format="json"
+    )
     tech_client.post(f"/api/v1/tickets/{ticket.id}/to-waiting-qc/", {}, format="json")
 
     qc_client = authed_client_factory(workflow_context["qc"])
@@ -190,6 +225,6 @@ def test_transition_history_endpoint_returns_ordered_audit_records(
 
     history_resp = master_client.get(f"/api/v1/tickets/{ticket.id}/transitions/")
     assert history_resp.status_code == 200
-    history = history_resp.data["data"]
+    history = history_resp.data["results"]
     assert len(history) == 4
     assert history[0]["action"] == TicketTransitionAction.QC_PASS

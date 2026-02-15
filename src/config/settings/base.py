@@ -51,7 +51,7 @@ else:
         )
     ACTIVE_DATABASE_URL = DATABASE_URL
 
-REDIS_HOST = config("REDIS_HOST", default="redis")
+REDIS_HOST = config("REDIS_HOST", default="localhost")
 REDIS_PORT = config("REDIS_PORT", default=6379, cast=int)
 REDIS_DB = config("REDIS_DB", default=0, cast=int)
 REDIS_CACHE_DB = config("REDIS_CACHE_DB", default=1, cast=int)
@@ -88,6 +88,7 @@ DJANGO_APPS = [
 THIRD_PARTY_APPS = [
     "rest_framework",
     "rest_framework_simplejwt",
+    "django_filters",
     "corsheaders",
 ]
 if HAS_DRF_SPECTACULAR:

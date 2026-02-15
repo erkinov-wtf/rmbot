@@ -22,13 +22,13 @@ Documents shared non-domain endpoints: authentication, analytics snapshots, and 
 ### Misc
 - `GET /api/v1/misc/health/`: readiness probe (raw payload).
 - `GET /api/v1/misc/test/`: smoke endpoint (raw payload).
-- `GET /api/v1/misc/audit-feed/?limit=<1..200>`: merged chronological audit stream across key append-only entities.
+- `GET /api/v1/misc/audit-feed/`: merged chronological audit stream across key append-only entities (paginated via `page`/`per_page`).
 
 ## Validation and Failure Modes
 - Invalid auth credentials/tokens -> `401`.
 - Invalid TMA payload, stale/future timestamp, or replay reuse -> `400`.
 - Unauthorized analytics/audit role -> `403`.
-- Invalid `days` or `limit` query values -> `400`.
+- Invalid `days` query values -> `400`.
 
 ## Operational Notes
 - `health` and `test` intentionally bypass envelope wrappers for external probes.

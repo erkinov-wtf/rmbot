@@ -16,8 +16,17 @@ Documents rules configuration governance endpoints for read/update/history/rollb
 - Validates and normalizes incoming config, then creates a new immutable version and activates it.
 - Optional `reason` is persisted with version metadata.
 
-### `GET /api/v1/rules/config/history/?limit=<1..200>`
-- Returns append-only version history with stored diffs/checksums.
+### `GET /api/v1/rules/config/history/`
+- Returns paginated append-only version history with stored diffs/checksums.
+- Optional filters:
+  - `version`
+  - `action` (`bootstrap`, `update`, `rollback`)
+  - `created_by_id`
+  - `source_version`
+  - `ordering` (`version`, `-version`, `created_at`, `-created_at`)
+- Pagination parameters:
+  - `page`
+  - `per_page`
 
 ### `POST /api/v1/rules/config/rollback/`
 - Creates a new rollback version that restores selected historical target version.
@@ -26,7 +35,6 @@ Documents rules configuration governance endpoints for read/update/history/rollb
 - Schema normalization or semantic validation failure -> `400`.
 - No-op config updates are rejected -> `400`.
 - Unknown `target_version` for rollback -> `404` or validation error.
-- Invalid history `limit` -> `400`.
 - Unauthorized write role -> `403`.
 
 ## Operational Notes
@@ -36,5 +44,6 @@ Documents rules configuration governance endpoints for read/update/history/rollb
 ## Related Code
 - `api/v1/rules/urls.py`
 - `api/v1/rules/views.py`
+- `api/v1/rules/filters.py`
 - `apps/rules/services.py`
 - `apps/rules/models.py`

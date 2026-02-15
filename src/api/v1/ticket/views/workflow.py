@@ -14,7 +14,7 @@ from api.v1.ticket.serializers import (
     TicketTransitionSerializer,
 )
 from core.api.schema import extend_schema
-from core.api.views import BaseViewSet
+from core.api.views import BaseViewSet, ListAPIView
 from ticket.models import Ticket, TicketTransition
 from ticket.services_workflow import TicketWorkflowService
 
@@ -61,7 +61,7 @@ class TicketWorkflowViewSet(BaseViewSet):
         summary="Start ticket work",
         description=(
             "Moves the ticket into active work state when start conditions are "
-            "satisfied."
+            "satisfied and opens a running work session for the assigned technician."
         ),
     )
     def start(self, request, pk: int, *args, **kwargs):
@@ -77,7 +77,10 @@ class TicketWorkflowViewSet(BaseViewSet):
     @extend_schema(
         tags=["Tickets / Workflow"],
         summary="Move ticket to waiting QC",
-        description="Transitions the ticket from work to waiting-for-QC state.",
+        description=(
+            "Transitions the ticket from work to waiting-for-QC state after the "
+            "technician stops the active work session."
+        ),
     )
     def to_waiting_qc(self, request, pk: int, *args, **kwargs):
         ticket = self._ticket(pk)
@@ -124,23 +127,24 @@ class TicketWorkflowViewSet(BaseViewSet):
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(TicketSerializer(ticket).data, status=status.HTTP_200_OK)
 
-    @extend_schema(
-        tags=["Tickets / Workflow"],
-        summary="List ticket transitions",
-        description=(
-            "Returns workflow transition history for a specific ticket in reverse "
-            "chronological order."
-        ),
-    )
-    def transitions(self, request, pk: int, *args, **kwargs):
-        ticket = self._ticket(pk)
-        queryset = (
-            TicketTransition.objects.filter(ticket=ticket)
-            .select_related("actor")
-            .order_by("-created_at")
-        )
-        serializer = TicketTransitionSerializer(queryset, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
     def _ticket(self, pk: int) -> Ticket:
         return get_object_or_404(self.get_queryset(), pk=pk)
+
+
+@extend_schema(
+    tags=["Tickets / Workflow"],
+    summary="List ticket transitions",
+    description=(
+        "Returns workflow transition history for a specific ticket in reverse "
+        "chronological order."
+    ),
+)
+class TicketTransitionListAPIView(ListAPIView):
+    permission_classes = (IsAuthenticated,)
+    serializer_class = TicketTransitionSerializer
+    queryset = TicketTransition.objects.select_related("actor", "ticket").order_by(
+        "-created_at", "-id"
+    )
+
+    def get_queryset(self):
+        return self.queryset.filter(ticket_id=self.kwargs["pk"])

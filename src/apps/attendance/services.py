@@ -61,11 +61,44 @@ class AttendanceService:
         return late_xp
 
     @classmethod
-    def get_today_record(cls, user_id: int) -> AttendanceRecord | None:
-        today = cls._business_date(timezone.now())
-        return AttendanceRecord.domain.for_user_on_date(
-            user_id=user_id, work_date=today
-        )
+    def resolve_punctuality_status(cls, check_in_dt: datetime | None) -> str | None:
+        if not check_in_dt:
+            return None
+
+        _, _, _, cutoff_10_00, cutoff_10_20, local_tz = cls._attendance_rules()
+        local_dt = check_in_dt.astimezone(local_tz)
+        minutes = local_dt.hour * 60 + local_dt.minute
+
+        if minutes < cutoff_10_00:
+            return "early"
+        if minutes <= cutoff_10_20:
+            return "on_time"
+        return "late"
+
+    @classmethod
+    def list_today_records(
+        cls,
+        *,
+        work_date: date | None,
+        technician_id: int | None,
+        punctuality: str | None,
+    ) -> list[AttendanceRecord]:
+        target_date = work_date or cls._business_date(timezone.now())
+        queryset = AttendanceRecord.domain.for_work_date(work_date=target_date)
+
+        if technician_id is not None:
+            queryset = queryset.for_user(user_id=technician_id)
+
+        records = list(queryset.order_by("user_id", "id"))
+        filtered_records: list[AttendanceRecord] = []
+        for record in records:
+            status = cls.resolve_punctuality_status(record.check_in_at)
+            if punctuality and status != punctuality:
+                continue
+            record.punctuality_status = status
+            filtered_records.append(record)
+
+        return filtered_records
 
     @classmethod
     @transaction.atomic

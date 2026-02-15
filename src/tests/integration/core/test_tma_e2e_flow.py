@@ -8,7 +8,8 @@ import pytest
 from rest_framework.test import APIClient
 
 from account.models import TelegramProfile
-from core.utils.constants import BikeStatus, RoleSlug, TicketStatus
+from core.utils.constants import BikeStatus, RoleSlug, TicketStatus, WorkSessionStatus
+from ticket.models import WorkSession
 
 pytestmark = pytest.mark.django_db
 
@@ -151,6 +152,19 @@ def test_tma_e2e_master_to_technician_to_qc(
     )
     assert start.status_code == 200
     assert start.data["data"]["status"] == TicketStatus.IN_PROGRESS
+    assert WorkSession.objects.filter(
+        ticket_id=ticket_id,
+        technician=technician,
+        status=WorkSessionStatus.RUNNING,
+    ).exists()
+
+    stop = technician_client.post(
+        f"/api/v1/tickets/{ticket_id}/work-session/stop/",
+        {},
+        format="json",
+    )
+    assert stop.status_code == 200
+    assert stop.data["data"]["status"] == WorkSessionStatus.STOPPED
 
     to_qc = technician_client.post(
         f"/api/v1/tickets/{ticket_id}/to-waiting-qc/", {}, format="json"

@@ -1,11 +1,20 @@
 from django.urls import path
 
-from api.v1.bike.views import BikeCreateAPIView, BikeListAPIView, BikeSuggestAPIView
+from api.v1.bike.views import BikeViewSet
 
 app_name = "bike"
 
+bike_list = BikeViewSet.as_view({"get": "list", "post": "create"})
+bike_detail = BikeViewSet.as_view(
+    {
+        "get": "retrieve",
+        "put": "update",
+        "patch": "partial_update",
+        "delete": "destroy",
+    }
+)
+
 urlpatterns = [
-    path("", BikeListAPIView.as_view(), name="bike-list"),
-    path("suggest/", BikeSuggestAPIView.as_view(), name="bike-suggest"),
-    path("create/", BikeCreateAPIView.as_view(), name="bike-create"),
+    path("", bike_list, name="bike-list"),
+    path("<int:pk>/", bike_detail, name="bike-detail"),
 ]

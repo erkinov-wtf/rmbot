@@ -34,13 +34,3 @@ class BikeSerializer(serializers.ModelSerializer):
                 "Bike with this bike_code already exists."
             )
         return normalized_code
-
-
-class BikeSuggestionQuerySerializer(serializers.Serializer):
-    q = serializers.CharField(required=True)
-
-    def validate_q(self, value: str) -> str:
-        normalized_query = BikeService.normalize_bike_code(value)
-        if len(normalized_query) < BikeService.SUGGESTION_MIN_CHARS:
-            raise serializers.ValidationError("q must contain at least 2 characters.")
-        return normalized_query

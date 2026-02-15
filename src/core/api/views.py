@@ -16,13 +16,14 @@ class PaginatedListMixin:
     pagination_class = CustomPagination
 
     def list(self, request, *args, **kwargs):
-        qs = self.filter_queryset(self.get_queryset())  # noqa
-        if qs:
-            result = self.paginated_queryset(qs, request)  # noqa
-            serializer = self.get_serializer(result, many=True)  # noqa
-            response = self.paginated_response(data=serializer.data)  # noqa
-            return Response(response)
-        return Response({"success": True, "message": "OK", "results": []})
+        queryset = self.filter_queryset(self.get_queryset())  # noqa
+        page = self.paginate_queryset(queryset)  # noqa
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)  # noqa
+            return self.get_paginated_response(serializer.data)  # noqa
+
+        serializer = self.get_serializer(queryset, many=True)  # noqa
+        return Response(serializer.data)
 
 
 class CustomResponseMixin:
@@ -162,9 +163,11 @@ class BaseViewSet(CustomResponseMixin, GenericViewSet):
     serializer_class = SchemaFallbackSerializer
 
 
-class BaseModelViewSet(CustomResponseMixin, ModelViewSet):
+class BaseModelViewSet(PaginatedListMixin, CustomResponseMixin, ModelViewSet):
     serializer_class = SchemaFallbackSerializer
 
 
-class BaseReadOnlyModelViewSet(CustomResponseMixin, ReadOnlyModelViewSet):
+class BaseReadOnlyModelViewSet(
+    PaginatedListMixin, CustomResponseMixin, ReadOnlyModelViewSet
+):
     serializer_class = SchemaFallbackSerializer

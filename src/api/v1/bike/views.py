@@ -1,12 +1,12 @@
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
 
-from api.v1.bike.serializers import BikeSerializer, BikeSuggestionQuerySerializer
+from api.v1.bike.filters import BikeFilterSet
+from api.v1.bike.serializers import BikeSerializer
 from bike.models import Bike
-from bike.services import BikeService
 from core.api.permissions import HasRole
 from core.api.schema import extend_schema
-from core.api.views import BaseAPIView, CreateAPIView, ListAPIView
+from core.api.views import BaseModelViewSet
 from core.utils.constants import RoleSlug
 
 BikeManagePermission = HasRole.as_any(
@@ -16,42 +16,22 @@ BikeManagePermission = HasRole.as_any(
 
 @extend_schema(
     tags=["Bikes"],
-    summary="List bikes",
-    description="Returns the fleet bike list ordered by newest records first.",
-)
-class BikeListAPIView(ListAPIView):
-    serializer_class = BikeSerializer
-    queryset = Bike.objects.all().order_by("-created_at")
-
-
-@extend_schema(
-    tags=["Bikes"],
-    summary="Create bike",
-    description="Creates a new bike record for operational tracking in the fleet.",
-)
-class BikeCreateAPIView(CreateAPIView):
-    serializer_class = BikeSerializer
-    queryset = Bike.objects.all()
-    permission_classes = (BikeManagePermission,)
-
-
-@extend_schema(
-    tags=["Bikes"],
-    summary="Suggest bike codes",
+    summary="Bike CRUD",
     description=(
-        "Returns bike-code suggestions for intake lookups. Query requires at least 2 "
-        "characters."
+        "Provides bike list/create/update/delete operations. List supports filters "
+        "by search query, bike code, status, active flag, active-ticket flag, date "
+        "ranges, and ordering."
     ),
-    parameters=[BikeSuggestionQuerySerializer],
 )
-class BikeSuggestAPIView(BaseAPIView):
-    permission_classes = (IsAuthenticated,)
-    serializer_class = BikeSuggestionQuerySerializer
+class BikeViewSet(BaseModelViewSet):
+    serializer_class = BikeSerializer
+    queryset = Bike.domain.get_queryset().order_by("-created_at")
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = BikeFilterSet
 
-    def get(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.query_params)
-        serializer.is_valid(raise_exception=True)
-
-        query = serializer.validated_data["q"]
-        suggestions = BikeService.suggest_codes(query)
-        return Response({"query": query, "suggestions": suggestions})
+    def get_permissions(self):
+        if self.action in {"create", "update", "partial_update", "destroy"}:
+            permission_classes = (IsAuthenticated, BikeManagePermission)
+        else:
+            permission_classes = (IsAuthenticated,)
+        return [permission() for permission in permission_classes]

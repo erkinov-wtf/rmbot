@@ -1,29 +1,45 @@
 # API v1 Attendance (`/attendance/`)
 
 ## Scope
-Documents self-service attendance endpoints for daily check-in/checkout and punctuality XP side effects.
+Documents manager-operated attendance endpoints for technician check-in/checkout and filtered day-level attendance reads.
 
 ## Access Model
 - All endpoints require authentication.
-- Access scope is current authenticated user only.
+- Only highest operational roles can access:
+  - `super_admin`
+  - `ops_manager`
+  - `master`
 
 ## Endpoint Reference
 
-### `GET /api/v1/attendance/today/`
-- Reads today's attendance row for current user.
-- Returns empty `data` when row does not exist.
+### `GET /api/v1/attendance/records/`
+- Returns paginated attendance records for a selected `work_date` (defaults to current business date).
+- Optional query parameters:
+  - `work_date` (`YYYY-MM-DD`)
+  - `technician_id`
+  - `punctuality` (`early`, `on_time`, `late`)
+  - `ordering` (`user_id`, `-user_id`, `check_in_at`, `-check_in_at`, `created_at`, `-created_at`)
+- Pagination parameters:
+  - `page`
+  - `per_page`
+- Each row includes computed `punctuality_status`.
 
 ### `POST /api/v1/attendance/checkin/`
-- Creates today's attendance check-in timestamp.
+- Creates today's attendance check-in timestamp for selected technician.
+- Required JSON field: `technician_id`.
 - Appends punctuality XP ledger entry when rule conditions are met.
 
 ### `POST /api/v1/attendance/checkout/`
-- Sets checkout timestamp for today's attendance row.
+- Sets checkout timestamp for selected technician's attendance row.
+- Required JSON field: `technician_id`.
 
 ## Validation and Failure Modes
 - Duplicate check-in -> `400`.
 - Checkout before check-in -> `400`.
 - Duplicate checkout -> `400`.
+- Missing/invalid `technician_id` -> `400`.
+- Invalid `work_date` or `punctuality` query values -> `400`.
+- Actor without required role -> `403`.
 - Missing/invalid JWT -> `401`.
 
 ## Operational Notes
@@ -33,5 +49,6 @@ Documents self-service attendance endpoints for daily check-in/checkout and punc
 ## Related Code
 - `api/v1/attendance/urls.py`
 - `api/v1/attendance/views.py`
+- `api/v1/attendance/filters.py`
 - `apps/attendance/services.py`
 - `apps/gamification/services.py`

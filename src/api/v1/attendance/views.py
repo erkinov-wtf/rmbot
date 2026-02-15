@@ -1,44 +1,70 @@
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from api.v1.attendance.serializers import AttendanceRecordSerializer
+from api.v1.attendance.filters import AttendanceRecordFilterSet
+from api.v1.attendance.serializers import (
+    AttendanceRecordListItemSerializer,
+    AttendanceRecordSerializer,
+    AttendanceTechnicianInputSerializer,
+)
+from attendance.models import AttendanceRecord
 from attendance.services import AttendanceService
+from core.api.permissions import HasRole
 from core.api.schema import extend_schema
-from core.api.views import BaseAPIView
+from core.api.views import BaseAPIView, ListAPIView
+from core.utils.constants import RoleSlug
+
+AttendanceManagerPermission = HasRole.as_any(
+    RoleSlug.SUPER_ADMIN,
+    RoleSlug.OPS_MANAGER,
+    RoleSlug.MASTER,
+)
 
 
 @extend_schema(
     tags=["Attendance"],
-    summary="Get attendance record for today",
+    summary="List attendance records for a day with filters",
     description=(
-        "Returns the authenticated user's attendance record for the current day. "
-        "Returns null when no record exists yet."
+        "Returns attendance records for the selected work date (defaults to current "
+        "business date). Supports optional filtering by technician and punctuality "
+        "bucket (`early`, `on_time`, `late`)."
     ),
 )
-class AttendanceTodayAPIView(BaseAPIView):
-    permission_classes = (IsAuthenticated,)
+class AttendanceRecordsAPIView(ListAPIView):
+    permission_classes = (IsAuthenticated, AttendanceManagerPermission)
+    serializer_class = AttendanceRecordListItemSerializer
+    queryset = (
+        AttendanceRecord.domain.get_queryset()
+        .select_related("user")
+        .order_by("user_id", "id")
+    )
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = AttendanceRecordFilterSet
 
-    def get(self, request, *args, **kwargs):
-        record = AttendanceService.get_today_record(user_id=request.user.id)
-        if not record:
-            return Response(None, status=status.HTTP_200_OK)
-        return Response(
-            AttendanceRecordSerializer(record).data, status=status.HTTP_200_OK
-        )
+    def get_queryset(self):
+        return self.queryset
 
 
 @extend_schema(
     tags=["Attendance"],
-    summary="Check in for today",
-    description="Checks the authenticated user in for today and returns the attendance record with awarded XP.",
+    summary="Check in technician for today",
+    description="Checks the selected technician in for today and returns the attendance "
+    "record with awarded XP.",
 )
 class AttendanceCheckInAPIView(BaseAPIView):
-    permission_classes = (IsAuthenticated,)
+    permission_classes = (IsAuthenticated, AttendanceManagerPermission)
+    serializer_class = AttendanceTechnicianInputSerializer
 
     def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
         try:
-            record, xp_awarded = AttendanceService.check_in(user_id=request.user.id)
+            record, xp_awarded = AttendanceService.check_in(
+                user_id=serializer.validated_data["technician_id"]
+            )
         except ValueError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -53,15 +79,22 @@ class AttendanceCheckInAPIView(BaseAPIView):
 
 @extend_schema(
     tags=["Attendance"],
-    summary="Check out for today",
-    description="Checks the authenticated user out for today and returns the updated attendance record.",
+    summary="Check out technician for today",
+    description="Checks the selected technician out for today and returns the updated "
+    "attendance record.",
 )
 class AttendanceCheckOutAPIView(BaseAPIView):
-    permission_classes = (IsAuthenticated,)
+    permission_classes = (IsAuthenticated, AttendanceManagerPermission)
+    serializer_class = AttendanceTechnicianInputSerializer
 
     def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
         try:
-            record = AttendanceService.check_out(user_id=request.user.id)
+            record = AttendanceService.check_out(
+                user_id=serializer.validated_data["technician_id"]
+            )
         except ValueError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 

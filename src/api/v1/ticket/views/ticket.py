@@ -23,14 +23,6 @@ class TicketViewSet(BaseModelViewSet):
 
     @extend_schema(
         tags=["Tickets / Workflow"],
-        summary="List tickets",
-        description="Returns tickets with related bike, master, and technician data.",
-    )
-    def list(self, request, *args, **kwargs):
-        return super().list(request, *args, **kwargs)
-
-    @extend_schema(
-        tags=["Tickets / Workflow"],
         summary="Create ticket",
         description=(
             "Creates a new ticket intake by bike_code with checklist snapshot and "

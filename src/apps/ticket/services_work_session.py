@@ -1,32 +1,10 @@
 from django.db import transaction
 
-from core.utils.constants import (
-    TicketStatus,
-)
 from ticket.models import Ticket, WorkSession, WorkSessionTransition
-from ticket.services_workflow import TicketWorkflowService
 
 
 class TicketWorkSessionService:
     """Session lifecycle manager for technician work time accounting."""
-
-    @classmethod
-    @transaction.atomic
-    def start_work_session(cls, ticket: Ticket, actor_user_id: int) -> WorkSession:
-        if not ticket.technician_id or ticket.technician_id != actor_user_id:
-            raise ValueError("Only assigned technician can start work session.")
-        if ticket.status != TicketStatus.IN_PROGRESS:
-            if ticket.status in (TicketStatus.ASSIGNED, TicketStatus.REWORK):
-                TicketWorkflowService.start_ticket(
-                    ticket=ticket,
-                    actor_user_id=actor_user_id,
-                )
-            else:
-                raise ValueError(
-                    "Work session can be started only when ticket is IN_PROGRESS."
-                )
-
-        return WorkSession.start_for_ticket(ticket=ticket, actor_user_id=actor_user_id)
 
     @classmethod
     @transaction.atomic
