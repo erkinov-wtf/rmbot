@@ -48,7 +48,7 @@ Documents ticket intake, workflow transitions, QC outcomes, and work-session tim
 
 ## Operational Notes
 - Ticket transitions and work-session history are append-only audit streams.
-- `qc-pass` has cross-domain side effects (inventory-item state + XP ledger).
+- `qc-pass` has cross-domain side effects (inventory-item state + XP transactions).
 - Work-session active seconds are derived from transition history, not mutable counters only.
 
 ## Related Code

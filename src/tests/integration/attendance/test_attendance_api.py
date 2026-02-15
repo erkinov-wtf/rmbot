@@ -4,8 +4,8 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from attendance.models import AttendanceRecord
-from core.utils.constants import RoleSlug, XPLedgerEntryType
-from gamification.models import XPLedger
+from core.utils.constants import RoleSlug, XPTransactionEntryType
+from gamification.models import XPTransaction
 
 pytestmark = pytest.mark.django_db
 
@@ -49,10 +49,10 @@ def test_checkin_creates_record_and_xp_entry(attendance_context):
 
     assert resp.status_code == 200
     assert AttendanceRecord.objects.count() == 1
-    assert XPLedger.objects.count() == 1
+    assert XPTransaction.objects.count() == 1
 
-    entry = XPLedger.objects.first()
-    assert entry.entry_type == XPLedgerEntryType.ATTENDANCE_PUNCTUALITY
+    entry = XPTransaction.objects.first()
+    assert entry.entry_type == XPTransactionEntryType.ATTENDANCE_PUNCTUALITY
     assert "attendance_checkin" in entry.reference
     assert "xp_awarded" in resp.data["data"]
 

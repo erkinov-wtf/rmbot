@@ -2,7 +2,7 @@ import pytest
 from django.core.cache import cache
 
 from core.utils.constants import RoleSlug, TicketStatus
-from gamification.models import XPLedger
+from gamification.models import XPTransaction
 from rules.models import RulesConfigVersion
 from rules.services import RulesService
 from ticket.services_workflow import TicketWorkflowService
@@ -239,8 +239,8 @@ def test_ticket_xp_formula_uses_active_rules(
 
     TicketWorkflowService.qc_pass_ticket(ticket=ticket, actor_user_id=actor.id)
 
-    base_entry = XPLedger.objects.get(reference=f"ticket_base_xp:{ticket.id}")
-    bonus_entry = XPLedger.objects.get(
+    base_entry = XPTransaction.objects.get(reference=f"ticket_base_xp:{ticket.id}")
+    bonus_entry = XPTransaction.objects.get(
         reference=f"ticket_qc_first_pass_bonus:{ticket.id}"
     )
     assert base_entry.amount == 5  # ceil(45/10)

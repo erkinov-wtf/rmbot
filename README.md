@@ -5,6 +5,11 @@
 - Engineering and implementation memory: `AGENTS.md`
 - Deployment secrets/setup: `docs/deployment/GITHUB-SECRETS.md`
 
+## Mandatory API Docs Sync (Postman)
+- Any API change must include a same-session Postman update in `Rent Market API` collection.
+- API work is not complete until Postman request docs are synced (path/query/header/body fields, examples, and behavior notes).
+- Keep field documentation short and clear for every changed endpoint.
+
 ## Quick Test Run
 ```
 LOGS_ROOT=./logs TEST_DATABASE_URL=sqlite:///:memory: python src/manage.py test tests

@@ -13,7 +13,7 @@ Entry index for endpoint-centric technical docs under `/api/v1/`.
 - Attendance: `docs/api/v1/attendance/README.md`
 - Inventory + serial-number suggestions: `docs/api/v1/inventory/README.md`
 - Core auth/analytics/misc: `docs/api/v1/core/README.md`
-- XP ledger: `docs/api/v1/gamification/README.md`
+- XP transactions: `docs/api/v1/gamification/README.md`
 - Rules config versioning + rollback: `docs/api/v1/rules/README.md`
 - Ticket lifecycle + work sessions: `docs/api/v1/ticket/README.md`
 

@@ -2,10 +2,10 @@ from django.db.models import Q
 from django_filters import rest_framework as filters
 from rest_framework.exceptions import PermissionDenied, ValidationError
 
-from core.utils.constants import RoleSlug, XPLedgerEntryType
-from gamification.models import XPLedger
+from core.utils.constants import RoleSlug, XPTransactionEntryType
+from gamification.models import XPTransaction
 
-PRIVILEGED_LEDGER_VIEW_ROLES = {RoleSlug.SUPER_ADMIN, RoleSlug.OPS_MANAGER}
+PRIVILEGED_TRANSACTION_VIEW_ROLES = {RoleSlug.SUPER_ADMIN, RoleSlug.OPS_MANAGER}
 ORDERING_CHOICES = (
     ("created_at", "created_at"),
     ("-created_at", "-created_at"),
@@ -14,16 +14,16 @@ ORDERING_CHOICES = (
 )
 
 
-def can_view_all_ledger_entries(user) -> bool:
+def can_view_all_transaction_entries(user) -> bool:
     role_slugs = set(user.roles.values_list("slug", flat=True))
-    return bool(role_slugs & PRIVILEGED_LEDGER_VIEW_ROLES)
+    return bool(role_slugs & PRIVILEGED_TRANSACTION_VIEW_ROLES)
 
 
-class XPLedgerFilterSet(filters.FilterSet):
+class XPTransactionFilterSet(filters.FilterSet):
     user_id = filters.NumberFilter(method="filter_user_id")
     ticket_id = filters.NumberFilter(method="filter_ticket_id")
     entry_type = filters.ChoiceFilter(
-        field_name="entry_type", choices=XPLedgerEntryType.choices
+        field_name="entry_type", choices=XPTransactionEntryType.choices
     )
     reference = filters.CharFilter(field_name="reference", lookup_expr="icontains")
     created_from = filters.DateFilter(field_name="created_at__date", lookup_expr="gte")
@@ -33,7 +33,7 @@ class XPLedgerFilterSet(filters.FilterSet):
     ordering = filters.ChoiceFilter(method="filter_ordering", choices=ORDERING_CHOICES)
 
     class Meta:
-        model = XPLedger
+        model = XPTransaction
         fields = (
             "user_id",
             "ticket_id",
@@ -79,11 +79,11 @@ class XPLedgerFilterSet(filters.FilterSet):
         if request is None:
             return queryset.filter(user_id=user_id)
 
-        if can_view_all_ledger_entries(request.user):
+        if can_view_all_transaction_entries(request.user):
             return queryset.filter(user_id=user_id)
 
         if user_id != request.user.id:
-            raise PermissionDenied("You can only view your own XP ledger entries.")
+            raise PermissionDenied("You can only view your own XP transaction entries.")
 
         return queryset.filter(user_id=request.user.id)
 

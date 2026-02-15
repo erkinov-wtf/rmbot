@@ -9,9 +9,9 @@ from core.utils.constants import (
     RoleSlug,
     TicketStatus,
     TicketTransitionAction,
-    XPLedgerEntryType,
+    XPTransactionEntryType,
 )
-from gamification.models import XPLedger
+from gamification.models import XPTransaction
 from ticket.models import Ticket, TicketTransition
 
 pytestmark = pytest.mark.django_db
@@ -257,16 +257,16 @@ def test_team_analytics_returns_member_metrics(
         actor=master,
     )
 
-    XPLedger.objects.create(
+    XPTransaction.objects.create(
         user=technician,
         amount=7,
-        entry_type=XPLedgerEntryType.TICKET_BASE_XP,
+        entry_type=XPTransactionEntryType.TICKET_BASE_XP,
         reference=f"test_analytics_xp:{ticket_first_pass.id}",
     )
-    XPLedger.objects.create(
+    XPTransaction.objects.create(
         user=technician,
         amount=5,
-        entry_type=XPLedgerEntryType.TICKET_QC_FIRST_PASS_BONUS,
+        entry_type=XPTransactionEntryType.TICKET_QC_FIRST_PASS_BONUS,
         reference=f"test_analytics_xp:{ticket_rework.id}",
     )
     AttendanceRecord.objects.create(

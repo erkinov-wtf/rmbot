@@ -27,7 +27,7 @@ Documents manager-operated attendance endpoints for technician check-in/checkout
 ### `POST /api/v1/attendance/checkin/`
 - Creates today's attendance check-in timestamp for selected technician.
 - Required JSON field: `technician_id`.
-- Appends punctuality XP ledger entry when rule conditions are met.
+- Appends punctuality XP transaction entry when rule conditions are met.
 
 ### `POST /api/v1/attendance/checkout/`
 - Sets checkout timestamp for selected technician's attendance row.
@@ -44,7 +44,7 @@ Documents manager-operated attendance endpoints for technician check-in/checkout
 
 ## Operational Notes
 - XP amount and punctuality thresholds are rules-driven.
-- Attendance writes are append-safe in XP ledger through immutable entry model constraints.
+- Attendance writes are append-safe in XP transactions through immutable entry model constraints.
 
 ## Related Code
 - `api/v1/attendance/urls.py`

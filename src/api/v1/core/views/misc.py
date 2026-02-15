@@ -8,7 +8,7 @@ from core.api.permissions import HasRole
 from core.api.schema import extend_schema
 from core.api.views import ListAPIView
 from core.utils.constants import RoleSlug
-from gamification.models import XPLedger
+from gamification.models import XPTransaction
 from ticket.models import TicketTransition
 
 
@@ -59,7 +59,7 @@ AuditFeedPermission = HasRole.as_any(RoleSlug.SUPER_ADMIN, RoleSlug.OPS_MANAGER)
     summary="List recent audit feed events",
     description=(
         "Returns recent operational events merged from ticket transitions, "
-        "XP ledger changes, and attendance actions."
+        "XP transaction changes, and attendance actions."
     ),
 )
 class AuditFeedAPIView(ListAPIView):
@@ -98,15 +98,15 @@ class AuditFeedAPIView(ListAPIView):
                 }
             )
 
-        xp_entries = XPLedger.objects.select_related("user").order_by("-created_at")[
-            :pool_size
-        ]
-        for xp in xp_entries:
+        xp_transactions = XPTransaction.objects.select_related("user").order_by(
+            "-created_at"
+        )[:pool_size]
+        for xp in xp_transactions:
             events.append(
                 {
                     "timestamp_dt": xp.created_at,
                     "timestamp": xp.created_at.isoformat(),
-                    "event_type": "xp_ledger",
+                    "event_type": "xp_transaction",
                     "entity_id": xp.id,
                     "user_id": xp.user_id,
                     "amount": xp.amount,

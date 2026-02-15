@@ -1,8 +1,12 @@
 import pytest
 from django.core.exceptions import ValidationError
 
-from core.utils.constants import TicketStatus, TicketTransitionAction, XPLedgerEntryType
-from gamification.models import XPLedger
+from core.utils.constants import (
+    TicketStatus,
+    TicketTransitionAction,
+    XPTransactionEntryType,
+)
+from gamification.models import XPTransaction
 from ticket.models import TicketTransition
 
 pytestmark = pytest.mark.django_db
@@ -29,11 +33,11 @@ def append_only_context(user_factory, inventory_item_factory, ticket_factory):
     }
 
 
-def test_xp_ledger_is_append_only(append_only_context):
-    entry = XPLedger.objects.create(
+def test_xp_transaction_is_append_only(append_only_context):
+    entry = XPTransaction.objects.create(
         user=append_only_context["user"],
         amount=2,
-        entry_type=XPLedgerEntryType.ATTENDANCE_PUNCTUALITY,
+        entry_type=XPTransactionEntryType.ATTENDANCE_PUNCTUALITY,
         reference="append-only-xp-entry",
         payload={},
     )
@@ -43,15 +47,15 @@ def test_xp_ledger_is_append_only(append_only_context):
         entry.save()
 
     with pytest.raises(ValidationError):
-        XPLedger.objects.filter(pk=entry.pk).update(amount=99)
+        XPTransaction.objects.filter(pk=entry.pk).update(amount=99)
 
     with pytest.raises(ValidationError):
         entry.delete()
 
     with pytest.raises(ValidationError):
-        XPLedger.objects.filter(pk=entry.pk).delete()
+        XPTransaction.objects.filter(pk=entry.pk).delete()
 
-    assert XPLedger.objects.filter(pk=entry.pk).count() == 1
+    assert XPTransaction.objects.filter(pk=entry.pk).count() == 1
 
 
 def test_ticket_transition_is_append_only(append_only_context):

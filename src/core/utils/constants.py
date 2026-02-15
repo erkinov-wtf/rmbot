@@ -70,7 +70,7 @@ class TicketTransitionAction(models.TextChoices):
     QC_FAIL = "qc_fail", _("QC Fail")
 
 
-class XPLedgerEntryType(models.TextChoices):
+class XPTransactionEntryType(models.TextChoices):
     ATTENDANCE_PUNCTUALITY = "attendance_punctuality", _("Attendance Punctuality")
     TICKET_BASE_XP = "ticket_base_xp", _("Ticket Base XP")
     TICKET_QC_FIRST_PASS_BONUS = (

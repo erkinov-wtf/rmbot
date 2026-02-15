@@ -20,7 +20,7 @@ Orchestrates core ticket transitions while delegating state mutation rules to mo
 - Writes `TicketTransition` rows for each workflow action.
 - Updates inventory-item status (`IN_SERVICE` on start, `READY` on QC pass).
 - Starts a `WorkSession` automatically when `start_ticket` succeeds.
-- Appends XP ledger base and optional first-pass bonus entries.
+- Appends XP transaction base and optional first-pass bonus entries.
 - Triggers user-facing Telegram notifications for assignment/start/waiting-QC/QC pass/QC fail via shared core notification service.
 
 ## Failure Modes

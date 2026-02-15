@@ -8,12 +8,12 @@ from django.utils import timezone
 
 from account.models import User
 from core.utils.constants import EmployeeLevel
-from gamification.models import LevelUpCouponEvent, WeeklyLevelEvaluation, XPLedger
+from gamification.models import LevelUpCouponEvent, WeeklyLevelEvaluation, XPTransaction
 from rules.services import RulesService
 
 
 class GamificationService:
-    """Append-only XP ledger writer with idempotent reference handling."""
+    """Append-only XP transaction writer with idempotent reference handling."""
 
     @staticmethod
     def append_xp_entry(
@@ -24,8 +24,8 @@ class GamificationService:
         reference: str,
         description: str | None = None,
         payload: dict | None = None,
-    ) -> tuple[XPLedger, bool]:
-        return XPLedger.objects.append_entry(
+    ) -> tuple[XPTransaction, bool]:
+        return XPTransaction.objects.append_entry(
             user_id=user_id,
             amount=amount,
             entry_type=entry_type,
@@ -171,7 +171,7 @@ class ProgressionService:
         )
 
         xp_rows = list(
-            XPLedger.objects.filter(created_at__lt=week_end_exclusive_dt)
+            XPTransaction.objects.filter(created_at__lt=week_end_exclusive_dt)
             .values("user_id")
             .annotate(raw_xp=Coalesce(Sum("amount"), 0))
             .order_by("user_id")

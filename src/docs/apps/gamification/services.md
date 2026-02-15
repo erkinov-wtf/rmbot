@@ -4,7 +4,7 @@
 Handles append-only XP posting and weekly progression evaluations.
 
 ## Execution Flows
-- XP append orchestration (`append_xp_entry`) delegating idempotent writes to `XPLedger.objects.append_entry`.
+- XP append orchestration (`append_xp_entry`) delegating idempotent writes to `XPTransaction.objects.append_entry`.
 - Weekly evaluation (`run_weekly_level_evaluation`) from XP aggregates.
 - Level mapping (`map_raw_xp_to_level`) with monotonic threshold assumptions.
 - Coupon issuance for level-up events.
@@ -15,7 +15,7 @@ Handles append-only XP posting and weekly progression evaluations.
 - User level never decreases during evaluation (`max(previous, mapped)`).
 
 ## Side Effects
-- Appends ledger/evaluation/coupon rows.
+- Appends XP-transaction/evaluation/coupon rows.
 - Updates `User.level` when level-up detected.
 
 ## Failure Modes

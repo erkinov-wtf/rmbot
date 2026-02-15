@@ -1,7 +1,7 @@
 # API v1 XP (`/xp/`)
 
 ## Scope
-Documents XP ledger read endpoint used by user history and operational auditing flows.
+Documents XP transaction read endpoint used by user history and operational auditing flows.
 
 ## Access Model
 - Authentication required.
@@ -9,8 +9,8 @@ Documents XP ledger read endpoint used by user history and operational auditing 
 
 ## Endpoint Reference
 
-### `GET /api/v1/xp/ledger/`
-- Lists append-only XP ledger entries with pagination.
+### `GET /api/v1/xp/transactions/`
+- Lists append-only XP transaction entries with pagination.
 - Pagination parameters:
   - `page`
   - `per_page`
@@ -29,7 +29,7 @@ Documents XP ledger read endpoint used by user history and operational auditing 
 - Missing/invalid JWT -> `401`.
 
 ## Operational Notes
-- Ledger rows are append-only and should be treated as immutable audit state.
+- XP transaction rows are append-only and should be treated as immutable audit state.
 - Query results are consumed by progression flows and operator investigations.
 
 ## Related Code

@@ -465,8 +465,8 @@ if HAS_DRF_SPECTACULAR:
                 "description": "Technician timer workflow endpoints per ticket.",
             },
             {
-                "name": "XP Ledger",
-                "description": "Gamification XP ledger query surface.",
+                "name": "XP Transactions",
+                "description": "Gamification XP transaction query surface.",
             },
             {
                 "name": "Rules Engine",

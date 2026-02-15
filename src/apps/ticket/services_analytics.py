@@ -16,7 +16,7 @@ from core.utils.constants import (
     TicketStatus,
     TicketTransitionAction,
 )
-from gamification.models import XPLedger
+from gamification.models import XPTransaction
 from inventory.models import InventoryItem
 from ticket.models import Ticket, TicketTransition
 
@@ -199,7 +199,7 @@ class TicketAnalyticsService:
                 )
 
         raw_xp_sums = dict(
-            XPLedger.objects.filter(
+            XPTransaction.objects.filter(
                 user_id__in=technician_ids,
                 created_at__date__gte=start_date,
                 created_at__date__lte=end_date,

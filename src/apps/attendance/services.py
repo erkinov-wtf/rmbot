@@ -5,7 +5,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from attendance.models import AttendanceRecord
-from core.utils.constants import XPLedgerEntryType
+from core.utils.constants import XPTransactionEntryType
 from gamification.services import GamificationService
 from rules.services import RulesService
 
@@ -123,7 +123,7 @@ class AttendanceService:
         GamificationService.append_xp_entry(
             user_id=user_id,
             amount=xp_amount,
-            entry_type=XPLedgerEntryType.ATTENDANCE_PUNCTUALITY,
+            entry_type=XPTransactionEntryType.ATTENDANCE_PUNCTUALITY,
             reference=reference,
             description="Attendance punctuality XP",
             payload={

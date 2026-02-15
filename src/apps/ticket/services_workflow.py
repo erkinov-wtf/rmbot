@@ -8,7 +8,7 @@ from core.utils.constants import (
     TicketStatus,
     TicketTransitionAction,
     WorkSessionStatus,
-    XPLedgerEntryType,
+    XPTransactionEntryType,
 )
 from gamification.services import GamificationService
 from rules.services import RulesService
@@ -121,7 +121,7 @@ class TicketWorkflowService:
         GamificationService.append_xp_entry(
             user_id=ticket.technician_id,
             amount=base_xp,
-            entry_type=XPLedgerEntryType.TICKET_BASE_XP,
+            entry_type=XPTransactionEntryType.TICKET_BASE_XP,
             reference=f"ticket_base_xp:{ticket.id}",
             description="Ticket completion base XP",
             payload={
@@ -140,7 +140,7 @@ class TicketWorkflowService:
             GamificationService.append_xp_entry(
                 user_id=ticket.technician_id,
                 amount=first_pass_bonus,
-                entry_type=XPLedgerEntryType.TICKET_QC_FIRST_PASS_BONUS,
+                entry_type=XPTransactionEntryType.TICKET_QC_FIRST_PASS_BONUS,
                 reference=f"ticket_qc_first_pass_bonus:{ticket.id}",
                 description="Ticket QC first-pass bonus XP",
                 payload={

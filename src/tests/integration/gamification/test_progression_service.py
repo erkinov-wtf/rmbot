@@ -3,8 +3,8 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from core.utils.constants import EmployeeLevel, XPLedgerEntryType
-from gamification.models import LevelUpCouponEvent, WeeklyLevelEvaluation, XPLedger
+from core.utils.constants import EmployeeLevel, XPTransactionEntryType
+from gamification.models import LevelUpCouponEvent, WeeklyLevelEvaluation, XPTransaction
 from gamification.services import ProgressionService
 from rules.services import RulesService
 
@@ -33,14 +33,14 @@ def _configure_progression_rules(*, actor_user_id: int) -> None:
 def _create_xp_entry(
     *, user_id: int, amount: int, reference: str, created_at: datetime
 ) -> None:
-    entry = XPLedger.objects.create(
+    entry = XPTransaction.objects.create(
         user_id=user_id,
         amount=amount,
-        entry_type=XPLedgerEntryType.ATTENDANCE_PUNCTUALITY,
+        entry_type=XPTransactionEntryType.ATTENDANCE_PUNCTUALITY,
         reference=reference,
         payload={},
     )
-    XPLedger.all_objects.filter(pk=entry.pk).update(
+    XPTransaction.all_objects.filter(pk=entry.pk).update(
         created_at=created_at,
         updated_at=created_at,
     )

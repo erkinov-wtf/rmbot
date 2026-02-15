@@ -1,11 +1,11 @@
 from django.contrib import admin
 
 from core.admin import BaseModelAdmin
-from gamification.models import LevelUpCouponEvent, WeeklyLevelEvaluation, XPLedger
+from gamification.models import LevelUpCouponEvent, WeeklyLevelEvaluation, XPTransaction
 
 
-@admin.register(XPLedger)
-class XPLedgerAdmin(BaseModelAdmin):
+@admin.register(XPTransaction)
+class XPTransactionAdmin(BaseModelAdmin):
     list_display = ("id", "user", "amount", "entry_type", "reference", "created_at")
     list_filter = ("entry_type",)
     search_fields = ("id", "reference", "user__username")

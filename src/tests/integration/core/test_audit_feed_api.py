@@ -6,9 +6,9 @@ from core.utils.constants import (
     RoleSlug,
     TicketStatus,
     TicketTransitionAction,
-    XPLedgerEntryType,
+    XPTransactionEntryType,
 )
-from gamification.models import XPLedger
+from gamification.models import XPTransaction
 from ticket.models import TicketTransition
 
 pytestmark = pytest.mark.django_db
@@ -48,10 +48,10 @@ def audit_feed_context(
         action=TicketTransitionAction.QC_PASS,
         actor=ops,
     )
-    XPLedger.objects.create(
+    XPTransaction.objects.create(
         user=ops,
         amount=2,
-        entry_type=XPLedgerEntryType.ATTENDANCE_PUNCTUALITY,
+        entry_type=XPTransactionEntryType.ATTENDANCE_PUNCTUALITY,
         reference="audit_feed_test_xp",
         payload={},
     )
@@ -82,7 +82,7 @@ def test_returns_mixed_event_feed(authed_client_factory, audit_feed_context):
 
     event_types = {event["event_type"] for event in feed}
     assert "ticket_transition" in event_types
-    assert "xp_ledger" in event_types
+    assert "xp_transaction" in event_types
     assert "attendance_check_in" in event_types
 
 

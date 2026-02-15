@@ -1,10 +1,10 @@
 from django.db import IntegrityError, models
 
 from core.models import AppendOnlyManager, AppendOnlyModel
-from core.utils.constants import EmployeeLevel, XPLedgerEntryType
+from core.utils.constants import EmployeeLevel, XPTransactionEntryType
 
 
-class XPLedgerManager(AppendOnlyManager):
+class XPTransactionManager(AppendOnlyManager):
     def append_entry(
         self,
         *,
@@ -30,15 +30,15 @@ class XPLedgerManager(AppendOnlyManager):
             return existing, False
 
 
-class XPLedger(AppendOnlyModel):
-    objects = XPLedgerManager()
+class XPTransaction(AppendOnlyModel):
+    objects = XPTransactionManager()
 
     user = models.ForeignKey(
-        "account.User", on_delete=models.PROTECT, related_name="xp_ledger_entries"
+        "account.User", on_delete=models.PROTECT, related_name="xp_transactions"
     )
     amount = models.IntegerField()
     entry_type = models.CharField(
-        max_length=50, choices=XPLedgerEntryType, db_index=True
+        max_length=50, choices=XPTransactionEntryType, db_index=True
     )
     reference = models.CharField(max_length=120, unique=True, db_index=True)
     description = models.CharField(max_length=255, blank=True, null=True)
@@ -51,7 +51,7 @@ class XPLedger(AppendOnlyModel):
         ]
 
     def __str__(self) -> str:
-        return f"XPLedger#{self.pk} user={self.user_id} amount={self.amount} ({self.entry_type})"
+        return f"XPTransaction#{self.pk} user={self.user_id} amount={self.amount} ({self.entry_type})"
 
 
 class WeeklyLevelEvaluation(AppendOnlyModel):

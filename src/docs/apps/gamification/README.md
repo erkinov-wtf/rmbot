@@ -1,7 +1,7 @@
 # Gamification App Docs
 
 ## Scope
-Covers append-only XP ledger behavior and weekly progression evaluation pipeline.
+Covers append-only XP transaction behavior and weekly progression evaluation pipeline.
 
 ## Navigation
 - `docs/apps/gamification/models.md`

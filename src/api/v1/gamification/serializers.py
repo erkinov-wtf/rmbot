@@ -1,11 +1,11 @@
 from rest_framework import serializers
 
-from gamification.models import XPLedger
+from gamification.models import XPTransaction
 
 
-class XPLedgerSerializer(serializers.ModelSerializer):
+class XPTransactionSerializer(serializers.ModelSerializer):
     class Meta:
-        model = XPLedger
+        model = XPTransaction
         fields = (
             "id",
             "user",
