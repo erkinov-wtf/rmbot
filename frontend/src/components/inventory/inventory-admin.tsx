@@ -1,44 +1,33 @@
 import {
-  Boxes,
+  ArrowLeft,
   FolderTree,
-  Layers,
   Package,
   PencilLine,
+  Plus,
   RefreshCcw,
   Search,
   Trash2,
   Wrench,
 } from "lucide-react";
-import {
-  type ComponentType,
-  type FormEvent,
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
   createCategory,
-  createInventory,
   createInventoryItem,
   createPart,
   deleteCategory,
-  deleteInventory,
   deleteInventoryItem,
   deletePart,
-  listCategories,
-  listInventories,
+  getInventoryItem,
+  listAllCategories,
   listInventoryItems,
   listParts,
-  type Inventory,
   type InventoryCategory,
   type InventoryItem,
   type InventoryItemStatus,
   type InventoryPart,
   updateCategory,
-  updateInventory,
   updateInventoryItem,
   updatePart,
 } from "@/lib/api";
@@ -51,34 +40,65 @@ type InventoryAdminProps = {
   roleSlugs: string[];
 };
 
-type FeedbackState = {
-  type: "success" | "error";
-  message: string;
-} | null;
+type FeedbackState =
+  | {
+      type: "success" | "error" | "info";
+      message: string;
+    }
+  | null;
 
-type InventoryTab = "items" | "inventories" | "categories" | "parts";
+type InventoryRoute =
+  | { name: "categories" }
+  | { name: "items" }
+  | { name: "itemDetail"; itemId: number };
 
-const INVENTORY_TABS: Array<{
-  id: InventoryTab;
-  label: string;
-  icon: ComponentType<{ className?: string }>;
-}> = [
-  { id: "items", label: "Items", icon: Package },
-  { id: "inventories", label: "Inventories", icon: Boxes },
-  { id: "categories", label: "Categories", icon: FolderTree },
-  { id: "parts", label: "Parts", icon: Wrench },
-];
+type ItemFilters = {
+  search: string;
+  categoryId: string;
+  status: "all" | InventoryItemStatus;
+  activity: "all" | "active" | "inactive";
+};
 
-const ITEM_STATUSES: InventoryItemStatus[] = [
-  "ready",
-  "in_service",
-  "rented",
-  "blocked",
-  "write_off",
+type ItemFormState = {
+  serialNumber: string;
+  name: string;
+  categoryId: string;
+  status: InventoryItemStatus;
+  isActive: boolean;
+};
+
+const DEFAULT_ITEM_FILTERS: ItemFilters = {
+  search: "",
+  categoryId: "",
+  status: "all",
+  activity: "all",
+};
+
+const DEFAULT_ITEM_FORM: ItemFormState = {
+  serialNumber: "",
+  name: "",
+  categoryId: "",
+  status: "ready",
+  isActive: true,
+};
+
+const ITEM_STATUS_OPTIONS: Array<{ value: InventoryItemStatus; label: string }> = [
+  { value: "ready", label: "Ready" },
+  { value: "in_service", label: "In Service" },
+  { value: "rented", label: "Rented" },
+  { value: "blocked", label: "Blocked" },
+  { value: "write_off", label: "Write Off" },
 ];
 
 const fieldClassName =
-  "h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-200";
+  "h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-100 disabled:cursor-not-allowed disabled:bg-slate-100";
+
+function toErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  return fallback;
+}
 
 function formatDate(value: string): string {
   const parsed = new Date(value);
@@ -88,18 +108,58 @@ function formatDate(value: string): string {
   return parsed.toLocaleString();
 }
 
-function toErrorMessage(error: unknown, fallback: string): string {
-  if (error instanceof Error && error.message) {
-    return error.message;
+function statusBadgeClass(status: InventoryItemStatus): string {
+  if (status === "ready") {
+    return "border-emerald-200 bg-emerald-50 text-emerald-700";
   }
-  return fallback;
+  if (status === "in_service") {
+    return "border-sky-200 bg-sky-50 text-sky-700";
+  }
+  if (status === "rented") {
+    return "border-indigo-200 bg-indigo-50 text-indigo-700";
+  }
+  if (status === "blocked") {
+    return "border-amber-200 bg-amber-50 text-amber-700";
+  }
+  return "border-rose-200 bg-rose-50 text-rose-700";
 }
 
-function RoleBadge({ value }: { value: string }) {
+function parseInventoryRoute(pathname: string): InventoryRoute {
+  const detailMatch = pathname.match(/^\/inventory\/items\/(\d+)\/?$/);
+  if (detailMatch) {
+    const parsedId = Number(detailMatch[1]);
+    if (Number.isFinite(parsedId) && parsedId > 0) {
+      return { name: "itemDetail", itemId: parsedId };
+    }
+  }
+
+  if (pathname.startsWith("/inventory/categories")) {
+    return { name: "categories" };
+  }
+
+  if (pathname.startsWith("/inventory/items")) {
+    return { name: "items" };
+  }
+
+  return { name: "items" };
+}
+
+function toInventoryPath(route: InventoryRoute): string {
+  if (route.name === "categories") {
+    return "/inventory/categories";
+  }
+  if (route.name === "itemDetail") {
+    return `/inventory/items/${route.itemId}`;
+  }
+  return "/inventory/items";
+}
+
+function areFiltersEqual(left: ItemFilters, right: ItemFilters): boolean {
   return (
-    <span className="rounded-full border border-slate-300 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700">
-      {value}
-    </span>
+    left.search === right.search &&
+    left.categoryId === right.categoryId &&
+    left.status === right.status &&
+    left.activity === right.activity
   );
 }
 
@@ -109,119 +169,224 @@ export function InventoryAdmin({
   roleTitles,
   roleSlugs,
 }: InventoryAdminProps) {
-  const [activeTab, setActiveTab] = useState<InventoryTab>("items");
-  const [isLoading, setIsLoading] = useState(true);
-  const [isMutating, setIsMutating] = useState(false);
+  const [route, setRoute] = useState<InventoryRoute>(() =>
+    parseInventoryRoute(window.location.pathname),
+  );
+
   const [feedback, setFeedback] = useState<FeedbackState>(null);
 
-  const [inventories, setInventories] = useState<Inventory[]>([]);
   const [categories, setCategories] = useState<InventoryCategory[]>([]);
   const [items, setItems] = useState<InventoryItem[]>([]);
-  const [parts, setParts] = useState<InventoryPart[]>([]);
 
-  const [itemSearchInput, setItemSearchInput] = useState("");
-  const [itemSearchApplied, setItemSearchApplied] = useState("");
+  const [isLoadingCategories, setIsLoadingCategories] = useState(true);
+  const [isLoadingItems, setIsLoadingItems] = useState(true);
+  const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+  const [isMutating, setIsMutating] = useState(false);
 
-  const [inventoryName, setInventoryName] = useState("");
-  const [editingInventoryId, setEditingInventoryId] = useState<number | null>(null);
+  const [itemFilters, setItemFilters] = useState<ItemFilters>(DEFAULT_ITEM_FILTERS);
+  const [appliedFilters, setAppliedFilters] =
+    useState<ItemFilters>(DEFAULT_ITEM_FILTERS);
+
+  const [isCreateItemOpen, setIsCreateItemOpen] = useState(false);
+  const [createItemForm, setCreateItemForm] =
+    useState<ItemFormState>(DEFAULT_ITEM_FORM);
 
   const [categoryName, setCategoryName] = useState("");
   const [editingCategoryId, setEditingCategoryId] = useState<number | null>(null);
 
-  const [itemSerialNumber, setItemSerialNumber] = useState("");
-  const [itemName, setItemName] = useState("");
-  const [itemInventoryId, setItemInventoryId] = useState("");
-  const [itemCategoryId, setItemCategoryId] = useState("");
-  const [itemStatus, setItemStatus] = useState<InventoryItemStatus>("ready");
-  const [itemIsActive, setItemIsActive] = useState(true);
-  const [editingItemId, setEditingItemId] = useState<number | null>(null);
+  const [detailItem, setDetailItem] = useState<InventoryItem | null>(null);
+  const [detailItemForm, setDetailItemForm] = useState<ItemFormState | null>(null);
+  const [detailParts, setDetailParts] = useState<InventoryPart[]>([]);
 
   const [partName, setPartName] = useState("");
-  const [partInventoryItemId, setPartInventoryItemId] = useState("");
   const [editingPartId, setEditingPartId] = useState<number | null>(null);
 
-  const inventoryNameById = useMemo(
-    () => new Map(inventories.map((inventory) => [inventory.id, inventory.name])),
-    [inventories],
-  );
+  const activeMenu: "categories" | "items" =
+    route.name === "categories" ? "categories" : "items";
+
   const categoryNameById = useMemo(
     () => new Map(categories.map((category) => [category.id, category.name])),
     [categories],
   );
-  const itemLabelById = useMemo(
+
+  const statusLabelByValue = useMemo(
     () =>
-      new Map(
-        items.map((item) => [
-          item.id,
-          `${item.serial_number}${item.name ? ` - ${item.name}` : ""}`,
-        ]),
-      ),
-    [items],
+      new Map(ITEM_STATUS_OPTIONS.map((option) => [option.value, option.label])),
+    [],
   );
 
-  const resetInventoryForm = () => {
-    setInventoryName("");
-    setEditingInventoryId(null);
-  };
+  const hasPendingFilterChanges = useMemo(
+    () => !areFiltersEqual(itemFilters, appliedFilters),
+    [itemFilters, appliedFilters],
+  );
+
+  const navigate = useCallback((nextRoute: InventoryRoute) => {
+    const nextPath = toInventoryPath(nextRoute);
+    if (window.location.pathname !== nextPath) {
+      window.history.pushState({}, "", nextPath);
+    }
+    setRoute(nextRoute);
+    setFeedback(null);
+  }, []);
 
   const resetCategoryForm = () => {
     setCategoryName("");
     setEditingCategoryId(null);
   };
 
-  const resetItemForm = () => {
-    setItemSerialNumber("");
-    setItemName("");
-    setItemInventoryId("");
-    setItemCategoryId("");
-    setItemStatus("ready");
-    setItemIsActive(true);
-    setEditingItemId(null);
-  };
-
   const resetPartForm = () => {
     setPartName("");
-    setPartInventoryItemId("");
     setEditingPartId(null);
   };
 
-  const loadInventoryData = useCallback(async () => {
-    setIsLoading(true);
-    setFeedback(null);
-
+  const loadCategories = useCallback(async () => {
+    setIsLoadingCategories(true);
     try {
-      const query =
-        itemSearchApplied.trim().length >= 2
-          ? { q: itemSearchApplied.trim() }
-          : undefined;
-      const [nextInventories, nextCategories, nextItems, nextParts] =
-        await Promise.all([
-          listInventories(accessToken),
-          listCategories(accessToken),
-          listInventoryItems(accessToken, query),
-          listParts(accessToken),
-        ]);
-
-      setInventories(nextInventories);
+      const nextCategories = await listAllCategories(accessToken);
       setCategories(nextCategories);
-      setItems(nextItems);
-      setParts(nextParts);
     } catch (error) {
       setFeedback({
         type: "error",
-        message: toErrorMessage(
-          error,
-          "Failed to load inventory management data.",
-        ),
+        message: toErrorMessage(error, "Failed to load categories."),
       });
     } finally {
-      setIsLoading(false);
+      setIsLoadingCategories(false);
     }
-  }, [accessToken, itemSearchApplied]);
+  }, [accessToken]);
+
+  const loadItems = useCallback(
+    async (filters: ItemFilters) => {
+      setIsLoadingItems(true);
+      try {
+        const trimmedSearch = filters.search.trim();
+        const nextItems = await listInventoryItems(accessToken, {
+          q: trimmedSearch.length >= 2 ? trimmedSearch : undefined,
+          category: filters.categoryId ? Number(filters.categoryId) : undefined,
+          status: filters.status === "all" ? undefined : filters.status,
+          is_active:
+            filters.activity === "all"
+              ? undefined
+              : filters.activity === "active",
+        });
+        setItems(nextItems);
+      } catch (error) {
+        setFeedback({
+          type: "error",
+          message: toErrorMessage(error, "Failed to load inventory items."),
+        });
+      } finally {
+        setIsLoadingItems(false);
+      }
+    },
+    [accessToken],
+  );
+
+  const loadItemDetail = useCallback(
+    async (itemId: number) => {
+      setIsLoadingDetail(true);
+      try {
+        const [item, allParts] = await Promise.all([
+          getInventoryItem(accessToken, itemId),
+          listParts(accessToken),
+        ]);
+
+        setDetailItem(item);
+        setDetailItemForm({
+          serialNumber: item.serial_number,
+          name: item.name ?? "",
+          categoryId: String(item.category),
+          status: item.status,
+          isActive: item.is_active,
+        });
+
+        setDetailParts(
+          allParts.filter((part) => part.inventory_item === item.id),
+        );
+        resetPartForm();
+      } catch (error) {
+        setDetailItem(null);
+        setDetailItemForm(null);
+        setDetailParts([]);
+        setFeedback({
+          type: "error",
+          message: toErrorMessage(error, "Failed to load inventory item details."),
+        });
+      } finally {
+        setIsLoadingDetail(false);
+      }
+    },
+    [accessToken],
+  );
 
   useEffect(() => {
-    void loadInventoryData();
-  }, [loadInventoryData]);
+    const onPopState = () => {
+      setRoute(parseInventoryRoute(window.location.pathname));
+      setFeedback(null);
+    };
+
+    window.addEventListener("popstate", onPopState);
+    return () => {
+      window.removeEventListener("popstate", onPopState);
+    };
+  }, []);
+
+  useEffect(() => {
+    void loadCategories();
+  }, [loadCategories]);
+
+  useEffect(() => {
+    void loadItems(appliedFilters);
+  }, [appliedFilters, loadItems]);
+
+  useEffect(() => {
+    if (route.name !== "itemDetail") {
+      setDetailItem(null);
+      setDetailItemForm(null);
+      setDetailParts([]);
+      resetPartForm();
+      return;
+    }
+
+    void loadItemDetail(route.itemId);
+  }, [route, loadItemDetail]);
+
+  useEffect(() => {
+    if (!categories.length) {
+      setCreateItemForm((prev) => ({ ...prev, categoryId: "" }));
+      return;
+    }
+
+    setCreateItemForm((prev) => {
+      if (prev.categoryId) {
+        return prev;
+      }
+      return {
+        ...prev,
+        categoryId: String(categories[0].id),
+      };
+    });
+  }, [categories]);
+
+  useEffect(() => {
+    if (!detailItemForm || !categories.length) {
+      return;
+    }
+
+    const stillExists = categories.some(
+      (category) => String(category.id) === detailItemForm.categoryId,
+    );
+    if (!stillExists) {
+      setDetailItemForm((prev) => {
+        if (!prev) {
+          return prev;
+        }
+        return {
+          ...prev,
+          categoryId: String(categories[0].id),
+        };
+      });
+    }
+  }, [categories, detailItemForm]);
 
   const runMutation = useCallback(
     async (task: () => Promise<void>, successMessage: string) => {
@@ -230,39 +395,46 @@ export function InventoryAdmin({
       try {
         await task();
         setFeedback({ type: "success", message: successMessage });
-        await loadInventoryData();
       } catch (error) {
         setFeedback({
           type: "error",
-          message: toErrorMessage(error, "Inventory action failed."),
+          message: toErrorMessage(error, "Action failed."),
         });
+        throw error;
       } finally {
         setIsMutating(false);
       }
     },
-    [loadInventoryData],
+    [],
   );
 
-  const handleInventorySubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!canManage) {
-      return;
+  const handleRefresh = async () => {
+    setFeedback(null);
+    await Promise.all([loadCategories(), loadItems(appliedFilters)]);
+    if (route.name === "itemDetail") {
+      await loadItemDetail(route.itemId);
+    }
+  };
+
+  const handleApplyFilters = () => {
+    const trimmedSearch = itemFilters.search.trim();
+    if (trimmedSearch.length === 1) {
+      setFeedback({
+        type: "info",
+        message:
+          "Search query starts applying from 2 characters. Showing wider result set.",
+      });
+    } else {
+      setFeedback(null);
     }
 
-    const trimmed = inventoryName.trim();
-    if (!trimmed) {
-      setFeedback({ type: "error", message: "Inventory name is required." });
-      return;
-    }
+    setAppliedFilters(itemFilters);
+  };
 
-    await runMutation(async () => {
-      if (editingInventoryId) {
-        await updateInventory(accessToken, editingInventoryId, trimmed);
-      } else {
-        await createInventory(accessToken, trimmed);
-      }
-      resetInventoryForm();
-    }, editingInventoryId ? "Inventory updated." : "Inventory created.");
+  const handleResetFilters = () => {
+    setItemFilters(DEFAULT_ITEM_FILTERS);
+    setAppliedFilters(DEFAULT_ITEM_FILTERS);
+    setFeedback(null);
   };
 
   const handleCategorySubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -271,743 +443,1100 @@ export function InventoryAdmin({
       return;
     }
 
-    const trimmed = categoryName.trim();
-    if (!trimmed) {
+    const trimmedName = categoryName.trim();
+    if (!trimmedName) {
       setFeedback({ type: "error", message: "Category name is required." });
       return;
     }
 
-    await runMutation(async () => {
-      if (editingCategoryId) {
-        await updateCategory(accessToken, editingCategoryId, trimmed);
-      } else {
-        await createCategory(accessToken, trimmed);
-      }
-      resetCategoryForm();
-    }, editingCategoryId ? "Category updated." : "Category created.");
+    try {
+      await runMutation(async () => {
+        if (editingCategoryId) {
+          await updateCategory(accessToken, editingCategoryId, trimmedName);
+        } else {
+          await createCategory(accessToken, trimmedName);
+        }
+
+        resetCategoryForm();
+        await Promise.all([loadCategories(), loadItems(appliedFilters)]);
+      }, editingCategoryId ? "Category updated." : "Category created.");
+    } catch {
+      // feedback already set
+    }
   };
 
-  const handleItemSubmit = async (event: FormEvent<HTMLFormElement>) => {
+  const handleCategoryDelete = async (categoryId: number) => {
+    if (!canManage || !window.confirm("Delete this category?")) {
+      return;
+    }
+
+    try {
+      await runMutation(async () => {
+        await deleteCategory(accessToken, categoryId);
+        if (editingCategoryId === categoryId) {
+          resetCategoryForm();
+        }
+        await Promise.all([loadCategories(), loadItems(appliedFilters)]);
+      }, "Category deleted.");
+    } catch {
+      // feedback already set
+    }
+  };
+
+  const handleCreateItemSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!canManage) {
       return;
     }
 
-    const trimmedSerial = itemSerialNumber.trim();
-    if (!trimmedSerial) {
+    const serialNumber = createItemForm.serialNumber.trim();
+    if (!serialNumber) {
       setFeedback({ type: "error", message: "Serial number is required." });
       return;
     }
 
-    await runMutation(async () => {
-      const basePayload = {
-        serial_number: trimmedSerial,
-        name: itemName.trim() || undefined,
-        inventory: itemInventoryId ? Number(itemInventoryId) : undefined,
-        category: itemCategoryId ? Number(itemCategoryId) : undefined,
-        status: itemStatus,
-        is_active: itemIsActive,
-      };
+    const categoryId = Number(createItemForm.categoryId);
+    if (!categoryId) {
+      setFeedback({ type: "error", message: "Select a category." });
+      return;
+    }
 
-      if (editingItemId) {
-        await updateInventoryItem(accessToken, editingItemId, basePayload);
-      } else {
-        await createInventoryItem(accessToken, basePayload);
-      }
-      resetItemForm();
-    }, editingItemId ? "Inventory item updated." : "Inventory item created.");
+    try {
+      await runMutation(async () => {
+        const created = await createInventoryItem(accessToken, {
+          serial_number: serialNumber,
+          name: createItemForm.name.trim() || undefined,
+          category: categoryId,
+          status: createItemForm.status,
+          is_active: createItemForm.isActive,
+        });
+
+        setCreateItemForm((prev) => ({
+          ...prev,
+          serialNumber: "",
+          name: "",
+          status: "ready",
+          isActive: true,
+        }));
+        setIsCreateItemOpen(false);
+
+        await loadItems(appliedFilters);
+        navigate({ name: "itemDetail", itemId: created.id });
+      }, "Inventory item created.");
+    } catch {
+      // feedback already set
+    }
+  };
+
+  const handleDetailItemSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!canManage || !detailItem || !detailItemForm) {
+      return;
+    }
+
+    const serialNumber = detailItemForm.serialNumber.trim();
+    if (!serialNumber) {
+      setFeedback({ type: "error", message: "Serial number is required." });
+      return;
+    }
+
+    const categoryId = Number(detailItemForm.categoryId);
+    if (!categoryId) {
+      setFeedback({ type: "error", message: "Select a category." });
+      return;
+    }
+
+    try {
+      await runMutation(async () => {
+        const updated = await updateInventoryItem(accessToken, detailItem.id, {
+          serial_number: serialNumber,
+          name: detailItemForm.name.trim(),
+          category: categoryId,
+          status: detailItemForm.status,
+          is_active: detailItemForm.isActive,
+        });
+
+        setDetailItem(updated);
+        setDetailItemForm({
+          serialNumber: updated.serial_number,
+          name: updated.name ?? "",
+          categoryId: String(updated.category),
+          status: updated.status,
+          isActive: updated.is_active,
+        });
+
+        await loadItems(appliedFilters);
+      }, "Inventory item updated.");
+    } catch {
+      // feedback already set
+    }
+  };
+
+  const handleDetailItemDelete = async () => {
+    if (!canManage || !detailItem || !window.confirm("Delete this inventory item?")) {
+      return;
+    }
+
+    try {
+      await runMutation(async () => {
+        await deleteInventoryItem(accessToken, detailItem.id);
+        setDetailItem(null);
+        setDetailItemForm(null);
+        setDetailParts([]);
+        resetPartForm();
+
+        await loadItems(appliedFilters);
+        navigate({ name: "items" });
+      }, "Inventory item deleted.");
+    } catch {
+      // feedback already set
+    }
   };
 
   const handlePartSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!canManage) {
+    if (!canManage || !detailItem) {
       return;
     }
 
-    const trimmedName = partName.trim();
-    if (!trimmedName) {
+    const trimmedPartName = partName.trim();
+    if (!trimmedPartName) {
       setFeedback({ type: "error", message: "Part name is required." });
       return;
     }
-    if (!partInventoryItemId) {
-      setFeedback({
-        type: "error",
-        message: "Select an inventory item for this part.",
-      });
+
+    try {
+      await runMutation(async () => {
+        if (editingPartId) {
+          await updatePart(accessToken, editingPartId, {
+            inventory_item: detailItem.id,
+            name: trimmedPartName,
+          });
+        } else {
+          await createPart(accessToken, {
+            inventory_item: detailItem.id,
+            name: trimmedPartName,
+          });
+        }
+
+        await loadItemDetail(detailItem.id);
+      }, editingPartId ? "Part updated." : "Part created.");
+    } catch {
+      // feedback already set
+    }
+  };
+
+  const handlePartDelete = async (partId: number) => {
+    if (!canManage || !detailItem || !window.confirm("Delete this part?")) {
       return;
     }
 
-    await runMutation(async () => {
-      const payload = {
-        inventory_item: Number(partInventoryItemId),
-        name: trimmedName,
-      };
-      if (editingPartId) {
-        await updatePart(accessToken, editingPartId, payload);
-      } else {
-        await createPart(accessToken, payload);
-      }
-      resetPartForm();
-    }, editingPartId ? "Part updated." : "Part created.");
-  };
-
-  const handleInventoryDelete = async (id: number) => {
-    if (!canManage || !window.confirm("Delete this inventory?")) {
-      return;
+    try {
+      await runMutation(async () => {
+        await deletePart(accessToken, partId);
+        await loadItemDetail(detailItem.id);
+      }, "Part deleted.");
+    } catch {
+      // feedback already set
     }
-    await runMutation(async () => {
-      await deleteInventory(accessToken, id);
-      if (editingInventoryId === id) {
-        resetInventoryForm();
-      }
-    }, "Inventory deleted.");
   };
 
-  const handleCategoryDelete = async (id: number) => {
-    if (!canManage || !window.confirm("Delete this category?")) {
-      return;
-    }
-    await runMutation(async () => {
-      await deleteCategory(accessToken, id);
-      if (editingCategoryId === id) {
-        resetCategoryForm();
-      }
-    }, "Category deleted.");
-  };
+  const renderCategoryPage = () => (
+    <div className="mt-4 grid gap-4 lg:grid-cols-[340px_1fr]">
+      <form onSubmit={handleCategorySubmit} className="rounded-lg border border-slate-200 p-4">
+        <p className="text-sm font-semibold text-slate-900">
+          {editingCategoryId ? "Edit Category" : "Create Category"}
+        </p>
 
-  const handleItemDelete = async (id: number) => {
-    if (!canManage || !window.confirm("Delete this inventory item?")) {
-      return;
-    }
-    await runMutation(async () => {
-      await deleteInventoryItem(accessToken, id);
-      if (editingItemId === id) {
-        resetItemForm();
-      }
-    }, "Inventory item deleted.");
-  };
+        <label className="mt-3 block text-xs font-semibold uppercase tracking-wide text-slate-600">
+          Category Name
+        </label>
+        <input
+          className={cn(fieldClassName, "mt-1")}
+          value={categoryName}
+          onChange={(event) => setCategoryName(event.target.value)}
+          disabled={!canManage || isMutating}
+          placeholder="Enter category name"
+        />
 
-  const handlePartDelete = async (id: number) => {
-    if (!canManage || !window.confirm("Delete this part?")) {
-      return;
-    }
-    await runMutation(async () => {
-      await deletePart(accessToken, id);
-      if (editingPartId === id) {
-        resetPartForm();
-      }
-    }, "Part deleted.");
-  };
+        {canManage ? (
+          <div className="mt-3 flex gap-2">
+            <Button type="submit" className="h-10" disabled={isMutating}>
+              {editingCategoryId ? "Update" : "Create"}
+            </Button>
+            {editingCategoryId ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10"
+                onClick={resetCategoryForm}
+                disabled={isMutating}
+              >
+                Cancel
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+      </form>
 
-  return (
-    <section className="rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-xl backdrop-blur sm:p-6 md:p-8">
-      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-        <div>
-          <h2 className="text-xl font-bold text-slate-900 sm:text-2xl">
-            Inventory Administration
-          </h2>
-          <p className="mt-1 text-sm text-slate-600">
-            Manage inventories, categories, items, and parts.
-          </p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {roleTitles.map((title) => (
-              <RoleBadge key={title} value={title} />
+      <div className="rounded-lg border border-slate-200 p-4">
+        <p className="text-sm font-semibold text-slate-900">
+          Categories ({categories.length})
+        </p>
+
+        {isLoadingCategories ? (
+          <p className="mt-4 text-sm text-slate-600">Loading categories...</p>
+        ) : categories.length ? (
+          <div className="mt-3 space-y-2">
+            {categories.map((category) => (
+              <div
+                key={category.id}
+                className="flex flex-col gap-2 rounded-md border border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div>
+                  <p className="text-sm font-medium text-slate-900">{category.name}</p>
+                  <p className="text-xs text-slate-500">{formatDate(category.created_at)}</p>
+                </div>
+
+                {canManage ? (
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-8 px-2 text-xs"
+                      onClick={() => {
+                        setCategoryName(category.name);
+                        setEditingCategoryId(category.id);
+                      }}
+                      disabled={isMutating}
+                    >
+                      <PencilLine className="mr-1 h-3.5 w-3.5" />
+                      Edit
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-8 px-2 text-xs text-rose-700"
+                      onClick={() => void handleCategoryDelete(category.id)}
+                      disabled={isMutating}
+                    >
+                      <Trash2 className="mr-1 h-3.5 w-3.5" />
+                      Delete
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
             ))}
           </div>
-        </div>
-        <div className="flex w-full flex-col gap-2 sm:w-auto">
-          <Button
-            variant="outline"
-            className="h-11 w-full sm:w-auto"
-            onClick={() => void loadInventoryData()}
-            disabled={isLoading || isMutating}
-          >
-            <RefreshCcw className="mr-2 h-4 w-4" />
-            Refresh Data
-          </Button>
-          {!canManage ? (
-            <p className="text-xs text-amber-700">
-              Your roles ({roleSlugs.join(", ") || "none"}) can view inventory
-              data but cannot modify it.
-            </p>
-          ) : null}
-        </div>
+        ) : (
+          <p className="mt-3 rounded-md border border-dashed border-slate-300 px-3 py-5 text-center text-sm text-slate-500">
+            No categories yet.
+          </p>
+        )}
       </div>
+    </div>
+  );
 
-      {feedback ? (
-        <div
-          className={cn(
-            "mt-4 rounded-md border px-3 py-2 text-sm",
-            feedback.type === "error"
-              ? "border-red-200 bg-red-50 text-red-700"
-              : "border-emerald-200 bg-emerald-50 text-emerald-700",
-          )}
-          aria-live="polite"
-        >
-          {feedback.message}
-        </div>
-      ) : null}
+  const renderItemsListPage = () => {
+    const oneCharSearch = itemFilters.search.trim().length === 1;
 
-      <div className="mt-5 grid gap-2 sm:grid-cols-2 md:grid-cols-4">
-        {INVENTORY_TABS.map((tab) => {
-          const TabIcon = tab.icon;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              className={cn(
-                "flex h-11 items-center justify-center gap-2 rounded-md border px-3 text-sm font-semibold transition",
-                activeTab === tab.id
-                  ? "border-slate-900 bg-slate-900 text-white"
-                  : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
-              )}
-              onClick={() => setActiveTab(tab.id)}
-            >
-              <TabIcon className="h-4 w-4" />
-              {tab.label}
-            </button>
-          );
-        })}
-      </div>
-
-      {isLoading ? (
-        <p className="mt-5 text-sm text-slate-600">Loading inventory data...</p>
-      ) : null}
-
-      {!isLoading && activeTab === "inventories" ? (
-        <div className="mt-5 space-y-4">
-          <form
-            onSubmit={handleInventorySubmit}
-            className="rounded-xl border border-slate-200 bg-slate-50/70 p-4"
-          >
-            <p className="mb-3 text-sm font-semibold text-slate-700">
-              {editingInventoryId ? "Edit inventory" : "Create inventory"}
-            </p>
-            <div className="flex flex-col gap-3 md:flex-row">
-              <input
-                value={inventoryName}
-                onChange={(event) => setInventoryName(event.target.value)}
-                className={fieldClassName}
-                placeholder="Inventory name"
-                disabled={!canManage || isMutating}
-              />
-              {canManage ? (
-                <div className="flex gap-2">
-                  <Button
-                    type="submit"
-                    className="h-11"
-                    disabled={isMutating}
-                  >
-                    {editingInventoryId ? "Update" : "Create"}
-                  </Button>
-                  {editingInventoryId ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="h-11"
-                      onClick={resetInventoryForm}
-                      disabled={isMutating}
-                    >
-                      Cancel
-                    </Button>
-                  ) : null}
-                </div>
-              ) : null}
-            </div>
-          </form>
-
-          <div className="overflow-x-auto rounded-xl border border-slate-200">
-            <table className="min-w-full text-left text-sm">
-              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                <tr>
-                  <th className="px-4 py-3">Name</th>
-                  <th className="px-4 py-3">Created</th>
-                  {canManage ? <th className="px-4 py-3">Actions</th> : null}
-                </tr>
-              </thead>
-              <tbody>
-                {inventories.map((inventory) => (
-                  <tr key={inventory.id} className="border-t border-slate-200">
-                    <td className="px-4 py-3 font-medium text-slate-900">
-                      {inventory.name}
-                    </td>
-                    <td className="px-4 py-3 text-slate-600">
-                      {formatDate(inventory.created_at)}
-                    </td>
-                    {canManage ? (
-                      <td className="px-4 py-3">
-                        <div className="flex flex-wrap gap-2">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className="h-8 px-2 text-xs"
-                            onClick={() => {
-                              setInventoryName(inventory.name);
-                              setEditingInventoryId(inventory.id);
-                            }}
-                            disabled={isMutating}
-                          >
-                            <PencilLine className="mr-1 h-3.5 w-3.5" />
-                            Edit
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className="h-8 px-2 text-xs text-red-700"
-                            onClick={() => void handleInventoryDelete(inventory.id)}
-                            disabled={isMutating}
-                          >
-                            <Trash2 className="mr-1 h-3.5 w-3.5" />
-                            Delete
-                          </Button>
-                        </div>
-                      </td>
-                    ) : null}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ) : null}
-
-      {!isLoading && activeTab === "categories" ? (
-        <div className="mt-5 space-y-4">
-          <form
-            onSubmit={handleCategorySubmit}
-            className="rounded-xl border border-slate-200 bg-slate-50/70 p-4"
-          >
-            <p className="mb-3 text-sm font-semibold text-slate-700">
-              {editingCategoryId ? "Edit category" : "Create category"}
-            </p>
-            <div className="flex flex-col gap-3 md:flex-row">
-              <input
-                value={categoryName}
-                onChange={(event) => setCategoryName(event.target.value)}
-                className={fieldClassName}
-                placeholder="Category name"
-                disabled={!canManage || isMutating}
-              />
-              {canManage ? (
-                <div className="flex gap-2">
-                  <Button
-                    type="submit"
-                    className="h-11"
-                    disabled={isMutating}
-                  >
-                    {editingCategoryId ? "Update" : "Create"}
-                  </Button>
-                  {editingCategoryId ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="h-11"
-                      onClick={resetCategoryForm}
-                      disabled={isMutating}
-                    >
-                      Cancel
-                    </Button>
-                  ) : null}
-                </div>
-              ) : null}
-            </div>
-          </form>
-
-          <div className="overflow-x-auto rounded-xl border border-slate-200">
-            <table className="min-w-full text-left text-sm">
-              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                <tr>
-                  <th className="px-4 py-3">Name</th>
-                  <th className="px-4 py-3">Created</th>
-                  {canManage ? <th className="px-4 py-3">Actions</th> : null}
-                </tr>
-              </thead>
-              <tbody>
-                {categories.map((category) => (
-                  <tr key={category.id} className="border-t border-slate-200">
-                    <td className="px-4 py-3 font-medium text-slate-900">
-                      {category.name}
-                    </td>
-                    <td className="px-4 py-3 text-slate-600">
-                      {formatDate(category.created_at)}
-                    </td>
-                    {canManage ? (
-                      <td className="px-4 py-3">
-                        <div className="flex flex-wrap gap-2">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className="h-8 px-2 text-xs"
-                            onClick={() => {
-                              setCategoryName(category.name);
-                              setEditingCategoryId(category.id);
-                            }}
-                            disabled={isMutating}
-                          >
-                            <PencilLine className="mr-1 h-3.5 w-3.5" />
-                            Edit
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className="h-8 px-2 text-xs text-red-700"
-                            onClick={() => void handleCategoryDelete(category.id)}
-                            disabled={isMutating}
-                          >
-                            <Trash2 className="mr-1 h-3.5 w-3.5" />
-                            Delete
-                          </Button>
-                        </div>
-                      </td>
-                    ) : null}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ) : null}
-
-      {!isLoading && activeTab === "items" ? (
-        <div className="mt-5 space-y-4">
-          <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm font-semibold text-slate-700">
-                Search inventory items
-              </p>
-              <p className="text-xs text-slate-500">
-                Search uses serial suggestions and requires at least 2 chars.
+    return (
+      <div className="mt-4 space-y-4">
+        <section className="rounded-lg border border-slate-200 p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-slate-900">Inventory Items</p>
+              <p className="text-sm text-slate-600">
+                Full-screen list view with top filters. Open any item for details and
+                parts management.
               </p>
             </div>
-            <form
-              className="mt-3 flex flex-col gap-2 sm:flex-row"
-              onSubmit={(event) => {
-                event.preventDefault();
-                if (
-                  itemSearchInput.trim().length > 0 &&
-                  itemSearchInput.trim().length < 2
-                ) {
-                  setFeedback({
-                    type: "error",
-                    message: "Search query must be at least 2 characters.",
-                  });
-                  return;
-                }
-                setItemSearchApplied(itemSearchInput.trim());
-              }}
-            >
-              <div className="relative flex-1">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <input
-                  className={cn(fieldClassName, "pl-9")}
-                  value={itemSearchInput}
-                  onChange={(event) => setItemSearchInput(event.target.value)}
-                  placeholder="Search by serial number"
-                />
-              </div>
-              <Button type="submit" variant="outline" className="h-11 sm:w-auto">
-                Apply
+
+            {canManage ? (
+              <Button
+                type="button"
+                variant={isCreateItemOpen ? "outline" : "default"}
+                className="h-10 w-full sm:w-auto"
+                onClick={() => setIsCreateItemOpen((prev) => !prev)}
+                disabled={isMutating || isLoadingCategories}
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                {isCreateItemOpen ? "Close Create" : "Create Item"}
               </Button>
-              {itemSearchApplied ? (
+            ) : null}
+          </div>
+
+          {isCreateItemOpen && canManage ? (
+            <form
+              onSubmit={handleCreateItemSubmit}
+              className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-3"
+            >
+              <p className="text-sm font-semibold text-slate-800">Create Inventory Item</p>
+              <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                    Serial Number
+                  </label>
+                  <input
+                    className={cn(fieldClassName, "mt-1")}
+                    value={createItemForm.serialNumber}
+                    onChange={(event) =>
+                      setCreateItemForm((prev) => ({
+                        ...prev,
+                        serialNumber: event.target.value,
+                      }))
+                    }
+                    disabled={isMutating}
+                    placeholder="Enter serial number"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                    Name
+                  </label>
+                  <input
+                    className={cn(fieldClassName, "mt-1")}
+                    value={createItemForm.name}
+                    onChange={(event) =>
+                      setCreateItemForm((prev) => ({
+                        ...prev,
+                        name: event.target.value,
+                      }))
+                    }
+                    disabled={isMutating}
+                    placeholder="Display name"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                    Category
+                  </label>
+                  <select
+                    className={cn(fieldClassName, "mt-1")}
+                    value={createItemForm.categoryId}
+                    onChange={(event) =>
+                      setCreateItemForm((prev) => ({
+                        ...prev,
+                        categoryId: event.target.value,
+                      }))
+                    }
+                    disabled={isMutating || !categories.length}
+                  >
+                    <option value="">Select category</option>
+                    {categories.map((category) => (
+                      <option key={category.id} value={category.id}>
+                        {category.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                    Status
+                  </label>
+                  <select
+                    className={cn(fieldClassName, "mt-1")}
+                    value={createItemForm.status}
+                    onChange={(event) =>
+                      setCreateItemForm((prev) => ({
+                        ...prev,
+                        status: event.target.value as InventoryItemStatus,
+                      }))
+                    }
+                    disabled={isMutating}
+                  >
+                    {ITEM_STATUS_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                    Active
+                  </label>
+                  <label className="mt-1 inline-flex h-10 w-full items-center rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={createItemForm.isActive}
+                      onChange={(event) =>
+                        setCreateItemForm((prev) => ({
+                          ...prev,
+                          isActive: event.target.checked,
+                        }))
+                      }
+                      disabled={isMutating}
+                    />
+                    <span className="ml-2">Active item</span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="mt-3 flex gap-2">
+                <Button
+                  type="submit"
+                  className="h-10"
+                  disabled={isMutating || !categories.length}
+                >
+                  Create Item
+                </Button>
                 <Button
                   type="button"
                   variant="outline"
-                  className="h-11 sm:w-auto"
-                  onClick={() => {
-                    setItemSearchInput("");
-                    setItemSearchApplied("");
-                  }}
+                  className="h-10"
+                  onClick={() => setIsCreateItemOpen(false)}
+                  disabled={isMutating}
                 >
-                  Clear
+                  Cancel
                 </Button>
-              ) : null}
+              </div>
             </form>
-          </div>
+          ) : null}
 
-          <form
-            onSubmit={handleItemSubmit}
-            className="rounded-xl border border-slate-200 bg-slate-50/70 p-4"
-          >
-            <p className="mb-3 text-sm font-semibold text-slate-700">
-              {editingItemId ? "Edit inventory item" : "Create inventory item"}
-            </p>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <input
-                className={fieldClassName}
-                placeholder="Serial number (RM-...)"
-                value={itemSerialNumber}
-                onChange={(event) => setItemSerialNumber(event.target.value)}
-                disabled={!canManage || isMutating}
-              />
-              <input
-                className={fieldClassName}
-                placeholder="Name (optional)"
-                value={itemName}
-                onChange={(event) => setItemName(event.target.value)}
-                disabled={!canManage || isMutating}
-              />
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-[2fr_1fr_1fr_1fr_auto]">
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                Search
+              </label>
+              <div className="relative mt-1">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  className={cn(fieldClassName, "pl-9")}
+                  value={itemFilters.search}
+                  onChange={(event) =>
+                    setItemFilters((prev) => ({
+                      ...prev,
+                      search: event.target.value,
+                    }))
+                  }
+                  placeholder="Serial number search"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                Category
+              </label>
               <select
-                className={fieldClassName}
-                value={itemInventoryId}
-                onChange={(event) => setItemInventoryId(event.target.value)}
-                disabled={!canManage || isMutating}
+                className={cn(fieldClassName, "mt-1")}
+                value={itemFilters.categoryId}
+                onChange={(event) =>
+                  setItemFilters((prev) => ({
+                    ...prev,
+                    categoryId: event.target.value,
+                  }))
+                }
+                disabled={isLoadingCategories}
               >
-                <option value="">Default inventory</option>
-                {inventories.map((inventory) => (
-                  <option key={inventory.id} value={inventory.id}>
-                    {inventory.name}
-                  </option>
-                ))}
-              </select>
-              <select
-                className={fieldClassName}
-                value={itemCategoryId}
-                onChange={(event) => setItemCategoryId(event.target.value)}
-                disabled={!canManage || isMutating}
-              >
-                <option value="">Default category</option>
+                <option value="">All categories</option>
                 {categories.map((category) => (
                   <option key={category.id} value={category.id}>
                     {category.name}
                   </option>
                 ))}
               </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                Status
+              </label>
               <select
-                className={fieldClassName}
-                value={itemStatus}
+                className={cn(fieldClassName, "mt-1")}
+                value={itemFilters.status}
                 onChange={(event) =>
-                  setItemStatus(event.target.value as InventoryItemStatus)
+                  setItemFilters((prev) => ({
+                    ...prev,
+                    status: event.target.value as ItemFilters["status"],
+                  }))
                 }
-                disabled={!canManage || isMutating}
               >
-                {ITEM_STATUSES.map((status) => (
-                  <option key={status} value={status}>
-                    {status}
+                <option value="all">All statuses</option>
+                {ITEM_STATUS_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
                   </option>
                 ))}
               </select>
-              <label className="inline-flex h-11 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700">
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                Active
+              </label>
+              <select
+                className={cn(fieldClassName, "mt-1")}
+                value={itemFilters.activity}
+                onChange={(event) =>
+                  setItemFilters((prev) => ({
+                    ...prev,
+                    activity: event.target.value as ItemFilters["activity"],
+                  }))
+                }
+              >
+                <option value="all">All</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
+
+            <div className="flex items-end gap-2">
+              <Button
+                type="button"
+                className="h-10"
+                onClick={handleApplyFilters}
+                disabled={isLoadingItems || !hasPendingFilterChanges}
+              >
+                Apply
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10"
+                onClick={handleResetFilters}
+                disabled={isLoadingItems}
+              >
+                Reset
+              </Button>
+            </div>
+          </div>
+
+          {oneCharSearch ? (
+            <p className="mt-2 text-xs text-amber-700">
+              Backend search starts at 2 characters.
+            </p>
+          ) : null}
+        </section>
+
+        <section className="rounded-lg border border-slate-200">
+          <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+            <p className="text-sm font-semibold text-slate-900">
+              Results ({items.length})
+            </p>
+            <p className="text-xs text-slate-500">Click any row to open details</p>
+          </div>
+
+          {isLoadingItems ? (
+            <p className="px-4 py-6 text-sm text-slate-600">Loading inventory items...</p>
+          ) : items.length === 0 ? (
+            <p className="px-4 py-8 text-center text-sm text-slate-500">
+              No inventory items found for selected filters.
+            </p>
+          ) : (
+            <>
+              <div className="space-y-2 p-3 md:hidden">
+                {items.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className="w-full rounded-md border border-slate-200 bg-slate-50 p-3 text-left transition hover:border-slate-300"
+                    onClick={() => navigate({ name: "itemDetail", itemId: item.id })}
+                  >
+                    <p className="text-sm font-semibold text-slate-900">{item.serial_number}</p>
+                    <p className="text-sm text-slate-700">{item.name || "-"}</p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Category: {categoryNameById.get(item.category) ?? `#${item.category}`}
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <span
+                        className={cn(
+                          "rounded-full border px-2 py-0.5 text-xs font-medium",
+                          statusBadgeClass(item.status),
+                        )}
+                      >
+                        {statusLabelByValue.get(item.status) ?? item.status}
+                      </span>
+                      <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5 text-xs text-slate-600">
+                        {item.is_active ? "Active" : "Inactive"}
+                      </span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              <div className="hidden overflow-x-auto md:block">
+                <table className="min-w-full divide-y divide-slate-200">
+                  <thead className="bg-slate-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Serial
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Name
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Category
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Status
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Active
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Updated
+                      </th>
+                      <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Action
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {items.map((item) => (
+                      <tr
+                        key={item.id}
+                        className="cursor-pointer transition hover:bg-slate-50"
+                        onClick={() => navigate({ name: "itemDetail", itemId: item.id })}
+                      >
+                        <td className="px-4 py-3 text-sm font-medium text-slate-900">
+                          {item.serial_number}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-slate-700">{item.name || "-"}</td>
+                        <td className="px-4 py-3 text-sm text-slate-700">
+                          {categoryNameById.get(item.category) ?? `#${item.category}`}
+                        </td>
+                        <td className="px-4 py-3 text-sm">
+                          <span
+                            className={cn(
+                              "rounded-full border px-2 py-0.5 text-xs font-medium",
+                              statusBadgeClass(item.status),
+                            )}
+                          >
+                            {statusLabelByValue.get(item.status) ?? item.status}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-slate-700">
+                          {item.is_active ? "Yes" : "No"}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-slate-500">
+                          {formatDate(item.updated_at)}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-8"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              navigate({ name: "itemDetail", itemId: item.id });
+                            }}
+                          >
+                            Open
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </section>
+      </div>
+    );
+  };
+
+  const renderItemDetailsPage = () => {
+    if (isLoadingDetail) {
+      return (
+        <div className="mt-4 rounded-lg border border-slate-200 p-4">
+          <p className="text-sm text-slate-600">Loading item details...</p>
+        </div>
+      );
+    }
+
+    if (!detailItem || !detailItemForm) {
+      return (
+        <div className="mt-4 rounded-lg border border-dashed border-slate-300 p-6 text-center">
+          <p className="text-sm text-slate-600">
+            Item not found or unavailable. Go back to the list and try again.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            className="mt-3 h-10"
+            onClick={() => navigate({ name: "items" })}
+          >
+            Back to Items
+          </Button>
+        </div>
+      );
+    }
+
+    return (
+      <div className="mt-4 space-y-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <button
+            type="button"
+            onClick={() => navigate({ name: "items" })}
+            className="inline-flex items-center gap-1 text-sm font-medium text-slate-600 transition hover:text-slate-900"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to items
+          </button>
+
+          <span
+            className={cn(
+              "rounded-full border px-2 py-0.5 text-xs font-medium",
+              statusBadgeClass(detailItem.status),
+            )}
+          >
+            {statusLabelByValue.get(detailItem.status) ?? detailItem.status}
+          </span>
+        </div>
+
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+          <p className="text-lg font-semibold text-slate-900">{detailItem.serial_number}</p>
+          <p className="mt-1 text-sm text-slate-600">{detailItem.name || "Unnamed item"}</p>
+          <p className="mt-2 text-xs text-slate-500">
+            Created: {formatDate(detailItem.created_at)} | Updated: {formatDate(detailItem.updated_at)}
+          </p>
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-[1.1fr_1fr]">
+          <form
+            onSubmit={handleDetailItemSubmit}
+            className="rounded-lg border border-slate-200 p-4"
+          >
+            <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
+              <Wrench className="h-4 w-4" />
+              Item Details
+            </p>
+
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                  Serial Number
+                </label>
+                <input
+                  className={cn(fieldClassName, "mt-1")}
+                  value={detailItemForm.serialNumber}
+                  onChange={(event) =>
+                    setDetailItemForm((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            serialNumber: event.target.value,
+                          }
+                        : prev,
+                    )
+                  }
+                  disabled={!canManage || isMutating}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                  Name
+                </label>
+                <input
+                  className={cn(fieldClassName, "mt-1")}
+                  value={detailItemForm.name}
+                  onChange={(event) =>
+                    setDetailItemForm((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            name: event.target.value,
+                          }
+                        : prev,
+                    )
+                  }
+                  disabled={!canManage || isMutating}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                  Category
+                </label>
+                <select
+                  className={cn(fieldClassName, "mt-1")}
+                  value={detailItemForm.categoryId}
+                  onChange={(event) =>
+                    setDetailItemForm((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            categoryId: event.target.value,
+                          }
+                        : prev,
+                    )
+                  }
+                  disabled={!canManage || isMutating || !categories.length}
+                >
+                  <option value="">Select category</option>
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                  Status
+                </label>
+                <select
+                  className={cn(fieldClassName, "mt-1")}
+                  value={detailItemForm.status}
+                  onChange={(event) =>
+                    setDetailItemForm((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            status: event.target.value as InventoryItemStatus,
+                          }
+                        : prev,
+                    )
+                  }
+                  disabled={!canManage || isMutating}
+                >
+                  {ITEM_STATUS_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="mt-3">
+              <label className="inline-flex items-center gap-2 text-sm text-slate-700">
                 <input
                   type="checkbox"
-                  checked={itemIsActive}
-                  onChange={(event) => setItemIsActive(event.target.checked)}
+                  checked={detailItemForm.isActive}
+                  onChange={(event) =>
+                    setDetailItemForm((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            isActive: event.target.checked,
+                          }
+                        : prev,
+                    )
+                  }
                   disabled={!canManage || isMutating}
                 />
                 Active item
               </label>
             </div>
+
             {canManage ? (
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Button type="submit" className="h-11" disabled={isMutating}>
-                  {editingItemId ? "Update item" : "Create item"}
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Button type="submit" className="h-10" disabled={isMutating}>
+                  Save Changes
                 </Button>
-                {editingItemId ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-11"
-                    onClick={resetItemForm}
-                    disabled={isMutating}
-                  >
-                    Cancel
-                  </Button>
-                ) : null}
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-10 text-rose-700"
+                  onClick={() => void handleDetailItemDelete()}
+                  disabled={isMutating}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete Item
+                </Button>
               </div>
             ) : null}
           </form>
 
-          <div className="overflow-x-auto rounded-xl border border-slate-200">
-            <table className="min-w-full text-left text-sm">
-              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                <tr>
-                  <th className="px-4 py-3">Serial</th>
-                  <th className="px-4 py-3">Name</th>
-                  <th className="px-4 py-3">Inventory</th>
-                  <th className="px-4 py-3">Category</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Active</th>
-                  {canManage ? <th className="px-4 py-3">Actions</th> : null}
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((item) => (
-                  <tr key={item.id} className="border-t border-slate-200">
-                    <td className="px-4 py-3 font-semibold text-slate-900">
-                      {item.serial_number}
-                    </td>
-                    <td className="px-4 py-3 text-slate-700">{item.name}</td>
-                    <td className="px-4 py-3 text-slate-700">
-                      {inventoryNameById.get(item.inventory) ?? `#${item.inventory}`}
-                    </td>
-                    <td className="px-4 py-3 text-slate-700">
-                      {categoryNameById.get(item.category) ?? `#${item.category}`}
-                    </td>
-                    <td className="px-4 py-3 text-slate-700">{item.status}</td>
-                    <td className="px-4 py-3 text-slate-700">
-                      {item.is_active ? "yes" : "no"}
-                    </td>
-                    {canManage ? (
-                      <td className="px-4 py-3">
-                        <div className="flex flex-wrap gap-2">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className="h-8 px-2 text-xs"
-                            onClick={() => {
-                              setEditingItemId(item.id);
-                              setItemSerialNumber(item.serial_number);
-                              setItemName(item.name ?? "");
-                              setItemInventoryId(String(item.inventory));
-                              setItemCategoryId(String(item.category));
-                              setItemStatus(item.status);
-                              setItemIsActive(item.is_active);
-                            }}
-                            disabled={isMutating}
-                          >
-                            <PencilLine className="mr-1 h-3.5 w-3.5" />
-                            Edit
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className="h-8 px-2 text-xs text-red-700"
-                            onClick={() => void handleItemDelete(item.id)}
-                            disabled={isMutating}
-                          >
-                            <Trash2 className="mr-1 h-3.5 w-3.5" />
-                            Delete
-                          </Button>
-                        </div>
-                      </td>
-                    ) : null}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ) : null}
-
-      {!isLoading && activeTab === "parts" ? (
-        <div className="mt-5 space-y-4">
-          <form
-            onSubmit={handlePartSubmit}
-            className="rounded-xl border border-slate-200 bg-slate-50/70 p-4"
-          >
-            <p className="mb-3 text-sm font-semibold text-slate-700">
-              {editingPartId ? "Edit part" : "Create part"}
+          <section className="rounded-lg border border-slate-200 p-4">
+            <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
+              <Package className="h-4 w-4" />
+              Parts ({detailParts.length})
             </p>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <select
-                className={fieldClassName}
-                value={partInventoryItemId}
-                onChange={(event) => setPartInventoryItemId(event.target.value)}
-                disabled={!canManage || isMutating}
-              >
-                <option value="">Select inventory item</option>
-                {items.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.serial_number} - {item.name}
-                  </option>
-                ))}
-              </select>
-              <input
-                className={fieldClassName}
-                placeholder="Part name"
-                value={partName}
-                onChange={(event) => setPartName(event.target.value)}
-                disabled={!canManage || isMutating}
-              />
-            </div>
-            {canManage ? (
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Button type="submit" className="h-11" disabled={isMutating}>
-                  {editingPartId ? "Update part" : "Create part"}
-                </Button>
-                {editingPartId ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-11"
-                    onClick={resetPartForm}
-                    disabled={isMutating}
-                  >
-                    Cancel
-                  </Button>
+
+            <form
+              onSubmit={handlePartSubmit}
+              className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3"
+            >
+              <p className="text-sm font-semibold text-slate-800">
+                {editingPartId ? "Edit Part" : "Add Part"}
+              </p>
+              <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+                <input
+                  className={fieldClassName}
+                  value={partName}
+                  onChange={(event) => setPartName(event.target.value)}
+                  placeholder="Part name"
+                  disabled={!canManage || isMutating}
+                />
+                {canManage ? (
+                  <div className="flex gap-2">
+                    <Button type="submit" className="h-10" disabled={isMutating}>
+                      {editingPartId ? "Update" : "Add"}
+                    </Button>
+                    {editingPartId ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-10"
+                        onClick={resetPartForm}
+                        disabled={isMutating}
+                      >
+                        Cancel
+                      </Button>
+                    ) : null}
+                  </div>
                 ) : null}
               </div>
-            ) : null}
-          </form>
+            </form>
 
-          <div className="overflow-x-auto rounded-xl border border-slate-200">
-            <table className="min-w-full text-left text-sm">
-              <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                <tr>
-                  <th className="px-4 py-3">Part</th>
-                  <th className="px-4 py-3">Inventory Item</th>
-                  <th className="px-4 py-3">Created</th>
-                  {canManage ? <th className="px-4 py-3">Actions</th> : null}
-                </tr>
-              </thead>
-              <tbody>
-                {parts.map((part) => (
-                  <tr key={part.id} className="border-t border-slate-200">
-                    <td className="px-4 py-3 font-medium text-slate-900">
-                      <div className="inline-flex items-center gap-1.5">
-                        <Layers className="h-4 w-4 text-slate-500" />
-                        {part.name}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-slate-700">
-                      {part.inventory_item
-                        ? itemLabelById.get(part.inventory_item) ??
-                          `#${part.inventory_item}`
-                        : "-"}
-                    </td>
-                    <td className="px-4 py-3 text-slate-600">
-                      {formatDate(part.created_at)}
-                    </td>
+            <div className="mt-3 space-y-2">
+              {detailParts.length ? (
+                detailParts.map((part) => (
+                  <div
+                    key={part.id}
+                    className="flex flex-col gap-2 rounded-md border border-slate-200 bg-white p-3 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div>
+                      <p className="text-sm font-medium text-slate-900">{part.name}</p>
+                      <p className="text-xs text-slate-500">{formatDate(part.updated_at)}</p>
+                    </div>
+
                     {canManage ? (
-                      <td className="px-4 py-3">
-                        <div className="flex flex-wrap gap-2">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className="h-8 px-2 text-xs"
-                            onClick={() => {
-                              setEditingPartId(part.id);
-                              setPartName(part.name);
-                              setPartInventoryItemId(
-                                part.inventory_item
-                                  ? String(part.inventory_item)
-                                  : "",
-                              );
-                            }}
-                            disabled={isMutating}
-                          >
-                            <PencilLine className="mr-1 h-3.5 w-3.5" />
-                            Edit
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className="h-8 px-2 text-xs text-red-700"
-                            onClick={() => void handlePartDelete(part.id)}
-                            disabled={isMutating}
-                          >
-                            <Trash2 className="mr-1 h-3.5 w-3.5" />
-                            Delete
-                          </Button>
-                        </div>
-                      </td>
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="h-8 px-2 text-xs"
+                          onClick={() => {
+                            setPartName(part.name);
+                            setEditingPartId(part.id);
+                          }}
+                          disabled={isMutating}
+                        >
+                          <PencilLine className="mr-1 h-3.5 w-3.5" />
+                          Edit
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="h-8 px-2 text-xs text-rose-700"
+                          onClick={() => void handlePartDelete(part.id)}
+                          disabled={isMutating}
+                        >
+                          <Trash2 className="mr-1 h-3.5 w-3.5" />
+                          Delete
+                        </Button>
+                      </div>
                     ) : null}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                  </div>
+                ))
+              ) : (
+                <p className="rounded-md border border-dashed border-slate-300 px-3 py-5 text-center text-sm text-slate-500">
+                  No parts for this item.
+                </p>
+              )}
+            </div>
+          </section>
         </div>
+      </div>
+    );
+  };
+
+  return (
+    <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+      <div className="flex flex-col gap-3 border-b border-slate-200 pb-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900">Inventory Management</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            Categories and inventory are split into dedicated screens for large data.
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {roleTitles.length ? (
+              roleTitles.map((roleTitle) => (
+                <span
+                  key={roleTitle}
+                  className="rounded-full border border-slate-300 bg-slate-50 px-2 py-0.5 text-xs text-slate-700"
+                >
+                  {roleTitle}
+                </span>
+              ))
+            ) : (
+              <span className="text-xs text-slate-500">No role titles</span>
+            )}
+          </div>
+          {!canManage ? (
+            <p className="mt-2 text-xs text-amber-700">
+              Roles ({roleSlugs.join(", ") || "none"}) can view inventory data but cannot modify it.
+            </p>
+          ) : null}
+        </div>
+
+        <Button
+          type="button"
+          variant="outline"
+          className="h-10 w-full sm:w-auto"
+          onClick={() => void handleRefresh()}
+          disabled={isMutating || isLoadingCategories || isLoadingItems || isLoadingDetail}
+        >
+          <RefreshCcw className="mr-2 h-4 w-4" />
+          Refresh
+        </Button>
+      </div>
+
+      {feedback ? (
+        <p
+          className={cn(
+            "mt-4 rounded-md border px-3 py-2 text-sm",
+            feedback.type === "error"
+              ? "border-rose-200 bg-rose-50 text-rose-700"
+              : feedback.type === "success"
+                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                : "border-sky-200 bg-sky-50 text-sky-700",
+          )}
+        >
+          {feedback.message}
+        </p>
       ) : null}
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => navigate({ name: "categories" })}
+          className={cn(
+            "rounded-md border px-3 py-2 text-sm font-medium transition",
+            activeMenu === "categories"
+              ? "border-slate-900 bg-slate-900 text-white"
+              : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
+          )}
+        >
+          <span className="inline-flex items-center gap-2">
+            <FolderTree className="h-4 w-4" />
+            Categories
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => navigate({ name: "items" })}
+          className={cn(
+            "rounded-md border px-3 py-2 text-sm font-medium transition",
+            activeMenu === "items"
+              ? "border-slate-900 bg-slate-900 text-white"
+              : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
+          )}
+        >
+          <span className="inline-flex items-center gap-2">
+            <Package className="h-4 w-4" />
+            Inventory Items
+          </span>
+        </button>
+      </div>
+
+      {route.name === "categories" ? renderCategoryPage() : null}
+      {route.name === "items" ? renderItemsListPage() : null}
+      {route.name === "itemDetail" ? renderItemDetailsPage() : null}
     </section>
   );
 }

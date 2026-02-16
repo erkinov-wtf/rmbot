@@ -46,7 +46,7 @@ services:
   beat:
     build: .
     container_name: beat-dev
-    command: python -m celery -A config beat --loglevel=INFO
+    command: python -m celery -A config beat --loglevel=INFO --scheduler django_celery_beat.schedulers:DatabaseScheduler
     depends_on:
       - db
       - redis
@@ -56,4 +56,6 @@ services:
 
 volumes:
   postgres_data:
+    name: rent_market_postgres_data
   app_data:
+    name: rent_market_app_data

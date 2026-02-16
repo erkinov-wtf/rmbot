@@ -9,6 +9,7 @@ from decouple import config
 
 HAS_DRF_SPECTACULAR = find_spec("drf_spectacular") is not None
 HAS_CELERY = find_spec("celery") is not None
+HAS_DJANGO_CELERY_BEAT = find_spec("django_celery_beat") is not None
 HAS_REDIS_PACKAGE = find_spec("redis") is not None
 HAS_SENTRY_SDK = find_spec("sentry_sdk") is not None
 
@@ -101,6 +102,8 @@ THIRD_PARTY_APPS = [
 ]
 if HAS_DRF_SPECTACULAR:
     THIRD_PARTY_APPS.append("drf_spectacular")
+if HAS_DJANGO_CELERY_BEAT:
+    THIRD_PARTY_APPS.append("django_celery_beat")
 
 LOCAL_APPS = [
     "account",
@@ -180,6 +183,8 @@ CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = "Asia/Tashkent"
 CELERY_ENABLE_UTC = True
 CELERY_TASK_IGNORE_RESULT = True
+if HAS_DJANGO_CELERY_BEAT:
+    CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
 
 CELERY_BEAT_SCHEDULE = {}
 if HAS_CELERY:

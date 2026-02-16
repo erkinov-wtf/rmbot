@@ -1,4 +1,11 @@
-import { Clock3, LogOut, Server, ShieldCheck, UserRound } from "lucide-react";
+import {
+  Activity,
+  LogOut,
+  Package,
+  Server,
+  ShieldCheck,
+  UserRound,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { LoginForm } from "@/components/auth/login-form";
@@ -17,15 +24,20 @@ import {
   saveAuthSession,
   type AuthSession,
 } from "@/lib/auth";
+import { cn } from "@/lib/utils";
 
 type HealthState = "idle" | "loading" | "ok" | "error";
 type ProfileState = "idle" | "loading" | "ok" | "error";
+type Section = "inventory" | "system";
+
 const INVENTORY_MANAGE_ROLES = new Set(["super_admin", "ops_manager", "master"]);
 
 export default function App() {
   const [isAuthHydrated, setIsAuthHydrated] = useState(false);
   const [session, setSession] = useState<AuthSession | null>(null);
   const [authNotice, setAuthNotice] = useState("");
+
+  const [section, setSection] = useState<Section>("inventory");
 
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [profileState, setProfileState] = useState<ProfileState>("idle");
@@ -43,14 +55,6 @@ export default function App() {
     return new Date(session.accessTokenExpiresAt).toLocaleString();
   }, [session]);
 
-  const displayName = useMemo(() => {
-    if (!currentUser) {
-      return "";
-    }
-    const name = `${currentUser.first_name ?? ""} ${currentUser.last_name ?? ""}`.trim();
-    return name || currentUser.username;
-  }, [currentUser]);
-
   const effectiveRoleTitles = useMemo(() => {
     if (currentUser?.roles?.length) {
       return currentUser.roles;
@@ -65,9 +69,16 @@ export default function App() {
     return session?.roleSlugs ?? [];
   }, [currentUser, session]);
 
+  const displayName = useMemo(() => {
+    if (!currentUser) {
+      return "Authenticated User";
+    }
+    const name = `${currentUser.first_name ?? ""} ${currentUser.last_name ?? ""}`.trim();
+    return name || currentUser.username;
+  }, [currentUser]);
+
   const canManageInventory = useMemo(
-    () =>
-      effectiveRoleSlugs.some((slug) => INVENTORY_MANAGE_ROLES.has(slug)),
+    () => effectiveRoleSlugs.some((slug) => INVENTORY_MANAGE_ROLES.has(slug)),
     [effectiveRoleSlugs],
   );
 
@@ -100,9 +111,7 @@ export default function App() {
         setProfileState("ok");
       } catch (error) {
         const message =
-          error instanceof Error
-            ? error.message
-            : "Failed to load current user profile.";
+          error instanceof Error ? error.message : "Failed to load current user profile.";
         setCurrentUser(null);
         setProfileState("error");
         setProfileMessage(message);
@@ -162,10 +171,7 @@ export default function App() {
       setHealthMessage(`Backend is reachable. Status: ${payload.status}.`);
     } catch (error) {
       setHealthState("error");
-      if (
-        error instanceof TypeError &&
-        error.message.toLowerCase().includes("fetch")
-      ) {
+      if (error instanceof TypeError && error.message.toLowerCase().includes("fetch")) {
         setHealthMessage(
           "Request failed at browser level (likely CORS or backend not reachable).",
         );
@@ -192,112 +198,139 @@ export default function App() {
   }
 
   return (
-    <main className="min-h-[100svh] bg-[radial-gradient(circle_at_top,#eaf3ff_0%,#f8fafc_40%,#ffffff_100%)] px-4 py-6 sm:px-6 sm:py-8 md:px-8 md:py-10">
-      <section className="mx-auto flex w-full max-w-5xl flex-col gap-4 sm:gap-6">
-        <header className="rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-xl backdrop-blur sm:p-6 md:p-8">
-          <p className="inline-flex w-fit items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-600">
+    <main className="min-h-[100svh] bg-slate-50 p-3 sm:p-5">
+      <div className="mx-auto grid w-full max-w-7xl gap-4 lg:grid-cols-[220px_1fr]">
+        <aside className="rounded-xl border border-slate-200 bg-white p-4">
+          <p className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
             <ShieldCheck className="h-4 w-4" />
-            Authenticated area
+            Rent Market
           </p>
-          <div className="mt-4 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-            <div className="space-y-2">
-              <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl md:text-4xl">
-                Rent Market Frontend
-              </h1>
-              <p className="inline-flex items-start gap-2 text-sm text-slate-600">
-                <Clock3 className="mt-0.5 h-4 w-4 shrink-0" />
-                Access token expires at: {accessTokenExpiresAtLabel}
-              </p>
-            </div>
-            <Button
-              variant="outline"
-              className="h-11 w-full text-sm font-semibold sm:w-auto"
-              onClick={() => logout()}
-            >
-              <LogOut className="mr-2 h-4 w-4" />
-              Logout
-            </Button>
-          </div>
-        </header>
+          <p className="mt-2 text-sm text-slate-700">Admin workspace</p>
 
-        <div className="grid gap-4 md:grid-cols-2 md:gap-6">
-          <article className="rounded-xl border border-slate-200 bg-white/90 p-5 shadow-md backdrop-blur sm:p-6">
-            <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
-              <UserRound className="h-4 w-4" />
-              Current User
+          <div className="mt-4 space-y-2">
+            <button
+              type="button"
+              className={cn(
+                "w-full rounded-md border px-3 py-2 text-left text-sm transition",
+                section === "inventory"
+                  ? "border-slate-900 bg-slate-900 text-white"
+                  : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
+              )}
+              onClick={() => setSection("inventory")}
+            >
+              <span className="inline-flex items-center gap-2">
+                <Package className="h-4 w-4" />
+                Inventory
+              </span>
+            </button>
+
+            <button
+              type="button"
+              className={cn(
+                "w-full rounded-md border px-3 py-2 text-left text-sm transition",
+                section === "system"
+                  ? "border-slate-900 bg-slate-900 text-white"
+                  : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
+              )}
+              onClick={() => setSection("system")}
+            >
+              <span className="inline-flex items-center gap-2">
+                <Server className="h-4 w-4" />
+                System
+              </span>
+            </button>
+          </div>
+
+          <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Token Expires</p>
+            <p className="mt-1 text-xs text-slate-700">{accessTokenExpiresAtLabel}</p>
+          </div>
+
+          <Button
+            variant="outline"
+            className="mt-4 h-10 w-full"
+            onClick={() => logout()}
+          >
+            <LogOut className="mr-2 h-4 w-4" />
+            Logout
+          </Button>
+        </aside>
+
+        <section className="space-y-4">
+          <header className="rounded-xl border border-slate-200 bg-white p-4">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-slate-900">{displayName}</p>
+                {currentUser ? (
+                  <p className="text-xs text-slate-500">@{currentUser.username}</p>
+                ) : null}
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {effectiveRoleTitles.length ? (
+                    effectiveRoleTitles.map((roleTitle) => (
+                      <span
+                        key={roleTitle}
+                        className="rounded-full border border-slate-300 bg-slate-50 px-2 py-0.5 text-xs text-slate-700"
+                      >
+                        {roleTitle}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-xs text-slate-500">No roles</span>
+                  )}
+                </div>
+              </div>
+
+              <Button
+                variant="outline"
+                className="h-10 w-full sm:w-auto"
+                onClick={checkBackendHealth}
+                disabled={healthState === "loading"}
+              >
+                <Activity className="mr-2 h-4 w-4" />
+                {healthState === "loading" ? "Checking..." : "Check Backend"}
+              </Button>
             </div>
-            {profileState === "loading" ? (
-              <p className="text-sm text-slate-700">Loading profile...</p>
-            ) : null}
+
             {profileState === "error" ? (
-              <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              <p className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
                 {profileMessage}
               </p>
             ) : null}
-            {currentUser ? (
-              <div className="space-y-3 text-sm text-slate-700">
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-slate-500">Name</p>
-                  <p className="mt-1 font-semibold text-slate-900">{displayName}</p>
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-slate-500">Username</p>
-                  <p className="mt-1">{currentUser.username}</p>
-                </div>
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-slate-500">Roles</p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {effectiveRoleTitles.length ? (
-                      effectiveRoleTitles.map((roleTitle) => (
-                        <span
-                          key={roleTitle}
-                          className="rounded-full border border-slate-300 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700"
-                        >
-                          {roleTitle}
-                        </span>
-                      ))
-                    ) : (
-                      <span className="text-sm text-slate-600">No roles</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ) : null}
-          </article>
 
-          <article className="rounded-xl border border-slate-200 bg-white/90 p-5 shadow-md backdrop-blur sm:p-6">
-            <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
-              <Server className="h-4 w-4" />
-              Backend Connection Check
-            </div>
             <p
-              className={
+              className={cn(
+                "mt-3 rounded-md border px-3 py-2 text-sm",
                 healthState === "error"
-                  ? "rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
-                  : "text-sm text-slate-700"
-              }
+                  ? "border-rose-200 bg-rose-50 text-rose-700"
+                  : healthState === "ok"
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                    : "border-slate-200 bg-slate-50 text-slate-700",
+              )}
             >
               {healthMessage}
             </p>
-            <div className="mt-4">
-              <Button
-                onClick={checkBackendHealth}
-                disabled={healthState === "loading"}
-                className="h-11 w-full text-sm font-semibold sm:w-auto"
-              >
-                {healthState === "loading" ? "Checking..." : "Check /misc/health"}
-              </Button>
-            </div>
-          </article>
-        </div>
+          </header>
 
-        <InventoryAdmin
-          accessToken={session.accessToken}
-          canManage={canManageInventory}
-          roleTitles={effectiveRoleTitles}
-          roleSlugs={effectiveRoleSlugs}
-        />
-      </section>
+          {section === "inventory" ? (
+            <InventoryAdmin
+              accessToken={session.accessToken}
+              canManage={canManageInventory}
+              roleTitles={effectiveRoleTitles}
+              roleSlugs={effectiveRoleSlugs}
+            />
+          ) : (
+            <section className="rounded-xl border border-slate-200 bg-white p-4">
+              <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
+                <UserRound className="h-4 w-4" />
+                System Overview
+              </p>
+              <p className="mt-2 text-sm text-slate-700">
+                Use the <strong>Inventory</strong> menu to manage categories, items, and parts.
+              </p>
+            </section>
+          )}
+        </section>
+      </div>
     </main>
   );
 }

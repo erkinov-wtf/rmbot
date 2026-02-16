@@ -4,17 +4,42 @@ import pytest
 from django.utils import timezone
 
 from core.utils.constants import RoleSlug
-from inventory.models import InventoryItem
+from inventory.models import InventoryItem, InventoryItemCategory
 from ticket.models import Ticket
 
 pytestmark = pytest.mark.django_db
 
 
 LIST_CREATE_URL = "/api/v1/inventory/items/"
+CATEGORY_ALL_URL = "/api/v1/inventory/categories/all/"
 
 
 def detail_url(inventory_item_id: int) -> str:
     return f"/api/v1/inventory/items/{inventory_item_id}/"
+
+
+def test_category_all_requires_auth(api_client):
+    resp = api_client.get(CATEGORY_ALL_URL)
+    assert resp.status_code == 401
+
+
+def test_category_all_returns_full_category_list(
+    authed_client_factory,
+    user_factory,
+):
+    user = user_factory(
+        username="inventory_category_reader",
+        first_name="Category Reader",
+    )
+    InventoryItemCategory.objects.create(name="Alpha")
+    InventoryItemCategory.objects.create(name="Beta")
+
+    client = authed_client_factory(user)
+    resp = client.get(CATEGORY_ALL_URL)
+
+    assert resp.status_code == 200
+    names = [entry["name"] for entry in resp.data["data"]]
+    assert names[:2] == ["Alpha", "Beta"]
 
 
 def test_list_requires_auth(api_client):
@@ -69,7 +94,7 @@ def test_ops_manager_can_create_inventory_item(
     assert InventoryItem.objects.count() == 1
 
 
-def test_create_rejects_invalid_serial_number_format(
+def test_create_accepts_non_pattern_serial_number(
     authed_client_factory, user_factory, assign_roles
 ):
     manager_user = user_factory(
@@ -83,8 +108,8 @@ def test_create_rejects_invalid_serial_number_format(
         LIST_CREATE_URL, {"serial_number": "inventory_item-0200"}, format="json"
     )
 
-    assert resp.status_code == 400
-    assert "pattern" in resp.data["message"].lower()
+    assert resp.status_code == 201
+    assert resp.data["data"]["serial_number"] == "INVENTORY_ITEM-0200"
 
 
 def test_list_supports_query_filter_for_serial_number_lookup(

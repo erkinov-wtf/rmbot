@@ -97,10 +97,6 @@ class InventoryItemSerializer(serializers.ModelSerializer):
 
     def validate_serial_number(self, value: str) -> str:
         normalized_serial_number = InventoryItemService.normalize_serial_number(value)
-        if not InventoryItemService.is_valid_serial_number(normalized_serial_number):
-            raise serializers.ValidationError(
-                "serial_number must match pattern RM-[A-Z0-9-]{4,29}."
-            )
 
         existing = InventoryItem.all_objects.filter(
             serial_number__iexact=normalized_serial_number

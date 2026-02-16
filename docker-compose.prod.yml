@@ -93,7 +93,7 @@ services:
   beat:
     container_name: beat-prod
     build: .
-    command: python -m celery -A config beat --loglevel=INFO --schedule=/tmp/celerybeat-schedule
+    command: python -m celery -A config beat --loglevel=INFO --scheduler django_celery_beat.schedulers:DatabaseScheduler
     depends_on:
       db:
         condition: service_healthy
@@ -115,7 +115,9 @@ services:
 
 volumes:
   postgres_data:
+    name: rent_market_postgres_data
   app_data:
+    name: rent_market_app_data
 
 networks:
   network-default:

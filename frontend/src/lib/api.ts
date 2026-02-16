@@ -295,6 +295,19 @@ export async function listCategories(
   return extractResults<InventoryCategory>(payload);
 }
 
+export async function listAllCategories(
+  accessToken: string,
+): Promise<InventoryCategory[]> {
+  const payload = await apiRequest<unknown>("inventory/categories/all/", {
+    accessToken,
+  });
+  const data = extractData<unknown>(payload);
+  if (Array.isArray(data)) {
+    return data as InventoryCategory[];
+  }
+  return extractResults<InventoryCategory>(payload);
+}
+
 export async function createCategory(
   accessToken: string,
   name: string,
@@ -363,6 +376,16 @@ export async function createInventoryItem(
     method: "POST",
     accessToken,
     body,
+  });
+  return extractData<InventoryItem>(payload);
+}
+
+export async function getInventoryItem(
+  accessToken: string,
+  id: number,
+): Promise<InventoryItem> {
+  const payload = await apiRequest<unknown>(`inventory/items/${id}/`, {
+    accessToken,
   });
   return extractData<InventoryItem>(payload);
 }

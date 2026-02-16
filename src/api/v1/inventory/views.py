@@ -1,5 +1,7 @@
 from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
 
 from api.v1.inventory.filters import InventoryItemFilterSet
 from api.v1.inventory.serializers import (
@@ -10,7 +12,7 @@ from api.v1.inventory.serializers import (
 )
 from core.api.permissions import HasRole
 from core.api.schema import extend_schema
-from core.api.views import BaseModelViewSet
+from core.api.views import BaseAPIView, BaseModelViewSet
 from core.utils.constants import RoleSlug
 from inventory.models import (
     Inventory,
@@ -81,3 +83,21 @@ class InventoryItemPartViewSet(InventoryManageMixin, BaseModelViewSet):
     queryset = InventoryItemPart.domain.get_queryset().order_by(
         "inventory_item_id", "name", "id"
     )
+
+
+@extend_schema(
+    tags=["Inventory"],
+    summary="Get all inventory item categories",
+    description=(
+        "Returns full non-paginated list of active inventory item categories. "
+        "Useful for frontend dropdowns and selectors."
+    ),
+)
+class InventoryItemCategoryAllAPIView(BaseAPIView):
+    permission_classes = (IsAuthenticated,)
+    serializer_class = InventoryItemCategorySerializer
+
+    def get(self, request, *args, **kwargs):
+        queryset = InventoryItemCategory.domain.get_queryset().order_by("name", "id")
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
