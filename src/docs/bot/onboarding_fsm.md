@@ -31,9 +31,11 @@ Documents `/start` onboarding state machine, input validation, and account-reque
 - `/cancel` clears FSM state explicitly.
 - `/my` reflects effective onboarding state (pending/registered/not-registered) with expanded account details (name, username, phone, level, roles, XP totals, and technician ticket counters for active/waiting-QC/done).
 - Bottom reply-keyboard menu is shown for non-FSM interactions to reduce slash-command usage:
-  - common: `📊 My Stats`, `❓ Help`
+  - common: `📊 My Profile`, `❓ Help`
   - unregistered: `📝 Start Access Request`
-  - technician: `🎟 Active Tickets`, `🧪 Under QC`, `✅ Past Tickets`, `⭐ My XP`, `📜 XP History`
+  - technician: `🎟 Active Tickets`, `🧪 Under QC`, `✅ Past Tickets`, `⭐ My XP`, `📜 XP Activity`
+- `/xp_history` now renders a paginated inline menu (callback data: `xph:<limit>:<offset>`) with previous/next controls and message edit-in-place navigation.
+- XP summary/history text intentionally avoids raw enum/reference values and surfaces user-facing reason labels instead.
 - `/help` still exposes command hints for recovery paths, including technician dashboard aliases (`/queue`, `/active`, `/tech`, `/under_qc`, `/past`) and XP shortcuts (`/xp`, `/xp_history`).
 
 ## Related Code

@@ -5,10 +5,14 @@ from django.utils import timezone
 
 from account.models import AccessRequest
 from bot.routers.start import (
+    XP_HISTORY_DEFAULT_LIMIT,
     _build_active_status_text,
     _build_pending_status_text,
+    _build_xp_history_callback_data,
+    _build_xp_history_pagination_markup,
     _build_xp_history_text,
     _build_xp_summary_text,
+    _parse_xp_history_callback_data,
 )
 from core.utils.constants import RoleSlug
 
@@ -26,11 +30,12 @@ def test_pending_status_text_contains_request_details():
 
     text = _build_pending_status_text(pending=pending, _=lambda value: value)
 
-    assert "Access status: pending" in text
+    assert "Your access request is under review" in text
     assert "Name: Pending Tech" in text
     assert "Username: @pending.tech" in text
     assert "Phone: +15550001111" in text
-    assert f"Request ID: {pending.id}" in text
+    assert "Submitted at:" in text
+    assert "Request ID:" not in text
 
 
 def test_active_status_text_for_technician_includes_queue_size(monkeypatch):
@@ -81,14 +86,14 @@ def test_active_status_text_for_technician_includes_queue_size(monkeypatch):
         _build_active_status_text(user=_DummyUser(), _=lambda value: value)
     )
 
-    assert "Access status: active" in text
+    assert "Your access is active" in text
     assert "Name: Status Tech" in text
     assert "Username: @status_tech" in text
-    assert "Roles: technician" in text
-    assert "Total XP: 120 (transactions: 6)" in text
-    assert "Active tickets in queue: 3" in text
-    assert "Waiting QC tickets: 4" in text
-    assert "Done tickets: 9" in text
+    assert "Role: Technician" in text
+    assert "XP balance: 120 points (6 updates)." in text
+    assert "Open tickets: 3" in text
+    assert "Waiting for quality check: 4" in text
+    assert "Completed tickets: 9" in text
 
 
 def test_xp_summary_text_contains_recent_entries(monkeypatch):
@@ -96,23 +101,33 @@ def test_xp_summary_text_contains_recent_entries(monkeypatch):
         id = 88
 
     class _Entry:
-        def __init__(self, *, amount: int, entry_type: str, created_at):
+        def __init__(
+            self,
+            *,
+            amount: int,
+            entry_type: str,
+            created_at,
+            description: str = "",
+        ):
             self.amount = amount
             self.entry_type = entry_type
             self.created_at = created_at
+            self.description = description
 
-    async def _stub_totals(*, user_id: int):
+    async def _stub_totals(*, user_id: int) -> tuple[int, int]:
         assert user_id == 88
         return 240, 4
 
-    async def _stub_history(*, user_id: int, limit: int = 10):
+    async def _stub_history(*, user_id: int, limit: int = 10, offset: int = 0):
         assert user_id == 88
         assert limit == 5
+        assert offset == 0
         return [
             _Entry(
                 amount=15,
                 entry_type="ticket_base_xp",
                 created_at=timezone.now(),
+                description="Ticket completion base XP",
             )
         ]
 
@@ -121,39 +136,91 @@ def test_xp_summary_text_contains_recent_entries(monkeypatch):
 
     text = asyncio.run(_build_xp_summary_text(user=_DummyUser(), _=lambda v: v))
 
-    assert "XP summary" in text
+    assert "Your XP summary" in text
     assert "Total XP: 240" in text
-    assert "Transactions: 4" in text
-    assert "Recent transactions:" in text
-    assert "| +15 | ticket_base_xp" in text
+    assert "Updates: 4" in text
+    assert "Latest updates:" in text
+    assert "+15 XP" in text
+    assert "Reward for completing a ticket" in text
 
 
-def test_xp_history_text_contains_references(monkeypatch):
+def test_xp_history_text_is_human_friendly(monkeypatch):
     class _DummyUser:
         id = 99
 
     class _Entry:
-        def __init__(self, *, amount: int, entry_type: str, created_at, reference: str):
+        def __init__(
+            self,
+            *,
+            amount: int,
+            entry_type: str,
+            created_at,
+            reference: str,
+            description: str = "",
+        ):
             self.amount = amount
             self.entry_type = entry_type
             self.created_at = created_at
             self.reference = reference
+            self.description = description
 
-    async def _stub_history(*, user_id: int, limit: int = 15):
+    async def _stub_history(*, user_id: int, limit: int = 15, offset: int = 0):
         assert user_id == 99
-        assert limit == 15
+        assert limit == XP_HISTORY_DEFAULT_LIMIT
+        assert offset == 0
         return [
             _Entry(
                 amount=7,
                 entry_type="attendance_punctuality",
                 created_at=timezone.now(),
                 reference="attendance:99:2026-02-16",
+                description="Attendance punctuality XP",
             )
         ]
 
+    async def _stub_count(*, user_id: int):
+        assert user_id == 99
+        return 1
+
     monkeypatch.setattr("bot.routers.start._xp_history_for_user", _stub_history)
+    monkeypatch.setattr("bot.routers.start._xp_history_count_for_user", _stub_count)
 
-    text = asyncio.run(_build_xp_history_text(user=_DummyUser(), _=lambda v: v))
+    text, total_count, limit, offset = asyncio.run(
+        _build_xp_history_text(user=_DummyUser(), _=lambda v: v)
+    )
 
-    assert "XP transaction history" in text
-    assert "| +7 | attendance_punctuality | attendance:99:2026-02-16" in text
+    assert total_count == 1
+    assert limit == XP_HISTORY_DEFAULT_LIMIT
+    assert offset == 0
+    assert "Your XP activity" in text
+    assert "Showing 1-1 of 1 updates." in text
+    assert "+7 XP" in text
+    assert "On-time attendance reward" in text
+    assert "attendance_punctuality" not in text
+    assert "attendance:99:2026-02-16" not in text
+
+
+def test_xp_history_callback_data_roundtrip():
+    callback_data = _build_xp_history_callback_data(limit=15, offset=30)
+    assert callback_data == "xph:15:30"
+    assert _parse_xp_history_callback_data(callback_data=callback_data) == (15, 30)
+
+
+def test_xp_history_callback_data_rejects_invalid_payload():
+    assert _parse_xp_history_callback_data(callback_data="xph:bad:10") is None
+    assert _parse_xp_history_callback_data(callback_data="xph:10:-1") is None
+    assert _parse_xp_history_callback_data(callback_data="oops:10:0") is None
+
+
+def test_xp_history_pagination_markup_has_nav_buttons():
+    markup = _build_xp_history_pagination_markup(
+        total_count=25,
+        limit=10,
+        offset=10,
+        _=lambda value: value,
+    )
+    assert markup is not None
+    assert [button.text for button in markup.inline_keyboard[0]] == [
+        "⬅ Previous",
+        "Next ➡",
+    ]

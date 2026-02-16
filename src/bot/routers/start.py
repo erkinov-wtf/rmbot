@@ -1,10 +1,14 @@
 import re
 
 from aiogram import F, Router
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command, CommandStart, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import (
+    CallbackQuery,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
     KeyboardButton,
     Message,
     ReplyKeyboardMarkup,
@@ -27,10 +31,13 @@ MENU_BUTTON_ACTIVE_TICKETS = "🎟 Active Tickets"
 MENU_BUTTON_UNDER_QC_TICKETS = "🧪 Under QC"
 MENU_BUTTON_PAST_TICKETS = "✅ Past Tickets"
 MENU_BUTTON_MY_XP = "⭐ My XP"
-MENU_BUTTON_XP_HISTORY = "📜 XP History"
-MENU_BUTTON_MY_STATUS = "📊 My Stats"
+MENU_BUTTON_XP_HISTORY = "📜 XP Activity"
+MENU_BUTTON_MY_STATUS = "📊 My Profile"
 MENU_BUTTON_HELP = "❓ Help"
 MENU_BUTTON_START_ACCESS = "📝 Start Access Request"
+XP_HISTORY_CALLBACK_PREFIX = "xph"
+XP_HISTORY_DEFAULT_LIMIT = 10
+XP_HISTORY_MAX_LIMIT = 30
 
 
 class AccessRequestForm(StatesGroup):
@@ -207,11 +214,76 @@ def _format_entry_created_at(created_at) -> str:
     return timezone.localtime(created_at).strftime("%Y-%m-%d %H:%M")
 
 
-async def _xp_history_for_user(*, user_id: int, limit: int = 10) -> list[XPTransaction]:
+def _normalize_xp_history_limit(limit: int) -> int:
+    try:
+        normalized_limit = int(limit)
+    except (TypeError, ValueError):
+        normalized_limit = XP_HISTORY_DEFAULT_LIMIT
+    return min(max(1, normalized_limit), XP_HISTORY_MAX_LIMIT)
+
+
+def _normalize_xp_history_offset(offset: int) -> int:
+    try:
+        normalized_offset = int(offset)
+    except (TypeError, ValueError):
+        return 0
+    return max(0, normalized_offset)
+
+
+def _role_label(*, role_slug: str, _) -> str:
+    if role_slug == RoleSlug.TECHNICIAN:
+        return _("Technician")
+    if role_slug == RoleSlug.MODERATOR:
+        return _("Moderator")
+    if role_slug == RoleSlug.ADMIN:
+        return _("Administrator")
+    return role_slug.replace("_", " ").replace("-", " ").title()
+
+
+def _friendly_xp_description(*, entry: XPTransaction, _) -> str:
+    description = str(getattr(entry, "description", "") or "").strip()
+    description_map = {
+        "Attendance punctuality XP": _("On-time attendance reward"),
+        "Ticket completion base XP": _("Reward for completing a ticket"),
+        "Ticket QC first-pass bonus XP": _("Quality check first-pass bonus"),
+        "QC status update XP": _("Quality check update"),
+        "Manual XP adjustment": _("Manual XP update"),
+        "Weekly level-up coupon": _("Weekly level-up bonus"),
+    }
+    if description:
+        return description_map.get(description, description)
+
+    entry_type_display = getattr(entry, "get_entry_type_display", None)
+    if callable(entry_type_display):
+        resolved_display = str(entry_type_display() or "").strip()
+        if resolved_display:
+            return resolved_display
+
+    raw_entry_type = str(getattr(entry, "entry_type", "") or "").strip()
+    if raw_entry_type:
+        return raw_entry_type.replace("_", " ").replace("-", " ").title()
+    return _("XP update")
+
+
+async def _xp_history_count_for_user(*, user_id: int) -> int:
+    return int(await run_sync(XPTransaction.objects.filter(user_id=user_id).count))
+
+
+async def _xp_history_for_user(
+    *,
+    user_id: int,
+    limit: int = XP_HISTORY_DEFAULT_LIMIT,
+    offset: int = 0,
+) -> list[XPTransaction]:
+    normalized_limit = _normalize_xp_history_limit(limit)
+    normalized_offset = _normalize_xp_history_offset(offset)
     queryset = XPTransaction.objects.filter(user_id=user_id).order_by(
         "-created_at", "-id"
     )
-    return await run_sync(list, queryset[:limit])
+    return await run_sync(
+        list,
+        queryset[normalized_offset : normalized_offset + normalized_limit],
+    )
 
 
 async def _build_active_status_text(
@@ -220,20 +292,28 @@ async def _build_active_status_text(
     _,
 ) -> str:
     role_slugs = await _active_role_slugs(user=user)
+    resolved_roles = [_role_label(role_slug=role_slug, _=_) for role_slug in role_slugs]
+    role_title = _("Roles") if len(resolved_roles) > 1 else _("Role")
     full_name = (
         " ".join(part for part in [user.first_name, user.last_name] if part) or "-"
     )
     lines = [
-        _("Access status: active"),
-        f"Name: {full_name}",
-        f"Username: @{user.username}" if user.username else "Username: -",
-        f"Phone: {user.phone or '-'}",
-        f"Level: {user.get_level_display()}",
-        f"Roles: {', '.join(role_slugs) if role_slugs else '-'}",
-        f"Linked user ID: {user.id}",
+        _("Your access is active ✅"),
+        f"{_('Name')}: {full_name}",
+        (
+            f"{_('Username')}: @{user.username}"
+            if user.username
+            else f"{_('Username')}: -"
+        ),
+        f"{_('Phone')}: {user.phone or '-'}",
+        f"{_('Current level')}: {user.get_level_display()}",
+        f"{role_title}: {', '.join(resolved_roles) if resolved_roles else _('No role assigned yet')}",
     ]
     total_xp, tx_count = await _xp_totals_for_user(user_id=user.id)
-    lines.append(f"Total XP: {total_xp} (transactions: {tx_count})")
+    lines.append(
+        _("XP balance: %(xp)s points (%(updates)s updates).")
+        % {"xp": total_xp, "updates": tx_count}
+    )
     if RoleSlug.TECHNICIAN in role_slugs:
         status_counts = await _ticket_status_counts_for_technician(
             technician_id=user.id
@@ -241,11 +321,15 @@ async def _build_active_status_text(
         active_ticket_count = await _active_ticket_count_for_technician(
             technician_id=user.id
         )
-        lines.append(f"Active tickets in queue: {active_ticket_count}")
+        lines.append(_("Open tickets: %(count)s") % {"count": active_ticket_count})
         lines.append(
-            f"Waiting QC tickets: {status_counts.get(TicketStatus.WAITING_QC, 0)}"
+            _("Waiting for quality check: %(count)s")
+            % {"count": status_counts.get(TicketStatus.WAITING_QC, 0)}
         )
-        lines.append(f"Done tickets: {status_counts.get(TicketStatus.DONE, 0)}")
+        lines.append(
+            _("Completed tickets: %(count)s")
+            % {"count": status_counts.get(TicketStatus.DONE, 0)}
+        )
     return "\n".join(lines)
 
 
@@ -255,12 +339,16 @@ def _build_pending_status_text(*, pending, _) -> str:
         or "-"
     )
     lines = [
-        _("Access status: pending"),
-        f"Name: {full_name}",
-        f"Username: @{pending.username}" if pending.username else "Username: -",
-        f"Phone: {pending.phone or '-'}",
-        f"Requested at: {_format_status_datetime(pending.created_at)}",
-        f"Request ID: {pending.id}",
+        _("Your access request is under review ⏳"),
+        f"{_('Name')}: {full_name}",
+        (
+            f"{_('Username')}: @{pending.username}"
+            if pending.username
+            else f"{_('Username')}: -"
+        ),
+        f"{_('Phone')}: {pending.phone or '-'}",
+        f"{_('Submitted at')}: {_format_status_datetime(pending.created_at)}",
+        _("We will notify you here as soon as the review is complete."),
     ]
     return "\n".join(lines)
 
@@ -270,39 +358,157 @@ async def _build_xp_summary_text(*, user: User, _) -> str:
     recent_entries = await _xp_history_for_user(user_id=user.id, limit=5)
 
     lines = [
-        _("XP summary"),
-        f"Total XP: {total_xp}",
-        f"Transactions: {tx_count}",
+        _("Your XP summary"),
+        f"{_('Total XP')}: {total_xp}",
+        f"{_('Updates')}: {tx_count}",
     ]
     if not recent_entries:
-        lines.append("No XP transactions yet.")
+        lines.append(_("No XP activity yet."))
         return "\n".join(lines)
 
-    lines.append("Recent transactions:")
+    lines.append(_("Latest updates:"))
     for entry in recent_entries:
         amount = int(entry.amount or 0)
         sign = "+" if amount >= 0 else ""
         lines.append(
-            f"{_format_entry_created_at(entry.created_at)} | {sign}{amount} | {entry.entry_type}"
+            f"• {_format_entry_created_at(entry.created_at)} | {sign}{amount} XP | "
+            f"{_friendly_xp_description(entry=entry, _=_)}"
         )
     return "\n".join(lines)
 
 
-async def _build_xp_history_text(*, user: User, _, limit: int = 15) -> str:
-    entries = await _xp_history_for_user(user_id=user.id, limit=limit)
-    lines = [_("XP transaction history")]
+def _build_xp_history_callback_data(*, limit: int, offset: int) -> str:
+    return (
+        f"{XP_HISTORY_CALLBACK_PREFIX}:"
+        f"{_normalize_xp_history_limit(limit)}:"
+        f"{_normalize_xp_history_offset(offset)}"
+    )
 
-    if not entries:
-        lines.append("No XP transactions yet.")
-        return "\n".join(lines)
+
+def _parse_xp_history_callback_data(*, callback_data: str) -> tuple[int, int] | None:
+    raw_parts = callback_data.split(":")
+    if len(raw_parts) != 3:
+        return None
+    if raw_parts[0] != XP_HISTORY_CALLBACK_PREFIX:
+        return None
+
+    try:
+        limit = int(raw_parts[1])
+        offset = int(raw_parts[2])
+    except ValueError:
+        return None
+
+    if limit < 1 or offset < 0:
+        return None
+    return _normalize_xp_history_limit(limit), _normalize_xp_history_offset(offset)
+
+
+def _resolve_safe_history_offset(*, total_count: int, limit: int, offset: int) -> int:
+    if total_count <= 0:
+        return 0
+    normalized_limit = _normalize_xp_history_limit(limit)
+    normalized_offset = _normalize_xp_history_offset(offset)
+    max_offset = ((total_count - 1) // normalized_limit) * normalized_limit
+    return min(normalized_offset, max_offset)
+
+
+def _build_xp_history_pagination_markup(
+    *,
+    total_count: int,
+    limit: int,
+    offset: int,
+    _,
+) -> InlineKeyboardMarkup | None:
+    if total_count <= 0:
+        return None
+
+    normalized_limit = _normalize_xp_history_limit(limit)
+    safe_offset = _resolve_safe_history_offset(
+        total_count=total_count,
+        limit=normalized_limit,
+        offset=offset,
+    )
+
+    page = (safe_offset // normalized_limit) + 1
+    page_count = ((total_count - 1) // normalized_limit) + 1
+    navigation_row: list[InlineKeyboardButton] = []
+    if safe_offset > 0:
+        navigation_row.append(
+            InlineKeyboardButton(
+                text=_("⬅ Previous"),
+                callback_data=_build_xp_history_callback_data(
+                    limit=normalized_limit,
+                    offset=max(0, safe_offset - normalized_limit),
+                ),
+            )
+        )
+    if safe_offset + normalized_limit < total_count:
+        navigation_row.append(
+            InlineKeyboardButton(
+                text=_("Next ➡"),
+                callback_data=_build_xp_history_callback_data(
+                    limit=normalized_limit,
+                    offset=safe_offset + normalized_limit,
+                ),
+            )
+        )
+
+    if not navigation_row:
+        return None
+
+    indicator_row = [
+        InlineKeyboardButton(
+            text=_("Page %(current)s/%(total)s")
+            % {"current": page, "total": page_count},
+            callback_data=_build_xp_history_callback_data(
+                limit=normalized_limit,
+                offset=safe_offset,
+            ),
+        )
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=[navigation_row, indicator_row])
+
+
+async def _build_xp_history_text(
+    *,
+    user: User,
+    _,
+    limit: int = XP_HISTORY_DEFAULT_LIMIT,
+    offset: int = 0,
+) -> tuple[str, int, int, int]:
+    normalized_limit = _normalize_xp_history_limit(limit)
+    total_count = await _xp_history_count_for_user(user_id=user.id)
+    safe_offset = _resolve_safe_history_offset(
+        total_count=total_count,
+        limit=normalized_limit,
+        offset=offset,
+    )
+
+    lines = [_("Your XP activity")]
+    if total_count <= 0:
+        lines.append(_("No XP activity yet."))
+        return "\n".join(lines), total_count, normalized_limit, safe_offset
+
+    entries = await _xp_history_for_user(
+        user_id=user.id,
+        limit=normalized_limit,
+        offset=safe_offset,
+    )
+    start_item = safe_offset + 1
+    end_item = safe_offset + len(entries)
+    lines.append(
+        _("Showing %(start)s-%(end)s of %(total)s updates.")
+        % {"start": start_item, "end": end_item, "total": total_count}
+    )
 
     for entry in entries:
         amount = int(entry.amount or 0)
         sign = "+" if amount >= 0 else ""
         lines.append(
-            f"{_format_entry_created_at(entry.created_at)} | {sign}{amount} | {entry.entry_type} | {entry.reference}"
+            f"• {_format_entry_created_at(entry.created_at)} | {sign}{amount} XP | "
+            f"{_friendly_xp_description(entry=entry, _=_)}"
         )
-    return "\n".join(lines)
+    return "\n".join(lines), total_count, normalized_limit, safe_offset
 
 
 async def _resolve_registered_user(
@@ -322,7 +528,7 @@ async def _reply_not_registered(
     _,
 ) -> None:
     await message.answer(
-        _("You are not registered. Use /start to submit access request."),
+        _("You do not have access yet. Send /start or tap the button below."),
         reply_markup=build_main_menu_keyboard(
             is_technician=False,
             include_start_access=True,
@@ -356,6 +562,8 @@ async def _reply_xp_history(
     user: User | None,
     telegram_profile: TelegramProfile | None,
     _,
+    limit: int = XP_HISTORY_DEFAULT_LIMIT,
+    offset: int = 0,
 ) -> None:
     resolved_user = await _resolve_registered_user(
         user=user,
@@ -364,10 +572,96 @@ async def _reply_xp_history(
     if resolved_user is None:
         await _reply_not_registered(message=message, _=_)
         return
-    await message.answer(
-        await _build_xp_history_text(user=resolved_user, _=_),
-        reply_markup=await _main_menu_markup_for_user(user=resolved_user),
+    text, total_count, normalized_limit, safe_offset = await _build_xp_history_text(
+        user=resolved_user,
+        _=_,
+        limit=limit,
+        offset=offset,
     )
+    await message.answer(
+        text,
+        reply_markup=_build_xp_history_pagination_markup(
+            total_count=total_count,
+            limit=normalized_limit,
+            offset=safe_offset,
+            _=_,
+        ),
+    )
+
+
+async def _reply_not_registered_callback(
+    *,
+    query: CallbackQuery,
+    _,
+) -> None:
+    await query.answer(
+        _("You do not have access yet. Please send /start first."),
+        show_alert=True,
+    )
+    if query.message is None:
+        return
+    await query.message.answer(
+        _("Open access request from the menu below."),
+        reply_markup=build_main_menu_keyboard(
+            is_technician=False,
+            include_start_access=True,
+        ),
+    )
+
+
+async def _safe_edit_callback_message(
+    *,
+    query: CallbackQuery,
+    text: str,
+    reply_markup: InlineKeyboardMarkup | None,
+) -> None:
+    if query.message is None:
+        return
+    try:
+        await query.message.edit_text(text=text, reply_markup=reply_markup)
+    except TelegramBadRequest as exc:
+        if "message is not modified" in str(exc).lower():
+            return
+        raise
+
+
+@router.callback_query(F.data.startswith(f"{XP_HISTORY_CALLBACK_PREFIX}:"))
+async def xp_history_pagination_handler(
+    query: CallbackQuery,
+    _,
+    user: User = None,
+    telegram_profile: TelegramProfile = None,
+):
+    parsed = _parse_xp_history_callback_data(callback_data=query.data or "")
+    if parsed is None:
+        await query.answer(_("Could not open this page."), show_alert=True)
+        return
+    limit, offset = parsed
+    resolved_user = await _resolve_registered_user(
+        user=user,
+        telegram_profile=telegram_profile,
+    )
+    if resolved_user is None:
+        await _reply_not_registered_callback(query=query, _=_)
+        return
+
+    text, total_count, normalized_limit, safe_offset = await _build_xp_history_text(
+        user=resolved_user,
+        _=_,
+        limit=limit,
+        offset=offset,
+    )
+    await _safe_edit_callback_message(
+        query=query,
+        text=text,
+        reply_markup=_build_xp_history_pagination_markup(
+            total_count=total_count,
+            limit=normalized_limit,
+            offset=safe_offset,
+            _=_,
+        ),
+    )
+    await query.answer()
 
 
 @router.message(CommandStart())
@@ -389,7 +683,7 @@ async def start_handler(
     if pending:
         await state.clear()
         await message.answer(
-            _("Your access request is already pending."),
+            _("Your access request is already under review."),
             reply_markup=build_main_menu_keyboard(
                 is_technician=False,
                 include_start_access=False,
@@ -400,7 +694,7 @@ async def start_handler(
     if await _has_active_linked_user(user, profile):
         await state.clear()
         await message.answer(
-            _("You are registered and linked."),
+            _("You are all set. Your account is already active."),
             reply_markup=await _main_menu_markup_for_user(user=user),
         )
         return
@@ -417,17 +711,17 @@ async def help_handler(message: Message, _, user: User = None):
     help_text = "\n".join(
         [
             _("Available commands:"),
-            "/start - " + _("Start bot"),
-            "/my - " + _("Show my access status"),
-            "/queue - " + _("Show my ticket queue"),
-            "/active - " + _("Show my ticket queue"),
+            "/start - " + _("Start the bot and access setup"),
+            "/my - " + _("Check my profile and access status"),
+            "/queue - " + _("Open my active ticket list"),
+            "/active - " + _("Open my active ticket list"),
             "/tech - " + _("Open technician ticket controls"),
-            "/under_qc - " + _("Show my tickets waiting QC"),
-            "/past - " + _("Show my past tickets"),
+            "/under_qc - " + _("Open tickets waiting for quality check"),
+            "/past - " + _("Open my completed tickets"),
             "/xp - " + _("Show my XP summary"),
-            "/xp_history - " + _("Show my XP transaction history"),
-            "/cancel - " + _("Cancel current form"),
-            "/help - " + _("Show help"),
+            "/xp_history - " + _("Show my XP activity with pages"),
+            "/cancel - " + _("Cancel the current form"),
+            "/help - " + _("Show this help message"),
         ]
     )
     await message.answer(
@@ -444,7 +738,7 @@ async def cancel_handler(message: Message, state: FSMContext, _, user: User = No
     current_state = await state.get_state()
     if not current_state:
         await message.answer(
-            _("There is no active form right now."),
+            _("There is no form in progress right now."),
             reply_markup=await _main_menu_markup_for_user(
                 user=user,
                 include_start_access=not bool(user and user.is_active),
@@ -454,7 +748,7 @@ async def cancel_handler(message: Message, state: FSMContext, _, user: User = No
 
     await state.clear()
     await message.answer(
-        _("Access request form was canceled."),
+        _("Canceled. You can start a new request anytime."),
         reply_markup=await _main_menu_markup_for_user(
             user=user,
             include_start_access=not bool(user and user.is_active),
@@ -466,7 +760,7 @@ async def cancel_handler(message: Message, state: FSMContext, _, user: User = No
 async def request_first_name_handler(message: Message, state: FSMContext, _):
     first_name = (message.text or "").strip()
     if len(first_name) < 2:
-        await message.answer(_("Please enter a valid first name."))
+        await message.answer(_("Please enter a valid first name (at least 2 letters)."))
         return
     await state.update_data(first_name=first_name)
     await state.set_state(AccessRequestForm.last_name)
@@ -477,7 +771,7 @@ async def request_first_name_handler(message: Message, state: FSMContext, _):
 async def request_last_name_handler(message: Message, state: FSMContext, _):
     last_name = (message.text or "").strip()
     if len(last_name) < 2:
-        await message.answer(_("Please enter a valid last name."))
+        await message.answer(_("Please enter a valid last name (at least 2 letters)."))
         return
     await state.update_data(last_name=last_name)
     await state.set_state(AccessRequestForm.phone)
@@ -514,12 +808,14 @@ async def _finalize_access_request(
     )
     if created:
         await message.answer(
-            translator("Access request submitted. We will review and notify you."),
+            translator(
+                "Request submitted successfully. We will review it and message you here."
+            ),
             reply_markup=pending_menu,
         )
         return
     await message.answer(
-        translator("Your access request is already pending."),
+        translator("Your request is already under review."),
         reply_markup=pending_menu,
     )
 
@@ -528,7 +824,9 @@ async def _finalize_access_request(
 async def request_phone_contact_handler(message: Message, state: FSMContext, _):
     contact = message.contact
     if contact.user_id and contact.user_id != message.from_user.id:
-        await message.answer(_("Please share your own phone number."))
+        await message.answer(
+            _("Please share your own phone number, not someone else's.")
+        )
         return
     phone = _normalize_phone(contact.phone_number or "")
     if not phone:
