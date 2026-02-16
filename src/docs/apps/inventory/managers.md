@@ -13,8 +13,9 @@ Encapsulates inventory domain queries so service/API/analytics layers reuse the 
 - `InventoryItem.domain.find_by_serial_number` resolves case-insensitive serial lookup against non-deleted items.
 - `InventoryItem.domain.ready_active_count` centralizes active ready-fleet availability logic.
 - `InventoryItem.domain.suggest_serial_numbers` executes staged lookup (prefix -> contains -> fuzzy) with bounded results.
+- `InventoryItemPartQuerySet.with_inventory_item` scopes parts to an owning inventory item.
 - QuerySet helpers support inventory-item list filtering by serial/inventory/category/status/activity/date windows and active-ticket presence.
-- Each manager exposes `get_default()` used by ticket intake/API create defaults.
+- `Inventory.domain` and `InventoryItemCategory.domain` expose `get_default()` used by ticket intake/API create defaults.
 
 ## Invariants and Contracts
 - `get_queryset` enforces `deleted_at IS NULL`.

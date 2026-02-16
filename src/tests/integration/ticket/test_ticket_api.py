@@ -47,9 +47,14 @@ def ticket_api_context(user_factory, assign_roles, inventory_item_factory):
     )
 
     inventory_item = inventory_item_factory(serial_number="RM-0100")
-    part_a = InventoryItemPart.objects.create(name="RM-API-PART-A")
-    part_b = InventoryItemPart.objects.create(name="RM-API-PART-B")
-    inventory_item.parts.set([part_a, part_b])
+    part_a = InventoryItemPart.objects.create(
+        name="RM-API-PART-A",
+        inventory_item=inventory_item,
+    )
+    part_b = InventoryItemPart.objects.create(
+        name="RM-API-PART-B",
+        inventory_item=inventory_item,
+    )
 
     return {
         "master_user": master_user,
@@ -250,10 +255,24 @@ def test_ticket_create_confirm_create_builds_new_inventory_item_and_logs_reason(
     payload = resp.data["data"]
     created_ticket = Ticket.objects.get(pk=payload["id"])
     assert created_ticket.inventory_item.serial_number == "RM-0999"
-    assert set(created_ticket.inventory_item.parts.values_list("id", flat=True)) == {
-        ticket_api_context["part_a"].id,
-        ticket_api_context["part_b"].id,
-    }
+    created_part_names = set(
+        created_ticket.inventory_item.parts.values_list("name", flat=True)
+    )
+    assert created_part_names == {"RM-API-PART-A", "RM-API-PART-B"}
+    created_part_ids = set(
+        created_ticket.inventory_item.parts.values_list("id", flat=True)
+    )
+    assert created_part_ids == set(
+        created_ticket.part_specs.values_list("inventory_item_part_id", flat=True)
+    )
+    assert created_part_ids.isdisjoint(
+        {ticket_api_context["part_a"].id, ticket_api_context["part_b"].id}
+    )
+    assert set(
+        created_ticket.part_specs.values_list(
+            "inventory_item_part__inventory_item_id", flat=True
+        )
+    ) == {created_ticket.inventory_item_id}
     transition = TicketTransition.objects.get(ticket_id=payload["id"])
     assert transition.metadata["inventory_item_created_during_intake"] is True
     assert transition.metadata["inventory_item_creation_reason"] == reason

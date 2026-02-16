@@ -301,9 +301,6 @@ class TicketSerializer(serializers.ModelSerializer):
                     ) from None
                 created = False
 
-            if part_ids:
-                inventory_item.parts.set(part_ids)
-
             if Ticket.domain.has_active_for_inventory_item(
                 inventory_item=inventory_item
             ):
@@ -317,6 +314,18 @@ class TicketSerializer(serializers.ModelSerializer):
             validated_data["inventory_item"] = inventory_item
             self._inventory_item_created_during_intake = created
             self._inventory_item_creation_reason = inventory_item_creation_reason
+            if part_ids:
+                cloned_part_id_map = self._clone_parts_for_inventory_item(
+                    inventory_item=inventory_item,
+                    source_part_ids=part_ids,
+                )
+                part_specs = [
+                    {
+                        **spec,
+                        "part_id": cloned_part_id_map[int(spec["part_id"])],
+                    }
+                    for spec in part_specs
+                ]
 
         request = self.context.get("request")
         if (
@@ -448,3 +457,43 @@ class TicketSerializer(serializers.ModelSerializer):
                 }
             )
         return normalized, sorted(set(provided_ids)), total_minutes
+
+    @staticmethod
+    def _clone_parts_for_inventory_item(
+        *,
+        inventory_item: InventoryItem,
+        source_part_ids: list[int],
+    ) -> dict[int, int]:
+        source_parts = list(
+            InventoryItemPart.objects.filter(id__in=source_part_ids)
+            .only("id", "name")
+            .order_by("id")
+        )
+
+        duplicate_names: set[str] = set()
+        seen_names: set[str] = set()
+        for part in source_parts:
+            if part.name in seen_names:
+                duplicate_names.add(part.name)
+            seen_names.add(part.name)
+
+        if duplicate_names:
+            raise serializers.ValidationError(
+                {
+                    "part_specs": (
+                        "Cannot reuse multiple source parts with the same name while "
+                        "creating a new inventory item. Duplicate names: "
+                        + ", ".join(sorted(duplicate_names))
+                        + "."
+                    )
+                }
+            )
+
+        source_to_cloned: dict[int, int] = {}
+        for part in source_parts:
+            cloned_part = InventoryItemPart.objects.create(
+                inventory_item=inventory_item,
+                name=part.name,
+            )
+            source_to_cloned[part.id] = cloned_part.id
+        return source_to_cloned

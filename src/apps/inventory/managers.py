@@ -48,7 +48,14 @@ class InventoryItemCategoryDomainManager(
         return category
 
 
-class InventoryItemPartDomainManager(models.Manager):
+class InventoryItemPartQuerySet(models.QuerySet):
+    def with_inventory_item(self, inventory_item_id: int):
+        return self.filter(inventory_item_id=inventory_item_id)
+
+
+class InventoryItemPartDomainManager(
+    models.Manager.from_queryset(InventoryItemPartQuerySet)
+):
     def get_queryset(self):
         return super().get_queryset().filter(deleted_at__isnull=True)
 

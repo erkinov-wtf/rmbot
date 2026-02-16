@@ -42,6 +42,7 @@ List filters:
 Create/update notes:
 - `serial_number` format is enforced as `RM-[A-Z0-9-]{4,29}`.
 - `name`, `inventory`, and `category` default when omitted during create.
+- `parts` is read-only on item payloads; manage ownership through `/inventory/parts/` endpoints.
 
 ### Item categories
 - `GET /api/v1/inventory/categories/`
@@ -56,6 +57,10 @@ Create/update notes:
 - `GET /api/v1/inventory/parts/{id}/`
 - `PUT/PATCH /api/v1/inventory/parts/{id}/`
 - `DELETE /api/v1/inventory/parts/{id}/`
+
+Create/update notes:
+- `inventory_item` is required; each part belongs to one inventory item.
+- Same `name` may be reused across different inventory items, but not duplicated within the same inventory item.
 
 ## Validation and Failure Modes
 - Invalid/duplicate `serial_number` -> `400`.

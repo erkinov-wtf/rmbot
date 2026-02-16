@@ -23,8 +23,9 @@ class InventoryItemCategoryAdmin(BaseModelAdmin):
 
 @admin.register(InventoryItemPart)
 class InventoryItemPartAdmin(BaseModelAdmin):
-    list_display = ("id", "name", "created_at")
-    search_fields = ("name",)
+    list_display = ("id", "name", "inventory_item", "created_at")
+    search_fields = ("name", "inventory_item__serial_number", "inventory_item__name")
+    list_filter = ("inventory_item",)
 
 
 @admin.register(InventoryItem)
@@ -41,4 +42,3 @@ class InventoryItemAdmin(BaseModelAdmin):
     )
     search_fields = ("serial_number", "name", "inventory__name", "category__name")
     list_filter = ("status", "is_active", "inventory", "category")
-    filter_horizontal = ("parts",)

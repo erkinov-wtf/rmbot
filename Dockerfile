@@ -19,6 +19,7 @@ FROM python:3.13-slim-bookworm AS final
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
+    PYTHONPATH="/app:/app/apps" \
     VIRTUAL_ENV=/app/.venv \
     PATH="/app/.venv/bin:$PATH"
 

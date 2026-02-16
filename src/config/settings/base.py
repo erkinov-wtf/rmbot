@@ -27,7 +27,7 @@ IS_TEST_RUN = (
     or "PYTEST_CURRENT_TEST" in os.environ
     or any("pytest" in arg for arg in sys.argv)
 )
-LOGS_ROOT = Path(config("LOGS_ROOT", default=BASE_DIR.parent / "logs"))
+LOGS_ROOT = Path(config("LOGS_ROOT", default=BASE_DIR / "logs"))
 DEBUG = config("DEBUG", default=False, cast=bool)
 if IS_TEST_RUN:
     # Keep tests deterministic and avoid debug-only middleware/tooling side effects.

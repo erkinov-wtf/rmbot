@@ -33,10 +33,30 @@ class InventoryItemCategory(TimestampedModel, SoftDeleteModel):
 class InventoryItemPart(TimestampedModel, SoftDeleteModel):
     domain = managers.InventoryItemPartDomainManager()
 
-    name = models.CharField(max_length=255, unique=True)
+    inventory_item = models.ForeignKey(
+        "InventoryItem",
+        on_delete=models.CASCADE,
+        related_name="parts",
+        null=True,
+        blank=True,
+    )
+    name = models.CharField(max_length=255)
 
     class Meta:
-        indexes = [models.Index(fields=["name"], name="inv_item_part_name_idx")]
+        indexes = [
+            models.Index(
+                fields=["inventory_item", "name"],
+                name="inv_item_part_item_name_idx",
+            ),
+            models.Index(fields=["name"], name="inv_item_part_name_idx"),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["inventory_item", "name"],
+                condition=models.Q(deleted_at__isnull=True),
+                name="inv_item_part_unique_name_per_item",
+            )
+        ]
 
     def __str__(self) -> str:
         return self.name
@@ -56,11 +76,6 @@ class InventoryItem(TimestampedModel, SoftDeleteModel):
         InventoryItemCategory,
         on_delete=models.PROTECT,
         related_name="items",
-    )
-    parts = models.ManyToManyField(
-        InventoryItemPart,
-        related_name="items",
-        blank=True,
     )
     status = models.CharField(
         max_length=20,

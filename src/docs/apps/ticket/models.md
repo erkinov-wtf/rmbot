@@ -20,6 +20,7 @@ Defines workflow and work-session persistence for operational execution and anal
 - One active ticket per inventory item.
 - One `IN_PROGRESS` ticket per technician.
 - One active part-spec row per `(ticket, inventory_item_part)`.
+- `TicketPartSpec.inventory_item_part` points to an item-owned inventory part (parts are not shared across inventory items).
 - One open work session per ticket and per technician.
 - Transition/event/attempt entities remain append-only where designed.
 

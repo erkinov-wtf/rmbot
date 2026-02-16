@@ -145,9 +145,14 @@ def test_tma_e2e_master_to_technician_to_qc(
     inventory_item = inventory_item_factory(
         serial_number="RM-TMA-0001", status=InventoryItemStatus.READY, is_active=True
     )
-    part_a = InventoryItemPart.objects.create(name="RM-TMA-PART-A")
-    part_b = InventoryItemPart.objects.create(name="RM-TMA-PART-B")
-    inventory_item.parts.set([part_a, part_b])
+    part_a = InventoryItemPart.objects.create(
+        name="RM-TMA-PART-A",
+        inventory_item=inventory_item,
+    )
+    part_b = InventoryItemPart.objects.create(
+        name="RM-TMA-PART-B",
+        inventory_item=inventory_item,
+    )
 
     create = master_client.post(
         "/api/v1/tickets/create/",

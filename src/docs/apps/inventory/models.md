@@ -6,13 +6,14 @@ Defines inventory entities used by ticket intake and analytics.
 ## Model Inventory
 - `Inventory`: top-level grouping (place/warehouse for items).
 - `InventoryItemCategory`: dynamic classification for inventory items.
-- `InventoryItemPart`: reusable part catalog attached to items.
+- `InventoryItemPart`: item-owned part record attached to exactly one inventory item.
 - `InventoryItem`: primary fleet entity used by ticket lifecycle.
 
 ## Invariants and Constraints
-- `Inventory.name`, `InventoryItemCategory.name`, and `InventoryItemPart.name` are unique.
+- `Inventory.name` and `InventoryItemCategory.name` are unique.
 - `InventoryItem.serial_number` is unique.
-- `InventoryItem` requires `inventory` + `category`; `parts` is optional M2M.
+- Active (`deleted_at IS NULL`) part names are unique per inventory item (`inventory_item`, `name`).
+- `InventoryItem` requires `inventory` + `category`; `parts` is an item-owned one-to-many relation.
 - Status/activity indexed for fleet analytics queries.
 
 ## Lifecycle Notes

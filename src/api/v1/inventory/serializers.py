@@ -24,10 +24,46 @@ class InventoryItemCategorySerializer(serializers.ModelSerializer):
 
 
 class InventoryItemPartSerializer(serializers.ModelSerializer):
+    inventory_item = serializers.PrimaryKeyRelatedField(
+        queryset=InventoryItem.domain.get_queryset(),
+    )
+
     class Meta:
         model = InventoryItemPart
-        fields = ("id", "name", "created_at", "updated_at")
+        fields = ("id", "inventory_item", "name", "created_at", "updated_at")
         read_only_fields = ("id", "created_at", "updated_at")
+
+    def validate_name(self, value: str) -> str:
+        return value.strip()
+
+    def validate(self, attrs):
+        inventory_item = attrs.get("inventory_item")
+        if inventory_item is None and self.instance is not None:
+            inventory_item = self.instance.inventory_item
+
+        name = attrs.get("name")
+        if name is None and self.instance is not None:
+            name = self.instance.name
+
+        if inventory_item is None or not name:
+            return attrs
+
+        existing = InventoryItemPart.domain.get_queryset().filter(
+            inventory_item=inventory_item,
+            name__iexact=name,
+        )
+        if self.instance is not None:
+            existing = existing.exclude(pk=self.instance.pk)
+        if existing.exists():
+            raise serializers.ValidationError(
+                {
+                    "name": (
+                        "Part with this name already exists for the selected "
+                        "inventory item."
+                    )
+                }
+            )
+        return attrs
 
 
 class InventoryItemSerializer(serializers.ModelSerializer):
@@ -41,11 +77,7 @@ class InventoryItemSerializer(serializers.ModelSerializer):
         queryset=InventoryItemCategory.domain.get_queryset(),
         required=False,
     )
-    parts = serializers.PrimaryKeyRelatedField(
-        many=True,
-        queryset=InventoryItemPart.domain.get_queryset(),
-        required=False,
-    )
+    parts = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
 
     class Meta:
         model = InventoryItem

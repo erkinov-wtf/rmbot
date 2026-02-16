@@ -1,7 +1,7 @@
 # Inventory App Docs
 
 ## Scope
-Covers inventory entities (`Inventory`, `InventoryItem`, category, parts), serial-number normalization/lookup/suggestion logic, and list-filter query primitives used by inventory APIs.
+Covers inventory entities (`Inventory`, `InventoryItem`, category, item-owned parts), serial-number normalization/lookup/suggestion logic, and list-filter query primitives used by inventory APIs.
 
 ## Navigation
 - `docs/apps/inventory/models.md`

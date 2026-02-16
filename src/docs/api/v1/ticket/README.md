@@ -39,6 +39,7 @@ Documents ticket intake, workflow transitions, QC outcomes, and work-session tim
   - one `IN_PROGRESS` ticket per technician
   - unknown serial number requires explicit confirm + reason to create inventory item
   - archived inventory item serial requires restore path, not implicit recreate
+  - inventory-item parts are item-owned; when confirm-create makes a new inventory item, submitted part IDs are cloned onto that new item
 - Ticket assignment requires prior admin review approval (`approved_by`, `approved_at`).
 - Allowed ticket colors are `green`, `yellow`, `red` (including part-spec and manual-metrics inputs).
 - Invalid state transitions/session actions -> `400`.

@@ -78,4 +78,6 @@ class InventoryItemCategoryViewSet(InventoryManageMixin, BaseModelViewSet):
 )
 class InventoryItemPartViewSet(InventoryManageMixin, BaseModelViewSet):
     serializer_class = InventoryItemPartSerializer
-    queryset = InventoryItemPart.domain.get_queryset().order_by("name", "id")
+    queryset = InventoryItemPart.domain.get_queryset().order_by(
+        "inventory_item_id", "name", "id"
+    )
