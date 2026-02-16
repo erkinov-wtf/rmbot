@@ -11,29 +11,46 @@ import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react
 
 import { Button } from "@/components/ui/button";
 import {
+  assignTicket,
   createTicket,
   getInventoryItem,
   listAllCategories,
   listInventoryItems,
   listParts,
+  listTechnicianOptions,
+  listTicketWorkSessionHistory,
   listTicketTransitions,
   listTickets,
+  moveTicketToWaitingQc,
+  pauseTicketWorkSession,
+  qcFailTicket,
+  qcPassTicket,
+  reviewApproveTicket,
   reviewTicketManualMetrics,
+  resumeTicketWorkSession,
+  startTicketWork,
+  stopTicketWorkSession,
   type InventoryCategory,
   type InventoryItem,
   type InventoryItemStatus,
   type InventoryPart,
+  type TechnicianOption,
   type Ticket as TicketModel,
   type TicketColor,
   type TicketStatus,
   type TicketTransition,
+  type WorkSessionTransition,
+  type WorkSessionStatus,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 type TicketFlowProps = {
   accessToken: string;
+  currentUserId: number | null;
   canCreate: boolean;
   canReview: boolean;
+  canWork: boolean;
+  canQc: boolean;
   roleTitles: string[];
   roleSlugs: string[];
 };
@@ -48,7 +65,9 @@ type FeedbackState =
 type TicketRoute =
   | { name: "createList" }
   | { name: "createItem"; itemId: number }
-  | { name: "review" };
+  | { name: "review" }
+  | { name: "work" }
+  | { name: "qc" };
 
 type ItemFilterState = {
   search: string;
@@ -128,6 +147,12 @@ function parseTicketRoute(pathname: string): TicketRoute {
   if (pathname.startsWith("/tickets/review")) {
     return { name: "review" };
   }
+  if (pathname.startsWith("/tickets/work")) {
+    return { name: "work" };
+  }
+  if (pathname.startsWith("/tickets/qc")) {
+    return { name: "qc" };
+  }
 
   if (pathname.startsWith("/tickets/create")) {
     return { name: "createList" };
@@ -139,6 +164,12 @@ function parseTicketRoute(pathname: string): TicketRoute {
 function toTicketPath(route: TicketRoute): string {
   if (route.name === "review") {
     return "/tickets/review";
+  }
+  if (route.name === "work") {
+    return "/tickets/work";
+  }
+  if (route.name === "qc") {
+    return "/tickets/qc";
   }
   if (route.name === "createItem") {
     return `/tickets/create/item/${route.itemId}`;
@@ -205,8 +236,11 @@ function ticketColorBadgeClass(color: TicketColor): string {
 
 export function TicketFlow({
   accessToken,
+  currentUserId,
   canCreate,
   canReview,
+  canWork,
+  canQc,
   roleTitles,
   roleSlugs,
 }: TicketFlowProps) {
@@ -249,15 +283,50 @@ export function TicketFlow({
   const [reviewTransitions, setReviewTransitions] = useState<TicketTransition[]>([]);
   const [isLoadingReviewTransitions, setIsLoadingReviewTransitions] = useState(false);
   const [reviewItem, setReviewItem] = useState<InventoryItem | null>(null);
+  const [technicianOptions, setTechnicianOptions] = useState<TechnicianOption[]>([]);
+  const [isLoadingTechnicians, setIsLoadingTechnicians] = useState(false);
+  const [selectedTechnicianId, setSelectedTechnicianId] = useState("");
   const [reviewFlagColor, setReviewFlagColor] = useState<TicketColor>("green");
   const [reviewXpAmount, setReviewXpAmount] = useState("");
+
+  const [workTickets, setWorkTickets] = useState<TicketModel[]>([]);
+  const [isLoadingWorkTickets, setIsLoadingWorkTickets] = useState(false);
+  const [workStatusFilter, setWorkStatusFilter] = useState<
+    "all" | "assigned" | "in_progress" | "rework" | "waiting_qc"
+  >("all");
+  const [workSearch, setWorkSearch] = useState("");
+  const [selectedWorkTicketId, setSelectedWorkTicketId] = useState<number | null>(null);
+  const [workTransitions, setWorkTransitions] = useState<TicketTransition[]>([]);
+  const [isLoadingWorkTransitions, setIsLoadingWorkTransitions] = useState(false);
+  const [workSessionHistory, setWorkSessionHistory] = useState<WorkSessionTransition[]>(
+    [],
+  );
+  const [isLoadingWorkSessionHistory, setIsLoadingWorkSessionHistory] = useState(false);
+  const [workItem, setWorkItem] = useState<InventoryItem | null>(null);
+
+  const [qcTickets, setQcTickets] = useState<TicketModel[]>([]);
+  const [isLoadingQcTickets, setIsLoadingQcTickets] = useState(false);
+  const [qcStatusFilter, setQcStatusFilter] = useState<"waiting_qc" | "all">(
+    "waiting_qc",
+  );
+  const [qcSearch, setQcSearch] = useState("");
+  const [selectedQcTicketId, setSelectedQcTicketId] = useState<number | null>(null);
+  const [qcTransitions, setQcTransitions] = useState<TicketTransition[]>([]);
+  const [isLoadingQcTransitions, setIsLoadingQcTransitions] = useState(false);
+  const [qcItem, setQcItem] = useState<InventoryItem | null>(null);
 
   const [inventoryCache, setInventoryCache] = useState<Record<number, InventoryItem>>(
     {},
   );
 
-  const activeMenu: "create" | "review" =
-    route.name === "review" ? "review" : "create";
+  const activeMenu: "create" | "review" | "work" | "qc" =
+    route.name === "review"
+      ? "review"
+      : route.name === "work"
+        ? "work"
+        : route.name === "qc"
+          ? "qc"
+          : "create";
 
   const categoryNameById = useMemo(
     () => new Map(categories.map((category) => [category.id, category.name])),
@@ -277,6 +346,19 @@ export function TicketFlow({
   const ticketColorLabelByValue = useMemo(
     () => new Map(TICKET_COLOR_OPTIONS.map((option) => [option.value, option.label])),
     [],
+  );
+
+  const technicianLabelById = useMemo(
+    () =>
+      new Map(
+        technicianOptions.map((technician) => [
+          technician.user_id,
+          technician.name === technician.username
+            ? technician.username
+            : `${technician.name} (@${technician.username})`,
+        ]),
+      ),
+    [technicianOptions],
   );
 
   const hasPendingItemFilterChanges = useMemo(
@@ -325,6 +407,103 @@ export function TicketFlow({
       reviewTicketsFiltered.find((ticket) => ticket.id === selectedReviewTicketId) ??
       null,
     [reviewTicketsFiltered, selectedReviewTicketId],
+  );
+
+  const isSuperAdmin = useMemo(
+    () => roleSlugs.includes("super_admin"),
+    [roleSlugs],
+  );
+
+  const workTicketsFiltered = useMemo(() => {
+    const normalized = workSearch.trim().toLowerCase();
+    const allowedStatuses = new Set<TicketStatus>([
+      "assigned",
+      "in_progress",
+      "rework",
+      "waiting_qc",
+    ]);
+
+    return workTickets.filter((ticket) => {
+      if (!allowedStatuses.has(ticket.status)) {
+        return false;
+      }
+      if (!isSuperAdmin) {
+        if (currentUserId === null) {
+          return false;
+        }
+        if (ticket.technician !== currentUserId) {
+          return false;
+        }
+      }
+      if (workStatusFilter !== "all" && ticket.status !== workStatusFilter) {
+        return false;
+      }
+      if (!normalized) {
+        return true;
+      }
+
+      const item = inventoryCache[ticket.inventory_item];
+      const serial = item?.serial_number ?? "";
+      const name = item?.name ?? "";
+      const title = ticket.title ?? "";
+
+      return (
+        String(ticket.id).includes(normalized) ||
+        serial.toLowerCase().includes(normalized) ||
+        name.toLowerCase().includes(normalized) ||
+        title.toLowerCase().includes(normalized)
+      );
+    });
+  }, [
+    currentUserId,
+    inventoryCache,
+    isSuperAdmin,
+    workSearch,
+    workStatusFilter,
+    workTickets,
+  ]);
+
+  const selectedWorkTicket = useMemo(
+    () => workTicketsFiltered.find((ticket) => ticket.id === selectedWorkTicketId) ?? null,
+    [selectedWorkTicketId, workTicketsFiltered],
+  );
+
+  const currentWorkSessionStatus = useMemo<WorkSessionStatus | null>(() => {
+    if (!workSessionHistory.length) {
+      return null;
+    }
+    return workSessionHistory[0].to_status;
+  }, [workSessionHistory]);
+
+  const qcTicketsFiltered = useMemo(() => {
+    const normalized = qcSearch.trim().toLowerCase();
+
+    return qcTickets.filter((ticket) => {
+      if (qcStatusFilter === "waiting_qc" && ticket.status !== "waiting_qc") {
+        return false;
+      }
+      if (!normalized) {
+        return true;
+      }
+
+      const item = inventoryCache[ticket.inventory_item];
+      const serial = item?.serial_number ?? "";
+      const name = item?.name ?? "";
+      const title = ticket.title ?? "";
+
+      return (
+        String(ticket.id).includes(normalized) ||
+        serial.toLowerCase().includes(normalized) ||
+        name.toLowerCase().includes(normalized) ||
+        title.toLowerCase().includes(normalized) ||
+        ticket.status.toLowerCase().includes(normalized)
+      );
+    });
+  }, [inventoryCache, qcSearch, qcStatusFilter, qcTickets]);
+
+  const selectedQcTicket = useMemo(
+    () => qcTicketsFiltered.find((ticket) => ticket.id === selectedQcTicketId) ?? null,
+    [qcTicketsFiltered, selectedQcTicketId],
   );
 
   const navigate = useCallback((nextRoute: TicketRoute) => {
@@ -480,6 +659,57 @@ export function TicketFlow({
     }
   }, [accessToken]);
 
+  const loadWorkTickets = useCallback(async () => {
+    setIsLoadingWorkTickets(true);
+    try {
+      const nextTickets = await listTickets(accessToken, { per_page: 400 });
+      setWorkTickets(nextTickets);
+    } catch (error) {
+      setFeedback({
+        type: "error",
+        message: toErrorMessage(error, "Failed to load technician tickets."),
+      });
+    } finally {
+      setIsLoadingWorkTickets(false);
+    }
+  }, [accessToken]);
+
+  const loadQcTickets = useCallback(async () => {
+    setIsLoadingQcTickets(true);
+    try {
+      const nextTickets = await listTickets(accessToken, { per_page: 400 });
+      setQcTickets(nextTickets);
+    } catch (error) {
+      setFeedback({
+        type: "error",
+        message: toErrorMessage(error, "Failed to load QC tickets."),
+      });
+    } finally {
+      setIsLoadingQcTickets(false);
+    }
+  }, [accessToken]);
+
+  const loadTechnicians = useCallback(async () => {
+    if (!canReview) {
+      setTechnicianOptions([]);
+      setIsLoadingTechnicians(false);
+      return;
+    }
+
+    setIsLoadingTechnicians(true);
+    try {
+      const nextTechnicians = await listTechnicianOptions(accessToken);
+      setTechnicianOptions(nextTechnicians);
+    } catch (error) {
+      setFeedback({
+        type: "error",
+        message: toErrorMessage(error, "Failed to load technicians."),
+      });
+    } finally {
+      setIsLoadingTechnicians(false);
+    }
+  }, [accessToken, canReview]);
+
   const loadReviewTransitions = useCallback(
     async (ticketId: number) => {
       setIsLoadingReviewTransitions(true);
@@ -500,6 +730,66 @@ export function TicketFlow({
     [accessToken],
   );
 
+  const loadWorkTransitions = useCallback(
+    async (ticketId: number) => {
+      setIsLoadingWorkTransitions(true);
+      try {
+        const nextTransitions = await listTicketTransitions(accessToken, ticketId, {
+          per_page: 100,
+        });
+        setWorkTransitions(nextTransitions);
+      } catch (error) {
+        setFeedback({
+          type: "error",
+          message: toErrorMessage(error, "Failed to load ticket transitions."),
+        });
+      } finally {
+        setIsLoadingWorkTransitions(false);
+      }
+    },
+    [accessToken],
+  );
+
+  const loadQcTransitions = useCallback(
+    async (ticketId: number) => {
+      setIsLoadingQcTransitions(true);
+      try {
+        const nextTransitions = await listTicketTransitions(accessToken, ticketId, {
+          per_page: 100,
+        });
+        setQcTransitions(nextTransitions);
+      } catch (error) {
+        setFeedback({
+          type: "error",
+          message: toErrorMessage(error, "Failed to load ticket transitions."),
+        });
+      } finally {
+        setIsLoadingQcTransitions(false);
+      }
+    },
+    [accessToken],
+  );
+
+  const loadWorkSessionHistory = useCallback(
+    async (ticketId: number) => {
+      setIsLoadingWorkSessionHistory(true);
+      try {
+        const history = await listTicketWorkSessionHistory(accessToken, ticketId, {
+          per_page: 100,
+        });
+        setWorkSessionHistory(history);
+      } catch (error) {
+        setFeedback({
+          type: "error",
+          message: toErrorMessage(error, "Failed to load work session history."),
+        });
+      } finally {
+        setIsLoadingWorkSessionHistory(false);
+      }
+    },
+    [accessToken],
+  );
+
   const loadReviewItem = useCallback(
     async (itemId: number) => {
       const cached = inventoryCache[itemId];
@@ -514,6 +804,42 @@ export function TicketFlow({
         cacheInventoryItems([item]);
       } catch {
         setReviewItem(null);
+      }
+    },
+    [accessToken, cacheInventoryItems, inventoryCache],
+  );
+
+  const loadWorkItem = useCallback(
+    async (itemId: number) => {
+      const cached = inventoryCache[itemId];
+      if (cached) {
+        setWorkItem(cached);
+        return;
+      }
+      try {
+        const item = await getInventoryItem(accessToken, itemId);
+        setWorkItem(item);
+        cacheInventoryItems([item]);
+      } catch {
+        setWorkItem(null);
+      }
+    },
+    [accessToken, cacheInventoryItems, inventoryCache],
+  );
+
+  const loadQcItem = useCallback(
+    async (itemId: number) => {
+      const cached = inventoryCache[itemId];
+      if (cached) {
+        setQcItem(cached);
+        return;
+      }
+      try {
+        const item = await getInventoryItem(accessToken, itemId);
+        setQcItem(item);
+        cacheInventoryItems([item]);
+      } catch {
+        setQcItem(null);
       }
     },
     [accessToken, cacheInventoryItems, inventoryCache],
@@ -559,11 +885,13 @@ export function TicketFlow({
     if (route.name !== "review") {
       setReviewTransitions([]);
       setReviewItem(null);
+      setSelectedTechnicianId("");
       return;
     }
 
     void loadReviewTickets();
-  }, [loadReviewTickets, route]);
+    void loadTechnicians();
+  }, [loadReviewTickets, loadTechnicians, route]);
 
   useEffect(() => {
     if (route.name !== "review") {
@@ -587,15 +915,97 @@ export function TicketFlow({
     if (!selectedReviewTicket) {
       setReviewTransitions([]);
       setReviewItem(null);
+      setSelectedTechnicianId("");
       return;
     }
 
     setReviewFlagColor(selectedReviewTicket.flag_color);
     setReviewXpAmount(String(selectedReviewTicket.xp_amount));
+    setSelectedTechnicianId(
+      selectedReviewTicket.technician ? String(selectedReviewTicket.technician) : "",
+    );
 
     void loadReviewTransitions(selectedReviewTicket.id);
     void loadReviewItem(selectedReviewTicket.inventory_item);
   }, [loadReviewItem, loadReviewTransitions, selectedReviewTicket]);
+
+  useEffect(() => {
+    if (route.name !== "work") {
+      setWorkTransitions([]);
+      setWorkSessionHistory([]);
+      setWorkItem(null);
+      return;
+    }
+    void loadWorkTickets();
+  }, [loadWorkTickets, route]);
+
+  useEffect(() => {
+    if (route.name !== "work") {
+      return;
+    }
+    if (!workTicketsFiltered.length) {
+      setSelectedWorkTicketId(null);
+      return;
+    }
+    if (
+      selectedWorkTicketId === null ||
+      !workTicketsFiltered.some((ticket) => ticket.id === selectedWorkTicketId)
+    ) {
+      setSelectedWorkTicketId(workTicketsFiltered[0].id);
+    }
+  }, [route, selectedWorkTicketId, workTicketsFiltered]);
+
+  useEffect(() => {
+    if (!selectedWorkTicket) {
+      setWorkTransitions([]);
+      setWorkSessionHistory([]);
+      setWorkItem(null);
+      return;
+    }
+    void loadWorkTransitions(selectedWorkTicket.id);
+    void loadWorkSessionHistory(selectedWorkTicket.id);
+    void loadWorkItem(selectedWorkTicket.inventory_item);
+  }, [
+    loadWorkItem,
+    loadWorkSessionHistory,
+    loadWorkTransitions,
+    selectedWorkTicket,
+  ]);
+
+  useEffect(() => {
+    if (route.name !== "qc") {
+      setQcTransitions([]);
+      setQcItem(null);
+      return;
+    }
+    void loadQcTickets();
+  }, [loadQcTickets, route]);
+
+  useEffect(() => {
+    if (route.name !== "qc") {
+      return;
+    }
+    if (!qcTicketsFiltered.length) {
+      setSelectedQcTicketId(null);
+      return;
+    }
+    if (
+      selectedQcTicketId === null ||
+      !qcTicketsFiltered.some((ticket) => ticket.id === selectedQcTicketId)
+    ) {
+      setSelectedQcTicketId(qcTicketsFiltered[0].id);
+    }
+  }, [qcTicketsFiltered, route, selectedQcTicketId]);
+
+  useEffect(() => {
+    if (!selectedQcTicket) {
+      setQcTransitions([]);
+      setQcItem(null);
+      return;
+    }
+    void loadQcTransitions(selectedQcTicket.id);
+    void loadQcItem(selectedQcTicket.inventory_item);
+  }, [loadQcItem, loadQcTransitions, selectedQcTicket]);
 
   const handleRefresh = async () => {
     setFeedback(null);
@@ -609,12 +1019,33 @@ export function TicketFlow({
       await Promise.all([loadCategories(), loadCreateItemPage(route.itemId)]);
       return;
     }
+    if (route.name === "review") {
+      await Promise.all([loadCategories(), loadReviewTickets(), loadTechnicians()]);
+      if (selectedReviewTicket) {
+        await Promise.all([
+          loadReviewTransitions(selectedReviewTicket.id),
+          loadReviewItem(selectedReviewTicket.inventory_item),
+        ]);
+      }
+      return;
+    }
+    if (route.name === "work") {
+      await Promise.all([loadCategories(), loadWorkTickets()]);
+      if (selectedWorkTicket) {
+        await Promise.all([
+          loadWorkTransitions(selectedWorkTicket.id),
+          loadWorkSessionHistory(selectedWorkTicket.id),
+          loadWorkItem(selectedWorkTicket.inventory_item),
+        ]);
+      }
+      return;
+    }
 
-    await Promise.all([loadCategories(), loadReviewTickets()]);
-    if (selectedReviewTicket) {
+    await Promise.all([loadCategories(), loadQcTickets()]);
+    if (selectedQcTicket) {
       await Promise.all([
-        loadReviewTransitions(selectedReviewTicket.id),
-        loadReviewItem(selectedReviewTicket.inventory_item),
+        loadQcTransitions(selectedQcTicket.id),
+        loadQcItem(selectedQcTicket.inventory_item),
       ]);
     }
   };
@@ -716,7 +1147,7 @@ export function TicketFlow({
     }
   };
 
-  const handleReviewApprove = async () => {
+  const handleManualMetricsSave = async () => {
     if (!canReview || !selectedReviewTicket) {
       return;
     }
@@ -747,6 +1178,112 @@ export function TicketFlow({
 
         await loadReviewTickets();
       }, "Ticket review updated by admin.");
+    } catch {
+      // feedback already set
+    }
+  };
+
+  const handleReviewApproveAndAssign = async () => {
+    if (!canReview || !selectedReviewTicket) {
+      return;
+    }
+
+    const parsedTechnicianId = Number(selectedTechnicianId);
+    if (!Number.isInteger(parsedTechnicianId) || parsedTechnicianId < 1) {
+      setFeedback({
+        type: "error",
+        message: "Select a technician before approving the ticket.",
+      });
+      return;
+    }
+
+    try {
+      await runMutation(async () => {
+        const reviewedTicket =
+          selectedReviewTicket.approved_at && selectedReviewTicket.approved_by
+            ? selectedReviewTicket
+            : await reviewApproveTicket(accessToken, selectedReviewTicket.id);
+        const assigned = await assignTicket(
+          accessToken,
+          reviewedTicket.id,
+          parsedTechnicianId,
+        );
+
+        setReviewTickets((prev) =>
+          prev.map((ticket) => (ticket.id === assigned.id ? assigned : ticket)),
+        );
+
+        await Promise.all([
+          loadReviewTickets(),
+          loadReviewTransitions(assigned.id),
+          loadReviewItem(assigned.inventory_item),
+        ]);
+      }, "Ticket approved and assigned.");
+    } catch {
+      // feedback already set
+    }
+  };
+
+  const handleWorkAction = async (
+    action: "start" | "pause" | "resume" | "stop" | "to_waiting_qc",
+  ) => {
+    if (!canWork || !selectedWorkTicket) {
+      return;
+    }
+
+    const successMessageMap: Record<typeof action, string> = {
+      start: "Work started.",
+      pause: "Work session paused.",
+      resume: "Work session resumed.",
+      stop: "Work session stopped.",
+      to_waiting_qc: "Ticket moved to waiting QC.",
+    };
+
+    try {
+      await runMutation(async () => {
+        if (action === "start") {
+          await startTicketWork(accessToken, selectedWorkTicket.id);
+        } else if (action === "pause") {
+          await pauseTicketWorkSession(accessToken, selectedWorkTicket.id);
+        } else if (action === "resume") {
+          await resumeTicketWorkSession(accessToken, selectedWorkTicket.id);
+        } else if (action === "stop") {
+          await stopTicketWorkSession(accessToken, selectedWorkTicket.id);
+        } else {
+          await moveTicketToWaitingQc(accessToken, selectedWorkTicket.id);
+        }
+
+        await Promise.all([
+          loadWorkTickets(),
+          loadWorkTransitions(selectedWorkTicket.id),
+          loadWorkSessionHistory(selectedWorkTicket.id),
+          loadReviewTickets(),
+          loadQcTickets(),
+        ]);
+      }, successMessageMap[action]);
+    } catch {
+      // feedback already set
+    }
+  };
+
+  const handleQcDecision = async (decision: "pass" | "fail") => {
+    if (!canQc || !selectedQcTicket) {
+      return;
+    }
+    try {
+      await runMutation(async () => {
+        if (decision === "pass") {
+          await qcPassTicket(accessToken, selectedQcTicket.id);
+        } else {
+          await qcFailTicket(accessToken, selectedQcTicket.id);
+        }
+        await Promise.all([
+          loadQcTickets(),
+          loadQcTransitions(selectedQcTicket.id),
+          loadWorkTickets(),
+          loadReviewTickets(),
+        ]);
+      }, decision === "pass" ? "QC passed." : "QC failed. Sent to rework.");
     } catch {
       // feedback already set
     }
@@ -1411,45 +1948,39 @@ export function TicketFlow({
               </div>
 
               <div className="rounded-md border border-slate-200 p-3">
-                <p className="text-sm font-semibold text-slate-900">Review Action</p>
+                <p className="text-sm font-semibold text-slate-900">Review Actions</p>
                 <p className="mt-1 text-xs text-slate-600">
-                  Admin review uses backend manual metrics endpoint.
+                  Approve review and assign a technician in one action.
+                </p>
+                <p className="mt-1 text-xs text-slate-600">
+                  Current technician:{" "}
+                  {selectedReviewTicket.technician
+                    ? technicianLabelById.get(selectedReviewTicket.technician) ??
+                      `User #${selectedReviewTicket.technician}`
+                    : "Not assigned"}
                 </p>
 
-                <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      Flag Color
-                    </label>
-                    <select
-                      className={cn(fieldClassName, "mt-1")}
-                      value={reviewFlagColor}
-                      onChange={(event) =>
-                        setReviewFlagColor(event.target.value as TicketColor)
-                      }
-                      disabled={!canReview || isMutating}
-                    >
-                      {TICKET_COLOR_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      XP Amount
-                    </label>
-                    <input
-                      type="number"
-                      min={0}
-                      className={cn(fieldClassName, "mt-1")}
-                      value={reviewXpAmount}
-                      onChange={(event) => setReviewXpAmount(event.target.value)}
-                      disabled={!canReview || isMutating}
-                    />
-                  </div>
+                <div className="mt-3">
+                  <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                    Technician
+                  </label>
+                  <select
+                    className={cn(fieldClassName, "mt-1")}
+                    value={selectedTechnicianId}
+                    onChange={(event) => setSelectedTechnicianId(event.target.value)}
+                    disabled={!canReview || isMutating || isLoadingTechnicians}
+                  >
+                    <option value="">
+                      {isLoadingTechnicians ? "Loading technicians..." : "Select technician"}
+                    </option>
+                    {technicianOptions.map((technician) => (
+                      <option key={technician.user_id} value={technician.user_id}>
+                        {technician.name === technician.username
+                          ? technician.username
+                          : `${technician.name} (@${technician.username})`}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 {!canReview ? (
@@ -1462,11 +1993,68 @@ export function TicketFlow({
                   <Button
                     type="button"
                     className="h-10"
-                    onClick={() => void handleReviewApprove()}
-                    disabled={!canReview || isMutating}
+                    onClick={() => void handleReviewApproveAndAssign()}
+                    disabled={
+                      !canReview ||
+                      isMutating ||
+                      isLoadingTechnicians ||
+                      !selectedTechnicianId
+                    }
                   >
-                    Apply Review
+                    Approve & Assign
                   </Button>
+                </div>
+
+                <div className="mt-4 border-t border-slate-200 pt-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">
+                    Manual Metrics (Optional)
+                  </p>
+                  <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                    <div>
+                      <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                        Flag Color
+                      </label>
+                      <select
+                        className={cn(fieldClassName, "mt-1")}
+                        value={reviewFlagColor}
+                        onChange={(event) =>
+                          setReviewFlagColor(event.target.value as TicketColor)
+                        }
+                        disabled={!canReview || isMutating}
+                      >
+                        {TICKET_COLOR_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                        XP Amount
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        className={cn(fieldClassName, "mt-1")}
+                        value={reviewXpAmount}
+                        onChange={(event) => setReviewXpAmount(event.target.value)}
+                        disabled={!canReview || isMutating}
+                      />
+                    </div>
+                  </div>
+                  <div className="mt-3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-10"
+                      onClick={() => void handleManualMetricsSave()}
+                      disabled={!canReview || isMutating}
+                    >
+                      Save Manual Metrics
+                    </Button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1509,13 +2097,399 @@ export function TicketFlow({
     </div>
   );
 
+  const renderWorkPage = () => (
+    <div className="mt-4 grid gap-4 xl:grid-cols-[360px_1fr]">
+      <section className="rounded-lg border border-slate-200 p-4">
+        <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
+          <ClipboardCheck className="h-4 w-4" />
+          Technician Queue
+        </p>
+        <div className="mt-3 space-y-2">
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+              Search
+            </label>
+            <div className="relative mt-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                className={cn(fieldClassName, "pl-9")}
+                value={workSearch}
+                onChange={(event) => setWorkSearch(event.target.value)}
+                placeholder="Ticket id, serial, title"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+              Status
+            </label>
+            <select
+              className={cn(fieldClassName, "mt-1")}
+              value={workStatusFilter}
+              onChange={(event) =>
+                setWorkStatusFilter(
+                  event.target.value as "all" | "assigned" | "in_progress" | "rework" | "waiting_qc",
+                )
+              }
+            >
+              <option value="all">All work statuses</option>
+              <option value="assigned">Assigned</option>
+              <option value="in_progress">In Progress</option>
+              <option value="rework">Rework</option>
+              <option value="waiting_qc">Waiting QC</option>
+            </select>
+          </div>
+        </div>
+
+        {isLoadingWorkTickets ? (
+          <p className="mt-3 text-sm text-slate-600">Loading technician queue...</p>
+        ) : workTicketsFiltered.length ? (
+          <div className="mt-3 space-y-2">
+            {workTicketsFiltered.map((ticket) => {
+              const item = inventoryCache[ticket.inventory_item];
+              return (
+                <button
+                  key={ticket.id}
+                  type="button"
+                  onClick={() => setSelectedWorkTicketId(ticket.id)}
+                  className={cn(
+                    "w-full rounded-md border p-3 text-left transition",
+                    selectedWorkTicketId === ticket.id
+                      ? "border-slate-900 bg-slate-900 text-white"
+                      : "border-slate-200 bg-slate-50 hover:border-slate-300",
+                  )}
+                >
+                  <p className="text-sm font-semibold">Ticket #{ticket.id}</p>
+                  <p
+                    className={cn(
+                      "mt-1 text-xs",
+                      selectedWorkTicketId === ticket.id ? "text-slate-200" : "text-slate-600",
+                    )}
+                  >
+                    {item?.serial_number ?? `Item #${ticket.inventory_item}`}
+                  </p>
+                  <p
+                    className={cn(
+                      "mt-1 text-xs",
+                      selectedWorkTicketId === ticket.id ? "text-slate-200" : "text-slate-600",
+                    )}
+                  >
+                    {ticketStatusLabelByValue.get(ticket.status) ?? ticket.status}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="mt-3 rounded-md border border-dashed border-slate-300 px-3 py-5 text-center text-sm text-slate-500">
+            No tickets in technician queue.
+          </p>
+        )}
+      </section>
+
+      <section className="rounded-lg border border-slate-200 p-4">
+        {selectedWorkTicket ? (
+          <div className="space-y-4">
+            <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-lg font-semibold text-slate-900">
+                  Ticket #{selectedWorkTicket.id}
+                </p>
+                <span
+                  className={cn(
+                    "rounded-full border px-2 py-0.5 text-xs font-medium",
+                    ticketStatusBadgeClass(selectedWorkTicket.status),
+                  )}
+                >
+                  {ticketStatusLabelByValue.get(selectedWorkTicket.status) ??
+                    selectedWorkTicket.status}
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-slate-600">
+                Item: {workItem?.serial_number ?? `#${selectedWorkTicket.inventory_item}`}
+              </p>
+              <p className="mt-1 text-xs text-slate-600">
+                Session status: {currentWorkSessionStatus ?? "none"}
+              </p>
+            </div>
+
+            {!canWork ? (
+              <p className="rounded-md border border-dashed border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                Your roles do not allow work-session actions.
+              </p>
+            ) : null}
+
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => void handleWorkAction("stop")}
+                disabled={
+                  !canWork ||
+                  isMutating ||
+                  selectedWorkTicket.status !== "in_progress" ||
+                  !["running", "paused"].includes(currentWorkSessionStatus ?? "")
+                }
+              >
+                Stop
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => void handleWorkAction("to_waiting_qc")}
+                disabled={
+                  !canWork ||
+                  isMutating ||
+                  selectedWorkTicket.status !== "in_progress" ||
+                  currentWorkSessionStatus !== "stopped"
+                }
+              >
+                Move To QC
+              </Button>
+            </div>
+
+            <div className="rounded-md border border-slate-200 p-3">
+              <p className="text-sm font-semibold text-slate-900">Work Session History</p>
+              {isLoadingWorkSessionHistory ? (
+                <p className="mt-2 text-sm text-slate-600">Loading history...</p>
+              ) : workSessionHistory.length ? (
+                <div className="mt-2 space-y-2">
+                  {workSessionHistory.map((entry) => (
+                    <div
+                      key={entry.id}
+                      className="rounded-md border border-slate-200 bg-slate-50 p-2"
+                    >
+                      <p className="text-xs font-semibold text-slate-900">{entry.action}</p>
+                      <p className="mt-1 text-xs text-slate-600">
+                        {entry.from_status || "-"} {"->"} {entry.to_status}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-600">
+                        {formatDate(entry.event_at)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-2 text-sm text-slate-600">No work session events yet.</p>
+              )}
+            </div>
+          </div>
+        ) : (
+          <p className="rounded-md border border-dashed border-slate-300 px-3 py-8 text-center text-sm text-slate-500">
+            Select a ticket from technician queue.
+          </p>
+        )}
+      </section>
+    </div>
+  );
+
+  const renderQcPage = () => (
+    <div className="mt-4 grid gap-4 xl:grid-cols-[360px_1fr]">
+      <section className="rounded-lg border border-slate-200 p-4">
+        <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
+          <ClipboardCheck className="h-4 w-4" />
+          QC Queue
+        </p>
+        <div className="mt-3 space-y-2">
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+              Search
+            </label>
+            <div className="relative mt-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                className={cn(fieldClassName, "pl-9")}
+                value={qcSearch}
+                onChange={(event) => setQcSearch(event.target.value)}
+                placeholder="Ticket id, serial, title"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+              Status
+            </label>
+            <select
+              className={cn(fieldClassName, "mt-1")}
+              value={qcStatusFilter}
+              onChange={(event) => setQcStatusFilter(event.target.value as "waiting_qc" | "all")}
+            >
+              <option value="waiting_qc">Waiting QC</option>
+              <option value="all">All statuses</option>
+            </select>
+          </div>
+        </div>
+
+        {isLoadingQcTickets ? (
+          <p className="mt-3 text-sm text-slate-600">Loading QC queue...</p>
+        ) : qcTicketsFiltered.length ? (
+          <div className="mt-3 space-y-2">
+            {qcTicketsFiltered.map((ticket) => {
+              const item = inventoryCache[ticket.inventory_item];
+              return (
+                <button
+                  key={ticket.id}
+                  type="button"
+                  onClick={() => setSelectedQcTicketId(ticket.id)}
+                  className={cn(
+                    "w-full rounded-md border p-3 text-left transition",
+                    selectedQcTicketId === ticket.id
+                      ? "border-slate-900 bg-slate-900 text-white"
+                      : "border-slate-200 bg-slate-50 hover:border-slate-300",
+                  )}
+                >
+                  <p className="text-sm font-semibold">Ticket #{ticket.id}</p>
+                  <p
+                    className={cn(
+                      "mt-1 text-xs",
+                      selectedQcTicketId === ticket.id ? "text-slate-200" : "text-slate-600",
+                    )}
+                  >
+                    {item?.serial_number ?? `Item #${ticket.inventory_item}`}
+                  </p>
+                  <p
+                    className={cn(
+                      "mt-1 text-xs",
+                      selectedQcTicketId === ticket.id ? "text-slate-200" : "text-slate-600",
+                    )}
+                  >
+                    {ticketStatusLabelByValue.get(ticket.status) ?? ticket.status}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="mt-3 rounded-md border border-dashed border-slate-300 px-3 py-5 text-center text-sm text-slate-500">
+            No tickets in QC queue.
+          </p>
+        )}
+      </section>
+
+      <section className="rounded-lg border border-slate-200 p-4">
+        {selectedQcTicket ? (
+          <div className="space-y-4">
+            <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-lg font-semibold text-slate-900">
+                  Ticket #{selectedQcTicket.id}
+                </p>
+                <span
+                  className={cn(
+                    "rounded-full border px-2 py-0.5 text-xs font-medium",
+                    ticketStatusBadgeClass(selectedQcTicket.status),
+                  )}
+                >
+                  {ticketStatusLabelByValue.get(selectedQcTicket.status) ?? selectedQcTicket.status}
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-slate-600">
+                Item: {qcItem?.serial_number ?? `#${selectedQcTicket.inventory_item}`}
+              </p>
+            </div>
+
+            {!canQc ? (
+              <p className="rounded-md border border-dashed border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                You can view QC queue, but your roles cannot run QC pass/fail actions.
+              </p>
+            ) : null}
+
+            <div className="rounded-md border border-slate-200 p-3">
+              <p className="text-sm font-semibold text-slate-900">Part Specs</p>
+              {selectedQcTicket.ticket_parts.length ? (
+                <div className="mt-2 space-y-2">
+                  {selectedQcTicket.ticket_parts.map((part) => (
+                    <div
+                      key={part.id}
+                      className="rounded-md border border-slate-200 bg-slate-50 p-2"
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-medium text-slate-900">{part.part_name}</p>
+                        <span
+                          className={cn(
+                            "rounded-full border px-2 py-0.5 text-xs font-medium",
+                            ticketColorBadgeClass(part.color),
+                          )}
+                        >
+                          {ticketColorLabelByValue.get(part.color) ?? part.color}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs text-slate-600">Minutes: {part.minutes}</p>
+                      <p className="mt-1 text-xs text-slate-600">
+                        Comment: {part.comment || "-"}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-2 text-sm text-slate-600">No part specs.</p>
+              )}
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                onClick={() => void handleQcDecision("pass")}
+                disabled={!canQc || isMutating || selectedQcTicket.status !== "waiting_qc"}
+              >
+                QC Pass
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="text-rose-700"
+                onClick={() => void handleQcDecision("fail")}
+                disabled={!canQc || isMutating || selectedQcTicket.status !== "waiting_qc"}
+              >
+                QC Fail
+              </Button>
+            </div>
+
+            <div className="rounded-md border border-slate-200 p-3">
+              <p className="text-sm font-semibold text-slate-900">Ticket Transitions</p>
+              {isLoadingQcTransitions ? (
+                <p className="mt-2 text-sm text-slate-600">Loading transitions...</p>
+              ) : qcTransitions.length ? (
+                <div className="mt-2 space-y-2">
+                  {qcTransitions.map((transition) => (
+                    <div
+                      key={transition.id}
+                      className="rounded-md border border-slate-200 bg-slate-50 p-2"
+                    >
+                      <p className="text-xs font-semibold text-slate-900">
+                        {transition.action}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-600">
+                        {transition.from_status || "-"} {"->"} {transition.to_status}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-600">
+                        {formatDate(transition.created_at)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-2 text-sm text-slate-600">No transitions yet.</p>
+              )}
+            </div>
+          </div>
+        ) : (
+          <p className="rounded-md border border-dashed border-slate-300 px-3 py-8 text-center text-sm text-slate-500">
+            Select a ticket from QC queue.
+          </p>
+        )}
+      </section>
+    </div>
+  );
+
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
       <div className="flex flex-col gap-3 border-b border-slate-200 pb-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold text-slate-900">Ticket Flow</h2>
           <p className="mt-1 text-sm text-slate-600">
-            Ticket intake by item with full part specs, followed by admin review.
+            Full lifecycle: intake, admin review/assignment, technician execution, and QC.
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
             {roleTitles.length ? (
@@ -1541,6 +2515,16 @@ export function TicketFlow({
               Roles ({roleSlugs.join(", ") || "none"}) cannot perform admin review.
             </p>
           ) : null}
+          {!canWork ? (
+            <p className="mt-1 text-xs text-amber-700">
+              Roles ({roleSlugs.join(", ") || "none"}) cannot run technician workflow.
+            </p>
+          ) : null}
+          {!canQc ? (
+            <p className="mt-1 text-xs text-amber-700">
+              Roles ({roleSlugs.join(", ") || "none"}) cannot run QC pass/fail.
+            </p>
+          ) : null}
         </div>
 
         <Button
@@ -1554,7 +2538,13 @@ export function TicketFlow({
             isLoadingCreateItems ||
             isLoadingCreateItemPage ||
             isLoadingReviewTickets ||
-            isLoadingReviewTransitions
+            isLoadingWorkTickets ||
+            isLoadingQcTickets ||
+            isLoadingTechnicians ||
+            isLoadingReviewTransitions ||
+            isLoadingWorkTransitions ||
+            isLoadingWorkSessionHistory ||
+            isLoadingQcTransitions
           }
         >
           <RefreshCcw className="mr-2 h-4 w-4" />
@@ -1609,11 +2599,45 @@ export function TicketFlow({
             Review Tickets
           </span>
         </button>
+
+        <button
+          type="button"
+          onClick={() => navigate({ name: "work" })}
+          className={cn(
+            "rounded-md border px-3 py-2 text-sm font-medium transition",
+            activeMenu === "work"
+              ? "border-slate-900 bg-slate-900 text-white"
+              : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
+          )}
+        >
+          <span className="inline-flex items-center gap-2">
+            <ClipboardCheck className="h-4 w-4" />
+            Technician Work
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => navigate({ name: "qc" })}
+          className={cn(
+            "rounded-md border px-3 py-2 text-sm font-medium transition",
+            activeMenu === "qc"
+              ? "border-slate-900 bg-slate-900 text-white"
+              : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
+          )}
+        >
+          <span className="inline-flex items-center gap-2">
+            <ClipboardCheck className="h-4 w-4" />
+            QC Queue
+          </span>
+        </button>
       </div>
 
       {route.name === "createList" ? renderCreateListPage() : null}
       {route.name === "createItem" ? renderCreateItemPage() : null}
       {route.name === "review" ? renderReviewPage() : null}
+      {route.name === "work" ? renderWorkPage() : null}
+      {route.name === "qc" ? renderQcPage() : null}
     </section>
   );
 }

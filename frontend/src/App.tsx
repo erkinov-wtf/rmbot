@@ -5,10 +5,12 @@ import {
   Server,
   ShieldCheck,
   Ticket,
+  Users,
   UserRound,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { AccessRequestsAdmin } from "@/components/account/access-requests-admin";
 import { LoginForm } from "@/components/auth/login-form";
 import { InventoryAdmin } from "@/components/inventory/inventory-admin";
 import { TicketFlow } from "@/components/ticket/ticket-flow";
@@ -30,13 +32,19 @@ import { cn } from "@/lib/utils";
 
 type HealthState = "idle" | "loading" | "ok" | "error";
 type ProfileState = "idle" | "loading" | "ok" | "error";
-type Section = "inventory" | "tickets" | "system";
+type Section = "inventory" | "tickets" | "access_requests" | "system";
 
 const INVENTORY_MANAGE_ROLES = new Set(["super_admin", "ops_manager", "master"]);
 const TICKET_CREATE_ROLES = new Set(["super_admin", "master"]);
 const TICKET_REVIEW_ROLES = new Set(["super_admin", "ops_manager"]);
+const TICKET_WORK_ROLES = new Set(["super_admin", "technician"]);
+const TICKET_QC_ROLES = new Set(["super_admin", "qc_inspector"]);
+const ACCESS_REQUEST_MANAGE_ROLES = new Set(["super_admin", "ops_manager"]);
 
 function parseSectionFromPath(pathname: string): Section {
+  if (pathname.startsWith("/access-requests")) {
+    return "access_requests";
+  }
   if (pathname.startsWith("/tickets")) {
     return "tickets";
   }
@@ -47,6 +55,9 @@ function parseSectionFromPath(pathname: string): Section {
 }
 
 function sectionRootPath(section: Section): string {
+  if (section === "access_requests") {
+    return "/access-requests";
+  }
   if (section === "tickets") {
     return "/tickets/create";
   }
@@ -113,6 +124,18 @@ export default function App() {
   );
   const canReviewTicket = useMemo(
     () => effectiveRoleSlugs.some((slug) => TICKET_REVIEW_ROLES.has(slug)),
+    [effectiveRoleSlugs],
+  );
+  const canWorkTicket = useMemo(
+    () => effectiveRoleSlugs.some((slug) => TICKET_WORK_ROLES.has(slug)),
+    [effectiveRoleSlugs],
+  );
+  const canQcTicket = useMemo(
+    () => effectiveRoleSlugs.some((slug) => TICKET_QC_ROLES.has(slug)),
+    [effectiveRoleSlugs],
+  );
+  const canManageAccessRequests = useMemo(
+    () => effectiveRoleSlugs.some((slug) => ACCESS_REQUEST_MANAGE_ROLES.has(slug)),
     [effectiveRoleSlugs],
   );
 
@@ -297,6 +320,22 @@ export default function App() {
               type="button"
               className={cn(
                 "w-full rounded-md border px-3 py-2 text-left text-sm transition",
+                section === "access_requests"
+                  ? "border-slate-900 bg-slate-900 text-white"
+                  : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
+              )}
+              onClick={() => navigateSection("access_requests")}
+            >
+              <span className="inline-flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                Access Requests
+              </span>
+            </button>
+
+            <button
+              type="button"
+              className={cn(
+                "w-full rounded-md border px-3 py-2 text-left text-sm transition",
                 section === "system"
                   ? "border-slate-900 bg-slate-900 text-white"
                   : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
@@ -390,8 +429,18 @@ export default function App() {
           ) : section === "tickets" ? (
             <TicketFlow
               accessToken={session.accessToken}
+              currentUserId={currentUser?.id ?? null}
               canCreate={canCreateTicket}
               canReview={canReviewTicket}
+              canWork={canWorkTicket}
+              canQc={canQcTicket}
+              roleTitles={effectiveRoleTitles}
+              roleSlugs={effectiveRoleSlugs}
+            />
+          ) : section === "access_requests" ? (
+            <AccessRequestsAdmin
+              accessToken={session.accessToken}
+              canManage={canManageAccessRequests}
               roleTitles={effectiveRoleTitles}
               roleSlugs={effectiveRoleSlugs}
             />
@@ -402,8 +451,9 @@ export default function App() {
                 System Overview
               </p>
               <p className="mt-2 text-sm text-slate-700">
-                Use the <strong>Inventory</strong> menu for stock data and the{" "}
-                <strong>Tickets</strong> menu for intake and review workflow.
+                Use the <strong>Inventory</strong> menu for stock data,{" "}
+                <strong>Tickets</strong> for intake/review workflow, and{" "}
+                <strong>Access Requests</strong> to approve or reject bot onboarding.
               </p>
             </section>
           )}

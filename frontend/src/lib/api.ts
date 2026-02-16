@@ -146,6 +146,62 @@ export type TicketTransition = {
   created_at: string;
 };
 
+export type WorkSessionStatus = "running" | "paused" | "stopped";
+
+export type WorkSession = {
+  id: number;
+  ticket: number;
+  technician: number;
+  status: WorkSessionStatus;
+  started_at: string;
+  last_started_at: string | null;
+  ended_at: string | null;
+  active_seconds: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type WorkSessionTransitionAction =
+  | "started"
+  | "paused"
+  | "resumed"
+  | "stopped";
+
+export type WorkSessionTransition = {
+  id: number;
+  work_session: number;
+  ticket: number;
+  from_status: WorkSessionStatus | null;
+  to_status: WorkSessionStatus;
+  action: WorkSessionTransitionAction;
+  actor: number | null;
+  event_at: string;
+  metadata: Record<string, unknown>;
+  created_at: string;
+};
+
+export type TechnicianOption = {
+  user_id: number;
+  name: string;
+  username: string;
+  level: number;
+};
+
+export type AccessRequestStatus = "pending" | "approved" | "rejected";
+
+export type AccessRequest = {
+  id: number;
+  telegram_id: number;
+  username: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  phone: string | null;
+  note: string | null;
+  status: AccessRequestStatus;
+  created_at: string;
+  resolved_at: string | null;
+};
+
 export type InventoryItemQuery = {
   q?: string;
   status?: InventoryItemStatus;
@@ -554,6 +610,43 @@ export async function createTicket(
   return extractData<Ticket>(payload);
 }
 
+export async function listTechnicianOptions(
+  accessToken: string,
+): Promise<TechnicianOption[]> {
+  const payload = await apiRequest<unknown>("analytics/team/", { accessToken });
+  const data = extractData<unknown>(payload);
+
+  const root =
+    data && typeof data === "object" ? (data as Record<string, unknown>) : null;
+  const members = Array.isArray(root?.members) ? root.members : [];
+
+  return members
+    .map((member) => {
+      if (!member || typeof member !== "object") {
+        return null;
+      }
+      const row = member as Record<string, unknown>;
+      const userId = row.user_id;
+      const username = row.username;
+
+      if (typeof userId !== "number" || typeof username !== "string") {
+        return null;
+      }
+
+      const name = typeof row.name === "string" ? row.name : username;
+      const level = typeof row.level === "number" ? row.level : 1;
+
+      return {
+        user_id: userId,
+        name: name.trim() || username,
+        username,
+        level,
+      } satisfies TechnicianOption;
+    })
+    .filter((row): row is TechnicianOption => row !== null)
+    .sort((left, right) => left.name.localeCompare(right.name));
+}
+
 export async function listTicketTransitions(
   accessToken: string,
   ticketId: number,
@@ -569,6 +662,122 @@ export async function listTicketTransitions(
   return extractResults<TicketTransition>(payload);
 }
 
+export async function reviewApproveTicket(
+  accessToken: string,
+  ticketId: number,
+): Promise<Ticket> {
+  const payload = await apiRequest<unknown>(`tickets/${ticketId}/review-approve/`, {
+    method: "POST",
+    accessToken,
+  });
+  return extractData<Ticket>(payload);
+}
+
+export async function assignTicket(
+  accessToken: string,
+  ticketId: number,
+  technicianId: number,
+): Promise<Ticket> {
+  const payload = await apiRequest<unknown>(`tickets/${ticketId}/assign/`, {
+    method: "POST",
+    accessToken,
+    body: { technician_id: technicianId },
+  });
+  return extractData<Ticket>(payload);
+}
+
+export async function startTicketWork(
+  accessToken: string,
+  ticketId: number,
+): Promise<Ticket> {
+  const payload = await apiRequest<unknown>(`tickets/${ticketId}/start/`, {
+    method: "POST",
+    accessToken,
+  });
+  return extractData<Ticket>(payload);
+}
+
+export async function moveTicketToWaitingQc(
+  accessToken: string,
+  ticketId: number,
+): Promise<Ticket> {
+  const payload = await apiRequest<unknown>(`tickets/${ticketId}/to-waiting-qc/`, {
+    method: "POST",
+    accessToken,
+  });
+  return extractData<Ticket>(payload);
+}
+
+export async function pauseTicketWorkSession(
+  accessToken: string,
+  ticketId: number,
+): Promise<WorkSession> {
+  const payload = await apiRequest<unknown>(`tickets/${ticketId}/work-session/pause/`, {
+    method: "POST",
+    accessToken,
+  });
+  return extractData<WorkSession>(payload);
+}
+
+export async function resumeTicketWorkSession(
+  accessToken: string,
+  ticketId: number,
+): Promise<WorkSession> {
+  const payload = await apiRequest<unknown>(`tickets/${ticketId}/work-session/resume/`, {
+    method: "POST",
+    accessToken,
+  });
+  return extractData<WorkSession>(payload);
+}
+
+export async function stopTicketWorkSession(
+  accessToken: string,
+  ticketId: number,
+): Promise<WorkSession> {
+  const payload = await apiRequest<unknown>(`tickets/${ticketId}/work-session/stop/`, {
+    method: "POST",
+    accessToken,
+  });
+  return extractData<WorkSession>(payload);
+}
+
+export async function listTicketWorkSessionHistory(
+  accessToken: string,
+  ticketId: number,
+  query: { page?: number; per_page?: number } = {},
+): Promise<WorkSessionTransition[]> {
+  const payload = await apiRequest<unknown>(
+    withQuery(`tickets/${ticketId}/work-session/history/`, {
+      page: query.page,
+      per_page: query.per_page ?? 100,
+    }),
+    { accessToken },
+  );
+  return extractResults<WorkSessionTransition>(payload);
+}
+
+export async function qcPassTicket(
+  accessToken: string,
+  ticketId: number,
+): Promise<Ticket> {
+  const payload = await apiRequest<unknown>(`tickets/${ticketId}/qc-pass/`, {
+    method: "POST",
+    accessToken,
+  });
+  return extractData<Ticket>(payload);
+}
+
+export async function qcFailTicket(
+  accessToken: string,
+  ticketId: number,
+): Promise<Ticket> {
+  const payload = await apiRequest<unknown>(`tickets/${ticketId}/qc-fail/`, {
+    method: "POST",
+    accessToken,
+  });
+  return extractData<Ticket>(payload);
+}
+
 export async function reviewTicketManualMetrics(
   accessToken: string,
   ticketId: number,
@@ -580,4 +789,49 @@ export async function reviewTicketManualMetrics(
     body,
   });
   return extractData<Ticket>(payload);
+}
+
+export async function listAccessRequests(
+  accessToken: string,
+  query: {
+    status?: AccessRequestStatus;
+    ordering?: "-created_at" | "created_at" | "-resolved_at" | "resolved_at";
+    page?: number;
+    per_page?: number;
+  } = {},
+): Promise<AccessRequest[]> {
+  const payload = await apiRequest<unknown>(
+    withQuery("users/access-requests/", {
+      status: query.status,
+      ordering: query.ordering,
+      page: query.page,
+      per_page: query.per_page ?? 200,
+    }),
+    { accessToken },
+  );
+  return extractResults<AccessRequest>(payload);
+}
+
+export async function approveAccessRequest(
+  accessToken: string,
+  id: number,
+  roleSlugs: string[] = [],
+): Promise<AccessRequest> {
+  const payload = await apiRequest<unknown>(`users/access-requests/${id}/approve/`, {
+    method: "POST",
+    accessToken,
+    body: { role_slugs: roleSlugs },
+  });
+  return extractData<AccessRequest>(payload);
+}
+
+export async function rejectAccessRequest(
+  accessToken: string,
+  id: number,
+): Promise<AccessRequest> {
+  const payload = await apiRequest<unknown>(`users/access-requests/${id}/reject/`, {
+    method: "POST",
+    accessToken,
+  });
+  return extractData<AccessRequest>(payload);
 }
