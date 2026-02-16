@@ -916,6 +916,7 @@ export async function listAttendanceRecords(
     withQuery("attendance/records/", {
       work_date: query.work_date,
       user_id: query.user_id,
+      technician_id: query.user_id,
       punctuality: query.punctuality,
       ordering: query.ordering ?? "user_id",
       page: query.page,
@@ -933,7 +934,7 @@ export async function attendanceCheckIn(
   const payload = await apiRequest<unknown>("attendance/checkin/", {
     method: "POST",
     accessToken,
-    body: { user_id: userId },
+    body: { user_id: userId, technician_id: userId },
   });
   return extractData<{ attendance: AttendanceRecord; xp_awarded: number }>(payload);
 }
@@ -945,7 +946,7 @@ export async function attendanceCheckOut(
   const payload = await apiRequest<unknown>("attendance/checkout/", {
     method: "POST",
     accessToken,
-    body: { user_id: userId },
+    body: { user_id: userId, technician_id: userId },
   });
   return extractData<AttendanceRecord>(payload);
 }
