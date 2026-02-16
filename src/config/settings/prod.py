@@ -4,6 +4,7 @@ from . import base as base_settings
 
 DEBUG = False
 BOT_MODE = "webhook"
+CORS_ALLOW_ALL_ORIGINS = True
 
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(hours=6),

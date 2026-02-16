@@ -36,7 +36,15 @@ SECRET_KEY = config(
     "DJANGO_SECRET_KEY",
     default="django-insecure-change-me-please-use-a-long-secret-key-for-local-dev",
 )
-ALLOWED_HOSTS = config("ALLOWED_HOSTS", default="").split(",")
+def _split_csv_env(name: str, *, default: str = "") -> list[str]:
+    raw_value = config(name, default=default)
+    return [item.strip() for item in str(raw_value).split(",") if item.strip()]
+
+
+ALLOWED_HOSTS = _split_csv_env("ALLOWED_HOSTS")
+CORS_ALLOWED_ORIGINS = _split_csv_env("CORS_ALLOWED_ORIGINS")
+CORS_ALLOW_ALL_ORIGINS = config("CORS_ALLOW_ALL_ORIGINS", default=False, cast=bool)
+CORS_ALLOW_CREDENTIALS = config("CORS_ALLOW_CREDENTIALS", default=True, cast=bool)
 
 DATABASE_URL = config("DATABASE_URL", default="")
 TEST_DATABASE_URL = config("TEST_DATABASE_URL", default="sqlite:///:memory:")

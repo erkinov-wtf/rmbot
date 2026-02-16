@@ -21,6 +21,15 @@ export default function App() {
       setHealthMessage(`Backend is reachable. Status: ${payload.status}.`);
     } catch (error) {
       setHealthState("error");
+      if (
+        error instanceof TypeError &&
+        error.message.toLowerCase().includes("fetch")
+      ) {
+        setHealthMessage(
+          "Request failed at browser level (likely CORS or backend not reachable).",
+        );
+        return;
+      }
       setHealthMessage(
         error instanceof Error
           ? error.message
