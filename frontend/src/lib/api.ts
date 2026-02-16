@@ -139,11 +139,14 @@ export type Ticket = {
   id: number;
   inventory_item: number;
   master: number;
+  master_name?: string | null;
   technician: number | null;
+  technician_name?: string | null;
   title: string | null;
   ticket_parts: TicketPartSpec[];
   total_duration: number;
   approved_by: number | null;
+  approved_by_name?: string | null;
   approved_at: string | null;
   flag_minutes: number;
   flag_color: TicketColor;
@@ -164,6 +167,8 @@ export type TicketTransition = {
   to_status: TicketStatus;
   action: string;
   actor: number | null;
+  actor_username?: string | null;
+  actor_name?: string | null;
   note: string | null;
   metadata: Record<string, unknown>;
   created_at: string;
@@ -198,6 +203,8 @@ export type WorkSessionTransition = {
   to_status: WorkSessionStatus;
   action: WorkSessionTransitionAction;
   actor: number | null;
+  actor_username?: string | null;
+  actor_name?: string | null;
   event_at: string;
   metadata: Record<string, unknown>;
   created_at: string;
@@ -659,6 +666,16 @@ export async function listTickets(
     { accessToken },
   );
   return extractResults<Ticket>(payload);
+}
+
+export async function getTicket(
+  accessToken: string,
+  id: number,
+): Promise<Ticket> {
+  const payload = await apiRequest<unknown>(`tickets/${id}/`, {
+    accessToken,
+  });
+  return extractData<Ticket>(payload);
 }
 
 export async function createTicket(

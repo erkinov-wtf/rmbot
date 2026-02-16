@@ -254,7 +254,7 @@ export default function App() {
   return (
     <main className="rm-shell">
       <div className="mx-auto grid w-full max-w-[1480px] gap-4 lg:grid-cols-[248px_1fr]">
-        <aside className="rm-panel rm-animate-enter sticky top-4 h-fit p-4">
+        <aside className="rm-panel rm-animate-enter sticky top-4 h-fit p-4 lg:flex lg:h-[calc(100svh-2rem)] lg:flex-col">
           <p
             className={cn(
               "inline-flex items-center gap-2 rounded-full bg-cyan-50 px-3 py-1",
@@ -266,7 +266,7 @@ export default function App() {
           </p>
           <p className="mt-2 text-sm text-slate-700">Operations workspace</p>
 
-          <div className="mt-4 space-y-2">
+          <div className="mt-4 space-y-2 lg:flex-1">
             <button
               type="button"
               className={cn(
@@ -348,19 +348,8 @@ export default function App() {
             </button>
           </div>
 
-          <Button
-            variant="outline"
-            className="mt-4 h-10 w-full"
-            onClick={() => logout()}
-          >
-            <LogOut className="mr-2 h-4 w-4" />
-            Logout
-          </Button>
-        </aside>
-
-        <section className="space-y-4">
-          <header className="rm-panel rm-animate-enter p-4">
-            <div>
+          <div className="mt-4 space-y-3 border-t border-slate-200/80 pt-3 lg:mt-auto">
+            <div className="rm-subpanel p-3">
               <p className="text-sm font-semibold text-slate-900">{displayName}</p>
               {currentUser ? (
                 <p className="text-xs text-slate-500">@{currentUser.username}</p>
@@ -381,12 +370,23 @@ export default function App() {
               </div>
             </div>
 
-            {profileState === "error" ? (
-              <p className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
-                {profileMessage}
-              </p>
-            ) : null}
-          </header>
+            <Button
+              variant="outline"
+              className="h-10 w-full"
+              onClick={() => logout()}
+            >
+              <LogOut className="mr-2 h-4 w-4" />
+              Logout
+            </Button>
+          </div>
+        </aside>
+
+        <section className="space-y-4">
+          {profileState === "error" ? (
+            <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+              {profileMessage}
+            </p>
+          ) : null}
 
           {section === "inventory" ? (
             <InventoryAdmin

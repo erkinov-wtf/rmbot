@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import {
   assignTicket,
   createTicket,
+  getTicket,
   getInventoryItem,
   listAllCategories,
   listInventoryItems,
@@ -65,6 +66,7 @@ type FeedbackState =
 type TicketRoute =
   | { name: "createList" }
   | { name: "createItem"; itemId: number }
+  | { name: "historyTicket"; ticketId: number }
   | { name: "review" }
   | { name: "work" }
   | { name: "qc" };
@@ -81,6 +83,18 @@ type PartSpecFormState = {
   color: TicketColor;
   minutes: string;
   comment: string;
+};
+
+type AuditTimelineEvent = {
+  key: string;
+  source: "workflow" | "work_session";
+  action: string;
+  fromStatus: string | null;
+  toStatus: string;
+  actorLabel: string;
+  note: string | null;
+  at: string;
+  metadata: Record<string, unknown>;
 };
 
 const DEFAULT_ITEM_FILTERS: ItemFilterState = {
@@ -135,12 +149,48 @@ function formatDate(value: string | null): string {
   return parsed.toLocaleString();
 }
 
+function formatTokenLabel(value: string | null): string {
+  if (!value) {
+    return "-";
+  }
+  return value
+    .split("_")
+    .filter(Boolean)
+    .map((token) => token[0].toUpperCase() + token.slice(1))
+    .join(" ");
+}
+
+function formatMetadataValue(value: unknown): string {
+  if (value === null || value === undefined) {
+    return "-";
+  }
+  if (typeof value === "string") {
+    return value;
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
 function parseTicketRoute(pathname: string): TicketRoute {
   const createItemMatch = pathname.match(/^\/tickets\/create\/item\/(\d+)\/?$/);
   if (createItemMatch) {
     const parsedId = Number(createItemMatch[1]);
     if (Number.isFinite(parsedId) && parsedId > 0) {
       return { name: "createItem", itemId: parsedId };
+    }
+  }
+
+  const historyTicketMatch = pathname.match(/^\/tickets\/history\/(\d+)\/?$/);
+  if (historyTicketMatch) {
+    const parsedId = Number(historyTicketMatch[1]);
+    if (Number.isFinite(parsedId) && parsedId > 0) {
+      return { name: "historyTicket", ticketId: parsedId };
     }
   }
 
@@ -173,6 +223,9 @@ function toTicketPath(route: TicketRoute): string {
   }
   if (route.name === "createItem") {
     return `/tickets/create/item/${route.itemId}`;
+  }
+  if (route.name === "historyTicket") {
+    return `/tickets/history/${route.ticketId}`;
   }
   return "/tickets/create";
 }
@@ -270,6 +323,13 @@ export function TicketFlow({
     Record<number, PartSpecFormState>
   >({});
   const [isLoadingCreateItemPage, setIsLoadingCreateItemPage] = useState(false);
+  const [historyTicket, setHistoryTicket] = useState<TicketModel | null>(null);
+  const [historyItem, setHistoryItem] = useState<InventoryItem | null>(null);
+  const [historyTransitions, setHistoryTransitions] = useState<TicketTransition[]>([]);
+  const [historyWorkSessionHistory, setHistoryWorkSessionHistory] = useState<
+    WorkSessionTransition[]
+  >([]);
+  const [isLoadingHistoryTicket, setIsLoadingHistoryTicket] = useState(false);
 
   const [reviewTickets, setReviewTickets] = useState<TicketModel[]>([]);
   const [isLoadingReviewTickets, setIsLoadingReviewTickets] = useState(false);
@@ -360,6 +420,110 @@ export function TicketFlow({
       ),
     [technicianOptions],
   );
+
+  const historyUserLabelById = useMemo(() => {
+    const map = new Map<number, string>();
+    technicianLabelById.forEach((value, key) => {
+      map.set(key, value);
+    });
+
+    if (historyTicket?.master) {
+      map.set(
+        historyTicket.master,
+        historyTicket.master_name?.trim() || map.get(historyTicket.master) || `User #${historyTicket.master}`,
+      );
+    }
+    if (historyTicket?.technician) {
+      map.set(
+        historyTicket.technician,
+        historyTicket.technician_name?.trim() ||
+          map.get(historyTicket.technician) ||
+          `User #${historyTicket.technician}`,
+      );
+    }
+    if (historyTicket?.approved_by) {
+      map.set(
+        historyTicket.approved_by,
+        historyTicket.approved_by_name?.trim() ||
+          map.get(historyTicket.approved_by) ||
+          `User #${historyTicket.approved_by}`,
+      );
+    }
+    return map;
+  }, [historyTicket, technicianLabelById]);
+
+  const resolveHistoryActorLabel = useCallback(
+    (
+      actorId: number | null,
+      actorName?: string | null,
+      actorUsername?: string | null,
+    ): string => {
+      const normalizedName = actorName?.trim();
+      if (normalizedName) {
+        return normalizedName;
+      }
+
+      const normalizedUsername = actorUsername?.trim();
+      if (normalizedUsername) {
+        return `@${normalizedUsername}`;
+      }
+
+      if (actorId !== null) {
+        return historyUserLabelById.get(actorId) ?? `User #${actorId}`;
+      }
+
+      return "System";
+    },
+    [historyUserLabelById],
+  );
+
+  const historyTimeline = useMemo<AuditTimelineEvent[]>(() => {
+    const workflowEvents: AuditTimelineEvent[] = historyTransitions.map((transition) => ({
+      key: `wf-${transition.id}`,
+      source: "workflow",
+      action: transition.action,
+      fromStatus: transition.from_status,
+      toStatus: transition.to_status,
+      actorLabel: resolveHistoryActorLabel(
+        transition.actor,
+        transition.actor_name,
+        transition.actor_username,
+      ),
+      note: transition.note,
+      at: transition.created_at,
+      metadata: transition.metadata ?? {},
+    }));
+
+    const workSessionEvents: AuditTimelineEvent[] = historyWorkSessionHistory.map(
+      (event) => ({
+        key: `ws-${event.id}`,
+        source: "work_session",
+        action: event.action,
+        fromStatus: event.from_status,
+        toStatus: event.to_status,
+        actorLabel: resolveHistoryActorLabel(
+          event.actor,
+          event.actor_name,
+          event.actor_username,
+        ),
+        note: null,
+        at: event.event_at,
+        metadata: event.metadata ?? {},
+      }),
+    );
+
+    return [...workflowEvents, ...workSessionEvents].sort((left, right) => {
+      const leftTsRaw = new Date(left.at).valueOf();
+      const rightTsRaw = new Date(right.at).valueOf();
+      const leftTs = Number.isFinite(leftTsRaw) ? leftTsRaw : 0;
+      const rightTs = Number.isFinite(rightTsRaw) ? rightTsRaw : 0;
+      return rightTs - leftTs;
+    });
+  }, [
+    historyTransitions,
+    historyWorkSessionHistory,
+    resolveHistoryActorLabel,
+  ]);
 
   const hasPendingItemFilterChanges = useMemo(
     () => !areItemFiltersEqual(itemFilters, appliedItemFilters),
@@ -644,6 +808,48 @@ export function TicketFlow({
     [accessToken, cacheInventoryItems],
   );
 
+  const loadHistoryTicketPage = useCallback(
+    async (ticketId: number) => {
+      setIsLoadingHistoryTicket(true);
+      try {
+        const [ticket, transitions, workHistory] = await Promise.all([
+          getTicket(accessToken, ticketId),
+          listTicketTransitions(accessToken, ticketId, { per_page: 300 }),
+          listTicketWorkSessionHistory(accessToken, ticketId, { per_page: 300 }),
+        ]);
+
+        setHistoryTicket(ticket);
+        setHistoryTransitions(transitions);
+        setHistoryWorkSessionHistory(workHistory);
+
+        const cachedItem = inventoryCache[ticket.inventory_item];
+        if (cachedItem) {
+          setHistoryItem(cachedItem);
+        } else {
+          try {
+            const item = await getInventoryItem(accessToken, ticket.inventory_item);
+            setHistoryItem(item);
+            cacheInventoryItems([item]);
+          } catch {
+            setHistoryItem(null);
+          }
+        }
+      } catch (error) {
+        setHistoryTicket(null);
+        setHistoryItem(null);
+        setHistoryTransitions([]);
+        setHistoryWorkSessionHistory([]);
+        setFeedback({
+          type: "error",
+          message: toErrorMessage(error, "Failed to load ticket full details."),
+        });
+      } finally {
+        setIsLoadingHistoryTicket(false);
+      }
+    },
+    [accessToken, cacheInventoryItems, inventoryCache],
+  );
+
   const loadReviewTickets = useCallback(async () => {
     setIsLoadingReviewTickets(true);
     try {
@@ -882,6 +1088,18 @@ export function TicketFlow({
   }, [loadCreateItemPage, route]);
 
   useEffect(() => {
+    if (route.name !== "historyTicket") {
+      setHistoryTicket(null);
+      setHistoryItem(null);
+      setHistoryTransitions([]);
+      setHistoryWorkSessionHistory([]);
+      return;
+    }
+
+    void loadHistoryTicketPage(route.ticketId);
+  }, [loadHistoryTicketPage, route]);
+
+  useEffect(() => {
     if (route.name !== "review") {
       setReviewTransitions([]);
       setReviewItem(null);
@@ -1017,6 +1235,10 @@ export function TicketFlow({
 
     if (route.name === "createItem") {
       await Promise.all([loadCategories(), loadCreateItemPage(route.itemId)]);
+      return;
+    }
+    if (route.name === "historyTicket") {
+      await loadHistoryTicketPage(route.ticketId);
       return;
     }
     if (route.name === "review") {
@@ -1576,9 +1798,13 @@ export function TicketFlow({
             {selectedItemTicketHistory.length ? (
               <div className="mt-3 space-y-2">
                 {selectedItemTicketHistory.map((ticket) => (
-                  <div
+                  <button
                     key={ticket.id}
-                    className="rounded-md border border-slate-200 bg-white p-3"
+                    type="button"
+                    onClick={() =>
+                      navigate({ name: "historyTicket", ticketId: ticket.id })
+                    }
+                    className="w-full rounded-md border border-slate-200 bg-white p-3 text-left transition hover:border-slate-300 hover:bg-slate-50"
                   >
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="text-sm font-semibold text-slate-900">Ticket #{ticket.id}</p>
@@ -1597,7 +1823,10 @@ export function TicketFlow({
                     <p className="mt-1 text-xs text-slate-600">
                       Total Minutes: {ticket.total_duration} | Flag: {ticketColorLabelByValue.get(ticket.flag_color) ?? ticket.flag_color}
                     </p>
-                  </div>
+                    <p className="mt-2 text-xs font-semibold text-slate-800">
+                      Open full ticket details
+                    </p>
+                  </button>
                 ))}
               </div>
             ) : (
@@ -1779,6 +2008,306 @@ export function TicketFlow({
                 ) : null}
               </div>
             </form>
+          </section>
+        </div>
+      </div>
+    );
+  };
+
+  const renderHistoryTicketPage = () => {
+    if (isLoadingHistoryTicket) {
+      return (
+        <section className="mt-4 rounded-lg border border-slate-200 p-4">
+          <p className="text-sm text-slate-600">Loading full ticket details...</p>
+        </section>
+      );
+    }
+
+    if (!historyTicket) {
+      return (
+        <section className="mt-4 rounded-lg border border-dashed border-slate-300 p-6 text-center">
+          <p className="text-sm text-slate-600">Ticket details were not found.</p>
+          <Button
+            type="button"
+            variant="outline"
+            className="mt-3 h-10"
+            onClick={() => navigate({ name: "createList" })}
+          >
+            Back to Ticket Create
+          </Button>
+        </section>
+      );
+    }
+
+    const ticketStatusLabel =
+      ticketStatusLabelByValue.get(historyTicket.status) ?? historyTicket.status;
+    const itemSerial = historyItem?.serial_number ?? `Item #${historyTicket.inventory_item}`;
+    const masterLabel = resolveHistoryActorLabel(
+      historyTicket.master,
+      historyTicket.master_name,
+    );
+    const technicianLabel = historyTicket.technician
+      ? resolveHistoryActorLabel(
+          historyTicket.technician,
+          historyTicket.technician_name,
+        )
+      : "Not assigned";
+    const approvedByLabel = historyTicket.approved_by
+      ? resolveHistoryActorLabel(
+          historyTicket.approved_by,
+          historyTicket.approved_by_name,
+        )
+      : "Not approved yet";
+    const pauseCount = historyWorkSessionHistory.filter(
+      (entry) => entry.action === "paused",
+    ).length;
+    const resumeCount = historyWorkSessionHistory.filter(
+      (entry) => entry.action === "resumed",
+    ).length;
+    const stopCount = historyWorkSessionHistory.filter(
+      (entry) => entry.action === "stopped",
+    ).length;
+
+    return (
+      <div className="mt-4 space-y-4">
+        <button
+          type="button"
+          onClick={() =>
+            navigate({ name: "createItem", itemId: historyTicket.inventory_item })
+          }
+          className="inline-flex items-center gap-1 text-sm font-medium text-slate-600 transition hover:text-slate-900"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to item ticket history
+        </button>
+
+        <section className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-xl font-semibold text-slate-900">
+              Ticket #{historyTicket.id}
+            </p>
+            <span
+              className={cn(
+                "rounded-full border px-2 py-0.5 text-xs font-medium",
+                ticketStatusBadgeClass(historyTicket.status),
+              )}
+            >
+              {ticketStatusLabel}
+            </span>
+          </div>
+          <p className="mt-1 text-sm text-slate-700">{historyTicket.title || "No title"}</p>
+          <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-600">
+            <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5">
+              Item: {itemSerial}
+            </span>
+            <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5">
+              Opened {formatDate(historyTicket.created_at)} by {masterLabel}
+            </span>
+          </div>
+        </section>
+
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Workflow Events
+            </p>
+            <p className="mt-1 text-lg font-semibold text-slate-900">
+              {historyTransitions.length}
+            </p>
+          </div>
+          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Work Session Events
+            </p>
+            <p className="mt-1 text-lg font-semibold text-slate-900">
+              {historyWorkSessionHistory.length}
+            </p>
+          </div>
+          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Pauses / Resumes
+            </p>
+            <p className="mt-1 text-lg font-semibold text-slate-900">
+              {pauseCount} / {resumeCount}
+            </p>
+          </div>
+          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Stops
+            </p>
+            <p className="mt-1 text-lg font-semibold text-slate-900">{stopCount}</p>
+          </div>
+        </section>
+
+        <div className="grid gap-4 xl:grid-cols-[1fr_1.2fr]">
+          <div className="space-y-4">
+            <section className="rounded-lg border border-slate-200 p-4">
+              <p className="text-sm font-semibold text-slate-900">Ticket Snapshot</p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
+                  <p className="text-xs text-slate-500">Master</p>
+                  <p className="text-sm font-medium text-slate-900">{masterLabel}</p>
+                </div>
+                <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
+                  <p className="text-xs text-slate-500">Technician</p>
+                  <p className="text-sm font-medium text-slate-900">{technicianLabel}</p>
+                </div>
+                <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
+                  <p className="text-xs text-slate-500">Approved By</p>
+                  <p className="text-sm font-medium text-slate-900">{approvedByLabel}</p>
+                </div>
+                <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
+                  <p className="text-xs text-slate-500">Flag / XP</p>
+                  <p className="text-sm font-medium text-slate-900">
+                    {formatTokenLabel(historyTicket.flag_color)} / {historyTicket.xp_amount}
+                  </p>
+                </div>
+                <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
+                  <p className="text-xs text-slate-500">Created</p>
+                  <p className="text-sm font-medium text-slate-900">
+                    {formatDate(historyTicket.created_at)}
+                  </p>
+                </div>
+                <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
+                  <p className="text-xs text-slate-500">Assigned</p>
+                  <p className="text-sm font-medium text-slate-900">
+                    {formatDate(historyTicket.assigned_at)}
+                  </p>
+                </div>
+                <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
+                  <p className="text-xs text-slate-500">Started</p>
+                  <p className="text-sm font-medium text-slate-900">
+                    {formatDate(historyTicket.started_at)}
+                  </p>
+                </div>
+                <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
+                  <p className="text-xs text-slate-500">Finished</p>
+                  <p className="text-sm font-medium text-slate-900">
+                    {formatDate(historyTicket.finished_at)}
+                  </p>
+                </div>
+                <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
+                  <p className="text-xs text-slate-500">Total Minutes</p>
+                  <p className="text-sm font-medium text-slate-900">
+                    {historyTicket.total_duration}
+                  </p>
+                </div>
+                <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
+                  <p className="text-xs text-slate-500">Manual Metrics</p>
+                  <p className="text-sm font-medium text-slate-900">
+                    {historyTicket.is_manual ? "Yes" : "No"}
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            <section className="rounded-lg border border-slate-200 p-4">
+              <p className="text-sm font-semibold text-slate-900">Selected Part Specs</p>
+              {historyTicket.ticket_parts.length ? (
+                <div className="mt-3 space-y-2">
+                  {historyTicket.ticket_parts.map((part) => (
+                    <div
+                      key={part.id}
+                      className="rounded-md border border-slate-200 bg-slate-50 p-3"
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-semibold text-slate-900">{part.part_name}</p>
+                        <span
+                          className={cn(
+                            "rounded-full border px-2 py-0.5 text-xs font-medium",
+                            ticketColorBadgeClass(part.color),
+                          )}
+                        >
+                          {ticketColorLabelByValue.get(part.color) ?? part.color}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs text-slate-600">Minutes: {part.minutes}</p>
+                      <p className="mt-1 text-xs text-slate-600">
+                        Comment: {part.comment || "-"}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-3 rounded-md border border-dashed border-slate-300 px-3 py-4 text-sm text-slate-500">
+                  No part specs found on this ticket.
+                </p>
+              )}
+            </section>
+          </div>
+
+          <section className="rounded-lg border border-slate-200 p-4">
+            <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
+              <History className="h-4 w-4" />
+              Full Activity Timeline
+            </p>
+            <p className="mt-1 text-xs text-slate-600">
+              Workflow changes and work-session events sorted by time.
+            </p>
+
+            {historyTimeline.length ? (
+              <div className="mt-3 space-y-2">
+                {historyTimeline.map((event) => {
+                  const metadataEntries = Object.entries(event.metadata ?? {});
+                  return (
+                    <div
+                      key={event.key}
+                      className="rounded-md border border-slate-200 bg-slate-50 p-3"
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span
+                          className={cn(
+                            "rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide",
+                            event.source === "workflow"
+                              ? "border-sky-200 bg-sky-100 text-sky-700"
+                              : "border-amber-200 bg-amber-100 text-amber-700",
+                          )}
+                        >
+                          {event.source === "workflow" ? "Workflow" : "Work Session"}
+                        </span>
+                        <p className="text-sm font-semibold text-slate-900">
+                          {formatTokenLabel(event.action)}
+                        </p>
+                      </div>
+
+                      <p className="mt-1 text-xs text-slate-600">
+                        Actor: {event.actorLabel}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-600">
+                        Status: {formatTokenLabel(event.fromStatus)} {"->"}{" "}
+                        {formatTokenLabel(event.toStatus)}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-600">
+                        At: {formatDate(event.at)}
+                      </p>
+                      {event.note ? (
+                        <p className="mt-1 text-xs text-slate-600">Note: {event.note}</p>
+                      ) : null}
+
+                      {metadataEntries.length ? (
+                        <div className="mt-2 grid gap-1 sm:grid-cols-2">
+                          {metadataEntries.map(([key, value]) => (
+                            <p
+                              key={`${event.key}-${key}`}
+                              className="rounded border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-600"
+                            >
+                              <span className="font-semibold text-slate-700">
+                                {formatTokenLabel(key)}:
+                              </span>{" "}
+                              {formatMetadataValue(value)}
+                            </p>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="mt-3 rounded-md border border-dashed border-slate-300 px-3 py-4 text-sm text-slate-500">
+                No ticket events found.
+              </p>
+            )}
           </section>
         </div>
       </div>
@@ -2537,6 +3066,7 @@ export function TicketFlow({
             isLoadingCategories ||
             isLoadingCreateItems ||
             isLoadingCreateItemPage ||
+            isLoadingHistoryTicket ||
             isLoadingReviewTickets ||
             isLoadingWorkTickets ||
             isLoadingQcTickets ||
@@ -2635,6 +3165,7 @@ export function TicketFlow({
 
       {route.name === "createList" ? renderCreateListPage() : null}
       {route.name === "createItem" ? renderCreateItemPage() : null}
+      {route.name === "historyTicket" ? renderHistoryTicketPage() : null}
       {route.name === "review" ? renderReviewPage() : null}
       {route.name === "work" ? renderWorkPage() : null}
       {route.name === "qc" ? renderQcPage() : null}

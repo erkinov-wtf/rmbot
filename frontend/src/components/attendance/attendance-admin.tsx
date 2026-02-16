@@ -38,6 +38,7 @@ type FeedbackState =
   | null;
 
 const fieldClassName = "rm-input";
+const BUSINESS_TIME_ZONE = import.meta.env.VITE_BUSINESS_TIMEZONE ?? "Asia/Tashkent";
 
 const PUNCTUALITY_OPTIONS: Array<{ value: AttendancePunctuality; label: string }> = [
   { value: "early", label: "Early" },
@@ -57,6 +58,27 @@ function toDateInputValue(date: Date): string {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function businessDateInTimeZone(now: Date): string {
+  try {
+    const formatter = new Intl.DateTimeFormat("en-CA", {
+      timeZone: BUSINESS_TIME_ZONE,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+    const parts = formatter.formatToParts(now);
+    const year = parts.find((part) => part.type === "year")?.value;
+    const month = parts.find((part) => part.type === "month")?.value;
+    const day = parts.find((part) => part.type === "day")?.value;
+    if (year && month && day) {
+      return `${year}-${month}-${day}`;
+    }
+  } catch {
+    // Fall back to local date if configured timezone is invalid.
+  }
+  return toDateInputValue(now);
 }
 
 function shiftDate(value: string, deltaDays: number): string {
@@ -119,9 +141,15 @@ export function AttendanceAdmin({
   roleTitles,
   roleSlugs,
 }: AttendanceAdminProps) {
-  const todayDate = useMemo(() => toDateInputValue(new Date()), []);
+  const [clockMs, setClockMs] = useState(() => Date.now());
+  const businessTodayDate = useMemo(
+    () => businessDateInTimeZone(new Date(clockMs)),
+    [clockMs],
+  );
 
-  const [workDate, setWorkDate] = useState(todayDate);
+  const [workDate, setWorkDate] = useState(() =>
+    businessDateInTimeZone(new Date()),
+  );
   const [filterUserId, setFilterUserId] = useState<number | "">("");
   const [actionUserId, setActionUserId] = useState<number | "">("");
   const [userSearch, setUserSearch] = useState("");
@@ -158,6 +186,11 @@ export function AttendanceAdmin({
     }
     return usersById.get(actionUserId) ?? null;
   }, [actionUserId, usersById]);
+
+  const isActionDateToday = useMemo(
+    () => workDate === businessTodayDate,
+    [workDate, businessTodayDate],
+  );
 
   const loadUsers = useCallback(async () => {
     if (!canManage) {
@@ -227,8 +260,25 @@ export function AttendanceAdmin({
     void loadRecords();
   }, [loadRecords]);
 
+  useEffect(() => {
+    const timerId = window.setInterval(() => {
+      setClockMs(Date.now());
+    }, 30_000);
+    return () => {
+      window.clearInterval(timerId);
+    };
+  }, []);
+
   const runAttendanceAction = useCallback(
     async (action: "checkin" | "checkout", userId: number) => {
+      if (!isActionDateToday) {
+        setFeedback({
+          type: "error",
+          message: `Attendance actions are allowed only for today (${businessTodayDate}, ${BUSINESS_TIME_ZONE}).`,
+        });
+        return;
+      }
+
       setIsMutating(true);
       setFeedback(null);
 
@@ -248,8 +298,8 @@ export function AttendanceAdmin({
           });
         }
 
-        if (workDate !== todayDate) {
-          setWorkDate(todayDate);
+        if (workDate !== businessTodayDate) {
+          setWorkDate(businessTodayDate);
         } else {
           await loadRecords();
         }
@@ -265,7 +315,7 @@ export function AttendanceAdmin({
         setIsMutating(false);
       }
     },
-    [accessToken, loadRecords, todayDate, workDate],
+    [accessToken, businessTodayDate, isActionDateToday, loadRecords, workDate],
   );
 
   return (
@@ -370,7 +420,7 @@ export function AttendanceAdmin({
                     type="button"
                     variant="outline"
                     className="h-10"
-                    onClick={() => setWorkDate(todayDate)}
+                    onClick={() => setWorkDate(businessTodayDate)}
                     disabled={isLoadingRecords || isMutating}
                   >
                     Today
@@ -432,8 +482,13 @@ export function AttendanceAdmin({
           <section className="rm-subpanel mt-4 p-3 sm:p-4">
             <p className="text-sm font-semibold text-slate-900">Mark Attendance (today)</p>
             <p className="mt-1 text-xs text-slate-500">
-              Check-in/check-out endpoints apply to the current business day.
+              Check-in/check-out endpoints apply to the current business day ({BUSINESS_TIME_ZONE}).
             </p>
+            {!isActionDateToday ? (
+              <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                Selected date is not today
+              </p>
+            ) : null}
 
             <div className="mt-3 grid gap-3 lg:grid-cols-[1fr_1fr_auto_auto]">
               <div>
@@ -489,6 +544,7 @@ export function AttendanceAdmin({
                 disabled={
                   isMutating ||
                   isLoadingUsers ||
+                  !isActionDateToday ||
                   typeof actionUserId !== "number" ||
                   !selectedActionUser
                 }
@@ -509,6 +565,7 @@ export function AttendanceAdmin({
                 disabled={
                   isMutating ||
                   isLoadingUsers ||
+                  !isActionDateToday ||
                   typeof actionUserId !== "number" ||
                   !selectedActionUser
                 }
@@ -563,8 +620,11 @@ export function AttendanceAdmin({
                   <tbody className="divide-y divide-slate-100">
                     {records.map((record) => {
                       const user = usersById.get(record.user);
-                      const canMarkIn = !record.check_in_at;
-                      const canMarkOut = Boolean(record.check_in_at) && !record.check_out_at;
+                      const canMarkIn = isActionDateToday && !record.check_in_at;
+                      const canMarkOut =
+                        isActionDateToday &&
+                        Boolean(record.check_in_at) &&
+                        !record.check_out_at;
 
                       return (
                         <tr key={record.id} className="bg-white">

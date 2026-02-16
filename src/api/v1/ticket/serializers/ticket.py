@@ -67,6 +67,9 @@ class TicketSerializer(serializers.ModelSerializer):
     approve_review = serializers.BooleanField(
         write_only=True, required=False, default=False
     )
+    master_name = serializers.SerializerMethodField(read_only=True)
+    technician_name = serializers.SerializerMethodField(read_only=True)
+    approved_by_name = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = Ticket
@@ -77,12 +80,15 @@ class TicketSerializer(serializers.ModelSerializer):
             "confirm_create_inventory_item",
             "inventory_item_creation_reason",
             "master",
+            "master_name",
             "technician",
+            "technician_name",
             "title",
             "part_specs",
             "ticket_parts",
             "total_duration",
             "approved_by",
+            "approved_by_name",
             "approved_at",
             "approve_review",
             "flag_minutes",
@@ -113,7 +119,26 @@ class TicketSerializer(serializers.ModelSerializer):
             "flag_minutes",
             "is_manual",
             "ticket_parts",
+            "master_name",
+            "technician_name",
+            "approved_by_name",
         )
+
+    @staticmethod
+    def _user_display_name(user) -> str | None:
+        if not user:
+            return None
+        full_name = f"{user.first_name or ''} {user.last_name or ''}".strip()
+        return full_name or user.username
+
+    def get_master_name(self, obj: Ticket) -> str | None:
+        return self._user_display_name(obj.master)
+
+    def get_technician_name(self, obj: Ticket) -> str | None:
+        return self._user_display_name(obj.technician)
+
+    def get_approved_by_name(self, obj: Ticket) -> str | None:
+        return self._user_display_name(obj.approved_by)
 
     def validate(self, attrs):
         request = self.context.get("request")
