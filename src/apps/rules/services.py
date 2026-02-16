@@ -10,7 +10,6 @@ from typing import Any
 from django.core.cache import cache
 from django.db import transaction
 
-from core.utils.constants import EmployeeLevel
 from rules.models import RulesConfigAction, RulesConfigState, RulesConfigVersion
 
 
@@ -39,16 +38,6 @@ class RulesService:
                 "daily_pause_limit_minutes": 30,
                 "timezone": "Asia/Tashkent",
             },
-            "progression": {
-                "level_thresholds": {
-                    str(EmployeeLevel.L1): 0,
-                    str(EmployeeLevel.L2): 200,
-                    str(EmployeeLevel.L3): 450,
-                    str(EmployeeLevel.L4): 750,
-                    str(EmployeeLevel.L5): 1_100,
-                },
-                "weekly_coupon_amount": 100_000,
-            },
         }
 
     @staticmethod
@@ -68,39 +57,6 @@ class RulesService:
         if not allow_negative and value < 0:
             raise ValueError(f"{field} must be >= 0.")
         return value
-
-    @classmethod
-    def _normalize_level_map(cls, value: Any, *, field: str) -> dict[str, int]:
-        if not isinstance(value, dict):
-            raise ValueError(f"{field} must be an object.")
-
-        normalized: dict[str, int] = {}
-        for level in EmployeeLevel.values:
-            level_key = str(level)
-            raw_value = value.get(level_key, value.get(level))
-            if raw_value is None:
-                raise ValueError(f"{field}.{level_key} is required.")
-            normalized[level_key] = cls._require_int(
-                raw_value, field=f"{field}.{level_key}"
-            )
-        return normalized
-
-    @staticmethod
-    def _validate_level_thresholds(level_thresholds: dict[str, int]) -> None:
-        previous_threshold: int | None = None
-        for level in EmployeeLevel.values:
-            level_key = str(level)
-            current_threshold = int(level_thresholds[level_key])
-            if level == int(EmployeeLevel.L1) and current_threshold != 0:
-                raise ValueError("progression.level_thresholds.1 must be 0.")
-            if (
-                previous_threshold is not None
-                and current_threshold < previous_threshold
-            ):
-                raise ValueError(
-                    "progression.level_thresholds must be non-decreasing by level."
-                )
-            previous_threshold = current_threshold
 
     @classmethod
     def _cache_storage_key(cls, state_cache_key: str) -> str:
@@ -125,7 +81,7 @@ class RulesService:
         if not isinstance(raw_config, dict):
             raise ValueError("config must be a JSON object.")
 
-        allowed_keys = {"ticket_xp", "attendance", "work_session", "progression"}
+        allowed_keys = {"ticket_xp", "attendance", "work_session"}
         unknown_keys = sorted(set(raw_config.keys()) - allowed_keys)
         if unknown_keys:
             raise ValueError(f"Unknown config keys: {', '.join(unknown_keys)}.")
@@ -133,7 +89,6 @@ class RulesService:
         ticket_xp = raw_config.get("ticket_xp")
         attendance = raw_config.get("attendance")
         work_session = raw_config.get("work_session")
-        progression = raw_config.get("progression")
 
         if not isinstance(ticket_xp, dict):
             raise ValueError("ticket_xp must be an object.")
@@ -141,8 +96,6 @@ class RulesService:
             raise ValueError("attendance must be an object.")
         if not isinstance(work_session, dict):
             raise ValueError("work_session must be an object.")
-        if not isinstance(progression, dict):
-            raise ValueError("progression must be an object.")
 
         base_divisor = cls._require_int(
             ticket_xp.get("base_divisor"), field="ticket_xp.base_divisor"
@@ -204,14 +157,6 @@ class RulesService:
         ):
             raise ValueError("work_session.timezone must be a non-empty string.")
 
-        level_thresholds = cls._normalize_level_map(
-            progression.get("level_thresholds"), field="progression.level_thresholds"
-        )
-        cls._validate_level_thresholds(level_thresholds)
-        weekly_coupon_amount = cls._require_int(
-            progression.get("weekly_coupon_amount"),
-            field="progression.weekly_coupon_amount",
-        )
         return {
             "ticket_xp": {
                 "base_divisor": base_divisor,
@@ -229,10 +174,6 @@ class RulesService:
             "work_session": {
                 "daily_pause_limit_minutes": daily_pause_limit_minutes,
                 "timezone": work_session_timezone,
-            },
-            "progression": {
-                "level_thresholds": level_thresholds,
-                "weekly_coupon_amount": weekly_coupon_amount,
             },
         }
 

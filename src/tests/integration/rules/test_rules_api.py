@@ -52,7 +52,6 @@ def test_get_config_bootstraps_defaults(authed_client_factory, rules_context):
     assert payload["config"]["ticket_xp"]["first_pass_bonus"] == 1
     assert payload["config"]["ticket_xp"]["qc_status_update_xp"] == 1
     assert payload["config"]["work_session"]["daily_pause_limit_minutes"] == 30
-    assert payload["config"]["progression"]["weekly_coupon_amount"] == 100000
 
 
 def test_permissions_for_config_mutation(authed_client_factory, rules_context):
@@ -162,11 +161,11 @@ def test_rollback_restores_previous_version(authed_client_factory, rules_context
 
     cfg_v2 = {
         **base,
-        "progression": {**base["progression"], "weekly_coupon_amount": 200000},
+        "work_session": {**base["work_session"], "daily_pause_limit_minutes": 45},
     }
     resp_v2 = client.put(
         RULES_CONFIG_URL,
-        {"config": cfg_v2, "reason": "Raise coupon amount"},
+        {"config": cfg_v2, "reason": "Increase pause limit"},
         format="json",
     )
     assert resp_v2.status_code == 200
@@ -174,10 +173,10 @@ def test_rollback_restores_previous_version(authed_client_factory, rules_context
 
     cfg_v3 = {
         **cfg_v2,
-        "progression": {**cfg_v2["progression"], "weekly_coupon_amount": 300000},
+        "work_session": {**cfg_v2["work_session"], "daily_pause_limit_minutes": 60},
     }
     resp_v3 = client.put(
-        RULES_CONFIG_URL, {"config": cfg_v3, "reason": "Raise again"}, format="json"
+        RULES_CONFIG_URL, {"config": cfg_v3, "reason": "Increase again"}, format="json"
     )
     assert resp_v3.status_code == 200
     assert resp_v3.data["data"]["active_version"] == 3
@@ -190,7 +189,7 @@ def test_rollback_restores_previous_version(authed_client_factory, rules_context
     assert rollback.status_code == 200
     data = rollback.data["data"]
     assert data["active_version"] == 4
-    assert data["config"]["progression"]["weekly_coupon_amount"] == 200000
+    assert data["config"]["work_session"]["daily_pause_limit_minutes"] == 45
 
     latest = RulesConfigVersion.objects.order_by("-version").first()
     assert latest is not None
@@ -216,16 +215,6 @@ def test_invalid_config_rejected(authed_client_factory, rules_context):
             "work_session": {
                 "daily_pause_limit_minutes": 30,
                 "timezone": "Asia/Tashkent",
-            },
-            "progression": {
-                "level_thresholds": {
-                    "1": 0,
-                    "2": 200,
-                    "3": 450,
-                    "4": 750,
-                    "5": 1100,
-                },
-                "weekly_coupon_amount": 100000,
             },
         }
     }

@@ -13,8 +13,6 @@ HAS_DJANGO_CELERY_BEAT = find_spec("django_celery_beat") is not None
 HAS_REDIS_PACKAGE = find_spec("redis") is not None
 HAS_SENTRY_SDK = find_spec("sentry_sdk") is not None
 
-if HAS_CELERY:
-    from celery.schedules import crontab
 if HAS_SENTRY_SDK:
     import sentry_sdk
     from sentry_sdk.integrations.django import DjangoIntegration
@@ -37,6 +35,8 @@ SECRET_KEY = config(
     "DJANGO_SECRET_KEY",
     default="django-insecure-change-me-please-use-a-long-secret-key-for-local-dev",
 )
+
+
 def _split_csv_env(name: str, *, default: str = "") -> list[str]:
     raw_value = config(name, default=default)
     return [item.strip() for item in str(raw_value).split(",") if item.strip()]
@@ -189,10 +189,6 @@ if HAS_DJANGO_CELERY_BEAT:
 CELERY_BEAT_SCHEDULE = {}
 if HAS_CELERY:
     CELERY_BEAT_SCHEDULE = {
-        "evaluate-levels-weekly": {
-            "task": "gamification.tasks.run_weekly_level_evaluation",
-            "schedule": crontab(minute=5, hour=0, day_of_week=1),
-        },
         "enforce-daily-work-session-pause-limits": {
             "task": "ticket.tasks.enforce_daily_pause_limits",
             "schedule": 60.0,
