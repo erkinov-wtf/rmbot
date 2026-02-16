@@ -12,7 +12,7 @@ Coordinates access onboarding and moderation workflows while delegating first-le
 ## Invariants and Contracts
 - One effective pending access request per Telegram user.
 - Phone uniqueness is enforced before assignment.
-- Username/email generation is collision-safe.
+- Username generation is collision-safe.
 - Telegram profile uniqueness by `telegram_id` is preserved.
 
 ## Side Effects

@@ -21,27 +21,22 @@ def workflow_context(
     master = user_factory(
         username="wf_master",
         first_name="Master",
-        email="wf_master@example.com",
     )
     ops = user_factory(
         username="wf_ops",
         first_name="Ops",
-        email="wf_ops@example.com",
     )
     tech = user_factory(
         username="wf_tech",
         first_name="Tech",
-        email="wf_tech@example.com",
     )
     other_tech = user_factory(
         username="wf_other_tech",
         first_name="Other",
-        email="wf_other_tech@example.com",
     )
     qc = user_factory(
         username="wf_qc",
         first_name="QC",
-        email="wf_qc@example.com",
     )
 
     assign_roles(master, RoleSlug.MASTER)

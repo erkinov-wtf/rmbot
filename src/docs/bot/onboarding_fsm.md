@@ -6,7 +6,6 @@ Documents `/start` onboarding state machine, input validation, and account-reque
 ## FSM States
 - `first_name`
 - `last_name`
-- `patronymic`
 - `phone`
 
 ## Execution Flow
@@ -22,7 +21,6 @@ Documents `/start` onboarding state machine, input validation, and account-reque
 - Bot onboarding is the only public path to create access requests.
 - At most one pending access request is effective per Telegram identity.
 - Contact-based phone input must belong to the sender when `user_id` is provided.
-- Patronymic supports explicit skip with `-`.
 
 ## Validation and Failure Modes
 - Name fields enforce minimum-length validation.

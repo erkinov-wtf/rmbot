@@ -25,7 +25,6 @@ def test_me_returns_user_when_authenticated(authed_client_factory, user_factory)
     user = user_factory(
         username="bob",
         first_name="Bob",
-        email="bob@example.com",
     )
     client = authed_client_factory(user)
 
@@ -33,3 +32,5 @@ def test_me_returns_user_when_authenticated(authed_client_factory, user_factory)
 
     assert resp.status_code == 200
     assert resp.data["data"]["username"] == "bob"
+    assert "email" not in resp.data["data"]
+    assert "patronymic" not in resp.data["data"]

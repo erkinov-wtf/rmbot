@@ -62,7 +62,6 @@ def test_returns_tokens_when_user_linked(
         username="alice",
         password="password",
         first_name="Alice",
-        email="alice@example.com",
     )
     TelegramProfile.objects.create(
         user=user,
@@ -121,7 +120,6 @@ def test_rejects_replayed_init_data_for_linked_user(
         username="bob",
         password="password",
         first_name="Bob",
-        email="bob@example.com",
     )
     TelegramProfile.objects.create(
         user=user,

@@ -24,12 +24,10 @@ def audit_feed_context(
     ops = user_factory(
         username="audit_ops",
         first_name="Ops",
-        email="audit_ops@example.com",
     )
     regular = user_factory(
         username="audit_regular",
         first_name="Regular",
-        email="audit_regular@example.com",
     )
     assign_roles(ops, RoleSlug.OPS_MANAGER)
 

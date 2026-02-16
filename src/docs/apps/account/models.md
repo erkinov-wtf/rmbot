@@ -11,7 +11,7 @@ Defines identity and onboarding entities (`User`, `Role`, `TelegramProfile`, `Ac
 - `AccessRequest`: moderation state for onboarding.
 
 ## Invariants and Constraints
-- `User.username` and `User.email` are unique.
+- `User.username` is unique.
 - `User.phone` is unique when provided.
 - `UserRole` enforces unique (`user`, `role`) pair.
 - `TelegramProfile.telegram_id` is unique.

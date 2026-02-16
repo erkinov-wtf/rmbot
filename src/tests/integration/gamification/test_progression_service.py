@@ -76,12 +76,10 @@ def test_weekly_level_evaluation_levels_up_and_creates_coupon(user_factory):
     actor = user_factory(
         username="progression_actor",
         first_name="Progression",
-        email="progression_actor@example.com",
     )
     technician = user_factory(
         username="progression_tech",
         first_name="Technician",
-        email="progression_tech@example.com",
         level=EmployeeLevel.L1,
     )
     _configure_progression_rules(actor_user_id=actor.id)
@@ -137,12 +135,10 @@ def test_weekly_level_evaluation_does_not_downgrade_existing_user_level(user_fac
     actor = user_factory(
         username="progression_actor_two",
         first_name="Progression",
-        email="progression_actor_two@example.com",
     )
     technician = user_factory(
         username="progression_l3_tech",
         first_name="L3 Tech",
-        email="progression_l3_tech@example.com",
         level=EmployeeLevel.L3,
     )
     _configure_progression_rules(actor_user_id=actor.id)

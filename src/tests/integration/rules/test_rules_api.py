@@ -20,21 +20,18 @@ def rules_context(user_factory, assign_roles):
     super_admin = user_factory(
         username="rules_super_admin",
         first_name="Rules",
-        email="rules_super_admin@example.com",
     )
     assign_roles(super_admin, RoleSlug.SUPER_ADMIN)
 
     ops = user_factory(
         username="rules_ops",
         first_name="Ops",
-        email="rules_ops@example.com",
     )
     assign_roles(ops, RoleSlug.OPS_MANAGER)
 
     regular = user_factory(
         username="rules_regular",
         first_name="Regular",
-        email="rules_regular@example.com",
     )
     return {
         "super_admin": super_admin,
@@ -254,7 +251,6 @@ def test_ticket_xp_formula_uses_active_rules(
     technician = user_factory(
         username="rules_xp_tech",
         first_name="Rules Tech",
-        email="rules_xp_tech@example.com",
     )
     inventory_item = inventory_item_factory(serial_number="RM-RULES-0001")
     ticket = ticket_factory(

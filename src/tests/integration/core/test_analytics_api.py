@@ -25,26 +25,22 @@ def analytics_users(user_factory, assign_roles):
     ops_user = user_factory(
         username="ops_analytics",
         first_name="Ops",
-        email="ops_analytics@example.com",
     )
     assign_roles(ops_user, RoleSlug.OPS_MANAGER)
 
     regular_user = user_factory(
         username="regular_analytics",
         first_name="Regular",
-        email="regular_analytics@example.com",
     )
     master_user = user_factory(
         username="master_analytics",
         first_name="Master",
-        email="master_analytics@example.com",
     )
     assign_roles(master_user, RoleSlug.MASTER)
 
     technician_user = user_factory(
         username="tech_analytics",
         first_name="Tech",
-        email="tech_analytics@example.com",
     )
     assign_roles(technician_user, RoleSlug.TECHNICIAN)
 

@@ -38,14 +38,12 @@ def ticket_api_context(user_factory, assign_roles, inventory_item_factory):
     master_user = user_factory(
         username="master_api",
         first_name="Master",
-        email="master_api@example.com",
     )
     assign_roles(master_user, RoleSlug.MASTER)
 
     regular_user = user_factory(
         username="regular_api",
         first_name="Regular",
-        email="regular_api@example.com",
     )
 
     inventory_item = inventory_item_factory(serial_number="RM-0100")

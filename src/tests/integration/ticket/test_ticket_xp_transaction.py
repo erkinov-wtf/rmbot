@@ -22,19 +22,16 @@ def xp_ticket_context(
     technician = user_factory(
         username="xp_tech",
         first_name="XP Tech",
-        email="xp_tech@example.com",
     )
     assign_roles(technician, RoleSlug.TECHNICIAN)
 
     master = user_factory(
         username="xp_master",
         first_name="XP Master",
-        email="xp_master@example.com",
     )
     qc = user_factory(
         username="xp_qc",
         first_name="XP QC",
-        email="xp_qc@example.com",
     )
     assign_roles(qc, RoleSlug.QC_INSPECTOR)
     inventory_item = inventory_item_factory(serial_number="RM-XP-0001")

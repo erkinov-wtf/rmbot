@@ -9,7 +9,7 @@ Provides domain query and identity-preparation helpers for onboarding and modera
 - `TelegramProfileDomainManager`: Telegram profile upsert/link helpers with soft-delete revival.
 
 ## Execution Notes
-- `UserManager.create_pending_user` centralizes username/email collision handling and pending user creation.
+- `UserManager.create_pending_user` centralizes username collision handling and pending user creation.
 - `AccessRequestDomainManager` consolidates Telegram-id scoped request lookups used by bot onboarding.
 - `TelegramProfileDomainManager.link_to_user` and `upsert_from_telegram_user` provide one-path identity reconciliation.
 

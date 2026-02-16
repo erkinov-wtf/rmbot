@@ -13,7 +13,6 @@ def test_bot_request_creates_pending_with_precreated_user():
         username="new.tech",
         first_name="New",
         last_name="Tech",
-        patronymic="Middle",
         phone="+998901234567",
     )
 
@@ -26,9 +25,7 @@ def test_bot_request_creates_pending_with_precreated_user():
     assert user.is_active is False
     assert user.first_name == "New"
     assert user.last_name == "Tech"
-    assert user.patronymic == "Middle"
     assert user.phone == "+998901234567"
-    assert user.email.endswith("@pending.rentmarket.local")
     profile = TelegramProfile.objects.get(telegram_id=700001)
     assert profile.user_id == user.id
 
@@ -39,7 +36,6 @@ def test_bot_request_updates_existing_pending_user_without_duplicates():
         username="new.tech",
         first_name="New",
         last_name="Tech",
-        patronymic=None,
         phone="+998900001111",
     )
 
@@ -48,7 +44,6 @@ def test_bot_request_updates_existing_pending_user_without_duplicates():
         username="new.tech",
         first_name="Updated",
         last_name="Surname",
-        patronymic="P",
         phone="+998900002222",
     )
 
@@ -61,7 +56,6 @@ def test_bot_request_updates_existing_pending_user_without_duplicates():
     pending_user = User.objects.get(pk=second_request.user_id)
     assert pending_user.first_name == "Updated"
     assert pending_user.last_name == "Surname"
-    assert pending_user.patronymic == "P"
     assert pending_user.phone == "+998900002222"
     profile = TelegramProfile.objects.get(telegram_id=700002)
     assert profile.user_id == pending_user.id
@@ -71,7 +65,6 @@ def test_bot_request_rejects_phone_that_belongs_to_another_user(user_factory):
     user_factory(
         username="existing_user",
         first_name="Existing",
-        email="existing@example.com",
         phone="+998909999999",
     )
 
@@ -81,7 +74,6 @@ def test_bot_request_rejects_phone_that_belongs_to_another_user(user_factory):
             username="incoming",
             first_name="Incoming",
             last_name="User",
-            patronymic=None,
             phone="+998909999999",
         )
 
@@ -90,7 +82,6 @@ def test_bot_request_rejects_when_access_request_was_already_approved(user_facto
     approved_user = user_factory(
         username="approved_user",
         first_name="Approved",
-        email="approved@example.com",
         phone="+998901111111",
         is_active=True,
     )
@@ -110,7 +101,6 @@ def test_bot_request_rejects_when_access_request_was_already_approved(user_facto
             username="approved.user",
             first_name="Approved",
             last_name="User",
-            patronymic=None,
             phone="+998901111111",
         )
 
@@ -119,7 +109,6 @@ def test_bot_request_rejects_when_telegram_is_linked_to_active_user(user_factory
     active_user = user_factory(
         username="linked_active",
         first_name="Linked",
-        email="linked_active@example.com",
         phone="+998902222222",
         is_active=True,
     )
@@ -136,7 +125,6 @@ def test_bot_request_rejects_when_telegram_is_linked_to_active_user(user_factory
             username="linked.active",
             first_name="Linked",
             last_name="Active",
-            patronymic=None,
             phone="+998902222222",
         )
 
@@ -147,7 +135,6 @@ def test_bot_request_after_rejection_reuses_user_with_same_phone():
         username="retry.user",
         first_name="Retry",
         last_name="User",
-        patronymic=None,
         phone="+998903333333",
     )
     assert created is True
@@ -161,7 +148,6 @@ def test_bot_request_after_rejection_reuses_user_with_same_phone():
             username="retry.user",
             first_name="Retry2",
             last_name="User2",
-            patronymic="P",
             phone="+998903333333",
         )
     )

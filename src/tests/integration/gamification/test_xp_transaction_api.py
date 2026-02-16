@@ -17,17 +17,14 @@ def transactions_context(user_factory, assign_roles):
     tech_one = user_factory(
         username="xp_api_tech_one",
         first_name="Tech One",
-        email="xp_api_tech_one@example.com",
     )
     tech_two = user_factory(
         username="xp_api_tech_two",
         first_name="Tech Two",
-        email="xp_api_tech_two@example.com",
     )
     ops = user_factory(
         username="xp_api_ops",
         first_name="Ops",
-        email="xp_api_ops@example.com",
     )
     assign_roles(ops, RoleSlug.OPS_MANAGER)
 

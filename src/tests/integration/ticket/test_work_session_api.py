@@ -37,17 +37,14 @@ def work_session_context(
     master = user_factory(
         username="ws_master",
         first_name="Master",
-        email="ws_master@example.com",
     )
     tech = user_factory(
         username="ws_tech",
         first_name="Tech",
-        email="ws_tech@example.com",
     )
     other_tech = user_factory(
         username="ws_other_tech",
         first_name="Other",
-        email="ws_other_tech@example.com",
     )
     assign_roles(master, RoleSlug.MASTER)
     assign_roles(tech, RoleSlug.TECHNICIAN)

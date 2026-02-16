@@ -28,7 +28,6 @@ def test_create_requires_inventory_item_manager_role(
     regular_user = user_factory(
         username="regular_inventory_item",
         first_name="Regular",
-        email="regular_inventory_item@example.com",
     )
     client = authed_client_factory(regular_user)
 
@@ -42,7 +41,6 @@ def test_ops_manager_can_create_inventory_item(
     manager_user = user_factory(
         username="ops_inventory_item",
         first_name="Ops",
-        email="ops_inventory_item@example.com",
     )
     assign_roles(manager_user, RoleSlug.OPS_MANAGER)
     client = authed_client_factory(manager_user)
@@ -60,7 +58,6 @@ def test_create_rejects_invalid_serial_number_format(
     manager_user = user_factory(
         username="ops_inventory_item_regex",
         first_name="Ops",
-        email="ops_inventory_item_regex@example.com",
     )
     assign_roles(manager_user, RoleSlug.OPS_MANAGER)
     client = authed_client_factory(manager_user)
@@ -79,7 +76,6 @@ def test_list_supports_query_filter_for_serial_number_lookup(
     user = user_factory(
         username="inventory_item_reader",
         first_name="Reader",
-        email="inventory_item_reader@example.com",
     )
     inventory_item_factory(serial_number="RM-0100")
     inventory_item_factory(serial_number="RM-0101")
@@ -98,7 +94,6 @@ def test_list_rejects_short_query(authed_client_factory, user_factory):
     user = user_factory(
         username="inventory_item_reader_short",
         first_name="Reader",
-        email="inventory_item_reader_short@example.com",
     )
     client = authed_client_factory(user)
 
@@ -116,7 +111,6 @@ def test_list_supports_extended_filters(
     user = user_factory(
         username="inventory_item_reader_filters",
         first_name="Reader",
-        email="inventory_item_reader_filters@example.com",
     )
     active_inventory_item = inventory_item_factory(
         serial_number="RM-0300", status="ready", is_active=True
@@ -127,7 +121,6 @@ def test_list_supports_extended_filters(
     master = user_factory(
         username="inventory_item_filter_master",
         first_name="Master",
-        email="inventory_item_filter_master@example.com",
     )
     Ticket.objects.create(
         inventory_item=active_inventory_item,
@@ -175,7 +168,6 @@ def test_update_requires_inventory_item_manager_role(
     regular_user = user_factory(
         username="inventory_item_update_regular",
         first_name="Regular",
-        email="inventory_item_update_regular@example.com",
     )
     inventory_item = inventory_item_factory(serial_number="RM-0400")
     client = authed_client_factory(regular_user)
@@ -193,7 +185,6 @@ def test_ops_manager_can_update_inventory_item(
     manager_user = user_factory(
         username="inventory_item_update_ops",
         first_name="Ops",
-        email="inventory_item_update_ops@example.com",
     )
     assign_roles(manager_user, RoleSlug.OPS_MANAGER)
     inventory_item = inventory_item_factory(
@@ -222,7 +213,6 @@ def test_delete_requires_inventory_item_manager_role(
     regular_user = user_factory(
         username="inventory_item_delete_regular",
         first_name="Regular",
-        email="inventory_item_delete_regular@example.com",
     )
     inventory_item = inventory_item_factory(serial_number="RM-0500")
     client = authed_client_factory(regular_user)
@@ -238,7 +228,6 @@ def test_ops_manager_can_soft_delete_inventory_item(
     manager_user = user_factory(
         username="inventory_item_delete_ops",
         first_name="Ops",
-        email="inventory_item_delete_ops@example.com",
     )
     assign_roles(manager_user, RoleSlug.OPS_MANAGER)
     inventory_item = inventory_item_factory(serial_number="RM-0501")

@@ -54,18 +54,6 @@ class UserManager(BaseUserManager):
             index += 1
         return candidate
 
-    def build_unique_email(self, *, username: str, domain: str) -> str:
-        local_base = re.sub(r"[^a-z0-9._+-]+", "", username.lower()) or "user"
-        local_base = local_base[:64]
-        candidate = f"{local_base}@{domain}"
-        index = 1
-        while self.model.all_objects.filter(email=candidate).exists():
-            suffix = f".{index}"
-            local_part = f"{local_base[: 64 - len(suffix)]}{suffix}"
-            candidate = f"{local_part}@{domain}"
-            index += 1
-        return candidate
-
     def phone_in_use(
         self,
         *,
@@ -86,27 +74,19 @@ class UserManager(BaseUserManager):
         username: str | None,
         first_name: str | None,
         last_name: str | None,
-        patronymic: str | None,
         phone: str | None,
-        pending_email_domain: str,
     ):
         if self.phone_in_use(phone=phone):
             raise ValueError("Phone number is already used by another account.")
 
         seed = self.normalize_username_seed(username, telegram_id)
         resolved_username = self.build_unique_username(seed=seed)
-        resolved_email = self.build_unique_email(
-            username=resolved_username,
-            domain=pending_email_domain,
-        )
         return self.create_user(
             username=resolved_username,
             password=None,
             first_name=first_name or "Unknown",
             last_name=last_name,
-            patronymic=patronymic,
             phone=phone,
-            email=resolved_email,
             is_active=False,
         )
 

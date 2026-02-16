@@ -13,8 +13,8 @@ class UserRoleInline(admin.TabularInline):
 
 @admin.register(User)
 class UserAdmin(SoftDeleteModelAdmin):
-    list_display = ("id", "phone", "first_name", "last_name", "patronymic", "is_active")
-    search_fields = ("phone", "first_name", "last_name", "patronymic")
+    list_display = ("id", "phone", "first_name", "last_name", "is_active")
+    search_fields = ("phone", "first_name", "last_name")
     ordering = ("-created_at",)
     exclude = ("last_login", "deleted_at")
     list_display_links = ("id", "phone")

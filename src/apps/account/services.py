@@ -10,8 +10,6 @@ from core.utils.constants import AccessRequestStatus
 class AccountService:
     """Account and access-request orchestration for bot and API flows."""
 
-    PENDING_EMAIL_DOMAIN = "pending.rentmarket.local"
-
     @classmethod
     def _create_pending_user(
         cls,
@@ -20,7 +18,6 @@ class AccountService:
         username: str | None,
         first_name: str | None,
         last_name: str | None,
-        patronymic: str | None,
         phone: str | None,
     ) -> User:
         return User.objects.create_pending_user(
@@ -28,9 +25,7 @@ class AccountService:
             username=username,
             first_name=first_name,
             last_name=last_name,
-            patronymic=patronymic,
             phone=phone,
-            pending_email_domain=cls.PENDING_EMAIL_DOMAIN,
         )
 
     @staticmethod
@@ -39,13 +34,11 @@ class AccountService:
         *,
         first_name: str | None,
         last_name: str | None,
-        patronymic: str | None,
         phone: str | None,
     ) -> User:
         return user.sync_pending_fields(
             first_name=first_name,
             last_name=last_name,
-            patronymic=patronymic,
             phone=phone,
         )
 
@@ -127,7 +120,6 @@ class AccountService:
         username: str | None,
         first_name: str,
         last_name: str,
-        patronymic: str | None,
         phone: str,
         note: str | None = None,
     ) -> tuple[AccessRequest, bool]:
@@ -158,7 +150,6 @@ class AccountService:
                     pending_user,
                     first_name=first_name,
                     last_name=last_name,
-                    patronymic=patronymic,
                     phone=phone,
                 )
             else:
@@ -167,7 +158,6 @@ class AccountService:
                     username=username,
                     first_name=first_name,
                     last_name=last_name,
-                    patronymic=patronymic,
                     phone=phone,
                 )
 
@@ -198,7 +188,6 @@ class AccountService:
                 existing_profile.user,
                 first_name=first_name,
                 last_name=last_name,
-                patronymic=patronymic,
                 phone=phone,
             )
         else:
@@ -211,7 +200,6 @@ class AccountService:
                     rejected_user,
                     first_name=first_name,
                     last_name=last_name,
-                    patronymic=patronymic,
                     phone=phone,
                 )
 
@@ -221,7 +209,6 @@ class AccountService:
                 username=username,
                 first_name=first_name,
                 last_name=last_name,
-                patronymic=patronymic,
                 phone=phone,
             )
         access_request = AccessRequest.objects.create(
@@ -273,7 +260,6 @@ class AccountService:
                 user,
                 first_name=access_request.first_name,
                 last_name=access_request.last_name,
-                patronymic=user.patronymic,
                 phone=access_request.phone,
             )
         else:
@@ -282,7 +268,6 @@ class AccountService:
                 username=access_request.username,
                 first_name=access_request.first_name,
                 last_name=access_request.last_name,
-                patronymic=None,
                 phone=access_request.phone,
             )
 

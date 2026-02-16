@@ -20,14 +20,12 @@ def attendance_context(authed_client_factory, user_factory, assign_roles):
     manager = user_factory(
         username="attendance_manager",
         first_name="Manager",
-        email="attendance_manager@example.com",
     )
     assign_roles(manager, RoleSlug.MASTER)
 
     technician = user_factory(
         username="attendance_user",
         first_name="Attendance",
-        email="attendance@example.com",
     )
     assign_roles(technician, RoleSlug.TECHNICIAN)
 
@@ -123,12 +121,10 @@ def test_today_endpoint_supports_date_technician_and_punctuality_filters(
     on_time_technician = user_factory(
         username="attendance_on_time",
         first_name="OnTime",
-        email="attendance_on_time@example.com",
     )
     late_technician = user_factory(
         username="attendance_late",
         first_name="Late",
-        email="attendance_late@example.com",
     )
     assign_roles(on_time_technician, RoleSlug.TECHNICIAN)
     assign_roles(late_technician, RoleSlug.TECHNICIAN)

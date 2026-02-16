@@ -16,8 +16,6 @@ def moderation_context(user_factory, assign_roles):
         username="pending_tech",
         first_name="New",
         last_name="Tech",
-        patronymic="Middle",
-        email="pending_tech@example.com",
         phone="+998991112233",
         is_active=False,
     )
@@ -32,12 +30,10 @@ def moderation_context(user_factory, assign_roles):
     regular_user = user_factory(
         username="regular",
         first_name="Regular",
-        email="regular@example.com",
     )
     moderator = user_factory(
         username="ops",
         first_name="Ops",
-        email="ops@example.com",
     )
     assign_roles(moderator, RoleSlug.OPS_MANAGER)
     return {

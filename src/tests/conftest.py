@@ -44,7 +44,6 @@ def user_factory(db) -> Callable[..., User]:
             "username": f"user_{idx}",
             "password": "pass1234",
             "first_name": "User",
-            "email": f"user_{idx}@example.com",
         }
         payload.update(overrides)
         return User.objects.create_user(**payload)

@@ -22,7 +22,6 @@ PHONE_PATTERN = re.compile(r"^\+?[1-9][0-9]{7,14}$")
 class AccessRequestForm(StatesGroup):
     first_name = State()
     last_name = State()
-    patronymic = State()
     phone = State()
 
 
@@ -146,15 +145,6 @@ async def request_last_name_handler(message: Message, state: FSMContext, _):
         await message.answer(_("Please enter a valid last name."))
         return
     await state.update_data(last_name=last_name)
-    await state.set_state(AccessRequestForm.patronymic)
-    await message.answer(_("Enter your patronymic or send '-' to skip."))
-
-
-@router.message(AccessRequestForm.patronymic, F.text, ~F.text.startswith("/"))
-async def request_patronymic_handler(message: Message, state: FSMContext, _):
-    patronymic_raw = (message.text or "").strip()
-    patronymic = None if patronymic_raw in {"-", "—"} else patronymic_raw
-    await state.update_data(patronymic=patronymic)
     await state.set_state(AccessRequestForm.phone)
     await message.answer(
         _("Please share your phone number or type it in international format."),
@@ -173,7 +163,6 @@ async def _finalize_access_request(
             username=message.from_user.username,
             first_name=data["first_name"],
             last_name=data["last_name"],
-            patronymic=data.get("patronymic"),
             phone=phone,
         )
     except ValueError as exc:

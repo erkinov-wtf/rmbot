@@ -11,6 +11,7 @@ Documents authenticated identity lookup and manager moderation endpoints for bot
 
 ### `GET /api/v1/users/me/`
 - Returns current user profile, role slugs, and linked Telegram profile snapshot for client bootstrap.
+- Profile payload includes `first_name`, `last_name`, `username`, `phone`, `level`, and no longer includes `email` or `patronymic`.
 
 ### `GET /api/v1/users/access-requests/?status=<pending|approved|rejected>`
 - Lists paginated moderation queue filtered by status (default `pending`).

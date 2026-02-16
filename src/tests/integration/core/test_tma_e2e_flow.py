@@ -69,22 +69,18 @@ def test_tma_e2e_master_to_technician_to_qc(
     master = user_factory(
         username="tma_master",
         first_name="Master",
-        email="tma_master@example.com",
     )
     technician = user_factory(
         username="tma_technician",
         first_name="Technician",
-        email="tma_technician@example.com",
     )
     ops = user_factory(
         username="tma_ops",
         first_name="Ops",
-        email="tma_ops@example.com",
     )
     qc = user_factory(
         username="tma_qc",
         first_name="QC",
-        email="tma_qc@example.com",
     )
 
     assign_roles(master, RoleSlug.MASTER)

@@ -50,17 +50,14 @@ def test_rbac_bypass_burst_cannot_assign_ticket(
     master = user_factory(
         username="rbac_master",
         first_name="RBAC Master",
-        email="rbac_master@example.com",
     )
     technician = user_factory(
         username="rbac_technician",
         first_name="RBAC Technician",
-        email="rbac_technician@example.com",
     )
     attacker = user_factory(
         username="rbac_attacker",
         first_name="RBAC Attacker",
-        email="rbac_attacker@example.com",
     )
 
     assign_roles(master, RoleSlug.MASTER)

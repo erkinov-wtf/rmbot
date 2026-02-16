@@ -18,11 +18,9 @@ class Role(TimestampedModel, SoftDeleteModel):
 class User(AbstractBaseUser, TimestampedModel, SoftDeleteModel):
     first_name = models.CharField(max_length=30)
     last_name = models.CharField(max_length=30, blank=True, null=True)
-    patronymic = models.CharField(max_length=100, blank=True, null=True)
 
     username = models.CharField(max_length=150, unique=True)
     phone = models.CharField(max_length=15, unique=True, null=True, blank=True)
-    email = models.EmailField(unique=True)
     level = models.PositiveSmallIntegerField(
         choices=EmployeeLevel, default=EmployeeLevel.L1, db_index=True
     )
@@ -37,7 +35,7 @@ class User(AbstractBaseUser, TimestampedModel, SoftDeleteModel):
     is_active = models.BooleanField(default=True)
 
     USERNAME_FIELD = "username"
-    REQUIRED_FIELDS = ["first_name", "email"]
+    REQUIRED_FIELDS = ["first_name"]
 
     objects = managers.UserManager()
 
@@ -66,7 +64,6 @@ class User(AbstractBaseUser, TimestampedModel, SoftDeleteModel):
         *,
         first_name: str | None,
         last_name: str | None,
-        patronymic: str | None,
         phone: str | None,
     ) -> "User":
         updates: dict[str, object] = {}
@@ -76,8 +73,6 @@ class User(AbstractBaseUser, TimestampedModel, SoftDeleteModel):
             updates["first_name"] = first_name
         if last_name:
             updates["last_name"] = last_name
-        if patronymic:
-            updates["patronymic"] = patronymic
         if phone and phone != self.phone:
             if User.objects.phone_in_use(phone=phone, exclude_user_id=self.pk):
                 raise ValueError("Phone number is already used by another account.")
