@@ -326,24 +326,27 @@ class TechnicianTicketActionService:
         lines: list[str] = []
         if heading:
             lines.append(heading)
+
+        lines.append("━━━━━━━━━━━━━━━━━━")
         lines.extend(
             [
-                f"Ticket: #{state.ticket_id}",
-                f"Serial number: {state.serial_number}",
-                f"Status: {cls._ticket_status_label(status=state.ticket_status)}",
+                f"🎫 Ticket: #{state.ticket_id}",
+                f"🔢 Serial number: {state.serial_number}",
+                f"📍 Status: {cls._ticket_status_label(status=state.ticket_status)}",
             ]
         )
         if state.session_status:
             lines.append(
-                f"Work session: {cls._session_status_label(status=state.session_status)}"
+                f"🛠 Work session: {cls._session_status_label(status=state.session_status)}"
             )
         if state.potential_xp > 0:
-            lines.append(f"Potential XP: +{state.potential_xp}")
+            lines.append(f"🎯 Potential XP: +{state.potential_xp}")
         else:
-            lines.append("Potential XP: pending metrics")
-        lines.append(f"Acquired XP: +{state.acquired_xp}")
+            lines.append("🎯 Potential XP: pending metrics")
+        lines.append(f"🏆 Acquired XP: +{state.acquired_xp}")
         if state.potential_xp > 0:
-            lines.append(f"XP progress: {state.acquired_xp}/{state.potential_xp}")
+            lines.append(f"📈 XP progress: {state.acquired_xp}/{state.potential_xp}")
+        lines.append("━━━━━━━━━━━━━━━━━━")
 
         available_labels = [
             cls._ACTION_LABELS[action]
@@ -351,10 +354,10 @@ class TechnicianTicketActionService:
             if action != cls.ACTION_REFRESH and action in cls._ACTION_LABELS
         ]
         if available_labels:
-            lines.append("Available actions:")
+            lines.append("⚡ Available actions:")
             lines.extend(f"• {label}" for label in available_labels)
         else:
-            lines.append("No technician actions are available right now.")
+            lines.append("🧊 No technician actions are available right now.")
         return "\n".join(lines)
 
     @classmethod
