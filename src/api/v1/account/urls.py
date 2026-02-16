@@ -5,12 +5,14 @@ from api.v1.account.views import (
     AccessRequestListAPIView,
     AccessRequestRejectAPIView,
     MeAPIView,
+    UserOptionListAPIView,
 )
 
 app_name = "account"
 
 urlpatterns = [
     path("me/", MeAPIView.as_view(), name="me"),
+    path("options/", UserOptionListAPIView.as_view(), name="user-options"),
     path(
         "access-requests/", AccessRequestListAPIView.as_view(), name="access-requests"
     ),

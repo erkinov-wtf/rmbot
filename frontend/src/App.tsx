@@ -1,12 +1,10 @@
 import {
-  Activity,
   LogOut,
   Package,
-  Server,
   ShieldCheck,
+  Sparkles,
   Ticket,
   Users,
-  UserRound,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -14,10 +12,10 @@ import { AccessRequestsAdmin } from "@/components/account/access-requests-admin"
 import { LoginForm } from "@/components/auth/login-form";
 import { InventoryAdmin } from "@/components/inventory/inventory-admin";
 import { TicketFlow } from "@/components/ticket/ticket-flow";
+import { XpAdmin } from "@/components/xp/xp-admin";
 import { Button } from "@/components/ui/button";
 import {
   getCurrentUser,
-  getHealth,
   type CurrentUser,
   type LoginTokens,
 } from "@/lib/api";
@@ -30,9 +28,8 @@ import {
 } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
-type HealthState = "idle" | "loading" | "ok" | "error";
 type ProfileState = "idle" | "loading" | "ok" | "error";
-type Section = "inventory" | "tickets" | "access_requests" | "system";
+type Section = "inventory" | "tickets" | "access_requests" | "xp_admin";
 
 const INVENTORY_MANAGE_ROLES = new Set(["super_admin", "ops_manager", "master"]);
 const TICKET_CREATE_ROLES = new Set(["super_admin", "master"]);
@@ -40,6 +37,7 @@ const TICKET_REVIEW_ROLES = new Set(["super_admin", "ops_manager"]);
 const TICKET_WORK_ROLES = new Set(["super_admin", "technician"]);
 const TICKET_QC_ROLES = new Set(["super_admin", "qc_inspector"]);
 const ACCESS_REQUEST_MANAGE_ROLES = new Set(["super_admin", "ops_manager"]);
+const XP_MANAGE_ROLES = new Set(["super_admin", "ops_manager", "admin"]);
 
 function parseSectionFromPath(pathname: string): Section {
   if (pathname.startsWith("/access-requests")) {
@@ -48,8 +46,8 @@ function parseSectionFromPath(pathname: string): Section {
   if (pathname.startsWith("/tickets")) {
     return "tickets";
   }
-  if (pathname.startsWith("/system")) {
-    return "system";
+  if (pathname.startsWith("/xp-admin") || pathname.startsWith("/system")) {
+    return "xp_admin";
   }
   return "inventory";
 }
@@ -61,8 +59,8 @@ function sectionRootPath(section: Section): string {
   if (section === "tickets") {
     return "/tickets/create";
   }
-  if (section === "system") {
-    return "/system";
+  if (section === "xp_admin") {
+    return "/xp-admin";
   }
   return "/inventory/items";
 }
@@ -79,18 +77,6 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [profileState, setProfileState] = useState<ProfileState>("idle");
   const [profileMessage, setProfileMessage] = useState("");
-
-  const [healthState, setHealthState] = useState<HealthState>("idle");
-  const [healthMessage, setHealthMessage] = useState(
-    "Backend health has not been checked yet.",
-  );
-
-  const accessTokenExpiresAtLabel = useMemo(() => {
-    if (!session) {
-      return "";
-    }
-    return new Date(session.accessTokenExpiresAt).toLocaleString();
-  }, [session]);
 
   const effectiveRoleTitles = useMemo(() => {
     if (currentUser?.roles?.length) {
@@ -138,6 +124,10 @@ export default function App() {
     () => effectiveRoleSlugs.some((slug) => ACCESS_REQUEST_MANAGE_ROLES.has(slug)),
     [effectiveRoleSlugs],
   );
+  const canManageXp = useMemo(
+    () => effectiveRoleSlugs.some((slug) => XP_MANAGE_ROLES.has(slug)),
+    [effectiveRoleSlugs],
+  );
 
   const navigateSection = useCallback((nextSection: Section) => {
     const nextPath = sectionRootPath(nextSection);
@@ -153,8 +143,6 @@ export default function App() {
     setCurrentUser(null);
     setProfileState("idle");
     setProfileMessage("");
-    setHealthState("idle");
-    setHealthMessage("Backend health has not been checked yet.");
     setAuthNotice(noticeMessage);
   }, []);
 
@@ -238,32 +226,9 @@ export default function App() {
     };
   }, []);
 
-  const checkBackendHealth = async () => {
-    setHealthState("loading");
-
-    try {
-      const payload = await getHealth();
-      setHealthState("ok");
-      setHealthMessage(`Backend is reachable. Status: ${payload.status}.`);
-    } catch (error) {
-      setHealthState("error");
-      if (error instanceof TypeError && error.message.toLowerCase().includes("fetch")) {
-        setHealthMessage(
-          "Request failed at browser level (likely CORS or backend not reachable).",
-        );
-        return;
-      }
-      setHealthMessage(
-        error instanceof Error
-          ? error.message
-          : "Health check failed with an unknown error.",
-      );
-    }
-  };
-
   if (!isAuthHydrated) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-50">
+      <main className="rm-shell flex items-center justify-center">
         <p className="text-sm text-slate-600">Preparing authentication...</p>
       </main>
     );
@@ -274,23 +239,25 @@ export default function App() {
   }
 
   return (
-    <main className="min-h-[100svh] bg-slate-50 p-3 sm:p-5">
-      <div className="mx-auto grid w-full max-w-7xl gap-4 lg:grid-cols-[220px_1fr]">
-        <aside className="rounded-xl border border-slate-200 bg-white p-4">
-          <p className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+    <main className="rm-shell">
+      <div className="mx-auto grid w-full max-w-[1480px] gap-4 lg:grid-cols-[248px_1fr]">
+        <aside className="rm-panel rm-animate-enter sticky top-4 h-fit p-4">
+          <p
+            className="inline-flex items-center gap-2 rounded-full bg-cyan-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-cyan-800"
+          >
             <ShieldCheck className="h-4 w-4" />
             Rent Market
           </p>
-          <p className="mt-2 text-sm text-slate-700">Admin workspace</p>
+          <p className="mt-2 text-sm text-slate-700">Operations workspace</p>
 
           <div className="mt-4 space-y-2">
             <button
               type="button"
               className={cn(
-                "w-full rounded-md border px-3 py-2 text-left text-sm transition",
+                "rm-menu-btn w-full text-left",
                 section === "inventory"
-                  ? "border-slate-900 bg-slate-900 text-white"
-                  : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
+                  ? "rm-menu-btn-active"
+                  : "rm-menu-btn-idle",
               )}
               onClick={() => navigateSection("inventory")}
             >
@@ -303,10 +270,10 @@ export default function App() {
             <button
               type="button"
               className={cn(
-                "w-full rounded-md border px-3 py-2 text-left text-sm transition",
+                "rm-menu-btn w-full text-left",
                 section === "tickets"
-                  ? "border-slate-900 bg-slate-900 text-white"
-                  : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
+                  ? "rm-menu-btn-active"
+                  : "rm-menu-btn-idle",
               )}
               onClick={() => navigateSection("tickets")}
             >
@@ -319,10 +286,10 @@ export default function App() {
             <button
               type="button"
               className={cn(
-                "w-full rounded-md border px-3 py-2 text-left text-sm transition",
+                "rm-menu-btn w-full text-left",
                 section === "access_requests"
-                  ? "border-slate-900 bg-slate-900 text-white"
-                  : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
+                  ? "rm-menu-btn-active"
+                  : "rm-menu-btn-idle",
               )}
               onClick={() => navigateSection("access_requests")}
             >
@@ -335,23 +302,18 @@ export default function App() {
             <button
               type="button"
               className={cn(
-                "w-full rounded-md border px-3 py-2 text-left text-sm transition",
-                section === "system"
-                  ? "border-slate-900 bg-slate-900 text-white"
-                  : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
+                "rm-menu-btn w-full text-left",
+                section === "xp_admin"
+                  ? "rm-menu-btn-active"
+                  : "rm-menu-btn-idle",
               )}
-              onClick={() => navigateSection("system")}
+              onClick={() => navigateSection("xp_admin")}
             >
               <span className="inline-flex items-center gap-2">
-                <Server className="h-4 w-4" />
-                System
+                <Sparkles className="h-4 w-4" />
+                XP Control
               </span>
             </button>
-          </div>
-
-          <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Token Expires</p>
-            <p className="mt-1 text-xs text-slate-700">{accessTokenExpiresAtLabel}</p>
           </div>
 
           <Button
@@ -365,58 +327,33 @@ export default function App() {
         </aside>
 
         <section className="space-y-4">
-          <header className="rounded-xl border border-slate-200 bg-white p-4">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div>
-                <p className="text-sm font-semibold text-slate-900">{displayName}</p>
-                {currentUser ? (
-                  <p className="text-xs text-slate-500">@{currentUser.username}</p>
-                ) : null}
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {effectiveRoleTitles.length ? (
-                    effectiveRoleTitles.map((roleTitle) => (
-                      <span
-                        key={roleTitle}
-                        className="rounded-full border border-slate-300 bg-slate-50 px-2 py-0.5 text-xs text-slate-700"
-                      >
-                        {roleTitle}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="text-xs text-slate-500">No roles</span>
-                  )}
-                </div>
+          <header className="rm-panel rm-animate-enter p-4">
+            <div>
+              <p className="text-sm font-semibold text-slate-900">{displayName}</p>
+              {currentUser ? (
+                <p className="text-xs text-slate-500">@{currentUser.username}</p>
+              ) : null}
+              <div className="mt-2 flex flex-wrap gap-2">
+                {effectiveRoleTitles.length ? (
+                  effectiveRoleTitles.map((roleTitle) => (
+                    <span
+                      key={roleTitle}
+                      className="rm-role-pill"
+                    >
+                      {roleTitle}
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-xs text-slate-500">No roles</span>
+                )}
               </div>
-
-              <Button
-                variant="outline"
-                className="h-10 w-full sm:w-auto"
-                onClick={checkBackendHealth}
-                disabled={healthState === "loading"}
-              >
-                <Activity className="mr-2 h-4 w-4" />
-                {healthState === "loading" ? "Checking..." : "Check Backend"}
-              </Button>
             </div>
 
             {profileState === "error" ? (
-              <p className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+              <p className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
                 {profileMessage}
               </p>
             ) : null}
-
-            <p
-              className={cn(
-                "mt-3 rounded-md border px-3 py-2 text-sm",
-                healthState === "error"
-                  ? "border-rose-200 bg-rose-50 text-rose-700"
-                  : healthState === "ok"
-                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                    : "border-slate-200 bg-slate-50 text-slate-700",
-              )}
-            >
-              {healthMessage}
-            </p>
           </header>
 
           {section === "inventory" ? (
@@ -445,17 +382,12 @@ export default function App() {
               roleSlugs={effectiveRoleSlugs}
             />
           ) : (
-            <section className="rounded-xl border border-slate-200 bg-white p-4">
-              <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
-                <UserRound className="h-4 w-4" />
-                System Overview
-              </p>
-              <p className="mt-2 text-sm text-slate-700">
-                Use the <strong>Inventory</strong> menu for stock data,{" "}
-                <strong>Tickets</strong> for intake/review workflow, and{" "}
-                <strong>Access Requests</strong> to approve or reject bot onboarding.
-              </p>
-            </section>
+            <XpAdmin
+              accessToken={session.accessToken}
+              canManage={canManageXp}
+              roleTitles={effectiveRoleTitles}
+              roleSlugs={effectiveRoleSlugs}
+            />
           )}
         </section>
       </div>

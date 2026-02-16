@@ -19,10 +19,6 @@ type PaginatedEnvelope<TData> = {
   per_page: number;
 };
 
-export type HealthResponse = {
-  status: string;
-};
-
 export type LoginTokens = {
   access: string;
   refresh: string;
@@ -46,6 +42,33 @@ type CurrentUserRaw = {
 export type CurrentUser = Omit<CurrentUserRaw, "roles"> & {
   roles: string[];
   role_slugs: string[];
+};
+
+type UserOptionRaw = {
+  id: number;
+  first_name: string;
+  last_name: string | null;
+  username: string;
+  phone: string | null;
+  level: number;
+  roles: UserRole[];
+};
+
+export type UserOption = Omit<UserOptionRaw, "roles"> & {
+  roles: string[];
+  role_slugs: string[];
+  display_name: string;
+};
+
+export type XpTransaction = {
+  id: number;
+  user: number;
+  amount: number;
+  entry_type: string;
+  reference: string;
+  description: string | null;
+  payload: Record<string, unknown>;
+  created_at: string;
 };
 
 export type Inventory = {
@@ -321,10 +344,6 @@ async function apiRequest<TResponse>(
   return payload as TResponse;
 }
 
-export async function getHealth(): Promise<HealthResponse> {
-  return apiRequest<HealthResponse>("misc/health/");
-}
-
 export async function loginWithPassword(
   username: string,
   password: string,
@@ -352,6 +371,31 @@ export async function getCurrentUser(accessToken: string): Promise<CurrentUser> 
     roles: roles.map((role) => role.name),
     role_slugs: roles.map((role) => role.slug),
   };
+}
+
+export async function listUserOptions(
+  accessToken: string,
+  query: { q?: string; page?: number; per_page?: number } = {},
+): Promise<UserOption[]> {
+  const payload = await apiRequest<unknown>(
+    withQuery("users/options/", {
+      q: query.q,
+      page: query.page,
+      per_page: query.per_page ?? 200,
+    }),
+    { accessToken },
+  );
+  const users = extractResults<UserOptionRaw>(payload);
+
+  return users.map((user) => {
+    const fullName = `${user.first_name ?? ""} ${user.last_name ?? ""}`.trim();
+    return {
+      ...user,
+      roles: user.roles.map((role) => role.name),
+      role_slugs: user.roles.map((role) => role.slug),
+      display_name: fullName || user.username,
+    };
+  });
 }
 
 export async function listInventories(accessToken: string): Promise<Inventory[]> {
@@ -834,4 +878,20 @@ export async function rejectAccessRequest(
     accessToken,
   });
   return extractData<AccessRequest>(payload);
+}
+
+export async function adjustUserXp(
+  accessToken: string,
+  body: {
+    user_id: number;
+    amount: number;
+    comment: string;
+  },
+): Promise<XpTransaction> {
+  const payload = await apiRequest<unknown>("xp/adjustments/", {
+    method: "POST",
+    accessToken,
+    body,
+  });
+  return extractData<XpTransaction>(payload);
 }

@@ -44,10 +44,10 @@ export function LoginForm({ onLoggedIn, noticeMessage }: LoginFormProps) {
   };
 
   return (
-    <main className="min-h-[100svh] bg-[radial-gradient(circle_at_top,#e9f2ff_0%,#f8fafc_45%,#ffffff_100%)] px-4 py-6 sm:px-6 sm:py-8 md:px-8 md:py-10">
+    <main className="rm-shell px-4 py-6 sm:px-6 sm:py-8 md:px-8 md:py-10">
       <section className="mx-auto grid w-full max-w-5xl gap-4 md:grid-cols-[1.1fr_1fr] md:gap-6">
-        <div className="rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-xl backdrop-blur sm:p-6 md:p-8">
-          <p className="mb-4 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-600">
+        <div className="rm-panel rm-animate-enter p-5 sm:p-6 md:p-8">
+          <p className="mb-4 inline-flex items-center gap-2 rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-cyan-800">
             <LogIn className="h-4 w-4" />
             Secure access
           </p>
@@ -78,10 +78,7 @@ export function LoginForm({ onLoggedIn, noticeMessage }: LoginFormProps) {
           ) : null}
         </div>
 
-        <form
-          className="rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-xl backdrop-blur sm:p-6 md:p-8"
-          onSubmit={handleSubmit}
-        >
+        <form className="rm-panel rm-animate-enter-delayed p-5 sm:p-6 md:p-8" onSubmit={handleSubmit}>
           <div className="mb-5">
             <h2 className="text-lg font-semibold text-slate-900">Login</h2>
             <p className="mt-1 text-sm text-slate-600">
@@ -108,7 +105,7 @@ export function LoginForm({ onLoggedIn, noticeMessage }: LoginFormProps) {
                 required
                 value={username}
                 onChange={(event) => setUsername(event.target.value)}
-                className="h-12 w-full rounded-md border border-slate-300 bg-white pl-10 pr-3 text-sm text-slate-900 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
+                className="rm-input h-12 pl-10 pr-3"
                 placeholder="your.username"
               />
             </div>
@@ -130,7 +127,7 @@ export function LoginForm({ onLoggedIn, noticeMessage }: LoginFormProps) {
                 required
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                className="h-12 w-full rounded-md border border-slate-300 bg-white pl-10 pr-3 text-sm text-slate-900 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
+                className="rm-input h-12 pl-10 pr-3"
                 placeholder="••••••••"
               />
             </div>

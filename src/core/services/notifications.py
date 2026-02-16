@@ -217,6 +217,30 @@ class UserNotificationService:
         )
 
     @classmethod
+    def notify_manual_xp_adjustment(
+        cls,
+        *,
+        target_user_id: int,
+        actor_user_id: int | None,
+        amount: int,
+        comment: str,
+    ) -> None:
+        signed_amount = f"+{amount}" if amount > 0 else str(amount)
+        message = "\n".join(
+            [
+                "Your XP was adjusted by admin.",
+                f"Amount: {signed_amount}",
+                f"By: {cls._display_name_by_user_id(actor_user_id)}",
+                f"Comment: {comment}",
+            ]
+        )
+        cls._notify_users(
+            event_key="manual_xp_adjustment",
+            user_ids=[target_user_id],
+            message=message,
+        )
+
+    @classmethod
     def _notify_users(
         cls,
         *,

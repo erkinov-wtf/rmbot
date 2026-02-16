@@ -115,7 +115,7 @@ const TICKET_COLOR_OPTIONS: Array<{ value: TicketColor; label: string }> = [
 ];
 
 const fieldClassName =
-  "h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-slate-500 focus:ring-2 focus:ring-slate-100 disabled:cursor-not-allowed disabled:bg-slate-100";
+  "rm-input";
 
 function toErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message) {
@@ -2484,8 +2484,8 @@ export function TicketFlow({
   );
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
-      <div className="flex flex-col gap-3 border-b border-slate-200 pb-4 sm:flex-row sm:items-start sm:justify-between">
+    <section className="rm-panel rm-animate-enter-delayed p-4 sm:p-5">
+      <div className="flex flex-col gap-3 border-b border-slate-200/70 pb-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold text-slate-900">Ticket Flow</h2>
           <p className="mt-1 text-sm text-slate-600">
@@ -2496,7 +2496,7 @@ export function TicketFlow({
               roleTitles.map((roleTitle) => (
                 <span
                   key={roleTitle}
-                  className="rounded-full border border-slate-300 bg-slate-50 px-2 py-0.5 text-xs text-slate-700"
+                  className="rm-role-pill"
                 >
                   {roleTitle}
                 </span>
@@ -2555,7 +2555,7 @@ export function TicketFlow({
       {feedback ? (
         <p
           className={cn(
-            "mt-4 rounded-md border px-3 py-2 text-sm",
+            "mt-4 rounded-xl border px-3 py-2 text-sm",
             feedback.type === "error"
               ? "border-rose-200 bg-rose-50 text-rose-700"
               : feedback.type === "success"
@@ -2572,10 +2572,10 @@ export function TicketFlow({
           type="button"
           onClick={() => navigate({ name: "createList" })}
           className={cn(
-            "rounded-md border px-3 py-2 text-sm font-medium transition",
+            "rm-menu-btn",
             activeMenu === "create"
-              ? "border-slate-900 bg-slate-900 text-white"
-              : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
+              ? "rm-menu-btn-active"
+              : "rm-menu-btn-idle",
           )}
         >
           <span className="inline-flex items-center gap-2">
@@ -2588,10 +2588,10 @@ export function TicketFlow({
           type="button"
           onClick={() => navigate({ name: "review" })}
           className={cn(
-            "rounded-md border px-3 py-2 text-sm font-medium transition",
+            "rm-menu-btn",
             activeMenu === "review"
-              ? "border-slate-900 bg-slate-900 text-white"
-              : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
+              ? "rm-menu-btn-active"
+              : "rm-menu-btn-idle",
           )}
         >
           <span className="inline-flex items-center gap-2">
@@ -2604,10 +2604,10 @@ export function TicketFlow({
           type="button"
           onClick={() => navigate({ name: "work" })}
           className={cn(
-            "rounded-md border px-3 py-2 text-sm font-medium transition",
+            "rm-menu-btn",
             activeMenu === "work"
-              ? "border-slate-900 bg-slate-900 text-white"
-              : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
+              ? "rm-menu-btn-active"
+              : "rm-menu-btn-idle",
           )}
         >
           <span className="inline-flex items-center gap-2">
@@ -2620,10 +2620,10 @@ export function TicketFlow({
           type="button"
           onClick={() => navigate({ name: "qc" })}
           className={cn(
-            "rounded-md border px-3 py-2 text-sm font-medium transition",
+            "rm-menu-btn",
             activeMenu === "qc"
-              ? "border-slate-900 bg-slate-900 text-white"
-              : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
+              ? "rm-menu-btn-active"
+              : "rm-menu-btn-idle",
           )}
         >
           <span className="inline-flex items-center gap-2">

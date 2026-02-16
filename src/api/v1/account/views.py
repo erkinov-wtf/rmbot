@@ -1,15 +1,17 @@
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from account.models import AccessRequest
+from account.models import AccessRequest, User
 from account.services import AccountService
 from api.v1.account.filters import AccessRequestFilterSet
 from api.v1.account.serializers import (
     AccessRequestApproveSerializer,
     AccessRequestSerializer,
+    UserOptionSerializer,
     UserSerializer,
 )
 from core.api.permissions import HasRole
@@ -34,6 +36,35 @@ class MeAPIView(BaseAPIView):
     def get(self, request, *args, **kwargs):
         serializer = self.get_serializer(request.user)
         return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+@extend_schema(
+    tags=["Users / Profile"],
+    summary="List user options",
+    description=(
+        "Lists active users for admin/operator assignment flows. "
+        "Supports optional free-text q search over identity fields."
+    ),
+)
+class UserOptionListAPIView(ListAPIView):
+    serializer_class = UserOptionSerializer
+    permission_classes = (IsAuthenticated, AccessRequestManagerPermission)
+    queryset = User.objects.prefetch_related("roles").order_by(
+        "first_name", "last_name", "username", "id"
+    )
+
+    def get_queryset(self):
+        queryset = self.queryset
+        search = str(self.request.query_params.get("q", "")).strip()
+        if not search:
+            return queryset
+
+        return queryset.filter(
+            Q(username__icontains=search)
+            | Q(first_name__icontains=search)
+            | Q(last_name__icontains=search)
+            | Q(phone__icontains=search)
+        )
 
 
 @extend_schema(

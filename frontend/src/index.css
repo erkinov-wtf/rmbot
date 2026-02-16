@@ -1,26 +1,28 @@
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --background: 210 40% 98%;
-  --foreground: 222.2 84% 4.9%;
+  --background: 36 40% 97%;
+  --foreground: 210 30% 16%;
   --card: 0 0% 100%;
-  --card-foreground: 222.2 84% 4.9%;
-  --primary: 222.2 47.4% 11.2%;
-  --primary-foreground: 210 40% 98%;
-  --secondary: 210 40% 96.1%;
-  --secondary-foreground: 222.2 47.4% 11.2%;
-  --muted: 210 40% 96.1%;
-  --muted-foreground: 215.4 16.3% 46.9%;
-  --accent: 210 40% 96.1%;
-  --accent-foreground: 222.2 47.4% 11.2%;
+  --card-foreground: 210 30% 16%;
+  --primary: 197 72% 36%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 33 46% 92%;
+  --secondary-foreground: 210 24% 22%;
+  --muted: 190 24% 94%;
+  --muted-foreground: 210 12% 45%;
+  --accent: 186 36% 91%;
+  --accent-foreground: 197 46% 28%;
   --destructive: 0 84.2% 60.2%;
   --destructive-foreground: 210 40% 98%;
-  --border: 214.3 31.8% 91.4%;
-  --input: 214.3 31.8% 91.4%;
-  --ring: 222.2 84% 4.9%;
-  --radius: 0.75rem;
+  --border: 193 24% 82%;
+  --input: 193 24% 82%;
+  --ring: 197 72% 36%;
+  --radius: 1rem;
 }
 
 * {
@@ -29,7 +31,77 @@
 
 body {
   @apply bg-background text-foreground antialiased;
-  font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+  font-family: "Manrope", "IBM Plex Sans", "Segoe UI", sans-serif;
   line-height: 1.5;
   -webkit-tap-highlight-color: transparent;
+  background-image:
+    radial-gradient(1200px 600px at -10% -10%, rgba(8, 145, 178, 0.16), transparent 55%),
+    radial-gradient(1000px 600px at 110% 0%, rgba(217, 119, 6, 0.14), transparent 50%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(250, 248, 244, 0.96));
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: "Fraunces", "Manrope", serif;
+  letter-spacing: -0.01em;
+}
+
+@layer components {
+  .rm-panel {
+    @apply rounded-2xl border border-white/70 bg-white/85 shadow-[0_16px_40px_-20px_rgba(15,23,42,0.35)] backdrop-blur;
+  }
+
+  .rm-subpanel {
+    @apply rounded-xl border border-slate-200/70 bg-white/75 shadow-sm backdrop-blur;
+  }
+
+  .rm-input {
+    @apply h-10 w-full rounded-xl border border-slate-300/80 bg-white/90 px-3 text-sm text-slate-900 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-100 disabled:cursor-not-allowed disabled:bg-slate-100/80;
+  }
+
+  .rm-shell {
+    @apply min-h-[100svh] px-3 py-4 sm:px-5 sm:py-6;
+  }
+
+  .rm-role-pill {
+    @apply rounded-full border border-cyan-200/70 bg-cyan-50/80 px-2.5 py-1 text-xs font-semibold text-cyan-800;
+  }
+
+  .rm-menu-btn {
+    @apply rounded-xl border px-3 py-2.5 text-sm font-medium transition;
+  }
+
+  .rm-menu-btn-active {
+    @apply border-slate-900 bg-slate-900 text-white shadow-sm;
+  }
+
+  .rm-menu-btn-idle {
+    @apply border-slate-300/80 bg-white/75 text-slate-700 hover:border-slate-500 hover:bg-slate-100/90;
+  }
+
+  .rm-card-title {
+    @apply text-sm font-semibold text-slate-900;
+  }
+
+  .rm-animate-enter {
+    animation: rm-enter 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .rm-animate-enter-delayed {
+    animation: rm-enter 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: 80ms;
+  }
+}
+
+@keyframes rm-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.995);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }

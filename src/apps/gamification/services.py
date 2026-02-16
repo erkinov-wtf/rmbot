@@ -1,4 +1,5 @@
 from datetime import date, datetime, time, timedelta
+from uuid import uuid4
 from zoneinfo import ZoneInfo
 
 from django.db import IntegrityError, transaction
@@ -7,7 +8,8 @@ from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 from account.models import User
-from core.utils.constants import EmployeeLevel
+from core.services.notifications import UserNotificationService
+from core.utils.constants import EmployeeLevel, XPTransactionEntryType
 from gamification.models import LevelUpCouponEvent, WeeklyLevelEvaluation, XPTransaction
 from rules.services import RulesService
 
@@ -33,6 +35,51 @@ class GamificationService:
             description=description,
             payload=payload,
         )
+
+    @classmethod
+    @transaction.atomic
+    def adjust_user_xp(
+        cls,
+        *,
+        actor_user_id: int,
+        target_user_id: int,
+        amount: int,
+        comment: str,
+    ) -> XPTransaction:
+        normalized_amount = int(amount)
+        if normalized_amount == 0:
+            raise ValueError("amount must not be 0.")
+
+        normalized_comment = str(comment).strip()
+        if not normalized_comment:
+            raise ValueError("comment is required.")
+
+        if not User.objects.filter(id=target_user_id).exists():
+            raise ValueError("Target user was not found.")
+
+        reference = f"manual_adjustment:{target_user_id}:{uuid4().hex}"
+        description = "Manual XP adjustment"
+        payload = {
+            "actor_user_id": int(actor_user_id),
+            "comment": normalized_comment,
+        }
+
+        entry, _ = cls.append_xp_entry(
+            user_id=target_user_id,
+            amount=normalized_amount,
+            entry_type=XPTransactionEntryType.MANUAL_ADJUSTMENT,
+            reference=reference,
+            description=description,
+            payload=payload,
+        )
+
+        UserNotificationService.notify_manual_xp_adjustment(
+            target_user_id=target_user_id,
+            actor_user_id=actor_user_id,
+            amount=normalized_amount,
+            comment=normalized_comment,
+        )
+        return entry
 
 
 class ProgressionService:

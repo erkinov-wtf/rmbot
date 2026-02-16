@@ -81,3 +81,4 @@ class XPTransactionEntryType(models.TextChoices):
         "ticket_qc_status_update",
         _("Ticket QC Status Update"),
     )
+    MANUAL_ADJUSTMENT = "manual_adjustment", _("Manual Adjustment")

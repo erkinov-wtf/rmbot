@@ -56,6 +56,23 @@ class UserSerializer(serializers.ModelSerializer):
         return TelegramProfileSerializer(profile).data
 
 
+class UserOptionSerializer(serializers.ModelSerializer):
+    roles = RoleSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = User
+        fields = (
+            "id",
+            "first_name",
+            "last_name",
+            "username",
+            "phone",
+            "level",
+            "roles",
+        )
+        read_only_fields = fields
+
+
 class AccessRequestSerializer(serializers.ModelSerializer):
     class Meta:
         model = AccessRequest
