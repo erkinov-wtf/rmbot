@@ -1,6 +1,6 @@
 import math
 
-from django.db import IntegrityError, models
+from django.db import models
 from django.utils import timezone
 
 from core.models import AppendOnlyModel, SoftDeleteModel, TimestampedModel
@@ -88,15 +88,6 @@ class Ticket(TimestampedModel, SoftDeleteModel):
                 ),
                 name="unique_active_ticket_per_inventory_item",
             ),
-            models.UniqueConstraint(
-                fields=["technician"],
-                condition=models.Q(
-                    status=TicketStatus.IN_PROGRESS,
-                    technician__isnull=False,
-                    deleted_at__isnull=True,
-                ),
-                name="unique_in_progress_ticket_per_technician",
-            ),
         ]
 
     def assign_to_technician(self, *, technician_id: int, assigned_at=None) -> str:
@@ -176,10 +167,7 @@ class Ticket(TimestampedModel, SoftDeleteModel):
             self.started_at = started_at or timezone.now()
             update_fields.append("started_at")
 
-        try:
-            self.save(update_fields=update_fields)
-        except IntegrityError as exc:
-            raise ValueError("Technician already has an IN_PROGRESS ticket.") from exc
+        self.save(update_fields=update_fields)
         return from_status
 
     def move_to_waiting_qc(self, *, actor_user_id: int) -> str:
@@ -327,7 +315,10 @@ class WorkSession(TimestampedModel, SoftDeleteModel):
         if cls.domain.has_open_for_ticket(ticket=ticket):
             raise ValueError("Ticket already has an active work session.")
         if cls.domain.has_open_for_technician(technician_id=actor_user_id):
-            raise ValueError("Technician already has an active work session.")
+            raise ValueError(
+                "Technician already has an active work session. "
+                "Stop current work session or move ticket to waiting QC before starting another ticket."
+            )
 
         now_dt = started_at or timezone.now()
         session = cls.objects.create(

@@ -9,6 +9,7 @@ Documents aiogram runtime assembly, lifecycle entrypoints, webhook intake path, 
   - `Dispatcher` (in-memory FSM storage)
   - DI `Container` (settings/logger/i18n)
 - `bot/runtime.py` keeps a process-global lazy `BotBundle` behind an async lock.
+- Root router includes onboarding/fallback handlers and technician ticket handlers (`/queue` + callback actions).
 
 ## Execution Flows
 
@@ -35,6 +36,7 @@ Documents aiogram runtime assembly, lifecycle entrypoints, webhook intake path, 
   2. `I18nMiddleware`
   3. `DIMiddleware`
   4. `AuthMiddleware`
+- `AuthMiddleware` resolves identity from aiogram update context (`data["event_from_user"]`) first, then falls back to event/message objects, so update-level middleware execution still authenticates `/queue` and callback actions correctly.
 - `get_bundle()` is concurrency-safe; only one bundle instance exists per process.
 - `close_bundle()` must release HTTP resources and reset runtime singleton.
 

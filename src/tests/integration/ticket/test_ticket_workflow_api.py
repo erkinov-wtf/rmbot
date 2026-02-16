@@ -68,10 +68,13 @@ def test_admin_can_assign_technician(authed_client_factory, workflow_context):
     client = authed_client_factory(workflow_context["ops"])
     ticket = workflow_context["ticket"]
     tech = workflow_context["tech"]
-    ticket.approved_by = workflow_context["ops"]
-    ticket.approved_at = timezone.now()
-    ticket.status = TicketStatus.NEW
-    ticket.save(update_fields=["approved_by", "approved_at", "status"])
+
+    approve_resp = client.post(
+        f"/api/v1/tickets/{ticket.id}/review-approve/",
+        {},
+        format="json",
+    )
+    assert approve_resp.status_code == 200
 
     resp = client.post(
         f"/api/v1/tickets/{ticket.id}/assign/",
@@ -103,6 +106,36 @@ def test_cannot_assign_technician_before_admin_review(
     assert "admin review" in resp.data["error"]["detail"].lower()
 
 
+def test_admin_can_approve_ticket_review(authed_client_factory, workflow_context):
+    ticket = workflow_context["ticket"]
+    ops_client = authed_client_factory(workflow_context["ops"])
+
+    resp = ops_client.post(
+        f"/api/v1/tickets/{ticket.id}/review-approve/",
+        {},
+        format="json",
+    )
+
+    assert resp.status_code == 200
+    ticket.refresh_from_db()
+    assert ticket.approved_by_id == workflow_context["ops"].id
+    assert ticket.approved_at is not None
+    assert ticket.status == TicketStatus.NEW
+
+
+def test_review_approve_requires_admin_role(authed_client_factory, workflow_context):
+    ticket = workflow_context["ticket"]
+    tech_client = authed_client_factory(workflow_context["tech"])
+
+    resp = tech_client.post(
+        f"/api/v1/tickets/{ticket.id}/review-approve/",
+        {},
+        format="json",
+    )
+
+    assert resp.status_code == 403
+
+
 def test_only_assigned_technician_can_start(authed_client_factory, workflow_context):
     ticket = workflow_context["ticket"]
     ticket.status = TicketStatus.ASSIGNED
@@ -124,6 +157,66 @@ def test_only_assigned_technician_can_start(authed_client_factory, workflow_cont
     assert workflow_context["inventory_item"].status == InventoryItemStatus.IN_SERVICE
     assert WorkSession.objects.filter(
         ticket=ticket,
+        technician=workflow_context["tech"],
+        status=WorkSessionStatus.RUNNING,
+    ).exists()
+
+
+def test_technician_must_stop_current_session_before_starting_another_ticket(
+    authed_client_factory,
+    workflow_context,
+    ticket_factory,
+    inventory_item_factory,
+):
+    primary_ticket = workflow_context["ticket"]
+    primary_ticket.status = TicketStatus.ASSIGNED
+    primary_ticket.technician = workflow_context["tech"]
+    primary_ticket.save(update_fields=["status", "technician"])
+
+    secondary_ticket = ticket_factory(
+        inventory_item=inventory_item_factory(serial_number="RM-WF-0002"),
+        master=workflow_context["master"],
+        technician=workflow_context["tech"],
+        status=TicketStatus.ASSIGNED,
+        title="Second workflow ticket",
+    )
+
+    tech_client = authed_client_factory(workflow_context["tech"])
+    first_start = tech_client.post(
+        f"/api/v1/tickets/{primary_ticket.id}/start/",
+        {},
+        format="json",
+    )
+    assert first_start.status_code == 200
+
+    denied = tech_client.post(
+        f"/api/v1/tickets/{secondary_ticket.id}/start/",
+        {},
+        format="json",
+    )
+    assert denied.status_code == 400
+    assert "active work session" in denied.data["error"]["detail"].lower()
+
+    stop = tech_client.post(
+        f"/api/v1/tickets/{primary_ticket.id}/work-session/stop/",
+        {},
+        format="json",
+    )
+    assert stop.status_code == 200
+
+    allowed = tech_client.post(
+        f"/api/v1/tickets/{secondary_ticket.id}/start/",
+        {},
+        format="json",
+    )
+    assert allowed.status_code == 200
+
+    primary_ticket.refresh_from_db()
+    secondary_ticket.refresh_from_db()
+    assert primary_ticket.status == TicketStatus.IN_PROGRESS
+    assert secondary_ticket.status == TicketStatus.IN_PROGRESS
+    assert WorkSession.objects.filter(
+        ticket=secondary_ticket,
         technician=workflow_context["tech"],
         status=WorkSessionStatus.RUNNING,
     ).exists()
@@ -220,6 +313,13 @@ def test_transition_history_endpoint_returns_ordered_audit_records(
     ticket = workflow_context["ticket"]
 
     ops_client = authed_client_factory(workflow_context["ops"])
+    approve_resp = ops_client.post(
+        f"/api/v1/tickets/{ticket.id}/review-approve/",
+        {},
+        format="json",
+    )
+    assert approve_resp.status_code == 200
+
     review_resp = ops_client.post(
         f"/api/v1/tickets/{ticket.id}/manual-metrics/",
         {"flag_color": "yellow", "xp_amount": 3},
@@ -284,9 +384,9 @@ def test_admin_can_set_manual_metrics(authed_client_factory, workflow_context):
     assert ticket.flag_color == "red"
     assert ticket.xp_amount == 77
     assert ticket.is_manual is True
-    assert ticket.approved_by_id == workflow_context["ops"].id
-    assert ticket.approved_at is not None
-    assert ticket.status == TicketStatus.NEW
+    assert ticket.approved_by_id is None
+    assert ticket.approved_at is None
+    assert ticket.status == TicketStatus.UNDER_REVIEW
     assert resp.data["data"]["is_manual"] is True
 
 
@@ -340,6 +440,13 @@ def test_workflow_actions_emit_notification_events(
     )
 
     ops_client = authed_client_factory(workflow_context["ops"])
+    approve_resp = ops_client.post(
+        f"/api/v1/tickets/{ticket.id}/review-approve/",
+        {},
+        format="json",
+    )
+    assert approve_resp.status_code == 200
+
     review_resp = ops_client.post(
         f"/api/v1/tickets/{ticket.id}/manual-metrics/",
         {"flag_color": "yellow", "xp_amount": 2},
@@ -404,3 +511,43 @@ def test_workflow_actions_emit_notification_events(
     ]
     assert events[-1]["base_xp"] >= 0
     assert events[-1]["first_pass_bonus"] == 0
+
+
+def test_assign_notification_includes_technician_inline_actions(
+    authed_client_factory,
+    workflow_context,
+    monkeypatch,
+):
+    captured_payloads: list[dict] = []
+    ticket = workflow_context["ticket"]
+    ticket.approved_by = workflow_context["ops"]
+    ticket.approved_at = timezone.now()
+    ticket.status = TicketStatus.NEW
+    ticket.save(update_fields=["approved_by", "approved_at", "status"])
+
+    def _capture_notify_users(cls, **kwargs):
+        captured_payloads.append(kwargs)
+
+    monkeypatch.setattr(
+        UserNotificationService,
+        "_notify_users",
+        classmethod(_capture_notify_users),
+    )
+
+    ops_client = authed_client_factory(workflow_context["ops"])
+    response = ops_client.post(
+        f"/api/v1/tickets/{ticket.id}/assign/",
+        {"technician_id": workflow_context["tech"].id},
+        format="json",
+    )
+    assert response.status_code == 200
+
+    event_keys = {payload["event_key"] for payload in captured_payloads}
+    assert event_keys == {"ticket_assigned_master", "ticket_assigned_technician"}
+
+    technician_payload = next(
+        payload
+        for payload in captured_payloads
+        if payload["event_key"] == "ticket_assigned_technician"
+    )
+    assert technician_payload["reply_markup"] is not None

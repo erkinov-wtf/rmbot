@@ -49,6 +49,12 @@ class TicketWorkflowService:
     @classmethod
     @transaction.atomic
     def start_ticket(cls, ticket: Ticket, actor_user_id: int) -> Ticket:
+        if WorkSession.domain.has_open_for_technician(technician_id=actor_user_id):
+            raise ValueError(
+                "Technician already has an active work session. Stop current work session "
+                "or move ticket to waiting QC before starting another ticket."
+            )
+
         now_dt = timezone.now()
         from_status = ticket.start_progress(
             actor_user_id=actor_user_id,
@@ -198,24 +204,39 @@ class TicketWorkflowService:
 
     @classmethod
     @transaction.atomic
+    def approve_ticket_review(
+        cls,
+        *,
+        ticket: Ticket,
+        actor_user_id: int,
+    ) -> Ticket:
+        if ticket.is_admin_reviewed:
+            return ticket
+
+        if ticket.status not in (TicketStatus.UNDER_REVIEW, TicketStatus.NEW):
+            raise ValueError(
+                "Ticket review can be approved only from UNDER_REVIEW or NEW status."
+            )
+
+        ticket.mark_admin_review_approved(
+            approved_by_id=actor_user_id,
+            approved_at=timezone.now(),
+        )
+        return ticket
+
+    @classmethod
+    @transaction.atomic
     def set_manual_ticket_metrics(
         cls,
         *,
         ticket: Ticket,
         flag_color: str,
         xp_amount: int,
-        actor_user_id: int | None = None,
     ) -> Ticket:
         ticket.apply_manual_metrics(flag_color=flag_color, xp_amount=xp_amount)
-        update_fields = ["flag_color", "xp_amount", "is_manual", "updated_at"]
-        if actor_user_id:
-            ticket.approved_by_id = actor_user_id
-            ticket.approved_at = timezone.now()
-            update_fields.extend(["approved_by", "approved_at"])
-            if ticket.status == TicketStatus.UNDER_REVIEW:
-                ticket.status = TicketStatus.NEW
-                update_fields.append("status")
-        ticket.save(update_fields=update_fields)
+        ticket.save(
+            update_fields=["flag_color", "xp_amount", "is_manual", "updated_at"]
+        )
         return ticket
 
     @staticmethod

@@ -186,7 +186,15 @@ def test_tma_e2e_master_to_technician_to_qc(
         format="json",
     )
     assert review.status_code == 200
-    assert review.data["data"]["status"] == TicketStatus.NEW
+    assert review.data["data"]["status"] == TicketStatus.UNDER_REVIEW
+
+    approve = ops_client.post(
+        f"/api/v1/tickets/{ticket_id}/review-approve/",
+        {},
+        format="json",
+    )
+    assert approve.status_code == 200
+    assert approve.data["data"]["status"] == TicketStatus.NEW
 
     assign = ops_client.post(
         f"/api/v1/tickets/{ticket_id}/assign/",

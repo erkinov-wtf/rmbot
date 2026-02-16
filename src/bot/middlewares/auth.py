@@ -5,8 +5,15 @@ from core.utils.asyncio import run_sync
 
 
 class AuthMiddleware(BaseMiddleware):
-    async def __call__(self, handler, event, data):
+    @staticmethod
+    def _resolve_from_user(event, data):
         from aiogram.types import CallbackQuery, Message
+
+        # Update-level middlewares receive Update events; aiogram exposes actor
+        # user in the shared data payload as `event_from_user`.
+        from_user = data.get("event_from_user")
+        if from_user:
+            return from_user
 
         message = None
         if isinstance(event, Message):
@@ -14,7 +21,10 @@ class AuthMiddleware(BaseMiddleware):
         elif isinstance(event, CallbackQuery):
             message = event.message
 
-        from_user = getattr(message, "from_user", None)
+        return getattr(event, "from_user", None) or getattr(message, "from_user", None)
+
+    async def __call__(self, handler, event, data):
+        from_user = self._resolve_from_user(event, data)
         if not from_user:
             return await handler(event, data)
 

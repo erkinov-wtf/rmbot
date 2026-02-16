@@ -5,12 +5,14 @@ from collections.abc import Iterable
 from typing import TYPE_CHECKING
 
 from aiogram import Bot
+from aiogram.types import InlineKeyboardMarkup
 from asgiref.sync import async_to_sync
 from django.conf import settings
 from django.db import transaction
 
 from account.models import TelegramProfile, User
 from core.utils.constants import RoleSlug
+from ticket.services_technician_actions import TechnicianTicketActionService
 
 if TYPE_CHECKING:
     from account.models import AccessRequest
@@ -32,16 +34,9 @@ class UserNotificationService:
             else "Hello."
         )
         if approved:
-            message = (
-                f"{greeting}\n"
-                "Your access request has been approved. You can now use Rent Market."
-            )
+            message = f"{greeting}\nYour access request has been approved. You can now use Rent Market."
         else:
-            message = (
-                f"{greeting}\n"
-                "Your access request has been denied. You can submit a new request "
-                "using /start."
-            )
+            message = f"{greeting}\nYour access request has been denied. You can submit a new request using /start."
 
         cls._notify_telegram_ids(
             event_key="access_request_decision",
@@ -56,7 +51,7 @@ class UserNotificationService:
         if not ticket.technician_id:
             return
 
-        message = "\n".join(
+        master_message = "\n".join(
             [
                 "Ticket assigned.",
                 f"Ticket: #{ticket.id}",
@@ -67,10 +62,34 @@ class UserNotificationService:
             ]
         )
         cls._notify_users(
-            event_key="ticket_assigned",
-            user_ids=[ticket.master_id, ticket.technician_id],
-            message=message,
+            event_key="ticket_assigned_master",
+            user_ids=[ticket.master_id],
+            message=master_message,
             exclude_user_ids=[actor_user_id],
+        )
+
+        technician_state = TechnicianTicketActionService.state_for_ticket(
+            ticket=ticket,
+            technician_id=ticket.technician_id,
+        )
+        technician_message = "\n".join(
+            [
+                TechnicianTicketActionService.render_state_message(
+                    state=technician_state,
+                    heading="New ticket assigned to you.",
+                ),
+                f"Assigned by: {cls._display_name_by_user_id(actor_user_id)}",
+            ]
+        )
+        technician_markup = TechnicianTicketActionService.build_action_keyboard(
+            ticket_id=ticket.id,
+            actions=technician_state.actions,
+        )
+        cls._notify_users(
+            event_key="ticket_assigned_technician",
+            user_ids=[ticket.technician_id],
+            message=technician_message,
+            reply_markup=technician_markup,
         )
 
     @classmethod
@@ -152,7 +171,7 @@ class UserNotificationService:
     def notify_ticket_qc_fail(
         cls, *, ticket: Ticket, actor_user_id: int | None
     ) -> None:
-        message = "\n".join(
+        master_message = "\n".join(
             [
                 "Ticket failed QC and moved to rework.",
                 f"Ticket: #{ticket.id}",
@@ -164,10 +183,37 @@ class UserNotificationService:
             ]
         )
         cls._notify_users(
-            event_key="ticket_qc_fail",
-            user_ids=[ticket.master_id, ticket.technician_id],
-            message=message,
+            event_key="ticket_qc_fail_master",
+            user_ids=[ticket.master_id],
+            message=master_message,
             exclude_user_ids=[actor_user_id],
+        )
+
+        if not ticket.technician_id:
+            return
+
+        technician_state = TechnicianTicketActionService.state_for_ticket(
+            ticket=ticket,
+            technician_id=ticket.technician_id,
+        )
+        technician_message = "\n".join(
+            [
+                TechnicianTicketActionService.render_state_message(
+                    state=technician_state,
+                    heading="Ticket returned from QC. Continue rework.",
+                ),
+                f"QC by: {cls._display_name_by_user_id(actor_user_id)}",
+            ]
+        )
+        technician_markup = TechnicianTicketActionService.build_action_keyboard(
+            ticket_id=ticket.id,
+            actions=technician_state.actions,
+        )
+        cls._notify_users(
+            event_key="ticket_qc_fail_technician",
+            user_ids=[ticket.technician_id],
+            message=technician_message,
+            reply_markup=technician_markup,
         )
 
     @classmethod
@@ -178,6 +224,7 @@ class UserNotificationService:
         user_ids: Iterable[int | None],
         message: str,
         exclude_user_ids: Iterable[int | None] | None = None,
+        reply_markup: InlineKeyboardMarkup | None = None,
     ) -> None:
         recipient_user_ids = cls._normalize_user_ids(
             user_ids=user_ids, exclude_user_ids=exclude_user_ids
@@ -190,11 +237,17 @@ class UserNotificationService:
             event_key=event_key,
             telegram_ids=telegram_ids,
             message=message,
+            reply_markup=reply_markup,
         )
 
     @classmethod
     def _notify_telegram_ids(
-        cls, *, event_key: str, telegram_ids: Iterable[int], message: str
+        cls,
+        *,
+        event_key: str,
+        telegram_ids: Iterable[int],
+        message: str,
+        reply_markup: InlineKeyboardMarkup | None = None,
     ) -> None:
         recipient_ids = sorted({int(tg_id) for tg_id in telegram_ids if tg_id})
         if not recipient_ids:
@@ -214,6 +267,7 @@ class UserNotificationService:
                 bot_token=bot_token,
                 telegram_ids=recipient_ids,
                 message=message,
+                reply_markup=reply_markup,
             )
         )
 
@@ -225,6 +279,7 @@ class UserNotificationService:
         bot_token: str,
         telegram_ids: list[int],
         message: str,
+        reply_markup: InlineKeyboardMarkup | None,
     ) -> None:
         try:
             async_to_sync(cls._send_telegram_messages)(
@@ -232,19 +287,29 @@ class UserNotificationService:
                 bot_token=bot_token,
                 telegram_ids=telegram_ids,
                 message=message,
+                reply_markup=reply_markup,
             )
         except Exception:
             logger.exception("Failed to dispatch %s notification.", event_key)
 
     @staticmethod
     async def _send_telegram_messages(
-        *, event_key: str, bot_token: str, telegram_ids: list[int], message: str
+        *,
+        event_key: str,
+        bot_token: str,
+        telegram_ids: list[int],
+        message: str,
+        reply_markup: InlineKeyboardMarkup | None,
     ) -> None:
         bot = Bot(token=bot_token)
         try:
             for telegram_id in telegram_ids:
                 try:
-                    await bot.send_message(chat_id=telegram_id, text=message)
+                    await bot.send_message(
+                        chat_id=telegram_id,
+                        text=message,
+                        reply_markup=reply_markup,
+                    )
                 except Exception:
                     logger.exception(
                         "Failed to send %s notification to telegram_id=%s.",

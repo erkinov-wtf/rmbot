@@ -106,6 +106,7 @@ async def help_handler(message: Message, _):
             _("Available commands:"),
             "/start - " + _("Start bot"),
             "/my - " + _("Show my access status"),
+            "/queue - " + _("Show my ticket queue"),
             "/cancel - " + _("Cancel current form"),
             "/help - " + _("Show help"),
         ]

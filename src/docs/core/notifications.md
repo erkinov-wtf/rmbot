@@ -5,11 +5,11 @@ Centralized user-facing notification orchestration for cross-domain events, curr
 
 ## Public Events
 - `notify_access_request_decision`: approval/rejection message to the requester Telegram ID.
-- `notify_ticket_assigned`: assignment update to master + technician.
+- `notify_ticket_assigned`: assignment update to master plus technician-specific actionable message.
 - `notify_ticket_started`: work-start update to ticket master.
 - `notify_ticket_waiting_qc`: waiting-QC update to QC inspectors + master.
 - `notify_ticket_qc_pass`: QC pass/closure + XP summary to master + technician.
-- `notify_ticket_qc_fail`: QC fail/rework update to master + technician.
+- `notify_ticket_qc_fail`: QC fail/rework update to master plus technician-specific rework actions.
 
 Ticket workflow notifications include:
 - ticket id,
@@ -20,6 +20,12 @@ Ticket workflow notifications include:
 - User-recipient notifications resolve through active `User` rows and linked active `TelegramProfile` rows.
 - Role-recipient notifications resolve users by role slug (`qc_inspector`) and then map to Telegram IDs.
 - Actor user can be excluded per event to avoid self-notify spam.
+- Technician action notifications are now split from manager/QC informational notifications so inline controls are only delivered to technician recipients.
+
+## Telegram Inline Controls
+- Technician ticket notifications can include inline buttons for Telegram-driven actions (`start`, `pause`, `resume`, `stop`, `to_waiting_qc`, `refresh`).
+- Callback payloads are generated through `TechnicianTicketActionService` and use stable format `tt:<ticket_id>:<action>`.
+- Action availability is resolved from ticket status + latest work-session status to prevent invalid transitions from stale buttons.
 
 ## Delivery Behavior
 - Telegram sends are best-effort and non-blocking for business transactions.
@@ -33,5 +39,6 @@ Ticket workflow notifications include:
 
 ## Related Code
 - `core/services/notifications.py`
+- `apps/ticket/services_technician_actions.py`
 - `apps/account/services.py`
 - `apps/ticket/services_workflow.py`

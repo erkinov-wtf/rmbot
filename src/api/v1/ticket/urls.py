@@ -20,6 +20,11 @@ urlpatterns = [
         name="ticket-assign",
     ),
     path(
+        "<int:pk>/review-approve/",
+        TicketWorkflowViewSet.as_view({"post": "review_approve"}),
+        name="ticket-review-approve",
+    ),
+    path(
         "<int:pk>/transitions/",
         TicketTransitionListAPIView.as_view(),
         name="ticket-transitions",

@@ -38,7 +38,10 @@ def test_enforces_one_active_ticket_per_inventory_item(
             )
 
 
-def test_enforces_wip_one_per_technician(user_factory, inventory_item_factory):
+def test_allows_multiple_in_progress_tickets_for_same_technician(
+    user_factory,
+    inventory_item_factory,
+):
     master = user_factory(
         username="master_user2",
         first_name="Master",
@@ -58,12 +61,18 @@ def test_enforces_wip_one_per_technician(user_factory, inventory_item_factory):
         title="First in-progress ticket",
     )
 
-    with pytest.raises(IntegrityError):
-        with transaction.atomic():
-            Ticket.objects.create(
-                inventory_item=inventory_item_b,
-                master=master,
-                technician=technician,
-                status=TicketStatus.IN_PROGRESS,
-                title="Second in-progress ticket",
-            )
+    Ticket.objects.create(
+        inventory_item=inventory_item_b,
+        master=master,
+        technician=technician,
+        status=TicketStatus.IN_PROGRESS,
+        title="Second in-progress ticket",
+    )
+
+    assert (
+        Ticket.objects.filter(
+            technician=technician,
+            status=TicketStatus.IN_PROGRESS,
+        ).count()
+        == 2
+    )
