@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import math
 from collections.abc import Iterable
 from dataclasses import dataclass
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from django.db.models import Sum
+from django.db.models.functions import Coalesce
 
 from core.utils.constants import TicketStatus, WorkSessionStatus
+from gamification.models import XPTransaction
 from ticket.models import Ticket, WorkSession
 
 
@@ -15,6 +19,8 @@ class TechnicianTicketState:
     serial_number: str
     ticket_status: str
     session_status: str | None
+    potential_xp: int
+    acquired_xp: int
     actions: tuple[str, ...]
 
 
@@ -22,6 +28,7 @@ class TechnicianTicketActionService:
     """Technician-side ticket action helper for Telegram-driven workflows."""
 
     CALLBACK_PREFIX = "tt"
+    QUEUE_CALLBACK_PREFIX = "ttq"
 
     ACTION_START = "start"
     ACTION_PAUSE = "pause"
@@ -29,6 +36,13 @@ class TechnicianTicketActionService:
     ACTION_STOP = "stop"
     ACTION_TO_WAITING_QC = "to_waiting_qc"
     ACTION_REFRESH = "refresh"
+
+    QUEUE_ACTION_OPEN = "open"
+    QUEUE_ACTION_REFRESH = "refresh"
+
+    VIEW_SCOPE_ACTIVE = "active"
+    VIEW_SCOPE_UNDER_QC = "under_qc"
+    VIEW_SCOPE_PAST = "past"
 
     _ACTION_ORDER = (
         ACTION_START,
@@ -38,12 +52,30 @@ class TechnicianTicketActionService:
         ACTION_TO_WAITING_QC,
     )
     _ACTION_LABELS = {
-        ACTION_START: "Start",
-        ACTION_PAUSE: "Pause",
-        ACTION_RESUME: "Resume",
-        ACTION_STOP: "Stop",
-        ACTION_TO_WAITING_QC: "Move to QC",
-        ACTION_REFRESH: "Refresh",
+        ACTION_START: "▶ Start",
+        ACTION_PAUSE: "⏸ Pause",
+        ACTION_RESUME: "▶ Resume",
+        ACTION_STOP: "⏹ Stop",
+        ACTION_TO_WAITING_QC: "🧪 To QC",
+        ACTION_REFRESH: "🔄 Refresh",
+    }
+    _QUEUE_ACTION_LABELS = {
+        QUEUE_ACTION_OPEN: "🔍 Open",
+        QUEUE_ACTION_REFRESH: "🔄 Refresh queue",
+    }
+    _VIEW_SCOPE_STATUSES = {
+        VIEW_SCOPE_ACTIVE: (
+            TicketStatus.ASSIGNED,
+            TicketStatus.REWORK,
+            TicketStatus.IN_PROGRESS,
+        ),
+        VIEW_SCOPE_UNDER_QC: (TicketStatus.WAITING_QC,),
+        VIEW_SCOPE_PAST: (TicketStatus.DONE,),
+    }
+    _VIEW_SCOPE_EMPTY_MESSAGES = {
+        VIEW_SCOPE_ACTIVE: "No active tickets assigned right now.",
+        VIEW_SCOPE_UNDER_QC: "No tickets are currently waiting QC.",
+        VIEW_SCOPE_PAST: "No past tickets found yet.",
     }
     _ACTION_FEEDBACK = {
         ACTION_START: "Work started.",
@@ -58,7 +90,24 @@ class TechnicianTicketActionService:
     def queue_states_for_technician(
         cls, *, technician_id: int
     ) -> list[TechnicianTicketState]:
-        tickets = cls._queue_tickets_for_technician(technician_id=technician_id)
+        return cls.view_states_for_technician(
+            technician_id=technician_id,
+            scope=cls.VIEW_SCOPE_ACTIVE,
+        )
+
+    @classmethod
+    def view_states_for_technician(
+        cls,
+        *,
+        technician_id: int,
+        scope: str,
+        limit: int = 20,
+    ) -> list[TechnicianTicketState]:
+        tickets = cls._queue_tickets_for_technician(
+            technician_id=technician_id,
+            scope=scope,
+            limit=limit,
+        )
         return [
             cls.state_for_ticket(ticket=ticket, technician_id=technician_id)
             for ticket in tickets
@@ -126,6 +175,11 @@ class TechnicianTicketActionService:
             serial_number=cls._serial_number(ticket=ticket),
             ticket_status=str(ticket.status),
             session_status=session_status,
+            potential_xp=cls._potential_xp_for_ticket(ticket=ticket),
+            acquired_xp=cls._acquired_xp_for_ticket_and_technician(
+                ticket=ticket,
+                technician_id=technician_id,
+            ),
             actions=actions,
         )
 
@@ -159,6 +213,51 @@ class TechnicianTicketActionService:
         if session_status == WorkSessionStatus.STOPPED:
             return [cls.ACTION_TO_WAITING_QC]
         return []
+
+    @classmethod
+    def build_queue_keyboard(
+        cls,
+        *,
+        states: Iterable[TechnicianTicketState],
+        scope: str = VIEW_SCOPE_ACTIVE,
+        include_refresh: bool = True,
+    ) -> InlineKeyboardMarkup | None:
+        cls._validate_view_scope(scope=scope)
+        states_list = list(states)
+        inline_keyboard: list[list[InlineKeyboardButton]] = []
+        for state in states_list:
+            inline_keyboard.append(
+                [
+                    InlineKeyboardButton(
+                        text=(
+                            f"{cls._status_icon(status=state.ticket_status)} "
+                            f"#{state.ticket_id} · {state.serial_number}"
+                        ),
+                        callback_data=cls.build_queue_callback_data(
+                            action=cls.QUEUE_ACTION_OPEN,
+                            ticket_id=state.ticket_id,
+                            scope=scope,
+                        ),
+                    )
+                ]
+            )
+
+        if include_refresh:
+            inline_keyboard.append(
+                [
+                    InlineKeyboardButton(
+                        text=cls._QUEUE_ACTION_LABELS[cls.QUEUE_ACTION_REFRESH],
+                        callback_data=cls.build_queue_callback_data(
+                            action=cls.QUEUE_ACTION_REFRESH,
+                            scope=scope,
+                        ),
+                    )
+                ]
+            )
+
+        if not inline_keyboard:
+            return None
+        return InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
 
     @classmethod
     def build_action_keyboard(
@@ -219,6 +318,13 @@ class TechnicianTicketActionService:
         )
         if state.session_status:
             lines.append(f"Work session: {state.session_status}")
+        if state.potential_xp > 0:
+            lines.append(f"Potential XP: +{state.potential_xp}")
+        else:
+            lines.append("Potential XP: pending metrics")
+        lines.append(f"Acquired XP: +{state.acquired_xp}")
+        if state.potential_xp > 0:
+            lines.append(f"XP progress: {state.acquired_xp}/{state.potential_xp}")
 
         available_labels = [
             cls._ACTION_LABELS[action]
@@ -229,6 +335,45 @@ class TechnicianTicketActionService:
             lines.append(f"Available actions: {', '.join(available_labels)}")
         else:
             lines.append("No technician actions are available right now.")
+        return "\n".join(lines)
+
+    @classmethod
+    def render_queue_summary(
+        cls,
+        *,
+        states: Iterable[TechnicianTicketState],
+        scope: str = VIEW_SCOPE_ACTIVE,
+        heading: str | None = None,
+    ) -> str:
+        cls._validate_view_scope(scope=scope)
+        states_list = list(states)
+        lines: list[str] = []
+        if heading:
+            lines.append(heading)
+
+        if not states_list:
+            lines.append(
+                cls._VIEW_SCOPE_EMPTY_MESSAGES.get(
+                    scope,
+                    cls._VIEW_SCOPE_EMPTY_MESSAGES[cls.VIEW_SCOPE_ACTIVE],
+                )
+            )
+            return "\n".join(lines)
+
+        lines.append(f"Total active tickets: {len(states_list)}")
+        for state in states_list:
+            session_suffix = (
+                f" | session: {state.session_status}" if state.session_status else ""
+            )
+            potential_xp = str(state.potential_xp) if state.potential_xp > 0 else "?"
+            xp_suffix = f" | xp: +{state.acquired_xp}/{potential_xp}"
+            ticket_line = (
+                f"{cls._status_icon(status=state.ticket_status)} "
+                f"#{state.ticket_id} | {state.serial_number} | {state.ticket_status}"
+                f"{session_suffix}{xp_suffix}"
+            )
+            lines.append(ticket_line)
+        lines.append("Tap an inline button to open ticket controls.")
         return "\n".join(lines)
 
     @classmethod
@@ -257,6 +402,48 @@ class TechnicianTicketActionService:
         return ticket_id, action
 
     @classmethod
+    def build_queue_callback_data(
+        cls,
+        *,
+        action: str,
+        ticket_id: int | None = None,
+        scope: str = VIEW_SCOPE_ACTIVE,
+    ) -> str:
+        cls._validate_view_scope(scope=scope)
+        if action == cls.QUEUE_ACTION_REFRESH:
+            return f"{cls.QUEUE_CALLBACK_PREFIX}:{action}:{scope}"
+        if action == cls.QUEUE_ACTION_OPEN and ticket_id is not None:
+            return f"{cls.QUEUE_CALLBACK_PREFIX}:{action}:{int(ticket_id)}:{scope}"
+        raise ValueError("Unsupported queue callback action.")
+
+    @classmethod
+    def parse_queue_callback_data(
+        cls, *, callback_data: str
+    ) -> tuple[str, int | None, str] | None:
+        parts = str(callback_data or "").split(":", 3)
+        if len(parts) < 2 or parts[0] != cls.QUEUE_CALLBACK_PREFIX:
+            return None
+
+        action = parts[1]
+        if action == cls.QUEUE_ACTION_REFRESH:
+            scope = parts[2] if len(parts) >= 3 else cls.VIEW_SCOPE_ACTIVE
+            if scope not in cls._VIEW_SCOPE_STATUSES:
+                return None
+            return action, None, scope
+
+        if action == cls.QUEUE_ACTION_OPEN:
+            try:
+                ticket_id = int(parts[2])
+            except (IndexError, TypeError, ValueError):
+                return None
+            scope = parts[3] if len(parts) >= 4 else cls.VIEW_SCOPE_ACTIVE
+            if scope not in cls._VIEW_SCOPE_STATUSES:
+                return None
+            return action, ticket_id, scope
+
+        return None
+
+    @classmethod
     def get_ticket_for_technician(
         cls, *, technician_id: int, ticket_id: int
     ) -> Ticket | None:
@@ -267,19 +454,63 @@ class TechnicianTicketActionService:
         )
 
     @classmethod
-    def _queue_tickets_for_technician(cls, *, technician_id: int) -> list[Ticket]:
-        return list(
+    def _queue_tickets_for_technician(
+        cls,
+        *,
+        technician_id: int,
+        scope: str,
+        limit: int = 20,
+    ) -> list[Ticket]:
+        cls._validate_view_scope(scope=scope)
+        queryset = (
             Ticket.domain.select_related("inventory_item")
             .filter(
                 technician_id=technician_id,
-                status__in=[
-                    TicketStatus.ASSIGNED,
-                    TicketStatus.REWORK,
-                    TicketStatus.IN_PROGRESS,
-                ],
+                status__in=list(cls._VIEW_SCOPE_STATUSES[scope]),
             )
             .order_by("-created_at", "-id")
         )
+        if limit > 0:
+            queryset = queryset[:limit]
+        return list(queryset)
+
+    @classmethod
+    def _validate_view_scope(cls, *, scope: str) -> None:
+        if scope not in cls._VIEW_SCOPE_STATUSES:
+            raise ValueError("Unsupported ticket view scope.")
+
+    @classmethod
+    def _status_icon(cls, *, status: str) -> str:
+        return {
+            TicketStatus.ASSIGNED: "🟡",
+            TicketStatus.REWORK: "🟠",
+            TicketStatus.IN_PROGRESS: "🟢",
+            TicketStatus.WAITING_QC: "🧪",
+            TicketStatus.DONE: "✅",
+        }.get(status, "🎟")
+
+    @classmethod
+    def _potential_xp_for_ticket(cls, *, ticket: Ticket) -> int:
+        explicit = int(ticket.xp_amount or 0)
+        if explicit > 0:
+            return explicit
+        total_duration = int(ticket.total_duration or 0)
+        if total_duration <= 0:
+            return 0
+        return math.ceil(total_duration / 20)
+
+    @classmethod
+    def _acquired_xp_for_ticket_and_technician(
+        cls,
+        *,
+        ticket: Ticket,
+        technician_id: int,
+    ) -> int:
+        aggregate = XPTransaction.objects.filter(
+            user_id=technician_id,
+            payload__ticket_id=ticket.id,
+        ).aggregate(total_amount=Coalesce(Sum("amount"), 0))
+        return int(aggregate.get("total_amount") or 0)
 
     @classmethod
     def _latest_session_status(

@@ -28,7 +28,7 @@ class AuthMiddleware(BaseMiddleware):
         if not from_user:
             return await handler(event, data)
 
-        profile = await run_sync(AccountService.get_active_profile, from_user.id)
+        profile, user = await run_sync(AccountService.resolve_bot_actor, from_user)
         data["telegram_profile"] = profile
-        data["user"] = profile.user if profile else None
+        data["user"] = user
         return await handler(event, data)

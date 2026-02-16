@@ -26,8 +26,8 @@ def test_auth_middleware_uses_event_from_user_context(user_factory, monkeypatch)
     monkeypatch.setattr("bot.middlewares.auth.run_sync", _run_sync_passthrough)
     monkeypatch.setattr(
         AccountService,
-        "get_active_profile",
-        staticmethod(lambda _telegram_id: profile),
+        "resolve_bot_actor",
+        staticmethod(lambda _from_user: (profile, user)),
     )
 
     async def handler(_event, data):
@@ -62,8 +62,8 @@ def test_auth_middleware_falls_back_to_event_from_user_attribute(
     monkeypatch.setattr("bot.middlewares.auth.run_sync", _run_sync_passthrough)
     monkeypatch.setattr(
         AccountService,
-        "get_active_profile",
-        staticmethod(lambda _telegram_id: profile),
+        "resolve_bot_actor",
+        staticmethod(lambda _from_user: (profile, user)),
     )
 
     async def handler(_event, data):

@@ -156,3 +156,85 @@ def test_bot_request_after_rejection_reuses_user_with_same_phone():
     assert second_request.status == AccessRequestStatus.PENDING
     assert second_request.user_id == first_request.user_id
     assert AccessRequest.all_objects.filter(telegram_id=700006).count() == 2
+
+
+def test_resolve_bot_actor_returns_existing_active_link(user_factory):
+    user = user_factory(
+        username="resolve_active_user",
+        first_name="Resolve",
+        is_active=True,
+    )
+    profile = TelegramProfile.objects.create(
+        telegram_id=700007,
+        user=user,
+        username="resolve_active_user",
+        first_name="Resolve",
+    )
+
+    from_user = type(
+        "FromUser",
+        (),
+        {
+            "id": 700007,
+            "username": "resolve_active_user",
+            "first_name": "Resolve",
+            "last_name": "User",
+            "language_code": "en",
+            "is_bot": False,
+            "is_premium": False,
+        },
+    )()
+
+    resolved_profile, resolved_user = AccountService.resolve_bot_actor(from_user)
+
+    assert resolved_profile.id == profile.id
+    assert resolved_user is not None
+    assert resolved_user.id == user.id
+
+
+def test_resolve_bot_actor_recovers_profile_user_link(user_factory):
+    inactive_user = user_factory(
+        username="resolve_inactive_user",
+        first_name="Inactive",
+        is_active=False,
+    )
+    active_user = user_factory(
+        username="resolve_recovered_user",
+        first_name="Recovered",
+        is_active=True,
+    )
+    profile = TelegramProfile.objects.create(
+        telegram_id=700008,
+        user=inactive_user,
+        username="resolve_inactive_user",
+        first_name="Inactive",
+    )
+    AccessRequest.objects.create(
+        telegram_id=700008,
+        username="resolve_recovered_user",
+        first_name="Recovered",
+        status=AccessRequestStatus.APPROVED,
+        user=active_user,
+    )
+
+    from_user = type(
+        "FromUser",
+        (),
+        {
+            "id": 700008,
+            "username": "resolve_recovered_user",
+            "first_name": "Recovered",
+            "last_name": "User",
+            "language_code": "en",
+            "is_bot": False,
+            "is_premium": False,
+        },
+    )()
+
+    resolved_profile, resolved_user = AccountService.resolve_bot_actor(from_user)
+    profile.refresh_from_db()
+
+    assert resolved_user is not None
+    assert resolved_user.id == active_user.id
+    assert resolved_profile.id == profile.id
+    assert profile.user_id == active_user.id

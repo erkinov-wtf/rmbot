@@ -71,6 +71,37 @@ class AccountService:
     def get_active_profile(telegram_id: int) -> TelegramProfile | None:
         return TelegramProfile.domain.active_for_telegram(telegram_id=telegram_id)
 
+    @classmethod
+    @transaction.atomic
+    def resolve_bot_actor(cls, from_user) -> tuple[TelegramProfile, User | None]:
+        """
+        Resolve Telegram profile + active linked user for bot updates.
+
+        This method is resilient for old data where profile<->user links may be
+        missing: it revives/upserts profile data and restores link from the
+        latest active access-request record for the same telegram id.
+        """
+        profile = cls.upsert_telegram_profile(from_user=from_user)
+        linked_user = profile.user
+        if linked_user and linked_user.is_active:
+            return profile, linked_user
+
+        recovered_request = AccessRequest.domain.latest_active_with_user(
+            telegram_id=from_user.id
+        )
+        recovered_user = recovered_request.user if recovered_request else None
+        if not recovered_user:
+            return profile, None
+
+        linked_profile = cls._link_telegram_profile_to_user(
+            telegram_id=from_user.id,
+            user=recovered_user,
+            username=getattr(from_user, "username", None),
+            first_name=getattr(from_user, "first_name", None),
+            last_name=getattr(from_user, "last_name", None),
+        )
+        return linked_profile, recovered_user
+
     @staticmethod
     def ensure_pending_access_request(
         telegram_id: int,

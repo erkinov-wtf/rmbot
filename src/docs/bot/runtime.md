@@ -37,6 +37,7 @@ Documents aiogram runtime assembly, lifecycle entrypoints, webhook intake path, 
   3. `DIMiddleware`
   4. `AuthMiddleware`
 - `AuthMiddleware` resolves identity from aiogram update context (`data["event_from_user"]`) first, then falls back to event/message objects, so update-level middleware execution still authenticates `/queue` and callback actions correctly.
+- `AuthMiddleware` uses `AccountService.resolve_bot_actor` to upsert/revive Telegram profiles and recover active user links from access-request history, reducing false "not registered" responses for legacy data.
 - `get_bundle()` is concurrency-safe; only one bundle instance exists per process.
 - `close_bundle()` must release HTTP resources and reset runtime singleton.
 

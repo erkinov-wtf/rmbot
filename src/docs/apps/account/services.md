@@ -8,6 +8,7 @@ Coordinates access onboarding and moderation workflows while delegating first-le
 - Approval: `approve_access_request`.
 - Rejection: `reject_access_request`.
 - Profile linking/upsert: `upsert_telegram_profile`, `_link_telegram_profile_to_user` (delegating to `TelegramProfile.domain`).
+- Bot actor resolution: `resolve_bot_actor` (upsert profile and recover active user link from access-request history when needed).
 
 ## Invariants and Contracts
 - One effective pending access request per Telegram user.
@@ -18,6 +19,7 @@ Coordinates access onboarding and moderation workflows while delegating first-le
 ## Side Effects
 - Creates/reactivates inactive users during onboarding.
 - Assigns roles and activates users on approval.
+- Revives Telegram profiles and reattaches them to approved active users when legacy/missing links are detected.
 - Triggers access-decision notifications via `core.services.notifications.UserNotificationService` (best effort).
 
 ## Failure Modes

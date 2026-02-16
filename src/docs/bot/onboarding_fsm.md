@@ -29,8 +29,12 @@ Documents `/start` onboarding state machine, input validation, and account-reque
 
 ## Operational Notes
 - `/cancel` clears FSM state explicitly.
-- `/my` reflects effective onboarding state (pending/registered/not-registered).
-- `/help` exposes command hints for recovery paths.
+- `/my` reflects effective onboarding state (pending/registered/not-registered) with expanded account details (name, username, phone, level, roles, XP totals, and technician ticket counters for active/waiting-QC/done).
+- Bottom reply-keyboard menu is shown for non-FSM interactions to reduce slash-command usage:
+  - common: `My Status`, `Help`
+  - unregistered: `Start Access Request`
+  - technician: `Active Tickets`, `Under QC Tickets`, `Past Tickets`, `My XP`, `XP History`
+- `/help` still exposes command hints for recovery paths, including technician dashboard aliases (`/queue`, `/active`, `/tech`, `/under_qc`, `/past`) and XP shortcuts (`/xp`, `/xp_history`).
 
 ## Related Code
 - `bot/routers/start.py`

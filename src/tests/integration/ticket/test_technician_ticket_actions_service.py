@@ -1,6 +1,12 @@
 import pytest
 
-from core.utils.constants import RoleSlug, TicketStatus, WorkSessionStatus
+from core.utils.constants import (
+    RoleSlug,
+    TicketStatus,
+    WorkSessionStatus,
+    XPTransactionEntryType,
+)
+from gamification.models import XPTransaction
 from ticket.models import WorkSession
 from ticket.services_technician_actions import TechnicianTicketActionService
 
@@ -25,6 +31,7 @@ def technician_ticket_context(
         master=master,
         technician=technician,
         status=TicketStatus.ASSIGNED,
+        total_duration=40,
     )
     return {
         "ticket": ticket,
@@ -40,7 +47,17 @@ def test_technician_action_flow_updates_available_buttons(technician_ticket_cont
         ticket=ticket,
         technician_id=technician.id,
     )
+    assert initial_state.potential_xp == 2
+    assert initial_state.acquired_xp == 0
     assert initial_state.actions == (TechnicianTicketActionService.ACTION_START,)
+    state_text = TechnicianTicketActionService.render_state_message(
+        state=initial_state,
+        heading="Ticket details",
+    )
+    assert "Potential XP: +2" in state_text
+    assert "Acquired XP: +0" in state_text
+    assert "XP progress: 0/2" in state_text
+
     initial_keyboard = TechnicianTicketActionService.build_action_keyboard(
         ticket_id=ticket.id,
         actions=initial_state.actions,
@@ -189,3 +206,133 @@ def test_callback_data_roundtrip(technician_ticket_context):
         TechnicianTicketActionService.parse_callback_data(callback_data="invalid:data")
         is None
     )
+
+
+def test_queue_callback_data_roundtrip(technician_ticket_context):
+    ticket = technician_ticket_context["ticket"]
+    open_payload = TechnicianTicketActionService.build_queue_callback_data(
+        action=TechnicianTicketActionService.QUEUE_ACTION_OPEN,
+        ticket_id=ticket.id,
+        scope=TechnicianTicketActionService.VIEW_SCOPE_ACTIVE,
+    )
+    refresh_payload = TechnicianTicketActionService.build_queue_callback_data(
+        action=TechnicianTicketActionService.QUEUE_ACTION_REFRESH,
+        scope=TechnicianTicketActionService.VIEW_SCOPE_ACTIVE,
+    )
+
+    assert TechnicianTicketActionService.parse_queue_callback_data(
+        callback_data=open_payload
+    ) == (
+        TechnicianTicketActionService.QUEUE_ACTION_OPEN,
+        ticket.id,
+        TechnicianTicketActionService.VIEW_SCOPE_ACTIVE,
+    )
+    assert TechnicianTicketActionService.parse_queue_callback_data(
+        callback_data=refresh_payload
+    ) == (
+        TechnicianTicketActionService.QUEUE_ACTION_REFRESH,
+        None,
+        TechnicianTicketActionService.VIEW_SCOPE_ACTIVE,
+    )
+    assert TechnicianTicketActionService.parse_queue_callback_data(
+        callback_data=f"{TechnicianTicketActionService.QUEUE_CALLBACK_PREFIX}:refresh"
+    ) == (
+        TechnicianTicketActionService.QUEUE_ACTION_REFRESH,
+        None,
+        TechnicianTicketActionService.VIEW_SCOPE_ACTIVE,
+    )
+    assert TechnicianTicketActionService.parse_queue_callback_data(
+        callback_data=f"{TechnicianTicketActionService.QUEUE_CALLBACK_PREFIX}:open:{ticket.id}"
+    ) == (
+        TechnicianTicketActionService.QUEUE_ACTION_OPEN,
+        ticket.id,
+        TechnicianTicketActionService.VIEW_SCOPE_ACTIVE,
+    )
+    assert (
+        TechnicianTicketActionService.parse_queue_callback_data(
+            callback_data="invalid:data"
+        )
+        is None
+    )
+
+
+def test_queue_keyboard_renders_ticket_buttons_and_refresh(technician_ticket_context):
+    ticket = technician_ticket_context["ticket"]
+    technician = technician_ticket_context["technician"]
+    states = TechnicianTicketActionService.queue_states_for_technician(
+        technician_id=technician.id
+    )
+
+    markup = TechnicianTicketActionService.build_queue_keyboard(states=states)
+    assert markup is not None
+    assert markup.inline_keyboard[0][0].callback_data == (
+        TechnicianTicketActionService.build_queue_callback_data(
+            action=TechnicianTicketActionService.QUEUE_ACTION_OPEN,
+            ticket_id=ticket.id,
+            scope=TechnicianTicketActionService.VIEW_SCOPE_ACTIVE,
+        )
+    )
+    assert markup.inline_keyboard[-1][0].callback_data == (
+        TechnicianTicketActionService.build_queue_callback_data(
+            action=TechnicianTicketActionService.QUEUE_ACTION_REFRESH,
+            scope=TechnicianTicketActionService.VIEW_SCOPE_ACTIVE,
+        )
+    )
+
+
+def test_view_states_for_under_qc_and_past_scopes(
+    technician_ticket_context,
+    ticket_factory,
+    inventory_item_factory,
+):
+    assigned_ticket = technician_ticket_context["ticket"]
+    technician = technician_ticket_context["technician"]
+
+    waiting_qc_ticket = ticket_factory(
+        inventory_item=inventory_item_factory(serial_number="RM-TG-0101"),
+        master=assigned_ticket.master,
+        technician=technician,
+        status=TicketStatus.WAITING_QC,
+    )
+    done_ticket = ticket_factory(
+        inventory_item=inventory_item_factory(serial_number="RM-TG-0102"),
+        master=assigned_ticket.master,
+        technician=technician,
+        status=TicketStatus.DONE,
+    )
+
+    under_qc_states = TechnicianTicketActionService.view_states_for_technician(
+        technician_id=technician.id,
+        scope=TechnicianTicketActionService.VIEW_SCOPE_UNDER_QC,
+    )
+    past_states = TechnicianTicketActionService.view_states_for_technician(
+        technician_id=technician.id,
+        scope=TechnicianTicketActionService.VIEW_SCOPE_PAST,
+    )
+    active_states = TechnicianTicketActionService.view_states_for_technician(
+        technician_id=technician.id,
+        scope=TechnicianTicketActionService.VIEW_SCOPE_ACTIVE,
+    )
+
+    assert [state.ticket_id for state in under_qc_states] == [waiting_qc_ticket.id]
+    assert [state.ticket_id for state in past_states] == [done_ticket.id]
+    assert [state.ticket_id for state in active_states] == [assigned_ticket.id]
+
+
+def test_state_includes_acquired_xp_for_ticket(technician_ticket_context):
+    ticket = technician_ticket_context["ticket"]
+    technician = technician_ticket_context["technician"]
+
+    XPTransaction.objects.create(
+        user=technician,
+        amount=3,
+        entry_type=XPTransactionEntryType.TICKET_BASE_XP,
+        reference=f"test_ticket_base:{ticket.id}",
+        payload={"ticket_id": ticket.id},
+    )
+
+    state = TechnicianTicketActionService.state_for_ticket(
+        ticket=ticket,
+        technician_id=technician.id,
+    )
+    assert state.acquired_xp == 3

@@ -2,6 +2,8 @@
 
 ## Scope
 Documents aiogram runtime lifecycle, middleware ordering, and onboarding handler behavior.
+Includes command-free technician and user menus via reply keyboard controls.
+Technician menu now also includes personal ticket scopes and XP views.
 
 ## Navigation
 - `docs/bot/runtime.md`

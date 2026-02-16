@@ -126,6 +126,18 @@ class AccessRequestDomainManager(models.Manager):
             .first()
         )
 
+    def latest_active_with_user(self, *, telegram_id: int):
+        return (
+            self.model.all_objects.select_related("user")
+            .filter(
+                telegram_id=telegram_id,
+                user__isnull=False,
+                user__is_active=True,
+            )
+            .order_by("-resolved_at", "-created_at", "-id")
+            .first()
+        )
+
 
 class TelegramProfileDomainManager(models.Manager):
     def any_for_telegram(self, *, telegram_id: int):

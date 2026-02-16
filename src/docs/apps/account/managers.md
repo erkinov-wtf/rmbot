@@ -11,6 +11,7 @@ Provides domain query and identity-preparation helpers for onboarding and modera
 ## Execution Notes
 - `UserManager.create_pending_user` centralizes username collision handling and pending user creation.
 - `AccessRequestDomainManager` consolidates Telegram-id scoped request lookups used by bot onboarding.
+- `AccessRequestDomainManager.latest_active_with_user` provides recovery lookup for active user relinking during bot auth.
 - `TelegramProfileDomainManager.link_to_user` and `upsert_from_telegram_user` provide one-path identity reconciliation.
 
 ## Invariants and Contracts
