@@ -3,7 +3,6 @@ from rest_framework import serializers
 from account.models import User
 from attendance.models import AttendanceRecord
 from attendance.services import AttendanceService
-from core.utils.constants import RoleSlug
 
 
 class AttendanceRecordSerializer(serializers.ModelSerializer):
@@ -21,18 +20,23 @@ class AttendanceRecordSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
-class AttendanceTechnicianInputSerializer(serializers.Serializer):
-    technician_id = serializers.IntegerField(min_value=1)
+class AttendanceUserInputSerializer(serializers.Serializer):
+    user_id = serializers.IntegerField(min_value=1, required=False)
+    technician_id = serializers.IntegerField(min_value=1, required=False)
 
-    def validate_technician_id(self, value: int) -> int:
-        technician = User.objects.filter(pk=value, is_active=True).first()
-        if not technician:
-            raise serializers.ValidationError("Technician user does not exist.")
-        if not technician.roles.filter(slug=RoleSlug.TECHNICIAN).exists():
+    def validate(self, attrs):
+        user_id = attrs.get("user_id") or attrs.get("technician_id")
+        if not user_id:
             raise serializers.ValidationError(
-                "Selected user does not have TECHNICIAN role."
+                {"user_id": "user_id is required."}
             )
-        return value
+
+        user = User.objects.filter(pk=user_id, is_active=True).first()
+        if not user:
+            raise serializers.ValidationError("Selected user does not exist.")
+
+        attrs["user_id"] = int(user_id)
+        return attrs
 
 
 class AttendanceRecordListItemSerializer(AttendanceRecordSerializer):

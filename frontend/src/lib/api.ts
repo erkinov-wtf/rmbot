@@ -225,12 +225,40 @@ export type AccessRequest = {
   resolved_at: string | null;
 };
 
+export type AttendancePunctuality = "early" | "on_time" | "late";
+
+export type AttendanceRecord = {
+  id: number;
+  user: number;
+  work_date: string;
+  check_in_at: string | null;
+  check_out_at: string | null;
+  punctuality_status?: AttendancePunctuality | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type InventoryItemQuery = {
   q?: string;
   status?: InventoryItemStatus;
   inventory?: number;
   category?: number;
   is_active?: boolean;
+};
+
+export type AttendanceRecordQuery = {
+  work_date?: string;
+  user_id?: number;
+  punctuality?: AttendancePunctuality;
+  ordering?:
+    | "user_id"
+    | "-user_id"
+    | "check_in_at"
+    | "-check_in_at"
+    | "created_at"
+    | "-created_at";
+  page?: number;
+  per_page?: number;
 };
 
 type InventoryRequestOptions = {
@@ -878,6 +906,48 @@ export async function rejectAccessRequest(
     accessToken,
   });
   return extractData<AccessRequest>(payload);
+}
+
+export async function listAttendanceRecords(
+  accessToken: string,
+  query: AttendanceRecordQuery = {},
+): Promise<AttendanceRecord[]> {
+  const payload = await apiRequest<unknown>(
+    withQuery("attendance/records/", {
+      work_date: query.work_date,
+      user_id: query.user_id,
+      punctuality: query.punctuality,
+      ordering: query.ordering ?? "user_id",
+      page: query.page,
+      per_page: query.per_page ?? 300,
+    }),
+    { accessToken },
+  );
+  return extractResults<AttendanceRecord>(payload);
+}
+
+export async function attendanceCheckIn(
+  accessToken: string,
+  userId: number,
+): Promise<{ attendance: AttendanceRecord; xp_awarded: number }> {
+  const payload = await apiRequest<unknown>("attendance/checkin/", {
+    method: "POST",
+    accessToken,
+    body: { user_id: userId },
+  });
+  return extractData<{ attendance: AttendanceRecord; xp_awarded: number }>(payload);
+}
+
+export async function attendanceCheckOut(
+  accessToken: string,
+  userId: number,
+): Promise<AttendanceRecord> {
+  const payload = await apiRequest<unknown>("attendance/checkout/", {
+    method: "POST",
+    accessToken,
+    body: { user_id: userId },
+  });
+  return extractData<AttendanceRecord>(payload);
 }
 
 export async function adjustUserXp(

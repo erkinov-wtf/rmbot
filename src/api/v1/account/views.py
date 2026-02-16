@@ -22,6 +22,9 @@ from core.utils.constants import AccessRequestStatus, RoleSlug
 AccessRequestManagerPermission = HasRole.as_any(
     RoleSlug.SUPER_ADMIN, RoleSlug.OPS_MANAGER
 )
+UserOptionsPermission = HasRole.as_any(
+    RoleSlug.SUPER_ADMIN, RoleSlug.OPS_MANAGER, RoleSlug.MASTER
+)
 
 
 @extend_schema(
@@ -48,8 +51,8 @@ class MeAPIView(BaseAPIView):
 )
 class UserOptionListAPIView(ListAPIView):
     serializer_class = UserOptionSerializer
-    permission_classes = (IsAuthenticated, AccessRequestManagerPermission)
-    queryset = User.objects.prefetch_related("roles").order_by(
+    permission_classes = (IsAuthenticated, UserOptionsPermission)
+    queryset = User.objects.filter(is_active=True).prefetch_related("roles").order_by(
         "first_name", "last_name", "username", "id"
     )
 

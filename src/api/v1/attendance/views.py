@@ -7,7 +7,7 @@ from api.v1.attendance.filters import AttendanceRecordFilterSet
 from api.v1.attendance.serializers import (
     AttendanceRecordListItemSerializer,
     AttendanceRecordSerializer,
-    AttendanceTechnicianInputSerializer,
+    AttendanceUserInputSerializer,
 )
 from attendance.models import AttendanceRecord
 from attendance.services import AttendanceService
@@ -28,7 +28,7 @@ AttendanceManagerPermission = HasRole.as_any(
     summary="List attendance records for a day with filters",
     description=(
         "Returns attendance records for the selected work date (defaults to current "
-        "business date). Supports optional filtering by technician and punctuality "
+        "business date). Supports optional filtering by user and punctuality "
         "bucket (`early`, `on_time`, `late`)."
     ),
 )
@@ -49,13 +49,13 @@ class AttendanceRecordsAPIView(ListAPIView):
 
 @extend_schema(
     tags=["Attendance"],
-    summary="Check in technician for today",
-    description="Checks the selected technician in for today and returns the attendance "
+    summary="Check in user for today",
+    description="Checks the selected user in for today and returns the attendance "
     "record with awarded XP.",
 )
 class AttendanceCheckInAPIView(BaseAPIView):
     permission_classes = (IsAuthenticated, AttendanceManagerPermission)
-    serializer_class = AttendanceTechnicianInputSerializer
+    serializer_class = AttendanceUserInputSerializer
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -63,7 +63,7 @@ class AttendanceCheckInAPIView(BaseAPIView):
 
         try:
             record, xp_awarded = AttendanceService.check_in(
-                user_id=serializer.validated_data["technician_id"]
+                user_id=serializer.validated_data["user_id"]
             )
         except ValueError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
@@ -79,13 +79,13 @@ class AttendanceCheckInAPIView(BaseAPIView):
 
 @extend_schema(
     tags=["Attendance"],
-    summary="Check out technician for today",
-    description="Checks the selected technician out for today and returns the updated "
+    summary="Check out user for today",
+    description="Checks the selected user out for today and returns the updated "
     "attendance record.",
 )
 class AttendanceCheckOutAPIView(BaseAPIView):
     permission_classes = (IsAuthenticated, AttendanceManagerPermission)
-    serializer_class = AttendanceTechnicianInputSerializer
+    serializer_class = AttendanceUserInputSerializer
 
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -93,7 +93,7 @@ class AttendanceCheckOutAPIView(BaseAPIView):
 
         try:
             record = AttendanceService.check_out(
-                user_id=serializer.validated_data["technician_id"]
+                user_id=serializer.validated_data["user_id"]
             )
         except ValueError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)

@@ -1,4 +1,5 @@
 import {
+  CalendarClock,
   LogOut,
   Package,
   ShieldCheck,
@@ -9,6 +10,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { AccessRequestsAdmin } from "@/components/account/access-requests-admin";
+import { AttendanceAdmin } from "@/components/attendance/attendance-admin";
 import { LoginForm } from "@/components/auth/login-form";
 import { InventoryAdmin } from "@/components/inventory/inventory-admin";
 import { TicketFlow } from "@/components/ticket/ticket-flow";
@@ -29,7 +31,7 @@ import {
 import { cn } from "@/lib/utils";
 
 type ProfileState = "idle" | "loading" | "ok" | "error";
-type Section = "inventory" | "tickets" | "access_requests" | "xp_admin";
+type Section = "inventory" | "attendance" | "tickets" | "access_requests" | "xp_admin";
 
 const INVENTORY_MANAGE_ROLES = new Set(["super_admin", "ops_manager", "master"]);
 const TICKET_CREATE_ROLES = new Set(["super_admin", "master"]);
@@ -37,11 +39,15 @@ const TICKET_REVIEW_ROLES = new Set(["super_admin", "ops_manager"]);
 const TICKET_WORK_ROLES = new Set(["super_admin", "technician"]);
 const TICKET_QC_ROLES = new Set(["super_admin", "qc_inspector"]);
 const ACCESS_REQUEST_MANAGE_ROLES = new Set(["super_admin", "ops_manager"]);
+const ATTENDANCE_MANAGE_ROLES = new Set(["super_admin", "ops_manager", "master"]);
 const XP_MANAGE_ROLES = new Set(["super_admin", "ops_manager", "admin"]);
 
 function parseSectionFromPath(pathname: string): Section {
   if (pathname.startsWith("/access-requests")) {
     return "access_requests";
+  }
+  if (pathname.startsWith("/attendance")) {
+    return "attendance";
   }
   if (pathname.startsWith("/tickets")) {
     return "tickets";
@@ -55,6 +61,9 @@ function parseSectionFromPath(pathname: string): Section {
 function sectionRootPath(section: Section): string {
   if (section === "access_requests") {
     return "/access-requests";
+  }
+  if (section === "attendance") {
+    return "/attendance";
   }
   if (section === "tickets") {
     return "/tickets/create";
@@ -122,6 +131,10 @@ export default function App() {
   );
   const canManageAccessRequests = useMemo(
     () => effectiveRoleSlugs.some((slug) => ACCESS_REQUEST_MANAGE_ROLES.has(slug)),
+    [effectiveRoleSlugs],
+  );
+  const canManageAttendance = useMemo(
+    () => effectiveRoleSlugs.some((slug) => ATTENDANCE_MANAGE_ROLES.has(slug)),
     [effectiveRoleSlugs],
   );
   const canManageXp = useMemo(
@@ -243,7 +256,10 @@ export default function App() {
       <div className="mx-auto grid w-full max-w-[1480px] gap-4 lg:grid-cols-[248px_1fr]">
         <aside className="rm-panel rm-animate-enter sticky top-4 h-fit p-4">
           <p
-            className="inline-flex items-center gap-2 rounded-full bg-cyan-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-cyan-800"
+            className={cn(
+              "inline-flex items-center gap-2 rounded-full bg-cyan-50 px-3 py-1",
+              "text-xs font-semibold uppercase tracking-wide text-cyan-800",
+            )}
           >
             <ShieldCheck className="h-4 w-4" />
             Rent Market
@@ -264,6 +280,22 @@ export default function App() {
               <span className="inline-flex items-center gap-2">
                 <Package className="h-4 w-4" />
                 Inventory
+              </span>
+            </button>
+
+            <button
+              type="button"
+              className={cn(
+                "rm-menu-btn w-full text-left",
+                section === "attendance"
+                  ? "rm-menu-btn-active"
+                  : "rm-menu-btn-idle",
+              )}
+              onClick={() => navigateSection("attendance")}
+            >
+              <span className="inline-flex items-center gap-2">
+                <CalendarClock className="h-4 w-4" />
+                Attendance
               </span>
             </button>
 
@@ -360,6 +392,13 @@ export default function App() {
             <InventoryAdmin
               accessToken={session.accessToken}
               canManage={canManageInventory}
+              roleTitles={effectiveRoleTitles}
+              roleSlugs={effectiveRoleSlugs}
+            />
+          ) : section === "attendance" ? (
+            <AttendanceAdmin
+              accessToken={session.accessToken}
+              canManage={canManageAttendance}
               roleTitles={effectiveRoleTitles}
               roleSlugs={effectiveRoleSlugs}
             />

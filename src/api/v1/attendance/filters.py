@@ -5,11 +5,11 @@ from rest_framework.exceptions import ValidationError
 from account.models import User
 from attendance.models import AttendanceRecord
 from attendance.services import AttendanceService
-from core.utils.constants import RoleSlug
 
 
 class AttendanceRecordFilterSet(filters.FilterSet):
     work_date = filters.DateFilter(field_name="work_date")
+    user_id = filters.NumberFilter(method="filter_user_id")
     technician_id = filters.NumberFilter(method="filter_technician_id")
     punctuality = filters.ChoiceFilter(
         method="filter_punctuality",
@@ -33,7 +33,13 @@ class AttendanceRecordFilterSet(filters.FilterSet):
 
     class Meta:
         model = AttendanceRecord
-        fields = ("work_date", "technician_id", "punctuality", "ordering")
+        fields = (
+            "work_date",
+            "user_id",
+            "technician_id",
+            "punctuality",
+            "ordering",
+        )
 
     def filter_queryset(self, queryset):
         queryset = super().filter_queryset(queryset)
@@ -42,16 +48,18 @@ class AttendanceRecordFilterSet(filters.FilterSet):
             queryset = queryset.filter(work_date=business_date)
         return queryset
 
-    def filter_technician_id(self, queryset, name, value):
-        technician_id = self._validate_positive_int(value=value, field_name=name)
-        has_technician_role = User.objects.filter(
-            pk=technician_id,
+    def filter_user_id(self, queryset, name, value):
+        user_id = self._validate_positive_int(value=value, field_name=name)
+        exists = User.objects.filter(
+            pk=user_id,
             is_active=True,
-            roles__slug=RoleSlug.TECHNICIAN,
         ).exists()
-        if not has_technician_role:
-            raise ValidationError({"technician_id": "Technician user does not exist."})
-        return queryset.filter(user_id=technician_id)
+        if not exists:
+            raise ValidationError({"user_id": "Selected user does not exist."})
+        return queryset.filter(user_id=user_id)
+
+    def filter_technician_id(self, queryset, name, value):
+        return self.filter_user_id(queryset, "technician_id", value)
 
     def filter_punctuality(self, queryset, name, value):
         matching_ids = [
