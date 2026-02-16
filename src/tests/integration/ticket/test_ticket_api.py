@@ -136,7 +136,7 @@ def test_ticket_create_requires_part_specs(authed_client_factory, ticket_api_con
     assert "part_specs" in resp.data["message"]
 
 
-def test_ticket_create_rejects_missing_inventory_item_parts(
+def test_ticket_create_allows_subset_of_inventory_item_parts(
     authed_client_factory, ticket_api_context
 ):
     client = authed_client_factory(ticket_api_context["master_user"])
@@ -157,8 +157,10 @@ def test_ticket_create_rejects_missing_inventory_item_parts(
         format="json",
     )
 
-    assert resp.status_code == 400
-    assert "missing required part ids" in resp.data["message"].lower()
+    assert resp.status_code == 201
+    payload = resp.data["data"]
+    assert payload["total_duration"] == 20
+    assert len(payload["ticket_parts"]) == 1
 
 
 def test_ticket_create_manual_override_sets_manual_mode(
@@ -196,6 +198,41 @@ def test_ticket_create_manual_override_requires_both_fields(
 
     assert resp.status_code == 400
     assert "manual override requires both" in resp.data["message"].lower()
+
+
+def test_ticket_create_allows_existing_non_rm_serial_inventory_item(
+    authed_client_factory, ticket_api_context, inventory_item_factory
+):
+    client = authed_client_factory(ticket_api_context["master_user"])
+
+    odd_item = inventory_item_factory(serial_number="CUSTOM-01")
+    odd_part = InventoryItemPart.objects.create(
+        name="RM-API-PART-C",
+        inventory_item=odd_item,
+    )
+
+    resp = client.post(
+        CREATE_URL,
+        {
+            "serial_number": "custom-01",
+            "title": "Custom serial intake",
+            "part_specs": [
+                {
+                    "part_id": odd_part.id,
+                    "color": "green",
+                    "comment": "Single selected part",
+                    "minutes": 15,
+                }
+            ],
+        },
+        format="json",
+    )
+
+    assert resp.status_code == 201
+    payload = resp.data["data"]
+    assert payload["inventory_item"] == odd_item.id
+    assert payload["total_duration"] == 15
+    assert len(payload["ticket_parts"]) == 1
 
 
 def test_ticket_create_requires_confirm_create_for_unknown_inventory_item(

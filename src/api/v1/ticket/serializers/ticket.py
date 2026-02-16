@@ -136,18 +136,19 @@ class TicketSerializer(serializers.ModelSerializer):
 
         raw_serial_number = attrs.get("serial_number", "")
         serial_number = InventoryItemService.normalize_serial_number(raw_serial_number)
-        if not InventoryItemService.is_valid_serial_number(serial_number):
-            raise serializers.ValidationError(
-                {
-                    "serial_number": (
-                        "serial_number must match pattern RM-[A-Z0-9-]{4,29}."
-                    )
-                }
-            )
         attrs["serial_number"] = serial_number
 
         inventory_item = InventoryItemService.get_by_serial_number(serial_number)
         if inventory_item is None:
+            if not InventoryItemService.is_valid_serial_number(serial_number):
+                raise serializers.ValidationError(
+                    {
+                        "serial_number": (
+                            "serial_number must match pattern RM-[A-Z0-9-]{4,29}."
+                        )
+                    }
+                )
+
             archived_inventory_item = InventoryItem.all_objects.filter(
                 serial_number__iexact=serial_number,
                 deleted_at__isnull=False,
@@ -427,21 +428,16 @@ class TicketSerializer(serializers.ModelSerializer):
                     }
                 )
             provided_id_set = set(provided_ids)
-            missing_item_parts = sorted(item_part_ids - provided_id_set)
             unexpected_parts = sorted(provided_id_set - item_part_ids)
-            if missing_item_parts or unexpected_parts:
-                detail = []
-                if missing_item_parts:
-                    detail.append(
-                        "missing required part ids: "
-                        + ", ".join(str(part_id) for part_id in missing_item_parts)
-                    )
-                if unexpected_parts:
-                    detail.append(
-                        "unexpected part ids: "
-                        + ", ".join(str(part_id) for part_id in unexpected_parts)
-                    )
-                raise serializers.ValidationError({"part_specs": "; ".join(detail)})
+            if unexpected_parts:
+                raise serializers.ValidationError(
+                    {
+                        "part_specs": (
+                            "unexpected part ids: "
+                            + ", ".join(str(part_id) for part_id in unexpected_parts)
+                        )
+                    }
+                )
 
         normalized: list[dict] = []
         total_minutes = 0

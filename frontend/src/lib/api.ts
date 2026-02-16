@@ -90,6 +90,62 @@ export type InventoryPart = {
   updated_at: string;
 };
 
+export type TicketColor = "green" | "yellow" | "red";
+
+export type TicketStatus =
+  | "under_review"
+  | "new"
+  | "assigned"
+  | "in_progress"
+  | "waiting_qc"
+  | "rework"
+  | "done";
+
+export type TicketPartSpec = {
+  id: number;
+  part_id: number;
+  part_name: string;
+  color: TicketColor;
+  comment: string;
+  minutes: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type Ticket = {
+  id: number;
+  inventory_item: number;
+  master: number;
+  technician: number | null;
+  title: string | null;
+  ticket_parts: TicketPartSpec[];
+  total_duration: number;
+  approved_by: number | null;
+  approved_at: string | null;
+  flag_minutes: number;
+  flag_color: TicketColor;
+  xp_amount: number;
+  is_manual: boolean;
+  status: TicketStatus;
+  assigned_at: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TicketTransition = {
+  id: number;
+  ticket: number;
+  from_status: TicketStatus | null;
+  to_status: TicketStatus;
+  action: string;
+  actor: number | null;
+  note: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+};
+
 export type InventoryItemQuery = {
   q?: string;
   status?: InventoryItemStatus;
@@ -461,4 +517,67 @@ export async function deletePart(
     method: "DELETE",
     accessToken,
   });
+}
+
+export async function listTickets(
+  accessToken: string,
+  query: { page?: number; per_page?: number } = {},
+): Promise<Ticket[]> {
+  const payload = await apiRequest<unknown>(
+    withQuery("tickets/", {
+      page: query.page,
+      per_page: query.per_page ?? 200,
+    }),
+    { accessToken },
+  );
+  return extractResults<Ticket>(payload);
+}
+
+export async function createTicket(
+  accessToken: string,
+  body: {
+    serial_number: string;
+    title?: string;
+    part_specs: Array<{
+      part_id: number;
+      color: TicketColor;
+      comment?: string;
+      minutes: number;
+    }>;
+  },
+): Promise<Ticket> {
+  const payload = await apiRequest<unknown>("tickets/create/", {
+    method: "POST",
+    accessToken,
+    body,
+  });
+  return extractData<Ticket>(payload);
+}
+
+export async function listTicketTransitions(
+  accessToken: string,
+  ticketId: number,
+  query: { page?: number; per_page?: number } = {},
+): Promise<TicketTransition[]> {
+  const payload = await apiRequest<unknown>(
+    withQuery(`tickets/${ticketId}/transitions/`, {
+      page: query.page,
+      per_page: query.per_page ?? 100,
+    }),
+    { accessToken },
+  );
+  return extractResults<TicketTransition>(payload);
+}
+
+export async function reviewTicketManualMetrics(
+  accessToken: string,
+  ticketId: number,
+  body: { flag_color: TicketColor; xp_amount: number },
+): Promise<Ticket> {
+  const payload = await apiRequest<unknown>(`tickets/${ticketId}/manual-metrics/`, {
+    method: "POST",
+    accessToken,
+    body,
+  });
+  return extractData<Ticket>(payload);
 }

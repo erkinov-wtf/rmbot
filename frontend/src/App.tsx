@@ -4,12 +4,14 @@ import {
   Package,
   Server,
   ShieldCheck,
+  Ticket,
   UserRound,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { LoginForm } from "@/components/auth/login-form";
 import { InventoryAdmin } from "@/components/inventory/inventory-admin";
+import { TicketFlow } from "@/components/ticket/ticket-flow";
 import { Button } from "@/components/ui/button";
 import {
   getCurrentUser,
@@ -28,16 +30,40 @@ import { cn } from "@/lib/utils";
 
 type HealthState = "idle" | "loading" | "ok" | "error";
 type ProfileState = "idle" | "loading" | "ok" | "error";
-type Section = "inventory" | "system";
+type Section = "inventory" | "tickets" | "system";
 
 const INVENTORY_MANAGE_ROLES = new Set(["super_admin", "ops_manager", "master"]);
+const TICKET_CREATE_ROLES = new Set(["super_admin", "master"]);
+const TICKET_REVIEW_ROLES = new Set(["super_admin", "ops_manager"]);
+
+function parseSectionFromPath(pathname: string): Section {
+  if (pathname.startsWith("/tickets")) {
+    return "tickets";
+  }
+  if (pathname.startsWith("/system")) {
+    return "system";
+  }
+  return "inventory";
+}
+
+function sectionRootPath(section: Section): string {
+  if (section === "tickets") {
+    return "/tickets/create";
+  }
+  if (section === "system") {
+    return "/system";
+  }
+  return "/inventory/items";
+}
 
 export default function App() {
   const [isAuthHydrated, setIsAuthHydrated] = useState(false);
   const [session, setSession] = useState<AuthSession | null>(null);
   const [authNotice, setAuthNotice] = useState("");
 
-  const [section, setSection] = useState<Section>("inventory");
+  const [section, setSection] = useState<Section>(() =>
+    parseSectionFromPath(window.location.pathname),
+  );
 
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [profileState, setProfileState] = useState<ProfileState>("idle");
@@ -81,6 +107,22 @@ export default function App() {
     () => effectiveRoleSlugs.some((slug) => INVENTORY_MANAGE_ROLES.has(slug)),
     [effectiveRoleSlugs],
   );
+  const canCreateTicket = useMemo(
+    () => effectiveRoleSlugs.some((slug) => TICKET_CREATE_ROLES.has(slug)),
+    [effectiveRoleSlugs],
+  );
+  const canReviewTicket = useMemo(
+    () => effectiveRoleSlugs.some((slug) => TICKET_REVIEW_ROLES.has(slug)),
+    [effectiveRoleSlugs],
+  );
+
+  const navigateSection = useCallback((nextSection: Section) => {
+    const nextPath = sectionRootPath(nextSection);
+    if (window.location.pathname !== nextPath) {
+      window.history.pushState({}, "", nextPath);
+    }
+    setSection(nextSection);
+  }, []);
 
   const logout = useCallback((noticeMessage = "") => {
     clearAuthSession();
@@ -162,6 +204,17 @@ export default function App() {
     void loadProfile(session);
   }, [session, loadProfile]);
 
+  useEffect(() => {
+    const onPopState = () => {
+      setSection(parseSectionFromPath(window.location.pathname));
+    };
+
+    window.addEventListener("popstate", onPopState);
+    return () => {
+      window.removeEventListener("popstate", onPopState);
+    };
+  }, []);
+
   const checkBackendHealth = async () => {
     setHealthState("loading");
 
@@ -216,7 +269,7 @@ export default function App() {
                   ? "border-slate-900 bg-slate-900 text-white"
                   : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
               )}
-              onClick={() => setSection("inventory")}
+              onClick={() => navigateSection("inventory")}
             >
               <span className="inline-flex items-center gap-2">
                 <Package className="h-4 w-4" />
@@ -228,11 +281,27 @@ export default function App() {
               type="button"
               className={cn(
                 "w-full rounded-md border px-3 py-2 text-left text-sm transition",
+                section === "tickets"
+                  ? "border-slate-900 bg-slate-900 text-white"
+                  : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
+              )}
+              onClick={() => navigateSection("tickets")}
+            >
+              <span className="inline-flex items-center gap-2">
+                <Ticket className="h-4 w-4" />
+                Tickets
+              </span>
+            </button>
+
+            <button
+              type="button"
+              className={cn(
+                "w-full rounded-md border px-3 py-2 text-left text-sm transition",
                 section === "system"
                   ? "border-slate-900 bg-slate-900 text-white"
                   : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
               )}
-              onClick={() => setSection("system")}
+              onClick={() => navigateSection("system")}
             >
               <span className="inline-flex items-center gap-2">
                 <Server className="h-4 w-4" />
@@ -318,6 +387,14 @@ export default function App() {
               roleTitles={effectiveRoleTitles}
               roleSlugs={effectiveRoleSlugs}
             />
+          ) : section === "tickets" ? (
+            <TicketFlow
+              accessToken={session.accessToken}
+              canCreate={canCreateTicket}
+              canReview={canReviewTicket}
+              roleTitles={effectiveRoleTitles}
+              roleSlugs={effectiveRoleSlugs}
+            />
           ) : (
             <section className="rounded-xl border border-slate-200 bg-white p-4">
               <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
@@ -325,7 +402,8 @@ export default function App() {
                 System Overview
               </p>
               <p className="mt-2 text-sm text-slate-700">
-                Use the <strong>Inventory</strong> menu to manage categories, items, and parts.
+                Use the <strong>Inventory</strong> menu for stock data and the{" "}
+                <strong>Tickets</strong> menu for intake and review workflow.
               </p>
             </section>
           )}
