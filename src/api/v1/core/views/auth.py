@@ -6,8 +6,11 @@ from django.core.cache import cache
 from rest_framework import serializers, status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
-from rest_framework_simplejwt.serializers import TokenVerifySerializer
-from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.serializers import (
+    TokenObtainPairSerializer,
+    TokenVerifySerializer,
+)
+from rest_framework_simplejwt.tokens import RefreshToken, Token
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
@@ -18,11 +21,40 @@ from account.services import AccountService
 from api.v1.account.serializers import UserSerializer
 from core.api.schema import extend_schema
 from core.api.views import BaseAPIView
+from core.utils.constants import RoleSlug
 from core.utils.telegram import (
     InitDataValidationError,
     extract_init_data_hash,
     validate_init_data,
 )
+
+
+def _build_role_claims(user) -> tuple[list[str], list[str]]:
+    role_pairs = list(
+        user.roles.filter(deleted_at__isnull=True)
+        .order_by("slug")
+        .values_list("slug", "name")
+    )
+    role_slugs = [slug for slug, _ in role_pairs]
+    role_titles = [name for _, name in role_pairs]
+    if user.is_superuser and RoleSlug.SUPER_ADMIN not in role_slugs:
+        role_slugs.append(RoleSlug.SUPER_ADMIN)
+        role_titles.append("Super Admin")
+    return role_slugs, role_titles
+
+
+def attach_user_role_claims(token: Token, user) -> None:
+    role_slugs, role_titles = _build_role_claims(user)
+    token["role_slugs"] = role_slugs
+    token["roles"] = role_titles
+
+
+class LoginTokenObtainPairSerializer(TokenObtainPairSerializer):
+    @classmethod
+    def get_token(cls, user):
+        token = super().get_token(user)
+        attach_user_role_claims(token, user)
+        return token
 
 
 @extend_schema(
@@ -31,7 +63,7 @@ from core.utils.telegram import (
     description="Authenticates user credentials and returns JWT access and refresh tokens.",
 )
 class LoginAPIView(TokenObtainPairView, BaseAPIView):
-    pass
+    serializer_class = LoginTokenObtainPairSerializer
 
 
 @extend_schema(
@@ -184,6 +216,7 @@ class TMAInitDataVerifyAPIView(BaseAPIView):
             )
 
         refresh = RefreshToken.for_user(user)
+        attach_user_role_claims(refresh, user)
         user_data = UserSerializer(user).data
         return Response(
             {

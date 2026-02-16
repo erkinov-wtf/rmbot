@@ -17,6 +17,8 @@ class HasRole(BasePermission):
         user = request.user
         if not user or not user.is_authenticated:
             return False
+        if user.is_superuser:
+            return True
         role_slugs = set(user.roles.values_list("slug", flat=True))
         return any(slug in role_slugs for slug in self.required_roles)
 

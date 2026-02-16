@@ -30,4 +30,6 @@
 body {
   @apply bg-background text-foreground antialiased;
   font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+  line-height: 1.5;
+  -webkit-tap-highlight-color: transparent;
 }

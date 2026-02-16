@@ -35,6 +35,23 @@ def test_create_requires_inventory_item_manager_role(
     assert resp.status_code == 403
 
 
+def test_superuser_can_create_inventory_item_without_assigned_roles(
+    authed_client_factory, user_factory
+):
+    superuser = user_factory(
+        username="super_inventory_item",
+        first_name="Super",
+        is_superuser=True,
+        is_staff=True,
+    )
+    client = authed_client_factory(superuser)
+
+    resp = client.post(LIST_CREATE_URL, {"serial_number": "RM-0202"}, format="json")
+
+    assert resp.status_code == 201
+    assert resp.data["data"]["serial_number"] == "RM-0202"
+
+
 def test_ops_manager_can_create_inventory_item(
     authed_client_factory, user_factory, assign_roles
 ):

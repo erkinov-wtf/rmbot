@@ -5,8 +5,10 @@ import time
 from urllib.parse import urlencode
 
 import pytest
+from rest_framework_simplejwt.tokens import AccessToken
 
 from account.models import TelegramProfile
+from core.utils.constants import RoleSlug
 
 pytestmark = pytest.mark.django_db
 
@@ -56,7 +58,7 @@ def tg_user_payload():
 
 
 def test_returns_tokens_when_user_linked(
-    api_client, user_factory, tma_settings, tg_user_payload
+    api_client, user_factory, assign_roles, tma_settings, tg_user_payload
 ):
     user = user_factory(
         username="alice",
@@ -68,6 +70,7 @@ def test_returns_tokens_when_user_linked(
         telegram_id=tg_user_payload["id"],
         username=tg_user_payload["username"],
     )
+    assign_roles(user, RoleSlug.MASTER)
 
     init_data = build_init_data("TEST_BOT_TOKEN", tg_user_payload)
     resp = api_client.post(VERIFY_URL, {"init_data": init_data}, format="json")
@@ -78,6 +81,9 @@ def test_returns_tokens_when_user_linked(
     assert "access" in payload
     assert "refresh" in payload
     assert payload["user"]["id"] == user.id
+    claims = AccessToken(payload["access"])
+    assert claims["role_slugs"] == [RoleSlug.MASTER]
+    assert claims["roles"] == ["Master (Service Lead)"]
 
 
 def test_requires_access_when_no_linked_user(api_client, tma_settings, tg_user_payload):
