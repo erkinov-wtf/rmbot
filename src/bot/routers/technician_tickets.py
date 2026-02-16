@@ -13,9 +13,6 @@ from bot.routers.start import (
     MENU_BUTTON_ACTIVE_TICKETS,
     MENU_BUTTON_PAST_TICKETS,
     MENU_BUTTON_UNDER_QC_TICKETS,
-    _build_active_status_text,
-    _build_xp_history_text,
-    _build_xp_summary_text,
     build_main_menu_keyboard,
 )
 from core.utils.asyncio import run_sync
@@ -23,15 +20,7 @@ from core.utils.constants import RoleSlug
 from ticket.services_technician_actions import TechnicianTicketActionService
 
 router = Router(name="technician_tickets")
-MENU_CALLBACK_PREFIX = "ttm"
-MENU_ACTION_STATS = "stats"
-MENU_ACTION_XP = "xp"
-MENU_ACTION_XP_HISTORY = "xp_history"
-MENU_ACTIONS = {
-    MENU_ACTION_STATS,
-    MENU_ACTION_XP,
-    MENU_ACTION_XP_HISTORY,
-}
+LEGACY_MENU_CALLBACK_PREFIX = "ttm"
 
 
 async def _is_technician(user: User) -> bool:
@@ -85,165 +74,6 @@ def _scope_back_text(*, scope: str, _) -> str:
     return _("⬅ Back to active tickets")
 
 
-def _scope_label(*, scope: str) -> str:
-    if scope == TechnicianTicketActionService.VIEW_SCOPE_UNDER_QC:
-        return "🧪 QC"
-    if scope == TechnicianTicketActionService.VIEW_SCOPE_PAST:
-        return "✅ Past"
-    return "🎟 Active"
-
-
-def _scope_button_text(*, current_scope: str, target_scope: str) -> str:
-    prefix = "• " if current_scope == target_scope else ""
-    return f"{prefix}{_scope_label(scope=target_scope)}"
-
-
-def _build_menu_callback_data(*, action: str, scope: str) -> str:
-    return f"{MENU_CALLBACK_PREFIX}:{action}:{scope}"
-
-
-def _parse_menu_callback_data(*, callback_data: str) -> tuple[str, str] | None:
-    parts = str(callback_data or "").split(":", 2)
-    if len(parts) != 3 or parts[0] != MENU_CALLBACK_PREFIX:
-        return None
-
-    action, scope = parts[1], parts[2]
-    if action not in MENU_ACTIONS:
-        return None
-    if scope not in {
-        TechnicianTicketActionService.VIEW_SCOPE_ACTIVE,
-        TechnicianTicketActionService.VIEW_SCOPE_UNDER_QC,
-        TechnicianTicketActionService.VIEW_SCOPE_PAST,
-    }:
-        return None
-    return action, scope
-
-
-def _menu_button_text(*, action: str, selected_action: str | None) -> str:
-    base = {
-        MENU_ACTION_STATS: "📊 Stats",
-        MENU_ACTION_XP: "⭐ XP",
-        MENU_ACTION_XP_HISTORY: "📜 XP History",
-    }[action]
-    if selected_action == action:
-        return f"• {base}"
-    return base
-
-
-def _dashboard_control_rows(
-    *,
-    scope: str,
-    selected_action: str | None,
-) -> list[list[InlineKeyboardButton]]:
-    scope_row = [
-        InlineKeyboardButton(
-            text=_scope_button_text(
-                current_scope=scope,
-                target_scope=TechnicianTicketActionService.VIEW_SCOPE_ACTIVE,
-            ),
-            callback_data=TechnicianTicketActionService.build_queue_callback_data(
-                action=TechnicianTicketActionService.QUEUE_ACTION_REFRESH,
-                scope=TechnicianTicketActionService.VIEW_SCOPE_ACTIVE,
-            ),
-        ),
-        InlineKeyboardButton(
-            text=_scope_button_text(
-                current_scope=scope,
-                target_scope=TechnicianTicketActionService.VIEW_SCOPE_UNDER_QC,
-            ),
-            callback_data=TechnicianTicketActionService.build_queue_callback_data(
-                action=TechnicianTicketActionService.QUEUE_ACTION_REFRESH,
-                scope=TechnicianTicketActionService.VIEW_SCOPE_UNDER_QC,
-            ),
-        ),
-        InlineKeyboardButton(
-            text=_scope_button_text(
-                current_scope=scope,
-                target_scope=TechnicianTicketActionService.VIEW_SCOPE_PAST,
-            ),
-            callback_data=TechnicianTicketActionService.build_queue_callback_data(
-                action=TechnicianTicketActionService.QUEUE_ACTION_REFRESH,
-                scope=TechnicianTicketActionService.VIEW_SCOPE_PAST,
-            ),
-        ),
-    ]
-    menu_row = [
-        InlineKeyboardButton(
-            text=_menu_button_text(
-                action=MENU_ACTION_STATS,
-                selected_action=selected_action,
-            ),
-            callback_data=_build_menu_callback_data(
-                action=MENU_ACTION_STATS,
-                scope=scope,
-            ),
-        ),
-        InlineKeyboardButton(
-            text=_menu_button_text(
-                action=MENU_ACTION_XP,
-                selected_action=selected_action,
-            ),
-            callback_data=_build_menu_callback_data(
-                action=MENU_ACTION_XP,
-                scope=scope,
-            ),
-        ),
-        InlineKeyboardButton(
-            text=_menu_button_text(
-                action=MENU_ACTION_XP_HISTORY,
-                selected_action=selected_action,
-            ),
-            callback_data=_build_menu_callback_data(
-                action=MENU_ACTION_XP_HISTORY,
-                scope=scope,
-            ),
-        ),
-    ]
-    return [scope_row, menu_row]
-
-
-def _append_dashboard_controls(
-    *,
-    reply_markup: InlineKeyboardMarkup | None,
-    scope: str,
-    selected_action: str | None = None,
-) -> InlineKeyboardMarkup:
-    base_rows = list(reply_markup.inline_keyboard) if reply_markup else []
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            *base_rows,
-            *_dashboard_control_rows(
-                scope=scope,
-                selected_action=selected_action,
-            ),
-        ]
-    )
-
-
-def _build_info_view_markup(
-    *,
-    scope: str,
-    selected_action: str,
-    _,
-) -> InlineKeyboardMarkup:
-    rows = [
-        [
-            InlineKeyboardButton(
-                text=_scope_back_text(scope=scope, _=_),
-                callback_data=TechnicianTicketActionService.build_queue_callback_data(
-                    action=TechnicianTicketActionService.QUEUE_ACTION_REFRESH,
-                    scope=scope,
-                ),
-            )
-        ]
-    ]
-    return _append_dashboard_controls(
-        reply_markup=InlineKeyboardMarkup(inline_keyboard=rows),
-        scope=scope,
-        selected_action=selected_action,
-    )
-
-
 def _with_queue_navigation(
     *,
     reply_markup,
@@ -265,10 +95,7 @@ def _with_queue_navigation(
             nav_row,
         ]
     )
-    return _append_dashboard_controls(
-        reply_markup=with_back,
-        scope=scope,
-    )
+    return with_back
 
 
 def _scope_heading(*, scope: str, _) -> str:
@@ -277,6 +104,14 @@ def _scope_heading(*, scope: str, _) -> str:
     if scope == TechnicianTicketActionService.VIEW_SCOPE_PAST:
         return _("✅ Technician past tickets.")
     return _("🎟 Technician active ticket queue.")
+
+
+def _scope_refreshed_feedback(*, scope: str, _) -> str:
+    if scope == TechnicianTicketActionService.VIEW_SCOPE_UNDER_QC:
+        return _("Waiting QC list refreshed.")
+    if scope == TechnicianTicketActionService.VIEW_SCOPE_PAST:
+        return _("Past tickets list refreshed.")
+    return _("Active tickets list refreshed.")
 
 
 async def _queue_dashboard_payload(
@@ -300,7 +135,7 @@ async def _queue_dashboard_payload(
         scope=scope,
         include_refresh=True,
     )
-    return text, _append_dashboard_controls(reply_markup=markup, scope=scope)
+    return text, markup
 
 
 async def _technician_dashboard_handler(
@@ -449,7 +284,10 @@ async def technician_queue_control_handler(
             text=text,
             reply_markup=markup,
         )
-        await query.answer(_("Queue refreshed."), show_alert=False)
+        await query.answer(
+            _scope_refreshed_feedback(scope=scope, _=_),
+            show_alert=False,
+        )
         return
 
     if (
@@ -469,9 +307,9 @@ async def technician_queue_control_handler(
         text = TechnicianTicketActionService.render_state_message(
             state=state,
             heading=(
-                _("Technician ticket controls.")
+                _("🎛 Technician ticket controls.")
                 if scope == TechnicianTicketActionService.VIEW_SCOPE_ACTIVE
-                else _("Technician ticket details.")
+                else _("🔎 Technician ticket details.")
             ),
         )
         markup = TechnicianTicketActionService.build_action_keyboard(
@@ -484,52 +322,13 @@ async def technician_queue_control_handler(
             scope=scope,
         )
         await _safe_edit_message(query=query, text=text, reply_markup=markup)
-        await query.answer(_("Ticket opened."), show_alert=False)
-        return
-
-    await query.answer(_("Unknown action."), show_alert=True)
-
-
-@router.callback_query(F.data.startswith(f"{MENU_CALLBACK_PREFIX}:"))
-async def technician_menu_control_handler(
-    query: CallbackQuery,
-    _,
-    user: User = None,
-):
-    parsed = _parse_menu_callback_data(callback_data=query.data or "")
-    if parsed is None:
-        await query.answer(_("Unknown action."), show_alert=True)
-        return
-
-    if not user or not user.is_active:
-        await _notify_not_registered_callback(query=query, _=_)
-        return
-
-    if not await _is_technician(user):
         await query.answer(
-            _("This action is available only for technicians."),
-            show_alert=True,
+            _("Ticket #{ticket_id} opened.").format(ticket_id=state.ticket_id),
+            show_alert=False,
         )
         return
 
-    action, scope = parsed
-    if action == MENU_ACTION_STATS:
-        text = await _build_active_status_text(user=user, _=_)
-    elif action == MENU_ACTION_XP:
-        text = await _build_xp_summary_text(user=user, _=_)
-    elif action == MENU_ACTION_XP_HISTORY:
-        text = await _build_xp_history_text(user=user, _=_)
-    else:
-        await query.answer(_("Unknown action."), show_alert=True)
-        return
-
-    markup = _build_info_view_markup(
-        scope=scope,
-        selected_action=action,
-        _=_,
-    )
-    await _safe_edit_message(query=query, text=text, reply_markup=markup)
-    await query.answer(_("Updated."), show_alert=False)
+    await query.answer(_("Unknown action."), show_alert=True)
 
 
 @router.callback_query(
@@ -572,7 +371,10 @@ async def technician_ticket_action_handler(
 
     text = TechnicianTicketActionService.render_state_message(
         state=state,
-        heading=_("Ticket state updated."),
+        heading=_("✅ Ticket state updated."),
+    )
+    target_scope = TechnicianTicketActionService.scope_for_ticket_status(
+        status=state.ticket_status
     )
     markup = TechnicianTicketActionService.build_action_keyboard(
         ticket_id=state.ticket_id,
@@ -581,11 +383,22 @@ async def technician_ticket_action_handler(
     markup = _with_queue_navigation(
         reply_markup=markup,
         _=_,
-        scope=TechnicianTicketActionService.VIEW_SCOPE_ACTIVE,
+        scope=target_scope,
     )
     await _safe_edit_message(query=query, text=text, reply_markup=markup)
 
     await query.answer(
         _(TechnicianTicketActionService.action_feedback(action=action)),
         show_alert=False,
+    )
+
+
+@router.callback_query(F.data.startswith(f"{LEGACY_MENU_CALLBACK_PREFIX}:"))
+async def technician_legacy_menu_control_handler(query: CallbackQuery, _):
+    await query.answer(
+        _(
+            "This old quick panel was removed. Use the bottom keyboard buttons for "
+            "Stats, XP, and queue sections."
+        ),
+        show_alert=True,
     )

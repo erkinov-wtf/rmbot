@@ -318,6 +318,23 @@ def test_view_states_for_under_qc_and_past_scopes(
     assert [state.ticket_id for state in past_states] == [done_ticket.id]
     assert [state.ticket_id for state in active_states] == [assigned_ticket.id]
 
+    under_qc_summary = TechnicianTicketActionService.render_queue_summary(
+        states=under_qc_states,
+        scope=TechnicianTicketActionService.VIEW_SCOPE_UNDER_QC,
+    )
+    past_summary = TechnicianTicketActionService.render_queue_summary(
+        states=past_states,
+        scope=TechnicianTicketActionService.VIEW_SCOPE_PAST,
+    )
+    active_summary = TechnicianTicketActionService.render_queue_summary(
+        states=active_states,
+        scope=TechnicianTicketActionService.VIEW_SCOPE_ACTIVE,
+    )
+
+    assert "Total waiting QC tickets: 1" in under_qc_summary
+    assert "Total past tickets: 1" in past_summary
+    assert "Total active tickets: 1" in active_summary
+
 
 def test_state_includes_acquired_xp_for_ticket(technician_ticket_context):
     ticket = technician_ticket_context["ticket"]

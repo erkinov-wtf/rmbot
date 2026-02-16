@@ -52,16 +52,15 @@ class TechnicianTicketActionService:
         ACTION_TO_WAITING_QC,
     )
     _ACTION_LABELS = {
-        ACTION_START: "▶ Start",
-        ACTION_PAUSE: "⏸ Pause",
-        ACTION_RESUME: "▶ Resume",
-        ACTION_STOP: "⏹ Stop",
-        ACTION_TO_WAITING_QC: "🧪 To QC",
-        ACTION_REFRESH: "🔄 Refresh",
+        ACTION_START: "▶ Start work",
+        ACTION_PAUSE: "⏸ Pause work",
+        ACTION_RESUME: "▶ Resume work",
+        ACTION_STOP: "⏹ Stop session",
+        ACTION_TO_WAITING_QC: "🧪 Send to QC",
+        ACTION_REFRESH: "🔄 Refresh ticket",
     }
     _QUEUE_ACTION_LABELS = {
-        QUEUE_ACTION_OPEN: "🔍 Open",
-        QUEUE_ACTION_REFRESH: "🔄 Refresh queue",
+        QUEUE_ACTION_REFRESH: "🔄 Refresh list",
     }
     _VIEW_SCOPE_STATUSES = {
         VIEW_SCOPE_ACTIVE: (
@@ -77,13 +76,30 @@ class TechnicianTicketActionService:
         VIEW_SCOPE_UNDER_QC: "No tickets are currently waiting QC.",
         VIEW_SCOPE_PAST: "No past tickets found yet.",
     }
+    _VIEW_SCOPE_TOTAL_LABELS = {
+        VIEW_SCOPE_ACTIVE: "Total active tickets",
+        VIEW_SCOPE_UNDER_QC: "Total waiting QC tickets",
+        VIEW_SCOPE_PAST: "Total past tickets",
+    }
+    _TICKET_STATUS_LABELS = {
+        TicketStatus.ASSIGNED: "Assigned",
+        TicketStatus.REWORK: "Rework",
+        TicketStatus.IN_PROGRESS: "In progress",
+        TicketStatus.WAITING_QC: "Waiting QC",
+        TicketStatus.DONE: "Done",
+    }
+    _SESSION_STATUS_LABELS = {
+        WorkSessionStatus.RUNNING: "Running",
+        WorkSessionStatus.PAUSED: "Paused",
+        WorkSessionStatus.STOPPED: "Stopped",
+    }
     _ACTION_FEEDBACK = {
-        ACTION_START: "Work started.",
-        ACTION_PAUSE: "Work paused.",
-        ACTION_RESUME: "Work resumed.",
-        ACTION_STOP: "Work stopped.",
-        ACTION_TO_WAITING_QC: "Ticket moved to waiting QC.",
-        ACTION_REFRESH: "Ticket status refreshed.",
+        ACTION_START: "Work session started.",
+        ACTION_PAUSE: "Work session paused.",
+        ACTION_RESUME: "Work session resumed.",
+        ACTION_STOP: "Work session stopped.",
+        ACTION_TO_WAITING_QC: "Ticket sent to QC.",
+        ACTION_REFRESH: "Ticket details refreshed.",
     }
 
     @classmethod
@@ -226,12 +242,13 @@ class TechnicianTicketActionService:
         states_list = list(states)
         inline_keyboard: list[list[InlineKeyboardButton]] = []
         for state in states_list:
+            status_label = cls._ticket_status_label(status=state.ticket_status)
             inline_keyboard.append(
                 [
                     InlineKeyboardButton(
                         text=(
                             f"{cls._status_icon(status=state.ticket_status)} "
-                            f"#{state.ticket_id} · {state.serial_number}"
+                            f"#{state.ticket_id} · {state.serial_number} · {status_label}"
                         ),
                         callback_data=cls.build_queue_callback_data(
                             action=cls.QUEUE_ACTION_OPEN,
@@ -313,11 +330,13 @@ class TechnicianTicketActionService:
             [
                 f"Ticket: #{state.ticket_id}",
                 f"Serial number: {state.serial_number}",
-                f"Status: {state.ticket_status}",
+                f"Status: {cls._ticket_status_label(status=state.ticket_status)}",
             ]
         )
         if state.session_status:
-            lines.append(f"Work session: {state.session_status}")
+            lines.append(
+                f"Work session: {cls._session_status_label(status=state.session_status)}"
+            )
         if state.potential_xp > 0:
             lines.append(f"Potential XP: +{state.potential_xp}")
         else:
@@ -332,7 +351,8 @@ class TechnicianTicketActionService:
             if action != cls.ACTION_REFRESH and action in cls._ACTION_LABELS
         ]
         if available_labels:
-            lines.append(f"Available actions: {', '.join(available_labels)}")
+            lines.append("Available actions:")
+            lines.extend(f"• {label}" for label in available_labels)
         else:
             lines.append("No technician actions are available right now.")
         return "\n".join(lines)
@@ -360,21 +380,38 @@ class TechnicianTicketActionService:
             )
             return "\n".join(lines)
 
-        lines.append(f"Total active tickets: {len(states_list)}")
+        total_label = cls._VIEW_SCOPE_TOTAL_LABELS.get(
+            scope,
+            cls._VIEW_SCOPE_TOTAL_LABELS[cls.VIEW_SCOPE_ACTIVE],
+        )
+        lines.append(f"{total_label}: {len(states_list)}")
         for state in states_list:
             session_suffix = (
-                f" | session: {state.session_status}" if state.session_status else ""
+                (
+                    " | session: "
+                    f"{cls._session_status_label(status=state.session_status)}"
+                )
+                if state.session_status
+                else ""
             )
             potential_xp = str(state.potential_xp) if state.potential_xp > 0 else "?"
             xp_suffix = f" | xp: +{state.acquired_xp}/{potential_xp}"
             ticket_line = (
                 f"{cls._status_icon(status=state.ticket_status)} "
-                f"#{state.ticket_id} | {state.serial_number} | {state.ticket_status}"
+                f"#{state.ticket_id} | {state.serial_number} | "
+                f"{cls._ticket_status_label(status=state.ticket_status)}"
                 f"{session_suffix}{xp_suffix}"
             )
             lines.append(ticket_line)
-        lines.append("Tap an inline button to open ticket controls.")
+        lines.append("Use the inline buttons below to open ticket details.")
         return "\n".join(lines)
+
+    @classmethod
+    def scope_for_ticket_status(cls, *, status: str) -> str:
+        for scope, statuses in cls._VIEW_SCOPE_STATUSES.items():
+            if status in statuses:
+                return scope
+        return cls.VIEW_SCOPE_ACTIVE
 
     @classmethod
     def action_feedback(cls, *, action: str) -> str:
@@ -488,6 +525,14 @@ class TechnicianTicketActionService:
             TicketStatus.WAITING_QC: "🧪",
             TicketStatus.DONE: "✅",
         }.get(status, "🎟")
+
+    @classmethod
+    def _ticket_status_label(cls, *, status: str) -> str:
+        return cls._TICKET_STATUS_LABELS.get(status, str(status))
+
+    @classmethod
+    def _session_status_label(cls, *, status: str) -> str:
+        return cls._SESSION_STATUS_LABELS.get(status, str(status))
 
     @classmethod
     def _potential_xp_for_ticket(cls, *, ticket: Ticket) -> int:

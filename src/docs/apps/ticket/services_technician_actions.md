@@ -6,10 +6,10 @@ Resolves technician-allowed ticket actions for Telegram, executes selected actio
 ## Execution Flows
 - `queue_states_for_technician`: returns actionable ticket snapshots for `/queue` bot command.
 - `view_states_for_technician`: returns technician ticket snapshots for a specific scope (`active`, `under_qc`, `past`).
-- `state_for_technician_and_ticket`: resolves one technician-owned ticket and current available actions.
+- `state_for_technician_and_ticket`: resolves one technician-owned ticket and current available actions plus XP context (`potential_xp`, `acquired_xp`).
 - `execute_for_technician`: validates ownership + action availability, performs action (`start/pause/resume/stop/to_waiting_qc`), then returns refreshed state.
-- Queue helpers (`render_queue_summary`, `build_queue_keyboard`, `build_queue_callback_data`, `parse_queue_callback_data`) drive dashboard navigation in chat.
-- `build_action_keyboard` + ticket callback helpers render inline action controls for a specific ticket card.
+- Queue helpers (`render_queue_summary`, `build_queue_keyboard`, `build_queue_callback_data`, `parse_queue_callback_data`) drive queue-list and scoped refresh navigation in chat.
+- `build_action_keyboard` + ticket callback helpers render inline action controls for a specific ticket card; `scope_for_ticket_status` selects the correct back-navigation scope after state changes.
 
 ## Invariants and Contracts
 - Technician ownership is mandatory (`ticket.technician_id == actor_user_id`) for both state reads and action execution.
@@ -32,6 +32,9 @@ Resolves technician-allowed ticket actions for Telegram, executes selected actio
 
 ## Operational Notes
 - Keyboard rendering automatically appends a `refresh` action while actionable buttons exist.
+- Queue summaries are scope-aware for both empty-state text and total counters (`active`, `under_qc`, `past`).
+- Queue lines expose ticket status + XP progress (`acquired/potential`) and ticket-detail cards show explicit `Potential XP`, `Acquired XP`, and `XP progress`.
+- Inline labels are action-specific (`Start work`, `Pause work`, `Send to QC`, `Refresh list/ticket`) to keep button intent explicit in Telegram UI.
 - Scope listing rules:
   - `active` -> `assigned`, `rework`, `in_progress`
   - `under_qc` -> `waiting_qc`
