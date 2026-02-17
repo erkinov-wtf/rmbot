@@ -73,7 +73,7 @@ class XPHistoryPaginationHandler(StartXPSupportMixin, CallbackQueryHandler):
 
         parsed = _parse_xp_history_callback_data(callback_data=query.data or "")
         if parsed is None:
-            await query.answer(_("Could not open this page."), show_alert=True)
+            await query.answer(_("⚠️ Could not open this page."), show_alert=True)
             return
         limit, offset = parsed
 

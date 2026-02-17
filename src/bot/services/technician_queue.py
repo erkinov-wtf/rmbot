@@ -44,13 +44,15 @@ class TechnicianQueueService:
         _,
     ) -> None:
         await query.answer(
-            _("You are not registered. Use /start to submit access request."),
+            _("🚫 No access yet. Send /start first."),
             show_alert=True,
         )
         if query.message is None:
             return
         await query.message.answer(
-            _("Open access request from the menu below."),
+            _(
+                "📝 <b>Open Access Request</b>\nUse <code>/start</code> or tap the button below."
+            ),
             reply_markup=build_main_menu_keyboard(
                 is_technician=False,
                 include_start_access=True,
@@ -96,18 +98,18 @@ class TechnicianQueueService:
     @staticmethod
     def scope_heading(*, scope: str, _) -> str:
         if scope == TechnicianTicketActionService.VIEW_SCOPE_UNDER_QC:
-            return _("🧪 Technician tickets waiting QC.")
+            return _("🧪 <b>Waiting QC Tickets</b>")
         if scope == TechnicianTicketActionService.VIEW_SCOPE_PAST:
-            return _("✅ Technician past tickets.")
-        return _("🎟 Technician active ticket queue.")
+            return _("✅ <b>Past Tickets</b>")
+        return _("🎟 <b>Active Tickets</b>")
 
     @staticmethod
     def scope_refreshed_feedback(*, scope: str, _) -> str:
         if scope == TechnicianTicketActionService.VIEW_SCOPE_UNDER_QC:
-            return _("Waiting QC list refreshed.")
+            return _("🔄 Waiting QC list refreshed.")
         if scope == TechnicianTicketActionService.VIEW_SCOPE_PAST:
-            return _("Past tickets list refreshed.")
-        return _("Active tickets list refreshed.")
+            return _("🔄 Past tickets list refreshed.")
+        return _("🔄 Active tickets list refreshed.")
 
     @staticmethod
     def queue_context_from_markup(
@@ -177,7 +179,9 @@ class TechnicianQueueService:
     ) -> None:
         if not user or not user.is_active:
             await message.answer(
-                _("You are not registered. Use /start to submit access request."),
+                _(
+                    "🚫 <b>No access yet.</b>\nSend <code>/start</code> to submit access request."
+                ),
                 reply_markup=build_main_menu_keyboard(
                     is_technician=False,
                     include_start_access=True,
@@ -188,7 +192,7 @@ class TechnicianQueueService:
 
         if not await cls.is_technician(user):
             await message.answer(
-                _("This command is available only for technicians."),
+                _("⛔ <b>This command is available only for technicians.</b>"),
                 reply_markup=build_main_menu_keyboard(
                     is_technician=False,
                     include_start_access=False,

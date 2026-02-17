@@ -20,7 +20,7 @@ Documents class-based Telegram QC handlers that allow QC inspectors to open thei
   2. Validate active linked user.
   3. Validate QC permission via bot permission mapping (`resolve_ticket_bot_permissions(...).can_qc`).
   4. Resolve ticket and validate status for QC decisions.
-  5. Execute workflow transition (`qc_pass_ticket` or `qc_fail_ticket`) when action is decision.
+  5. Execute workflow transition (`qc_pass_ticket` or `qc_fail_ticket`) when action is decision, including Telegram-source transition metadata (`source/channel/telegram_action`).
   6. Re-read ticket and edit message with refreshed state + next action keyboard.
 - All QC command/button/callback handlers are class-based and split by job:
   - shared classmethod helpers: `bot/routers/ticket_qc/base.py`
@@ -30,6 +30,7 @@ Documents class-based Telegram QC handlers that allow QC inspectors to open thei
 ## Invariants and Contracts
 - QC decision actions are allowed only when ticket status is `WAITING_QC`.
 - For non-`WAITING_QC` statuses, only `refresh` remains available.
+- QC decision transitions are explicitly tagged as Telegram-originated in transition metadata for audit/log visibility.
 - Callback payload formats are stable and locale-agnostic (`tqq:*` for queue, `tqc:*` for actions).
 - Labels/messages are localized through Django i18n (`en`, `ru`, `uz`) using Telegram `language_code`.
 - Message editing is safe against "message is not modified" errors.

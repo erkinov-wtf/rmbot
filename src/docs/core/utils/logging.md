@@ -18,6 +18,8 @@ Documents request-context enrichment and Telegram error-delivery behavior for ce
 1. Formats log records and strips inline `exc_info` duplication.
 2. Queues outbound messages to avoid blocking request threads.
 3. Sends batched queue entries to Telegram Bot API in a background worker thread.
+4. Uses Telegram HTML parse mode with structured alert cards (`<b>`, `<code>`, `<pre>`) and emoji headings.
+5. Escapes dynamic record fields (`message`, request/user context, traceback) before formatter interpolation to prevent malformed HTML output.
 
 ## Failure Modes
 - Telegram delivery/network failures are swallowed to avoid interrupting application runtime.

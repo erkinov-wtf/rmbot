@@ -1,3 +1,4 @@
+import logging
 import math
 
 from django.db import transaction
@@ -13,6 +14,8 @@ from core.utils.constants import (
 from gamification.services import GamificationService
 from rules.services import RulesService
 from ticket.models import Ticket, TicketTransition, WorkSession
+
+logger = logging.getLogger(__name__)
 
 
 class TicketWorkflowService:
@@ -82,7 +85,12 @@ class TicketWorkflowService:
 
     @classmethod
     @transaction.atomic
-    def move_ticket_to_waiting_qc(cls, ticket: Ticket, actor_user_id: int) -> Ticket:
+    def move_ticket_to_waiting_qc(
+        cls,
+        ticket: Ticket,
+        actor_user_id: int,
+        transition_metadata: dict | None = None,
+    ) -> Ticket:
         latest_session = WorkSession.domain.get_latest_for_ticket_and_technician(
             ticket=ticket,
             technician_id=actor_user_id,
@@ -99,6 +107,7 @@ class TicketWorkflowService:
             to_status=ticket.status,
             action=TicketTransitionAction.TO_WAITING_QC,
             actor_user_id=actor_user_id,
+            metadata=transition_metadata,
         )
         UserNotificationService.notify_ticket_waiting_qc(
             ticket=ticket,
@@ -108,7 +117,12 @@ class TicketWorkflowService:
 
     @classmethod
     @transaction.atomic
-    def qc_pass_ticket(cls, ticket: Ticket, actor_user_id: int | None = None) -> Ticket:
+    def qc_pass_ticket(
+        cls,
+        ticket: Ticket,
+        actor_user_id: int | None = None,
+        transition_metadata: dict | None = None,
+    ) -> Ticket:
         had_rework = TicketTransition.domain.has_qc_fail_for_ticket(ticket=ticket)
         from_status = ticket.mark_qc_pass(finished_at=timezone.now())
         ticket.inventory_item.mark_ready()
@@ -119,6 +133,7 @@ class TicketWorkflowService:
             to_status=ticket.status,
             action=TicketTransitionAction.QC_PASS,
             actor_user_id=actor_user_id,
+            metadata=transition_metadata,
         )
 
         (
@@ -180,7 +195,12 @@ class TicketWorkflowService:
 
     @classmethod
     @transaction.atomic
-    def qc_fail_ticket(cls, ticket: Ticket, actor_user_id: int | None = None) -> Ticket:
+    def qc_fail_ticket(
+        cls,
+        ticket: Ticket,
+        actor_user_id: int | None = None,
+        transition_metadata: dict | None = None,
+    ) -> Ticket:
         from_status = ticket.mark_qc_fail()
         transition = cls.log_ticket_transition(
             ticket=ticket,
@@ -188,6 +208,7 @@ class TicketWorkflowService:
             to_status=ticket.status,
             action=TicketTransitionAction.QC_FAIL,
             actor_user_id=actor_user_id,
+            metadata=transition_metadata,
         )
         _, _, qc_status_update_xp = cls._ticket_xp_rules()
         cls._award_qc_status_update_xp(
@@ -249,7 +270,7 @@ class TicketWorkflowService:
         note: str | None = None,
         metadata: dict | None = None,
     ) -> TicketTransition:
-        return ticket.add_transition(
+        transition = ticket.add_transition(
             from_status=from_status,
             to_status=to_status,
             action=action,
@@ -257,6 +278,20 @@ class TicketWorkflowService:
             note=note,
             metadata=metadata,
         )
+        logger.info(
+            (
+                "Ticket transition logged: ticket_id=%s transition_id=%s action=%s "
+                "from_status=%s to_status=%s actor_user_id=%s metadata=%s"
+            ),
+            ticket.id,
+            transition.id,
+            action,
+            from_status,
+            to_status,
+            actor_user_id,
+            transition.metadata,
+        )
+        return transition
 
     @staticmethod
     def _ticket_xp_rules() -> tuple[int, int, int]:

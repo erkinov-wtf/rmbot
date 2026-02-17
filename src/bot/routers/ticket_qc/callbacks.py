@@ -23,19 +23,19 @@ class QCQueueCallbackHandler(QCTicketBaseMixin, CallbackQueryHandler):
             callback_data=query.data or ""
         )
         if parsed is None:
-            await query.answer(_("Unknown action."), show_alert=True)
+            await query.answer(_("⚠️ Unknown action."), show_alert=True)
             return
 
         if not user or not user.is_active:
             await query.answer(
-                _("You do not have access yet. Send /start to request access."),
+                _("🚫 No access yet. Send /start to request access."),
                 show_alert=True,
             )
             return
 
         if not await self.can_qc_ticket_async(user=user):
             await query.answer(
-                _("This action is available only for QC inspectors."),
+                _("⛔ This action is available only for QC inspectors."),
                 show_alert=True,
             )
             return
@@ -48,7 +48,7 @@ class QCQueueCallbackHandler(QCTicketBaseMixin, CallbackQueryHandler):
                 _=_,
             )
             await self.safe_edit_message(query=query, text=text, reply_markup=markup)
-            await query.answer(_("QC checks refreshed."), show_alert=False)
+            await query.answer(_("🔄 QC checks refreshed."), show_alert=False)
             return
 
         if action == QCTicketQueueService.QUEUE_ACTION_OPEN and ticket_id is not None:
@@ -59,7 +59,7 @@ class QCQueueCallbackHandler(QCTicketBaseMixin, CallbackQueryHandler):
             )
             if ticket is None:
                 await query.answer(
-                    _("Ticket is not assigned to you for QC."),
+                    _("⚠️ Ticket is not assigned to you for QC."),
                     show_alert=True,
                 )
                 return
@@ -77,15 +77,15 @@ class QCQueueCallbackHandler(QCTicketBaseMixin, CallbackQueryHandler):
                 query=query,
                 text=TicketQCActionService.render_ticket_message(
                     ticket=ticket,
-                    heading=_("🧪 QC ticket action panel."),
+                    heading=_("🧪 <b>QC Ticket Action Panel</b>"),
                     _=_,
                 ),
                 reply_markup=details_markup,
             )
-            await query.answer(_("QC check opened."), show_alert=False)
+            await query.answer(_("🧪 QC check opened."), show_alert=False)
             return
 
-        await query.answer(_("Unknown action."), show_alert=True)
+        await query.answer(_("⚠️ Unknown action."), show_alert=True)
 
 
 @router.callback_query(F.data.startswith(f"{TicketQCActionService.CALLBACK_PREFIX}:"))
@@ -99,19 +99,19 @@ class QCTicketCallbackHandler(QCTicketBaseMixin, CallbackQueryHandler):
             callback_data=query.data or ""
         )
         if parsed is None:
-            await query.answer(_("Unknown action."), show_alert=True)
+            await query.answer(_("⚠️ Unknown action."), show_alert=True)
             return
 
         if not user or not user.is_active:
             await query.answer(
-                _("You do not have access yet. Send /start to request access."),
+                _("🚫 No access yet. Send /start to request access."),
                 show_alert=True,
             )
             return
 
         if not await self.can_qc_ticket_async(user=user):
             await query.answer(
-                _("This action is available only for QC inspectors."),
+                _("⛔ This action is available only for QC inspectors."),
                 show_alert=True,
             )
             return
@@ -143,12 +143,18 @@ class QCTicketCallbackHandler(QCTicketBaseMixin, CallbackQueryHandler):
                         TicketWorkflowService.qc_pass_ticket,
                         ticket=ticket,
                         actor_user_id=user.id,
+                        transition_metadata=TicketQCActionService.transition_metadata(
+                            action=action
+                        ),
                     )
                 else:
                     await run_sync(
                         TicketWorkflowService.qc_fail_ticket,
                         ticket=ticket,
                         actor_user_id=user.id,
+                        transition_metadata=TicketQCActionService.transition_metadata(
+                            action=action
+                        ),
                     )
             except ValueError as exc:
                 await query.answer(_(str(exc)), show_alert=True)
@@ -185,7 +191,7 @@ class QCTicketCallbackHandler(QCTicketBaseMixin, CallbackQueryHandler):
             query=query,
             text=TicketQCActionService.render_ticket_message(
                 ticket=refreshed_ticket,
-                heading=_("🧪 QC ticket action panel."),
+                heading=_("🧪 <b>QC Ticket Action Panel</b>"),
                 _=_,
             ),
             reply_markup=action_markup,

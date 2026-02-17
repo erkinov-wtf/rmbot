@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from html import escape
 from types import SimpleNamespace
 
 from aiogram.exceptions import TelegramBadRequest
@@ -71,7 +72,7 @@ ASSIGNABLE_TICKET_STATUSES = {
 }
 
 ERROR_INVALID_INPUT = gettext_noop("Invalid input.")
-ERROR_TICKET_NOT_FOUND = gettext_noop("Ticket was not found.")
+ERROR_TICKET_NOT_FOUND = gettext_noop("⚠️ Ticket was not found.")
 ERROR_TECHNICIAN_NOT_FOUND = gettext_noop("Technician user does not exist.")
 ERROR_USER_NOT_TECHNICIAN = gettext_noop("Selected user does not have TECHNICIAN role.")
 
@@ -399,7 +400,7 @@ async def _ticket_permissions(*, user: User | None) -> TicketBotPermissionSet:
 
 async def _notify_not_registered_message(*, message: Message, _) -> None:
     await message.answer(
-        _("You do not have access yet. Send /start to request access."),
+        _("🚫 <b>No access yet.</b>\nSend <code>/start</code> to request access."),
         reply_markup=build_main_menu_keyboard(
             is_technician=False,
             include_start_access=True,
@@ -410,13 +411,15 @@ async def _notify_not_registered_message(*, message: Message, _) -> None:
 
 async def _notify_not_registered_callback(*, query: CallbackQuery, _) -> None:
     await query.answer(
-        _("You do not have access yet. Send /start to request access."),
+        _("🚫 No access yet. Send /start to request access."),
         show_alert=True,
     )
     if query.message is None:
         return
     await query.message.answer(
-        _("Open access request from the menu below."),
+        _(
+            "📝 <b>Open Access Request</b>\nUse <code>/start</code> or tap the button below."
+        ),
         reply_markup=build_main_menu_keyboard(
             is_technician=False,
             include_start_access=True,
@@ -429,25 +432,26 @@ def _create_items_text(
     *, page: int, page_count: int, items: list[InventoryItem], _
 ) -> str:
     lines = [
-        _("🆕 Ticket intake"),
-        _("Step 1/3: Select an inventory item"),
-        _("Page: %(page)s/%(page_count)s") % {"page": page, "page_count": page_count},
+        _("🆕 <b>Ticket Intake</b>"),
+        _("🧩 <b>Step 1/3:</b> Select an inventory item"),
+        _("📄 <b>Page:</b> %(page)s/%(page_count)s")
+        % {"page": page, "page_count": page_count},
     ]
     if not items:
-        lines.append(_("No active inventory items found on this page."))
+        lines.append(_("ℹ️ No active inventory items found on this page."))
         return "\n".join(lines)
 
-    lines.append(_("Available items:"))
+    lines.append(_("\n📦 <b>Available items</b>"))
     for item in items:
         lines.append(
-            _("• #%(item_id)s | %(serial)s | %(status)s")
+            _("• <b>#%(item_id)s</b> • <code>%(serial)s</code> • %(status)s")
             % {
                 "item_id": item.id,
-                "serial": item.serial_number,
-                "status": item.status,
+                "serial": escape(item.serial_number),
+                "status": escape(str(item.status)),
             }
         )
-    lines.append(_("Choose an item using the inline buttons."))
+    lines.append(_("💡 Choose an item using the inline buttons."))
     return "\n".join(lines)
 
 
@@ -502,20 +506,23 @@ def _parts_selection_text(
     *, serial_number: str, parts: list[dict], selected_ids: set[int], _
 ) -> str:
     lines = [
-        _("🆕 Ticket intake"),
-        _("Step 2/3: Select parts"),
-        _("Serial number: %(serial)s") % {"serial": serial_number},
+        _("🆕 <b>Ticket Intake</b>"),
+        _("🧩 <b>Step 2/3:</b> Select parts"),
+        _("🔢 <b>Serial number:</b> <code>%(serial)s</code>")
+        % {"serial": escape(serial_number)},
     ]
     if not parts:
-        lines.append(_("This inventory item has no parts configured."))
+        lines.append(_("ℹ️ This inventory item has no parts configured."))
         return "\n".join(lines)
 
-    lines.append(_("Toggle parts to include in the ticket:"))
+    lines.append(_("\n🧱 <b>Toggle parts to include in the ticket</b>"))
     for part in parts:
         marker = "✅" if int(part["id"]) in selected_ids else "☐"
-        lines.append(f"{marker} #{int(part['id'])} {part['name']}")
+        lines.append(f"{marker} <b>#{int(part['id'])}</b> {escape(str(part['name']))}")
 
-    lines.append(_("Selected parts: %(count)s") % {"count": len(selected_ids)})
+    lines.append(
+        _("\n📌 <b>Selected parts:</b> %(count)s") % {"count": len(selected_ids)}
+    )
     return "\n".join(lines)
 
 
@@ -575,19 +582,20 @@ def _spec_editor_text(
 ) -> str:
     return "\n".join(
         [
-            _("🆕 Ticket intake"),
-            _("Step 3/3: Configure part metrics"),
-            _("Serial number: %(serial)s") % {"serial": serial_number},
-            _("Part %(index)s/%(total)s: %(name)s")
+            _("🆕 <b>Ticket Intake</b>"),
+            _("🧩 <b>Step 3/3:</b> Configure part metrics"),
+            _("🔢 <b>Serial number:</b> <code>%(serial)s</code>")
+            % {"serial": escape(serial_number)},
+            _("🧱 <b>Part %(index)s/%(total)s:</b> %(name)s")
             % {
                 "index": current_index + 1,
                 "total": total_parts,
-                "name": part_name,
+                "name": escape(part_name),
             },
-            _("Draft color: %(color)s") % {"color": draft_color},
-            _("Draft minutes: %(minutes)s") % {"minutes": draft_minutes},
-            _("Configured parts: %(count)s") % {"count": completed_count},
-            _("Use inline buttons only to configure values."),
+            _("🎨 <b>Draft color:</b> %(color)s") % {"color": escape(draft_color)},
+            _("⏱ <b>Draft minutes:</b> %(minutes)s") % {"minutes": draft_minutes},
+            _("✅ <b>Configured parts:</b> %(count)s") % {"count": completed_count},
+            _("💡 Use inline buttons only to configure values."),
         ]
     )
 
@@ -677,10 +685,11 @@ def _summary_text(
 ) -> str:
     total_minutes = sum(int(spec["minutes"]) for spec in specs)
     lines = [
-        _("🆕 Ticket intake summary"),
-        _("Serial number: %(serial)s") % {"serial": serial_number},
-        _("Total minutes: %(minutes)s") % {"minutes": total_minutes},
-        _("Part specs:"),
+        _("🧾 <b>Ticket Intake Summary</b>"),
+        _("🔢 <b>Serial number:</b> <code>%(serial)s</code>")
+        % {"serial": escape(serial_number)},
+        _("⏱ <b>Total minutes:</b> %(minutes)s") % {"minutes": total_minutes},
+        _("🧱 <b>Part specs</b>"),
     ]
     for spec in specs:
         part_id = int(spec["part_id"])
@@ -689,15 +698,15 @@ def _summary_text(
             gettext("Part #%(part_id)s") % {"part_id": part_id},
         )
         lines.append(
-            _("• %(part)s | %(color)s | %(minutes)s min")
+            _("• <b>%(part)s</b> • %(color)s • %(minutes)s min")
             % {
-                "part": part_name,
-                "color": spec["color"],
+                "part": escape(part_name),
+                "color": escape(str(spec["color"])),
                 "minutes": int(spec["minutes"]),
             }
         )
 
-    lines.append(_("Create ticket using the button below."))
+    lines.append(_("💡 Create ticket using the button below."))
     return "\n".join(lines)
 
 
@@ -745,29 +754,30 @@ def _review_queue_text(
     total_count: int,
     _,
 ) -> str:
-    lines = [_("🧾 Ticket review queue")]
+    lines = [_("🧾 <b>Ticket Review Queue</b>")]
     if not tickets:
         lines.append(
-            _("Page: %(page)s/%(page_count)s")
+            _("📄 <b>Page:</b> %(page)s/%(page_count)s")
             % {"page": page, "page_count": page_count}
         )
-        lines.append(_("No tickets found for review."))
+        lines.append(_("ℹ️ No tickets found for review."))
         return "\n".join(lines)
 
-    lines.append(_("Total tickets: %(count)s") % {"count": total_count})
+    lines.append(_("📦 <b>Total tickets:</b> %(count)s") % {"count": total_count})
     lines.append(
-        _("Page: %(page)s/%(page_count)s") % {"page": page, "page_count": page_count}
+        _("📄 <b>Page:</b> %(page)s/%(page_count)s")
+        % {"page": page, "page_count": page_count}
     )
     for ticket in tickets:
         lines.append(
-            _("• #%(id)s | %(serial)s | %(status)s")
+            _("• <b>#%(id)s</b> • <code>%(serial)s</code> • %(status)s")
             % {
                 "id": ticket.id,
-                "serial": ticket.inventory_item.serial_number,
-                "status": _status_label(status=ticket.status, _=_),
+                "serial": escape(ticket.inventory_item.serial_number),
+                "status": escape(_status_label(status=ticket.status, _=_)),
             }
         )
-    lines.append(_("Use inline buttons to open ticket details."))
+    lines.append(_("💡 Use inline buttons to open ticket details."))
     return "\n".join(lines)
 
 
@@ -784,8 +794,7 @@ def _review_queue_keyboard(
                 InlineKeyboardButton(
                     text=f"🎫 #{ticket.id} · {ticket.inventory_item.serial_number}",
                     callback_data=(
-                        f"{REVIEW_QUEUE_CALLBACK_PREFIX}:{REVIEW_QUEUE_ACTION_OPEN}:"
-                        f"{ticket.id}:{page}"
+                        f"{REVIEW_QUEUE_CALLBACK_PREFIX}:{REVIEW_QUEUE_ACTION_OPEN}:{ticket.id}:{page}"
                     ),
                 )
             ]
@@ -798,22 +807,19 @@ def _review_queue_keyboard(
             InlineKeyboardButton(
                 text="<",
                 callback_data=(
-                    f"{REVIEW_QUEUE_CALLBACK_PREFIX}:{REVIEW_QUEUE_ACTION_REFRESH}:"
-                    f"{prev_page}"
+                    f"{REVIEW_QUEUE_CALLBACK_PREFIX}:{REVIEW_QUEUE_ACTION_REFRESH}:{prev_page}"
                 ),
             ),
             InlineKeyboardButton(
                 text=f"{page}/{page_count}",
                 callback_data=(
-                    f"{REVIEW_QUEUE_CALLBACK_PREFIX}:{REVIEW_QUEUE_ACTION_REFRESH}:"
-                    f"{page}"
+                    f"{REVIEW_QUEUE_CALLBACK_PREFIX}:{REVIEW_QUEUE_ACTION_REFRESH}:{page}"
                 ),
             ),
             InlineKeyboardButton(
                 text=">",
                 callback_data=(
-                    f"{REVIEW_QUEUE_CALLBACK_PREFIX}:{REVIEW_QUEUE_ACTION_REFRESH}:"
-                    f"{next_page}"
+                    f"{REVIEW_QUEUE_CALLBACK_PREFIX}:{REVIEW_QUEUE_ACTION_REFRESH}:{next_page}"
                 ),
             ),
         ]
@@ -828,19 +834,25 @@ def _review_ticket_text(*, ticket: Ticket, _) -> str:
 
     return "\n".join(
         [
-            _("🎫 Ticket #%(ticket_id)s") % {"ticket_id": ticket.id},
-            _("Serial: %(serial)s") % {"serial": ticket.inventory_item.serial_number},
-            _("Status: %(status)s")
-            % {"status": _status_label(status=ticket.status, _=_)},
-            _("Title: %(title)s") % {"title": title},
-            _("Technician: %(technician)s") % {"technician": technician_label},
-            _("Admin review approved: %(approved)s") % {"approved": approved_label},
-            _("Total minutes: %(minutes)s")
+            _("🎫 <b>Ticket #%(ticket_id)s</b>") % {"ticket_id": ticket.id},
+            _("• <b>Serial:</b> <code>%(serial)s</code>")
+            % {"serial": escape(ticket.inventory_item.serial_number)},
+            _("• <b>Status:</b> %(status)s")
+            % {"status": escape(_status_label(status=ticket.status, _=_))},
+            _("• <b>Title:</b> %(title)s") % {"title": escape(title)},
+            _("• <b>Technician:</b> %(technician)s")
+            % {"technician": escape(technician_label)},
+            _("• <b>Admin review approved:</b> %(approved)s")
+            % {"approved": escape(approved_label)},
+            _("• <b>Total minutes:</b> %(minutes)s")
             % {"minutes": int(ticket.total_duration or 0)},
-            _("Flag / XP: %(flag)s / %(xp)s")
-            % {"flag": ticket.flag_color, "xp": int(ticket.xp_amount or 0)},
-            _("Manual metrics mode: %(manual)s")
-            % {"manual": _("Yes") if ticket.is_manual else _("No")},
+            _("• <b>Flag / XP:</b> %(flag)s / %(xp)s")
+            % {
+                "flag": escape(str(ticket.flag_color)),
+                "xp": int(ticket.xp_amount or 0),
+            },
+            _("• <b>Manual metrics mode:</b> %(manual)s")
+            % {"manual": escape(_("Yes") if ticket.is_manual else _("No"))},
         ]
     )
 
@@ -880,8 +892,7 @@ def _review_ticket_keyboard(
             InlineKeyboardButton(
                 text=gettext("🔄 Refresh ticket"),
                 callback_data=(
-                    f"{REVIEW_QUEUE_CALLBACK_PREFIX}:{REVIEW_QUEUE_ACTION_OPEN}:"
-                    f"{ticket_id}:{page}"
+                    f"{REVIEW_QUEUE_CALLBACK_PREFIX}:{REVIEW_QUEUE_ACTION_OPEN}:{ticket_id}:{page}"
                 ),
             )
         ]
@@ -891,8 +902,7 @@ def _review_ticket_keyboard(
             InlineKeyboardButton(
                 text=gettext("⬅ Back to review queue"),
                 callback_data=(
-                    f"{REVIEW_QUEUE_CALLBACK_PREFIX}:{REVIEW_QUEUE_ACTION_REFRESH}:"
-                    f"{page}"
+                    f"{REVIEW_QUEUE_CALLBACK_PREFIX}:{REVIEW_QUEUE_ACTION_REFRESH}:{page}"
                 ),
             )
         ]
@@ -927,22 +937,19 @@ def _assign_keyboard(
             InlineKeyboardButton(
                 text="<",
                 callback_data=(
-                    f"{REVIEW_ACTION_CALLBACK_PREFIX}:{REVIEW_ACTION_ASSIGN_PAGE}:"
-                    f"{ticket_id}:{prev_page}"
+                    f"{REVIEW_ACTION_CALLBACK_PREFIX}:{REVIEW_ACTION_ASSIGN_PAGE}:{ticket_id}:{prev_page}"
                 ),
             ),
             InlineKeyboardButton(
                 text=f"{page}/{page_count}",
                 callback_data=(
-                    f"{REVIEW_ACTION_CALLBACK_PREFIX}:{REVIEW_ACTION_ASSIGN_PAGE}:"
-                    f"{ticket_id}:{page}"
+                    f"{REVIEW_ACTION_CALLBACK_PREFIX}:{REVIEW_ACTION_ASSIGN_PAGE}:{ticket_id}:{page}"
                 ),
             ),
             InlineKeyboardButton(
                 text=">",
                 callback_data=(
-                    f"{REVIEW_ACTION_CALLBACK_PREFIX}:{REVIEW_ACTION_ASSIGN_PAGE}:"
-                    f"{ticket_id}:{next_page}"
+                    f"{REVIEW_ACTION_CALLBACK_PREFIX}:{REVIEW_ACTION_ASSIGN_PAGE}:{ticket_id}:{next_page}"
                 ),
             ),
         ]
@@ -961,11 +968,11 @@ def _assign_keyboard(
 def _manual_metrics_text(*, ticket_id: int, flag_color: str, xp_amount: int, _) -> str:
     return "\n".join(
         [
-            _("🛠 Manual metrics override"),
-            _("Ticket: #%(ticket_id)s") % {"ticket_id": ticket_id},
-            _("Flag color: %(color)s") % {"color": flag_color},
-            _("XP amount: %(xp)s") % {"xp": xp_amount},
-            _("Use inline buttons only to update values."),
+            _("🛠 <b>Manual Metrics Override</b>"),
+            _("🎫 <b>Ticket:</b> #%(ticket_id)s") % {"ticket_id": ticket_id},
+            _("🎨 <b>Flag color:</b> %(color)s") % {"color": escape(flag_color)},
+            _("⭐ <b>XP amount:</b> %(xp)s") % {"xp": xp_amount},
+            _("💡 Use inline buttons only to update values."),
         ]
     )
 
@@ -1109,7 +1116,7 @@ async def _show_review_ticket(
 ) -> None:
     ticket = await run_sync(_review_ticket, ticket_id=ticket_id)
     if ticket is None:
-        await query.answer(_("Ticket was not found."), show_alert=True)
+        await query.answer(_(ERROR_TICKET_NOT_FOUND), show_alert=True)
         return
 
     await _safe_edit_message(

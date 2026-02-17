@@ -3,6 +3,7 @@ import queue
 import threading
 import traceback
 from collections.abc import Mapping
+from html import escape
 
 import requests
 
@@ -24,15 +25,27 @@ class TelegramErrorHandler(logging.Handler):
 
     def emit(self, record):
         try:
-            # Prevent automatic traceback formatting (already in record.traceback via filter)
-            original_exc_info = record.exc_info
-            record.exc_info = None
-            record.exc_text = None
+            safe_record = logging.makeLogRecord(record.__dict__.copy())
+            safe_record.exc_info = None
+            safe_record.exc_text = None
+            safe_record.msg = escape(str(record.getMessage()), quote=False)
+            safe_record.args = ()
+            safe_record.user = escape(
+                str(getattr(record, "user", "Unknown")), quote=False
+            )
+            safe_record.method = escape(
+                str(getattr(record, "method", "-")), quote=False
+            )
+            safe_record.path = escape(str(getattr(record, "path", "-")), quote=False)
+            safe_record.ip = escape(str(getattr(record, "ip", "-")), quote=False)
+            safe_record.request_id = escape(
+                str(getattr(record, "request_id", "-")), quote=False
+            )
+            safe_record.traceback = escape(
+                str(getattr(record, "traceback", "No traceback")), quote=False
+            )
 
-            msg = self.format(record)
-
-            # Restore original exc_info for other handlers
-            record.exc_info = original_exc_info
+            msg = self.format(safe_record)
 
             self.queue.put_nowait(msg)
         except queue.Full:
@@ -48,7 +61,7 @@ class TelegramErrorHandler(logging.Handler):
                     json={
                         "chat_id": self.chat_id,
                         "text": msg[:4000],
-                        "parse_mode": "Markdown",
+                        "parse_mode": "HTML",
                     },
                     timeout=5,
                 )

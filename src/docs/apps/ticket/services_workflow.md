@@ -20,6 +20,7 @@ Orchestrates core ticket transitions while delegating state mutation rules to mo
 
 ## Side Effects
 - Writes `TicketTransition` rows for each workflow action.
+- Emits application log records on each transition write (`ticket/services_workflow.py` logger) with action/from/to/actor/metadata context.
 - Updates inventory-item status (`IN_SERVICE` on start, `READY` on QC pass).
 - Starts a `WorkSession` automatically when `start_ticket` succeeds.
 - Appends technician ticket XP entries on `qc-pass` (base + optional first-pass bonus).
@@ -35,6 +36,7 @@ Orchestrates core ticket transitions while delegating state mutation rules to mo
 
 ## Operational Notes
 - XP formula inputs come from active rules (`ticket_xp` section).
+- `move_ticket_to_waiting_qc`, `qc_pass_ticket`, and `qc_fail_ticket` accept optional `transition_metadata` payloads so callers (for example Telegram callbacks) can tag source/channel/action in transition audit metadata.
 - First-pass bonus eligibility requires both:
   - no prior `qc-fail` transition for the ticket
   - total accumulated work-session active time `<= ticket.total_duration` (planned minutes)

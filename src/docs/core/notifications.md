@@ -33,6 +33,9 @@ Ticket workflow notifications include:
 - Dispatch is deferred with `transaction.on_commit(...)` so notifications are emitted only after successful DB commit.
 - Test runs skip outbound delivery (`settings.IS_TEST_RUN`).
 - Missing `BOT_TOKEN` disables delivery with log-only skip behavior.
+- Notification payloads are rendered as Telegram HTML cards (emoji + `<b>/<code>` formatting) for consistent UX in all lifecycle events.
+- Dynamic text fields (names, serials, comments, statuses) are escaped before interpolation to keep HTML-safe rendering.
+- Delivery now passes `parse_mode=settings.BOT_PARSE_MODE` (fallback `HTML`) on each `send_message` call.
 
 ## Failure Modes
 - Missing or unlinked Telegram profiles for recipients results in a silent skip for that event.

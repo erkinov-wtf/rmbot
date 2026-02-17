@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from html import escape
+
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from django.utils.translation import gettext as django_gettext
 from django.utils.translation import gettext_noop
@@ -21,20 +23,22 @@ class TicketQCActionService:
         ACTION_REFRESH: gettext_noop("🔄 Refresh ticket"),
     }
     _ACTION_FEEDBACK = {
-        ACTION_PASS: gettext_noop("Ticket marked as QC passed."),
-        ACTION_FAIL: gettext_noop("Ticket marked as QC failed."),
-        ACTION_REFRESH: gettext_noop("Ticket details refreshed."),
+        ACTION_PASS: gettext_noop("✅ Ticket marked as QC passed."),
+        ACTION_FAIL: gettext_noop("❌ Ticket marked as QC failed."),
+        ACTION_REFRESH: gettext_noop("🔄 Ticket details refreshed."),
     }
-    _STATUS_LABELS = {
+    _STATUS_LABELS: dict[str, str] = {
         TicketStatus.WAITING_QC: gettext_noop("Waiting QC"),
         TicketStatus.REWORK: gettext_noop("Rework"),
         TicketStatus.DONE: gettext_noop("Done"),
     }
-    _ERROR_UNSUPPORTED_ACTION = gettext_noop("Unsupported QC action.")
+    _ERROR_UNSUPPORTED_ACTION = gettext_noop("⚠️ Unsupported QC action.")
     _ERROR_UNAVAILABLE_STATUS = gettext_noop(
-        "QC action is not available for this ticket status."
+        "⚠️ QC action is not available for this ticket status."
     )
-    _ERROR_TICKET_NOT_FOUND = gettext_noop("Ticket was not found.")
+    _ERROR_TICKET_NOT_FOUND = gettext_noop("⚠️ Ticket was not found.")
+    _TRANSITION_SOURCE = "telegram_bot"
+    _TRANSITION_CHANNEL = "qc_callback"
 
     @staticmethod
     def _translate(*, text: str, _) -> str:
@@ -120,14 +124,23 @@ class TicketQCActionService:
 
         lines.extend(
             [
-                cls._translate(text=gettext_noop("🎫 Ticket: #%(ticket_id)s"), _=_)
+                cls._translate(
+                    text=gettext_noop("🎫 <b>Ticket:</b> #%(ticket_id)s"), _=_
+                )
                 % {"ticket_id": ticket.id},
-                cls._translate(text=gettext_noop("🔢 Serial number: %(serial)s"), _=_)
-                % {"serial": cls._serial_number(ticket=ticket)},
-                cls._translate(text=gettext_noop("📍 Status: %(status)s"), _=_)
-                % {"status": cls._status_label(status=ticket.status, _=_)},
-                cls._translate(text=gettext_noop("🛠 Technician: %(technician)s"), _=_)
-                % {"technician": cls._technician_label(ticket=ticket)},
+                cls._translate(
+                    text=gettext_noop(
+                        "🔢 <b>Serial number:</b> <code>%(serial)s</code>"
+                    ),
+                    _=_,
+                )
+                % {"serial": escape(cls._serial_number(ticket=ticket))},
+                cls._translate(text=gettext_noop("📍 <b>Status:</b> %(status)s"), _=_)
+                % {"status": escape(cls._status_label(status=ticket.status, _=_))},
+                cls._translate(
+                    text=gettext_noop("🛠 <b>Technician:</b> %(technician)s"), _=_
+                )
+                % {"technician": escape(cls._technician_label(ticket=ticket))},
             ]
         )
         return "\n".join(lines)
@@ -144,6 +157,14 @@ class TicketQCActionService:
     @classmethod
     def ticket_not_found_error(cls, *, _=None) -> str:
         return cls._translate(text=cls._ERROR_TICKET_NOT_FOUND, _=_)
+
+    @classmethod
+    def transition_metadata(cls, *, action: str) -> dict[str, str]:
+        return {
+            "source": cls._TRANSITION_SOURCE,
+            "channel": cls._TRANSITION_CHANNEL,
+            "telegram_action": str(action),
+        }
 
     @staticmethod
     def get_ticket(*, ticket_id: int) -> Ticket | None:

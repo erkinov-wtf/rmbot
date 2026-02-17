@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 from collections.abc import Iterable
 from dataclasses import dataclass
+from html import escape
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from django.db.models import Sum
@@ -75,9 +76,9 @@ class TechnicianTicketActionService:
         VIEW_SCOPE_PAST: (TicketStatus.DONE,),
     }
     _VIEW_SCOPE_EMPTY_MESSAGES = {
-        VIEW_SCOPE_ACTIVE: gettext_noop("No active tickets assigned right now."),
-        VIEW_SCOPE_UNDER_QC: gettext_noop("No tickets are currently waiting QC."),
-        VIEW_SCOPE_PAST: gettext_noop("No past tickets found yet."),
+        VIEW_SCOPE_ACTIVE: gettext_noop("ℹ️ No active tickets assigned right now."),
+        VIEW_SCOPE_UNDER_QC: gettext_noop("ℹ️ No tickets are currently waiting QC."),
+        VIEW_SCOPE_PAST: gettext_noop("ℹ️ No past tickets found yet."),
     }
     _VIEW_SCOPE_TOTAL_LABELS = {
         VIEW_SCOPE_ACTIVE: gettext_noop("Total active tickets"),
@@ -97,26 +98,30 @@ class TechnicianTicketActionService:
         WorkSessionStatus.STOPPED: gettext_noop("Stopped"),
     }
     _ACTION_FEEDBACK = {
-        ACTION_START: gettext_noop("Work session started."),
-        ACTION_PAUSE: gettext_noop("Work session paused."),
-        ACTION_RESUME: gettext_noop("Work session resumed."),
-        ACTION_STOP: gettext_noop("Work session stopped."),
-        ACTION_TO_WAITING_QC: gettext_noop("Ticket sent to QC."),
-        ACTION_REFRESH: gettext_noop("Ticket details refreshed."),
+        ACTION_START: gettext_noop("✅ Work session started."),
+        ACTION_PAUSE: gettext_noop("⏸ Work session paused."),
+        ACTION_RESUME: gettext_noop("▶ Work session resumed."),
+        ACTION_STOP: gettext_noop("⏹ Work session stopped."),
+        ACTION_TO_WAITING_QC: gettext_noop("🧪 Ticket sent to QC."),
+        ACTION_REFRESH: gettext_noop("🔄 Ticket details refreshed."),
     }
     _ERROR_TICKET_NOT_ASSIGNED = gettext_noop(
-        "Ticket is not found or is not assigned to you."
+        "⚠️ Ticket is not found or is not assigned to you."
     )
-    _ERROR_WRONG_TECHNICIAN = gettext_noop("Ticket is not assigned to this technician.")
+    _ERROR_WRONG_TECHNICIAN = gettext_noop(
+        "⚠️ Ticket is not assigned to this technician."
+    )
     _ERROR_UNSUPPORTED_QUEUE_CALLBACK = gettext_noop(
-        "Unsupported queue callback action."
+        "⚠️ Unsupported queue callback action."
     )
-    _ERROR_UNSUPPORTED_VIEW_SCOPE = gettext_noop("Unsupported ticket view scope.")
+    _ERROR_UNSUPPORTED_VIEW_SCOPE = gettext_noop("⚠️ Unsupported ticket view scope.")
     _ERROR_ACTION_NOT_AVAILABLE = gettext_noop(
-        "Action is not available for this ticket right now."
+        "⚠️ Action is not available for this ticket right now."
     )
-    _ERROR_UNSUPPORTED_ACTION = gettext_noop("Unsupported action.")
+    _ERROR_UNSUPPORTED_ACTION = gettext_noop("⚠️ Unsupported action.")
     _SERIAL_UNKNOWN = gettext_noop("unknown")
+    _TRANSITION_SOURCE = "telegram_bot"
+    _TRANSITION_CHANNEL = "technician_callback"
 
     @staticmethod
     def _translate(*, text: str, _) -> str:
@@ -410,44 +415,49 @@ class TechnicianTicketActionService:
         if heading:
             lines.append(heading)
 
-        lines.append("━━━━━━━━━━━━━━━━━━")
         lines.extend(
             [
-                _("🎫 Ticket: #%(ticket_id)s") % {"ticket_id": state.ticket_id},
-                _("🔢 Serial number: %(serial)s") % {"serial": serial_number},
-                _("📍 Status: %(status)s")
+                _("🎫 <b>Ticket:</b> #%(ticket_id)s") % {"ticket_id": state.ticket_id},
+                _("🔢 <b>Serial number:</b> <code>%(serial)s</code>")
+                % {"serial": escape(serial_number)},
+                _("📍 <b>Status:</b> %(status)s")
                 % {
-                    "status": cls._ticket_status_label(
-                        status=state.ticket_status,
-                        _=_,
+                    "status": escape(
+                        cls._ticket_status_label(
+                            status=state.ticket_status,
+                            _=_,
+                        )
                     )
                 },
             ]
         )
         if state.session_status:
             lines.append(
-                _("🛠 Work session: %(session)s")
+                _("🛠 <b>Work session:</b> %(session)s")
                 % {
-                    "session": cls._session_status_label(
-                        status=state.session_status,
-                        _=_,
+                    "session": escape(
+                        cls._session_status_label(
+                            status=state.session_status,
+                            _=_,
+                        )
                     )
                 }
             )
         if state.potential_xp > 0:
-            lines.append(_("🎯 Potential XP: +%(xp)s") % {"xp": state.potential_xp})
+            lines.append(
+                _("🎯 <b>Potential XP:</b> +%(xp)s") % {"xp": state.potential_xp}
+            )
         else:
-            lines.append(_("🎯 Potential XP: pending metrics"))
-        lines.append(_("🏆 Acquired XP: +%(xp)s") % {"xp": state.acquired_xp})
+            lines.append(_("🎯 <b>Potential XP:</b> pending metrics"))
+        lines.append(_("🏆 <b>Acquired XP:</b> +%(xp)s") % {"xp": state.acquired_xp})
         if state.potential_xp > 0:
             lines.append(
-                _("📈 XP progress: %(current)s/%(target)s")
+                _("📈 <b>XP progress:</b> %(current)s/%(target)s")
                 % {
                     "current": state.acquired_xp,
                     "target": state.potential_xp,
                 }
             )
-        lines.append("━━━━━━━━━━━━━━━━━━")
 
         available_labels = [
             cls._translate(text=cls._ACTION_LABELS[action], _=_)
@@ -455,8 +465,8 @@ class TechnicianTicketActionService:
             if action != cls.ACTION_REFRESH and action in cls._ACTION_LABELS
         ]
         if available_labels:
-            lines.append(_("⚡ Available actions:"))
-            lines.extend(f"• {label}" for label in available_labels)
+            lines.append(_("⚡ <b>Available actions:</b>"))
+            lines.extend(f"• {escape(label)}" for label in available_labels)
         else:
             lines.append(_("🧊 No technician actions are available right now."))
         return "\n".join(lines)
@@ -501,14 +511,14 @@ class TechnicianTicketActionService:
             max(0, int(total_count)) if total_count is not None else len(states_list)
         )
         lines.append(
-            _("%(label)s: %(count)s")
-            % {"label": total_label, "count": resolved_total_count}
+            _("📦 <b>%(label)s:</b> %(count)s")
+            % {"label": escape(total_label), "count": resolved_total_count}
         )
         if page is not None and page_count is not None:
             safe_page_count = max(1, int(page_count))
             safe_page = min(cls._normalize_page(page=page), safe_page_count)
             lines.append(
-                _("Page: %(page)s/%(page_count)s")
+                _("📄 <b>Page:</b> %(page)s/%(page_count)s")
                 % {"page": safe_page, "page_count": safe_page_count}
             )
         for state in states_list:
@@ -519,11 +529,13 @@ class TechnicianTicketActionService:
             )
             session_suffix = (
                 (
-                    _(" | session: %(session)s")
+                    _(" • <b>Session:</b> %(session)s")
                     % {
-                        "session": cls._session_status_label(
-                            status=state.session_status,
-                            _=_,
+                        "session": escape(
+                            cls._session_status_label(
+                                status=state.session_status,
+                                _=_,
+                            )
                         )
                     }
                 )
@@ -531,18 +543,19 @@ class TechnicianTicketActionService:
                 else ""
             )
             potential_xp = str(state.potential_xp) if state.potential_xp > 0 else "?"
-            xp_suffix = _(" | xp: +%(current)s/%(target)s") % {
+            xp_suffix = _(" • <b>XP:</b> +%(current)s/%(target)s") % {
                 "current": state.acquired_xp,
                 "target": potential_xp,
             }
+            status_label = cls._ticket_status_label(status=state.ticket_status, _=_)
             ticket_line = (
                 f"{cls._status_icon(status=state.ticket_status)} "
-                f"#{state.ticket_id} | {serial_number} | "
-                f"{cls._ticket_status_label(status=state.ticket_status, _=_)}"
+                f"<b>#{state.ticket_id}</b> • <code>{escape(serial_number)}</code> • "
+                f"{escape(status_label)}"
                 f"{session_suffix}{xp_suffix}"
             )
             lines.append(ticket_line)
-        lines.append(_("Use the inline buttons below to open ticket details."))
+        lines.append(_("💡 Use the inline buttons below to open ticket details."))
         return "\n".join(lines)
 
     @classmethod
@@ -555,7 +568,8 @@ class TechnicianTicketActionService:
     @classmethod
     def action_feedback(cls, *, action: str, _=None) -> str:
         feedback = cls._ACTION_FEEDBACK.get(
-            action, gettext_noop("Ticket state updated.")
+            action,
+            gettext_noop("✅ Ticket state updated."),
         )
         return cls._translate(text=feedback, _=_)
 
@@ -594,10 +608,7 @@ class TechnicianTicketActionService:
         if action == cls.QUEUE_ACTION_REFRESH:
             return f"{cls.QUEUE_CALLBACK_PREFIX}:{action}:{scope}:{safe_page}"
         if action == cls.QUEUE_ACTION_OPEN and ticket_id is not None:
-            return (
-                f"{cls.QUEUE_CALLBACK_PREFIX}:{action}:{int(ticket_id)}:{scope}:"
-                f"{safe_page}"
-            )
+            return f"{cls.QUEUE_CALLBACK_PREFIX}:{action}:{int(ticket_id)}:{scope}:{safe_page}"
         raise ValueError(cls._ERROR_UNSUPPORTED_QUEUE_CALLBACK)
 
     @classmethod
@@ -831,6 +842,7 @@ class TechnicianTicketActionService:
             TicketWorkflowService.move_ticket_to_waiting_qc(
                 ticket=ticket,
                 actor_user_id=technician_id,
+                transition_metadata=cls._transition_metadata(action=action),
             )
             return
 
@@ -843,3 +855,11 @@ class TechnicianTicketActionService:
             getattr(inventory_item, "serial_number", "")
             or TechnicianTicketActionService._SERIAL_UNKNOWN
         )
+
+    @classmethod
+    def _transition_metadata(cls, *, action: str) -> dict[str, str]:
+        return {
+            "source": cls._TRANSITION_SOURCE,
+            "channel": cls._TRANSITION_CHANNEL,
+            "telegram_action": str(action),
+        }

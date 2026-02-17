@@ -33,7 +33,7 @@ class TicketCreateEntrypointSupportMixin:
         permissions = await ticket_admin_support._ticket_permissions(user=user)
         if not permissions.can_create:
             await message.answer(
-                _("Your roles do not allow ticket intake."),
+                _("⛔ <b>Your roles do not allow ticket intake.</b>"),
                 reply_markup=await main_menu_markup_for_user(user=user, _=_),
             )
             return None

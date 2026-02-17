@@ -10,4 +10,4 @@ router = Router(name="fallback")
 class UnknownCommandHandler(MessageHandler):
     async def handle(self) -> Any:
         _ = self.data["_"]
-        await self.event.answer(_("Unknown command. Use /help."))
+        await self.event.answer(_("⚠️ <b>Unknown command.</b>\nUse <code>/help</code>."))

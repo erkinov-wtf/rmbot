@@ -4,11 +4,12 @@ from bot.services.technician_ticket_actions import TechnicianTicketActionService
 from core.utils.constants import (
     RoleSlug,
     TicketStatus,
+    TicketTransitionAction,
     WorkSessionStatus,
     XPTransactionEntryType,
 )
 from gamification.models import XPTransaction
-from ticket.models import WorkSession
+from ticket.models import TicketTransition, WorkSession
 
 pytestmark = pytest.mark.django_db
 
@@ -54,9 +55,9 @@ def test_technician_action_flow_updates_available_buttons(technician_ticket_cont
         state=initial_state,
         heading="Ticket details",
     )
-    assert "Potential XP: +2" in state_text
-    assert "Acquired XP: +0" in state_text
-    assert "XP progress: 0/2" in state_text
+    assert "<b>Potential XP:</b> +2" in state_text
+    assert "<b>Acquired XP:</b> +0" in state_text
+    assert "<b>XP progress:</b> 0/2" in state_text
 
     initial_keyboard = TechnicianTicketActionService.build_action_keyboard(
         ticket_id=ticket.id,
@@ -138,6 +139,14 @@ def test_technician_action_flow_updates_available_buttons(technician_ticket_cont
         )
         is None
     )
+
+    transition = TicketTransition.objects.filter(
+        ticket=ticket,
+        action=TicketTransitionAction.TO_WAITING_QC,
+    ).latest("id")
+    assert transition.metadata.get("source") == "telegram_bot"
+    assert transition.metadata.get("channel") == "technician_callback"
+    assert transition.metadata.get("telegram_action") == "to_waiting_qc"
 
 
 def test_start_action_is_blocked_on_other_tickets_while_session_is_open(
@@ -354,9 +363,9 @@ def test_view_states_for_under_qc_and_past_scopes(
         scope=TechnicianTicketActionService.VIEW_SCOPE_ACTIVE,
     )
 
-    assert "Total waiting QC tickets: 1" in under_qc_summary
-    assert "Total past tickets: 1" in past_summary
-    assert "Total active tickets: 1" in active_summary
+    assert "<b>Total waiting QC tickets:</b> 1" in under_qc_summary
+    assert "<b>Total past tickets:</b> 1" in past_summary
+    assert "<b>Total active tickets:</b> 1" in active_summary
 
 
 def test_paginated_view_states_clamps_out_of_bounds_page(
@@ -409,3 +418,28 @@ def test_state_includes_acquired_xp_for_ticket(technician_ticket_context):
         technician_id=technician.id,
     )
     assert state.acquired_xp == 3
+
+
+def test_to_waiting_qc_action_emits_transition_log(technician_ticket_context, caplog):
+    ticket = technician_ticket_context["ticket"]
+    technician = technician_ticket_context["technician"]
+
+    TechnicianTicketActionService.execute_for_technician(
+        technician_id=technician.id,
+        ticket_id=ticket.id,
+        action=TechnicianTicketActionService.ACTION_START,
+    )
+    TechnicianTicketActionService.execute_for_technician(
+        technician_id=technician.id,
+        ticket_id=ticket.id,
+        action=TechnicianTicketActionService.ACTION_STOP,
+    )
+
+    with caplog.at_level("INFO", logger="ticket.services_workflow"):
+        TechnicianTicketActionService.execute_for_technician(
+            technician_id=technician.id,
+            ticket_id=ticket.id,
+            action=TechnicianTicketActionService.ACTION_TO_WAITING_QC,
+        )
+
+    assert any("action=to_waiting_qc" in record.message for record in caplog.records)

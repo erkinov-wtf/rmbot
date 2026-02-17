@@ -3,7 +3,7 @@ from html import escape
 from typing import Any, cast
 
 from aiogram import Bot, F, Router
-from aiogram.exceptions import TelegramBadRequest
+from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.handlers import MessageHandler
@@ -31,6 +31,7 @@ router = Router(name="start_access")
 class AccessRequestSupportMixin(StartStateMixin):
     PHONE_PATTERN = re.compile(r"^\+?[1-9][0-9]{7,14}$")
     PROGRESS_MESSAGE_ID_KEY = "access_progress_message_id"
+    PHONE_PROMPT_MESSAGE_ID_KEY = "access_phone_prompt_message_id"
     TOTAL_ACCESS_REQUEST_FIELDS = 3
 
     @classmethod
@@ -93,7 +94,7 @@ class AccessRequestSupportMixin(StartStateMixin):
             }
         return _("⬜ <b>%(label)s:</b> <i>%(placeholder)s</i>") % {
             "label": escape(label),
-            "placeholder": escape(_("not filled yet")),
+            "placeholder": escape(_("...")),
         }
 
     @classmethod
@@ -113,7 +114,7 @@ class AccessRequestSupportMixin(StartStateMixin):
         )
 
         lines = [
-            _("🧾 <b>Access request draft</b>"),
+            _("🧾 <b>Access request</b>"),
             _("📈 <b>Progress:</b> %(done)s/%(total)s %(bar)s")
             % {
                 "done": progress_done,
@@ -126,13 +127,11 @@ class AccessRequestSupportMixin(StartStateMixin):
             cls._progress_field_line(label=_("Phone"), value=phone, _=_),
             "",
             _("➡️ <b>Next step:</b> %(value)s") % {"value": escape(next_step)},
-            _("💡 <b>Tip:</b> You can cancel anytime with /cancel."),
         ]
         if saved_update:
             lines.insert(
                 1,
-                _("💾 <b>Saved update:</b> %(value)s")
-                % {"value": escape(saved_update)},
+                _("💾 <b>Saved:</b> %(value)s") % {"value": escape(saved_update)},
             )
         return "\n".join(lines)
 
@@ -144,6 +143,97 @@ class AccessRequestSupportMixin(StartStateMixin):
         if isinstance(raw, str) and raw.isdigit():
             return int(raw)
         return None
+
+    @classmethod
+    def _phone_prompt_message_id(cls, state_data: dict[str, Any]) -> int | None:
+        raw = state_data.get(cls.PHONE_PROMPT_MESSAGE_ID_KEY)
+        if isinstance(raw, int):
+            return raw
+        if isinstance(raw, str) and raw.isdigit():
+            return int(raw)
+        return None
+
+    @classmethod
+    async def clear_progress_message_state(cls, *, state: FSMContext) -> None:
+        await state.update_data(data={cls.PROGRESS_MESSAGE_ID_KEY: None})
+
+    @classmethod
+    async def clear_phone_prompt_message_state(cls, *, state: FSMContext) -> None:
+        await state.update_data(data={cls.PHONE_PROMPT_MESSAGE_ID_KEY: None})
+
+    @classmethod
+    async def safe_delete_message(
+        cls,
+        *,
+        message: Message,
+        message_id: int | None,
+    ) -> None:
+        del cls
+        if message_id is None:
+            return
+
+        bot = message.bot
+        if bot is None:
+            return
+
+        safe_bot = cast(Bot, bot)
+        try:
+            await safe_bot.delete_message(
+                chat_id=message.chat.id,
+                message_id=message_id,
+            )
+        except (TelegramBadRequest, TelegramForbiddenError):
+            return
+
+    @classmethod
+    async def consume_user_input_message(cls, *, message: Message) -> None:
+        await cls.safe_delete_message(message=message, message_id=message.message_id)
+
+    @classmethod
+    async def delete_progress_message(
+        cls,
+        *,
+        message: Message,
+        state: FSMContext,
+    ) -> None:
+        state_data = await state.get_data()
+        await cls.safe_delete_message(
+            message=message,
+            message_id=cls._progress_message_id(state_data),
+        )
+        await cls.clear_progress_message_state(state=state)
+
+    @classmethod
+    async def delete_phone_prompt_message(
+        cls,
+        *,
+        message: Message,
+        state: FSMContext,
+    ) -> None:
+        state_data = await state.get_data()
+        await cls.safe_delete_message(
+            message=message,
+            message_id=cls._phone_prompt_message_id(state_data),
+        )
+        await cls.clear_phone_prompt_message_state(state=state)
+
+    @classmethod
+    async def send_phone_prompt_message(
+        cls,
+        *,
+        message: Message,
+        state: FSMContext,
+        text: str,
+        _,
+    ) -> None:
+        await cls.delete_phone_prompt_message(message=message, state=state)
+        prompt_message = await message.answer(
+            text,
+            reply_markup=cls.phone_keyboard(_),
+        )
+        await state.update_data(
+            data={cls.PHONE_PROMPT_MESSAGE_ID_KEY: prompt_message.message_id}
+        )
 
     @classmethod
     async def _try_edit_progress_card(
@@ -183,6 +273,7 @@ class AccessRequestSupportMixin(StartStateMixin):
         _,
         saved_update: str | None = None,
         force_new_message: bool = False,
+        replace_existing: bool = False,
     ) -> None:
         text = cls.build_progress_card_text(
             first_name=first_name,
@@ -196,6 +287,15 @@ class AccessRequestSupportMixin(StartStateMixin):
         if not force_new_message:
             state_data = await state.get_data()
             progress_message_id = cls._progress_message_id(state_data)
+
+            if replace_existing and progress_message_id is not None:
+                await cls.safe_delete_message(
+                    message=message,
+                    message_id=progress_message_id,
+                )
+                await cls.clear_progress_message_state(state=state)
+                progress_message_id = None
+
             if progress_message_id is not None:
                 if await cls._try_edit_progress_card(
                     message=message,
@@ -229,6 +329,8 @@ class AccessRequestSupportMixin(StartStateMixin):
         first_name = cls.clean_form_value(data.get("first_name"))
         last_name = cls.clean_form_value(data.get("last_name"))
         if first_name is None or last_name is None:
+            await cls.delete_progress_message(message=message, state=state)
+            await cls.delete_phone_prompt_message(message=message, state=state)
             await state.clear()
             await message.answer(
                 _(
@@ -247,6 +349,7 @@ class AccessRequestSupportMixin(StartStateMixin):
             phone=phone,
             saved_update=_("Phone number saved."),
             next_step=_("Submitting your request..."),
+            replace_existing=True,
             _=_,
         )
 
@@ -270,10 +373,12 @@ class AccessRequestSupportMixin(StartStateMixin):
                 next_step=_("Please review your data and send your phone again."),
                 _=_,
             )
-            await message.answer(
-                _("❌ <b>Could not submit your request.</b>\nReason: %(reason)s")
+            await cls.send_phone_prompt_message(
+                message=message,
+                state=state,
+                text=_("❌ <b>Could not submit your request.</b>\nReason: %(reason)s")
                 % {"reason": escape(_(str(exc)))},
-                reply_markup=cls.phone_keyboard(_),
+                _=_,
             )
             return
 
@@ -283,16 +388,8 @@ class AccessRequestSupportMixin(StartStateMixin):
             _=_,
         )
         if created:
-            await cls.show_progress_card(
-                message=message,
-                state=state,
-                first_name=first_name,
-                last_name=last_name,
-                phone=phone,
-                saved_update=_("Request submitted successfully."),
-                next_step=_("Done. Wait for moderation decision in this chat."),
-                _=_,
-            )
+            await cls.delete_progress_message(message=message, state=state)
+            await cls.delete_phone_prompt_message(message=message, state=state)
             await state.clear()
             await message.answer(
                 _(
@@ -302,16 +399,8 @@ class AccessRequestSupportMixin(StartStateMixin):
             )
             return
 
-        await cls.show_progress_card(
-            message=message,
-            state=state,
-            first_name=first_name,
-            last_name=last_name,
-            phone=phone,
-            saved_update=_("Request already exists and is under review."),
-            next_step=_("Done. Wait for moderation decision in this chat."),
-            _=_,
-        )
+        await cls.delete_progress_message(message=message, state=state)
+        await cls.delete_phone_prompt_message(message=message, state=state)
         await state.clear()
         await message.answer(
             _("ℹ️ <b>Your request is already under review.</b>"),
@@ -342,9 +431,11 @@ class AccessRequestSupportMixin(StartStateMixin):
             profile.telegram_id if profile else from_user.id,
         )
         if pending:
+            await cls.delete_progress_message(message=message, state=state)
+            await cls.delete_phone_prompt_message(message=message, state=state)
             await state.clear()
             await message.answer(
-                _("Your access request is already under review."),
+                _("ℹ️ <b>Your access request is already under review.</b>"),
                 reply_markup=build_main_menu_keyboard(
                     is_technician=False,
                     include_start_access=False,
@@ -354,13 +445,17 @@ class AccessRequestSupportMixin(StartStateMixin):
             return
 
         if await _has_active_linked_user(user, profile):
+            await cls.delete_progress_message(message=message, state=state)
+            await cls.delete_phone_prompt_message(message=message, state=state)
             await state.clear()
             await message.answer(
-                _("You are all set. Your account is already active."),
+                _("✅ <b>You are all set.</b> Your account is already active."),
                 reply_markup=await main_menu_markup_for_user(user=user, _=_),
             )
             return
 
+        await cls.delete_progress_message(message=message, state=state)
+        await cls.delete_phone_prompt_message(message=message, state=state)
         await state.clear()
         await state.set_state(AccessRequestForm.first_name)
         await cls.show_progress_card(
@@ -406,7 +501,7 @@ class CancelHandler(AccessRequestSupportMixin, MessageHandler):
         current_state = await state.get_state()
         if not current_state:
             await message.answer(
-                _("There is no form in progress right now."),
+                _("ℹ️ <b>No form in progress.</b>"),
                 reply_markup=await main_menu_markup_for_user(
                     user=user,
                     include_start_access=not bool(user and user.is_active),
@@ -415,20 +510,9 @@ class CancelHandler(AccessRequestSupportMixin, MessageHandler):
             )
             return
 
-        state_data = await state.get_data()
-        first_name, last_name, phone = self.progress_values_from_state_data(state_data)
-        if self._progress_message_id(state_data) is not None:
-            await self.show_progress_card(
-                message=message,
-                state=state,
-                first_name=first_name,
-                last_name=last_name,
-                phone=phone,
-                saved_update=_("Draft canceled."),
-                next_step=_("Send /start whenever you want to begin again."),
-                _=_,
-            )
-
+        await self.consume_user_input_message(message=message)
+        await self.delete_progress_message(message=message, state=state)
+        await self.delete_phone_prompt_message(message=message, state=state)
         await state.clear()
         await message.answer(
             _("🛑 <b>Draft canceled.</b>\nYou can start a new request anytime."),
@@ -460,6 +544,7 @@ class AccessRequestFirstNameHandler(AccessRequestSupportMixin, MessageHandler):
         saved_first_name, saved_last_name, saved_phone = (
             self.progress_values_from_state_data(state_data)
         )
+        await self.consume_user_input_message(message=message)
         await self.show_progress_card(
             message=message,
             state=state,
@@ -468,6 +553,7 @@ class AccessRequestFirstNameHandler(AccessRequestSupportMixin, MessageHandler):
             phone=saved_phone,
             saved_update=_("First name saved."),
             next_step=_("Enter your last name."),
+            replace_existing=True,
             _=_,
         )
 
@@ -492,6 +578,7 @@ class AccessRequestLastNameHandler(AccessRequestSupportMixin, MessageHandler):
         saved_first_name, saved_last_name, saved_phone = (
             self.progress_values_from_state_data(state_data)
         )
+        await self.consume_user_input_message(message=message)
         await self.show_progress_card(
             message=message,
             state=state,
@@ -500,15 +587,18 @@ class AccessRequestLastNameHandler(AccessRequestSupportMixin, MessageHandler):
             phone=saved_phone,
             saved_update=_("Last name saved."),
             next_step=_("Share your phone number."),
+            replace_existing=True,
             _=_,
         )
-        await message.answer(
-            _(
+        await self.send_phone_prompt_message(
+            message=message,
+            state=state,
+            text=_(
                 "📱 <b>Phone number</b>\n"
                 "Use the button below or type your number in international format "
                 "(for example: <code>+998901234567</code>)."
             ),
-            reply_markup=self.phone_keyboard(_),
+            _=_,
         )
 
 
@@ -541,6 +631,8 @@ class AccessRequestPhoneContactHandler(AccessRequestSupportMixin, MessageHandler
                 reply_markup=self.phone_keyboard(_),
             )
             return
+        await self.consume_user_input_message(message=message)
+        await self.delete_phone_prompt_message(message=message, state=state)
         await self.finalize_access_request(
             message=message,
             state=state,
@@ -567,6 +659,8 @@ class AccessRequestPhoneTextHandler(AccessRequestSupportMixin, MessageHandler):
                 reply_markup=self.phone_keyboard(_),
             )
             return
+        await self.consume_user_input_message(message=message)
+        await self.delete_phone_prompt_message(message=message, state=state)
         await self.finalize_access_request(
             message=message,
             state=state,

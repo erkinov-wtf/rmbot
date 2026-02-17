@@ -332,17 +332,19 @@ LOGGING = {
         },
         "telegram": {
             "format": (
-                "*🚨 Django Error Alert (500)*\n"
-                "*Level:* %(levelname)s\n"
-                "*Message:* %(message)s\n\n"
-                "*Module:* `%(module)s:%(filename)s:%(lineno)d`\n"
-                "*Function:* `%(funcName)s`\n\n"
-                "*User:* %(user)s\n"
-                "*Method:* %(method)s\n"
-                "*Path:* %(path)s\n"
-                "*IP:* %(ip)s\n\n"
-                "*Request ID:* `%(request_id)s`\n\n"
-                "*Traceback:*\n```\n%(traceback)s\n```"
+                "🚨 <b>Django Error Alert</b>\n"
+                "🔴 <b>Level:</b> %(levelname)s\n"
+                "💬 <b>Message:</b> %(message)s\n\n"
+                "📍 <b>Location</b>\n"
+                "• Module: <code>%(module)s:%(filename)s:%(lineno)d</code>\n"
+                "• Function: <code>%(funcName)s</code>\n\n"
+                "🌐 <b>Request Context</b>\n"
+                "• User: %(user)s\n"
+                "• Method: %(method)s\n"
+                "• Path: %(path)s\n"
+                "• IP: %(ip)s\n"
+                "• Request ID: <code>%(request_id)s</code>\n\n"
+                "🧵 <b>Traceback</b>\n<pre>%(traceback)s</pre>"
             )
         },
     },

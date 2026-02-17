@@ -28,7 +28,7 @@ class TechnicianCallbackSupportMixin:
 
         if not await TechnicianQueueService.is_technician(user):
             await query.answer(
-                _("This action is available only for technicians."),
+                _("⛔ This action is available only for technicians."),
                 show_alert=True,
             )
             return False
@@ -51,7 +51,7 @@ class TechnicianQueueControlHandler(
             callback_data=query.data or ""
         )
         if parsed is None:
-            await query.answer(_("Unknown action."), show_alert=True)
+            await query.answer(_("⚠️ Unknown action."), show_alert=True)
             return
 
         if not await self.ensure_active_technician(user=user, query=query, _=_):
@@ -117,12 +117,12 @@ class TechnicianQueueControlHandler(
                 reply_markup=markup,
             )
             await query.answer(
-                _("Ticket #{ticket_id} opened.").format(ticket_id=state.ticket_id),
+                _("🎫 Ticket #%(ticket_id)s opened.") % {"ticket_id": state.ticket_id},
                 show_alert=False,
             )
             return
 
-        await query.answer(_("Unknown action."), show_alert=True)
+        await query.answer(_("⚠️ Unknown action."), show_alert=True)
 
 
 @router.callback_query(
@@ -140,7 +140,7 @@ class TechnicianTicketActionHandler(
             callback_data=query.data or ""
         )
         if parsed is None:
-            await query.answer(_("Unknown action."), show_alert=True)
+            await query.answer(_("⚠️ Unknown action."), show_alert=True)
             return
 
         if not await self.ensure_active_technician(user=user, query=query, _=_):
@@ -203,7 +203,7 @@ class TechnicianLegacyMenuControlHandler(CallbackQueryHandler):
         _ = self.data["_"]
         await query.answer(
             _(
-                "This old quick panel was removed. Use the bottom keyboard buttons for Stats, XP, and queue sections."
+                "ℹ️ This old quick panel was removed. Use the bottom keyboard buttons for Stats, XP, and queue sections."
             ),
             show_alert=True,
         )

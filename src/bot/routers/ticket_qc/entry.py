@@ -28,7 +28,9 @@ class QCQueueHandler(QCTicketBaseMixin, MessageHandler):
         await type(self).clear_state_if_active(state=state)
         if not user or not user.is_active:
             await message.answer(
-                _("You do not have access yet. Send /start to request access."),
+                _(
+                    "🚫 <b>No access yet.</b>\nSend <code>/start</code> to request access."
+                ),
                 reply_markup=build_main_menu_keyboard(
                     is_technician=False,
                     include_start_access=True,
@@ -38,7 +40,7 @@ class QCQueueHandler(QCTicketBaseMixin, MessageHandler):
             return
         if not await type(self).can_qc_ticket_async(user=user):
             await message.answer(
-                _("This action is available only for QC inspectors."),
+                _("⛔ <b>This action is available only for QC inspectors.</b>"),
                 reply_markup=await main_menu_markup_for_user(user=user, _=_),
             )
             return

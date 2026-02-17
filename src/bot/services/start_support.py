@@ -1,3 +1,5 @@
+from html import escape
+
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import (
     CallbackQuery,
@@ -183,21 +185,31 @@ async def _build_active_status_text(
     full_name = (
         " ".join(part for part in [user.first_name, user.last_name] if part) or "-"
     )
+    role_value = (
+        ", ".join(resolved_roles) if resolved_roles else _("No role assigned yet")
+    )
+    username_value = f"@{user.username}" if user.username else "-"
     lines = [
-        _("Your access is active ✅"),
-        f"{_('Name')}: {full_name}",
-        (
-            f"{_('Username')}: @{user.username}"
-            if user.username
-            else f"{_('Username')}: -"
-        ),
-        f"{_('Phone')}: {user.phone or '-'}",
-        f"{_('Current level')}: {user.get_level_display()}",
-        f"{role_title}: {', '.join(resolved_roles) if resolved_roles else _('No role assigned yet')}",
+        _("👤 <b>My Profile</b>"),
+        _("🟢 <b>Access:</b> active"),
+        "",
+        _("🧾 <b>Identity</b>"),
+        _("• <b>Name:</b> %(value)s") % {"value": escape(full_name)},
+        _("• <b>Username:</b> %(value)s") % {"value": escape(username_value)},
+        _("• <b>Phone:</b> <code>%(value)s</code>")
+        % {"value": escape(user.phone or "-")},
+        "",
+        _("🏅 <b>Work Profile</b>"),
+        _("• <b>Level:</b> %(value)s") % {"value": escape(user.get_level_display())},
+        _("• <b>%(label)s:</b> %(value)s")
+        % {
+            "label": escape(role_title),
+            "value": escape(role_value),
+        },
     ]
     total_xp, tx_count = await _xp_totals_for_user(user_id=user.id)
     lines.append(
-        _("XP balance: %(xp)s points (%(updates)s updates).")
+        _("• <b>XP:</b> %(xp)s points (%(updates)s updates)")
         % {"xp": total_xp, "updates": tx_count}
     )
     if RoleSlug.TECHNICIAN in role_slugs:
@@ -207,13 +219,16 @@ async def _build_active_status_text(
         active_ticket_count = await _active_ticket_count_for_technician(
             technician_id=user.id
         )
-        lines.append(_("Open tickets: %(count)s") % {"count": active_ticket_count})
+        lines.extend(["", _("🛠 <b>Technician Stats</b>")])
         lines.append(
-            _("Waiting for quality check: %(count)s")
+            _("• <b>Open tickets:</b> %(count)s") % {"count": active_ticket_count}
+        )
+        lines.append(
+            _("• <b>Waiting for quality check:</b> %(count)s")
             % {"count": status_counts.get(TicketStatus.WAITING_QC, 0)}
         )
         lines.append(
-            _("Completed tickets: %(count)s")
+            _("• <b>Completed tickets:</b> %(count)s")
             % {"count": status_counts.get(TicketStatus.DONE, 0)}
         )
     return "\n".join(lines)
@@ -225,16 +240,14 @@ def _build_pending_status_text(*, pending, _) -> str:
         or "-"
     )
     lines = [
-        _("Your access request is under review ⏳"),
-        f"{_('Name')}: {full_name}",
-        (
-            f"{_('Username')}: @{pending.username}"
-            if pending.username
-            else f"{_('Username')}: -"
-        ),
-        f"{_('Phone')}: {pending.phone or '-'}",
-        f"{_('Submitted at')}: {_format_status_datetime(pending.created_at)}",
-        _("We will notify you here as soon as the review is complete."),
+        _("📨 <b>Access Request</b>"),
+        _("🟡 <b>Status:</b> under review"),
+        _("• <b>Name:</b> %(value)s") % {"value": escape(full_name)},
+        _("• <b>Phone:</b> <code>%(value)s</code>")
+        % {"value": escape(pending.phone or "-")},
+        _("• <b>Submitted:</b> %(value)s")
+        % {"value": escape(_format_status_datetime(pending.created_at))},
+        _("ℹ️ We will notify you here after review."),
     ]
     return "\n".join(lines)
 
@@ -244,31 +257,33 @@ async def _build_xp_summary_text(*, user: User, _) -> str:
     recent_entries = await _xp_history_for_user(user_id=user.id, limit=5)
 
     lines = [
-        _("Your XP summary"),
-        f"{_('Total XP')}: {total_xp}",
-        f"{_('Updates')}: {tx_count}",
+        _("⭐ <b>XP Summary</b>"),
+        _("• <b>Total XP:</b> %(value)s") % {"value": total_xp},
+        _("• <b>Updates:</b> %(value)s") % {"value": tx_count},
     ]
     if not recent_entries:
-        lines.append(_("No XP activity yet."))
+        lines.append(_("ℹ️ No XP activity yet."))
         return "\n".join(lines)
 
-    lines.append(_("Latest updates:"))
+    lines.extend(["", _("🕒 <b>Latest updates</b>")])
     for entry in recent_entries:
         amount = int(entry.amount or 0)
         sign = "+" if amount >= 0 else ""
+        timestamp = _format_entry_created_at(entry.created_at)
+        description = _friendly_xp_description(entry=entry, _=_)
         lines.append(
-            f"• {_format_entry_created_at(entry.created_at)} | {sign}{amount} XP | "
-            f"{_friendly_xp_description(entry=entry, _=_)}"
+            _("• <code>%(time)s</code> — <b>%(amount)s XP</b> — %(description)s")
+            % {
+                "time": escape(timestamp),
+                "amount": escape(f"{sign}{amount}"),
+                "description": escape(description),
+            }
         )
     return "\n".join(lines)
 
 
 def _build_xp_history_callback_data(*, limit: int, offset: int) -> str:
-    return (
-        f"{XP_HISTORY_CALLBACK_PREFIX}:"
-        f"{_normalize_xp_history_limit(limit)}:"
-        f"{_normalize_xp_history_offset(offset)}"
-    )
+    return f"{XP_HISTORY_CALLBACK_PREFIX}:{_normalize_xp_history_limit(limit)}:{_normalize_xp_history_offset(offset)}"
 
 
 def _parse_xp_history_callback_data(*, callback_data: str) -> tuple[int, int] | None:
@@ -362,9 +377,9 @@ async def _build_xp_history_text(
         offset=offset,
     )
 
-    lines = [_("Your XP activity")]
+    lines = [_("📜 <b>XP Activity</b>")]
     if total_count <= 0:
-        lines.append(_("No XP activity yet."))
+        lines.append(_("ℹ️ No XP activity yet."))
         return "\n".join(lines), total_count, normalized_limit, safe_offset
 
     entries = await _xp_history_for_user(
@@ -375,16 +390,22 @@ async def _build_xp_history_text(
     start_item = safe_offset + 1
     end_item = safe_offset + len(entries)
     lines.append(
-        _("Showing %(start)s-%(end)s of %(total)s updates.")
+        _("• <b>Showing:</b> %(start)s-%(end)s / %(total)s")
         % {"start": start_item, "end": end_item, "total": total_count}
     )
 
     for entry in entries:
         amount = int(entry.amount or 0)
         sign = "+" if amount >= 0 else ""
+        timestamp = _format_entry_created_at(entry.created_at)
+        description = _friendly_xp_description(entry=entry, _=_)
         lines.append(
-            f"• {_format_entry_created_at(entry.created_at)} | {sign}{amount} XP | "
-            f"{_friendly_xp_description(entry=entry, _=_)}"
+            _("• <code>%(time)s</code> — <b>%(amount)s XP</b> — %(description)s")
+            % {
+                "time": escape(timestamp),
+                "amount": escape(f"{sign}{amount}"),
+                "description": escape(description),
+            }
         )
     return "\n".join(lines), total_count, normalized_limit, safe_offset
 
@@ -406,7 +427,7 @@ async def _reply_not_registered(
     _,
 ) -> None:
     await message.answer(
-        _("You do not have access yet. Send /start or tap the button below."),
+        _("🚫 <b>No access yet</b>\nSend <code>/start</code> or tap the button below."),
         reply_markup=build_main_menu_keyboard(
             is_technician=False,
             include_start_access=True,
@@ -474,13 +495,15 @@ async def _reply_not_registered_callback(
     _,
 ) -> None:
     await query.answer(
-        _("You do not have access yet. Please send /start first."),
+        _("🚫 No access yet. Send /start first."),
         show_alert=True,
     )
     if query.message is None:
         return
     await query.message.answer(
-        _("Open access request from the menu below."),
+        _(
+            "📝 <b>Open Access Request</b>\nUse <code>/start</code> or tap the button below."
+        ),
         reply_markup=build_main_menu_keyboard(
             is_technician=False,
             include_start_access=True,

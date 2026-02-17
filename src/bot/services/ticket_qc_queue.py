@@ -25,11 +25,11 @@ class QCTicketQueueService:
     QUEUE_ACTION_REFRESH = "refresh"
     PAGE_SIZE = 5
 
-    _HEADING = gettext_noop("🧪 My QC checks.")
-    _EMPTY_MESSAGE = gettext_noop("No QC checks assigned to you.")
-    _TOTAL_LABEL = gettext_noop("Total QC checks: %(count)s")
-    _PAGE_LABEL = gettext_noop("Page: %(page)s/%(page_count)s")
-    _SELECT_PROMPT = gettext_noop("Select a ticket to review.")
+    _HEADING = gettext_noop("🧪 <b>My QC Checks</b>")
+    _EMPTY_MESSAGE = gettext_noop("ℹ️ No QC checks assigned to you.")
+    _TOTAL_LABEL = gettext_noop("📦 <b>Total QC checks:</b> %(count)s")
+    _PAGE_LABEL = gettext_noop("📄 <b>Page:</b> %(page)s/%(page_count)s")
+    _SELECT_PROMPT = gettext_noop("👇 Select a ticket to review.")
     _BACK_TEXT = gettext_noop("⬅ Back to my QC checks")
     _ROW_TEMPLATE = gettext_noop("🧪 #%(ticket_id)s · %(serial)s · %(technician)s")
     _SERIAL_UNKNOWN = gettext_noop("unknown")
@@ -53,10 +53,7 @@ class QCTicketQueueService:
         if action == cls.QUEUE_ACTION_REFRESH:
             return f"{cls.CALLBACK_PREFIX}:{cls.QUEUE_ACTION_REFRESH}:{safe_page}"
         if action == cls.QUEUE_ACTION_OPEN and ticket_id is not None:
-            return (
-                f"{cls.CALLBACK_PREFIX}:{cls.QUEUE_ACTION_OPEN}:{int(ticket_id)}:"
-                f"{safe_page}"
-            )
+            return f"{cls.CALLBACK_PREFIX}:{cls.QUEUE_ACTION_OPEN}:{int(ticket_id)}:{safe_page}"
         raise ValueError("Unsupported QC queue callback action.")
 
     @classmethod

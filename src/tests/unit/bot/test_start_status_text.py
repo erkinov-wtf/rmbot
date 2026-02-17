@@ -30,11 +30,11 @@ def test_pending_status_text_contains_request_details():
 
     text = _build_pending_status_text(pending=pending, _=lambda value: value)
 
-    assert "Your access request is under review" in text
-    assert "Name: Pending Tech" in text
-    assert "Username: @pending.tech" in text
-    assert "Phone: +15550001111" in text
-    assert "Submitted at:" in text
+    assert "<b>Access Request</b>" in text
+    assert "<b>Status:</b> under review" in text
+    assert "<b>Name:</b> Pending Tech" in text
+    assert "<b>Phone:</b> <code>+15550001111</code>" in text
+    assert "<b>Submitted:</b>" in text
     assert "Request ID:" not in text
 
 
@@ -88,14 +88,15 @@ def test_active_status_text_for_technician_includes_queue_size(monkeypatch):
         _build_active_status_text(user=_DummyUser(), _=lambda value: value)
     )
 
-    assert "Your access is active" in text
-    assert "Name: Status Tech" in text
-    assert "Username: @status_tech" in text
-    assert "Role: Technician" in text
-    assert "XP balance: 120 points (6 updates)." in text
-    assert "Open tickets: 3" in text
-    assert "Waiting for quality check: 4" in text
-    assert "Completed tickets: 9" in text
+    assert "<b>My Profile</b>" in text
+    assert "<b>Access:</b> active" in text
+    assert "<b>Name:</b> Status Tech" in text
+    assert "<b>Username:</b> @status_tech" in text
+    assert "<b>Role:</b> Technician" in text
+    assert "<b>XP:</b> 120 points (6 updates)" in text
+    assert "<b>Open tickets:</b> 3" in text
+    assert "<b>Waiting for quality check:</b> 4" in text
+    assert "<b>Completed tickets:</b> 9" in text
 
 
 def test_xp_summary_text_contains_recent_entries(monkeypatch):
@@ -140,10 +141,10 @@ def test_xp_summary_text_contains_recent_entries(monkeypatch):
 
     text = asyncio.run(_build_xp_summary_text(user=_DummyUser(), _=lambda v: v))
 
-    assert "Your XP summary" in text
-    assert "Total XP: 240" in text
-    assert "Updates: 4" in text
-    assert "Latest updates:" in text
+    assert "<b>XP Summary</b>" in text
+    assert "<b>Total XP:</b> 240" in text
+    assert "<b>Updates:</b> 4" in text
+    assert "<b>Latest updates</b>" in text
     assert "+15 XP" in text
     assert "Reward for completing a ticket" in text
 
@@ -200,8 +201,8 @@ def test_xp_history_text_is_human_friendly(monkeypatch):
     assert total_count == 1
     assert limit == XP_HISTORY_DEFAULT_LIMIT
     assert offset == 0
-    assert "Your XP activity" in text
-    assert "Showing 1-1 of 1 updates." in text
+    assert "<b>XP Activity</b>" in text
+    assert "<b>Showing:</b> 1-1 / 1" in text
     assert "+7 XP" in text
     assert "On-time attendance reward" in text
     assert "attendance_punctuality" not in text

@@ -38,7 +38,7 @@ class TicketCreateCallbackSupportMixin:
         if not permissions.can_create:
             await state.clear()
             await query.answer(
-                _("Your roles do not allow ticket intake."), show_alert=True
+                _("⛔ Your roles do not allow ticket intake."), show_alert=True
             )
             return False
 
@@ -61,7 +61,7 @@ class TicketCreateCallbackHandler(
             callback_data=query.data or ""
         )
         if parsed is None:
-            await query.answer(_("Unknown action."), show_alert=True)
+            await query.answer(_("⚠️ Unknown action."), show_alert=True)
             return
 
         if not await self.ensure_create_access_for_callback(
@@ -91,7 +91,7 @@ class TicketCreateCallbackHandler(
 
         if not serial_number or not parts:
             await query.answer(
-                _("Ticket intake session expired. Start again."), show_alert=True
+                _("⚠️ Ticket intake session expired. Start again."), show_alert=True
             )
             return
 
@@ -121,7 +121,7 @@ class TicketCreateCallbackHandler(
             )
             return
 
-        await query.answer(_("Unknown action."), show_alert=True)
+        await query.answer(_("⚠️ Unknown action."), show_alert=True)
 
     @classmethod
     async def handle_pre_parts_actions(
@@ -143,7 +143,7 @@ class TicketCreateCallbackHandler(
             source_message = cls.source_message(query)
             if source_message is not None:
                 await source_message.answer(
-                    _("Ticket intake canceled."),
+                    _("🛑 Ticket intake canceled."),
                     reply_markup=await main_menu_markup_for_user(user=user, _=_),
                 )
             await query.answer()
@@ -153,7 +153,7 @@ class TicketCreateCallbackHandler(
             try:
                 page = int(args[0]) if args else 1
             except (TypeError, ValueError):
-                await query.answer(_("Could not open this page."), show_alert=True)
+                await query.answer(_("⚠️ Could not open this page."), show_alert=True)
                 return True
             await ticket_admin_support._show_create_items_page(
                 query=query,
@@ -166,13 +166,13 @@ class TicketCreateCallbackHandler(
 
         if action == "item":
             if len(args) < 2:
-                await query.answer(_("Invalid item selection."), show_alert=True)
+                await query.answer(_("⚠️ Invalid item selection."), show_alert=True)
                 return True
             try:
                 item_id = int(args[0])
                 page = int(args[1])
             except (TypeError, ValueError):
-                await query.answer(_("Invalid item selection."), show_alert=True)
+                await query.answer(_("⚠️ Invalid item selection."), show_alert=True)
                 return True
 
             inventory_item = await run_sync(
@@ -182,7 +182,9 @@ class TicketCreateCallbackHandler(
                 item_id,
             )
             if inventory_item is None:
-                await query.answer(_("Inventory item was not found."), show_alert=True)
+                await query.answer(
+                    _("⚠️ Inventory item was not found."), show_alert=True
+                )
                 return True
 
             has_active_ticket = await run_sync(
@@ -191,7 +193,7 @@ class TicketCreateCallbackHandler(
             )
             if has_active_ticket:
                 await query.answer(
-                    _("An active ticket already exists for this inventory item."),
+                    _("⚠️ An active ticket already exists for this inventory item."),
                     show_alert=True,
                 )
                 return True
@@ -205,7 +207,7 @@ class TicketCreateCallbackHandler(
             parts = await run_sync(list, parts_queryset)
             if not parts:
                 await query.answer(
-                    _("This inventory item has no parts configured."),
+                    _("⚠️ This inventory item has no parts configured."),
                     show_alert=True,
                 )
                 return True
@@ -260,17 +262,17 @@ class TicketCreateCallbackHandler(
     ) -> bool:
         if action == "tog":
             if not args:
-                await query.answer(_("Invalid part selection."), show_alert=True)
+                await query.answer(_("⚠️ Invalid part selection."), show_alert=True)
                 return True
             try:
                 part_id = int(args[0])
             except (TypeError, ValueError):
-                await query.answer(_("Invalid part selection."), show_alert=True)
+                await query.answer(_("⚠️ Invalid part selection."), show_alert=True)
                 return True
 
             all_part_ids = {int(part["id"]) for part in parts}
             if part_id not in all_part_ids:
-                await query.answer(_("Invalid part selection."), show_alert=True)
+                await query.answer(_("⚠️ Invalid part selection."), show_alert=True)
                 return True
 
             if part_id in selected_ids:
@@ -301,7 +303,7 @@ class TicketCreateCallbackHandler(
         if action == "go":
             if not selected_ids:
                 await query.answer(
-                    _("Select at least one part first."), show_alert=True
+                    _("⚠️ Select at least one part first."), show_alert=True
                 )
                 return True
 
@@ -393,41 +395,41 @@ class TicketCreateCallbackHandler(
 
         if action != "create" and not part_order:
             await query.answer(
-                _("Part configuration session expired."), show_alert=True
+                _("⚠️ Part configuration session expired."), show_alert=True
             )
             return
 
         if action == "clr":
             if not args:
-                await query.answer(_("Invalid color option."), show_alert=True)
+                await query.answer(_("⚠️ Invalid color option."), show_alert=True)
                 return
             color = str(args[0]).lower()
             if color not in ticket_admin_support.VALID_TICKET_COLORS:
-                await query.answer(_("Invalid color option."), show_alert=True)
+                await query.answer(_("⚠️ Invalid color option."), show_alert=True)
                 return
             draft_color = color
             await state.update_data(draft_color=draft_color)
 
         elif action == "min":
             if not args:
-                await query.answer(_("Invalid minutes option."), show_alert=True)
+                await query.answer(_("⚠️ Invalid minutes option."), show_alert=True)
                 return
             try:
                 draft_minutes = int(args[0])
             except (TypeError, ValueError):
-                await query.answer(_("Invalid minutes option."), show_alert=True)
+                await query.answer(_("⚠️ Invalid minutes option."), show_alert=True)
                 return
             draft_minutes = max(1, draft_minutes)
             await state.update_data(draft_minutes=draft_minutes)
 
         elif action == "adj":
             if not args:
-                await query.answer(_("Invalid minutes adjustment."), show_alert=True)
+                await query.answer(_("⚠️ Invalid minutes adjustment."), show_alert=True)
                 return
             try:
                 delta = int(args[0])
             except (TypeError, ValueError):
-                await query.answer(_("Invalid minutes adjustment."), show_alert=True)
+                await query.answer(_("⚠️ Invalid minutes adjustment."), show_alert=True)
                 return
             draft_minutes = max(1, draft_minutes + delta)
             await state.update_data(draft_minutes=draft_minutes)
@@ -435,7 +437,7 @@ class TicketCreateCallbackHandler(
         elif action == "save":
             if current_index >= len(part_order):
                 await query.answer(
-                    _("Part configuration session expired."), show_alert=True
+                    _("⚠️ Part configuration session expired."), show_alert=True
                 )
                 return
 
@@ -498,7 +500,7 @@ class TicketCreateCallbackHandler(
                         draft_minutes=draft_minutes,
                     ),
                 )
-                await query.answer(_("Part saved."))
+                await query.answer(_("✅ Part saved."))
                 return
 
             parts_by_id = {int(part["id"]): str(part["name"]) for part in parts}
@@ -521,18 +523,20 @@ class TicketCreateCallbackHandler(
                 ),
                 reply_markup=ticket_admin_support._summary_keyboard(),
             )
-            await query.answer(_("All part specs configured."))
+            await query.answer(_("✅ All part specs configured."))
             return
 
         elif action == "create":
             create_mode = str(data.get("create_mode") or "")
             if create_mode != "summary":
-                await query.answer(_("Configure parts first."), show_alert=True)
+                await query.answer(_("⚠️ Configure parts first."), show_alert=True)
                 return
 
             part_specs = list(data.get("part_specs") or [])
             if not part_specs:
-                await query.answer(_("No part specs were configured."), show_alert=True)
+                await query.answer(
+                    _("⚠️ No part specs were configured."), show_alert=True
+                )
                 return
 
             try:
@@ -548,13 +552,14 @@ class TicketCreateCallbackHandler(
                     _=_,
                 )
                 await query.answer(
-                    _("Ticket create failed: %(reason)s") % {"reason": error_message},
+                    _("❌ Ticket create failed: %(reason)s")
+                    % {"reason": error_message},
                     show_alert=True,
                 )
                 return
             except ValueError as exc:
                 await query.answer(
-                    _("Ticket create failed: %(reason)s") % {"reason": _(str(exc))},
+                    _("❌ Ticket create failed: %(reason)s") % {"reason": _(str(exc))},
                     show_alert=True,
                 )
                 return
@@ -563,19 +568,19 @@ class TicketCreateCallbackHandler(
             await ticket_admin_support._safe_edit_message(
                 query=query,
                 text=(
-                    _("Ticket created successfully.\n")
-                    + _("Ticket: #%(ticket_id)s\n") % {"ticket_id": ticket.id}
-                    + _("Serial: %(serial)s\n")
+                    _("✅ <b>Ticket created successfully.</b>\n")
+                    + _("• <b>Ticket:</b> #%(ticket_id)s\n") % {"ticket_id": ticket.id}
+                    + _("• <b>Serial:</b> <code>%(serial)s</code>\n")
                     % {"serial": ticket.inventory_item.serial_number}
-                    + _("Status: %(status)s\n")
+                    + _("• <b>Status:</b> %(status)s\n")
                     % {
                         "status": ticket_admin_support._status_label(
                             status=ticket.status, _=_
                         )
                     }
-                    + _("Total minutes: %(minutes)s\n")
+                    + _("• <b>Total minutes:</b> %(minutes)s\n")
                     % {"minutes": int(ticket.total_duration or 0)}
-                    + _("Flag / XP: %(flag)s / %(xp)s")
+                    + _("• <b>Flag / XP:</b> %(flag)s / %(xp)s")
                     % {
                         "flag": ticket.flag_color,
                         "xp": int(ticket.xp_amount or 0),
@@ -586,7 +591,7 @@ class TicketCreateCallbackHandler(
             source_message = cls.source_message(query)
             if source_message is not None:
                 await source_message.answer(
-                    _("Ticket intake flow completed."),
+                    _("✅ Ticket intake flow completed."),
                     reply_markup=await main_menu_markup_for_user(user=user, _=_),
                 )
             await query.answer()
@@ -594,7 +599,7 @@ class TicketCreateCallbackHandler(
 
         if current_index >= len(part_order):
             await query.answer(
-                _("Part configuration session expired."), show_alert=True
+                _("⚠️ Part configuration session expired."), show_alert=True
             )
             return
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Iterable
+from html import escape
 from typing import TYPE_CHECKING
 
 from aiogram import Bot
@@ -29,15 +30,23 @@ class UserNotificationService:
     def notify_access_request_decision(
         cls, *, access_request: AccessRequest, approved: bool
     ) -> None:
-        greeting = (
-            f"Hello, {access_request.first_name}."
-            if access_request.first_name
-            else "Hello."
-        )
+        greeting_name = cls._safe_text(access_request.first_name or "there")
         if approved:
-            message = f"{greeting}\nYour access request has been approved. You can now use Rent Market."
+            message = "\n".join(
+                [
+                    "✅ <b>Access Request Approved</b>",
+                    f"Hi, <b>{greeting_name}</b>.",
+                    "You can now use <b>Rent Market</b>.",
+                ]
+            )
         else:
-            message = f"{greeting}\nYour access request has been denied. You can submit a new request using /start."
+            message = "\n".join(
+                [
+                    "❌ <b>Access Request Rejected</b>",
+                    f"Hi, <b>{greeting_name}</b>.",
+                    "You can submit a new request using <code>/start</code>.",
+                ]
+            )
 
         cls._notify_telegram_ids(
             event_key="access_request_decision",
@@ -54,12 +63,16 @@ class UserNotificationService:
 
         master_message = "\n".join(
             [
-                "Ticket assigned.",
-                f"Ticket: #{ticket.id}",
-                f"Serial number: {cls._serial_number(ticket)}",
-                f"Technician: {cls._display_name_by_user_id(ticket.technician_id)}",
-                f"Assigned by: {cls._display_name_by_user_id(actor_user_id)}",
-                f"Status: {ticket.status}",
+                "📌 <b>Ticket Assigned</b>",
+                f"🎫 <b>Ticket:</b> #{ticket.id}",
+                f"🔢 <b>Serial:</b> <code>{cls._safe_text(cls._serial_number(ticket))}</code>",
+                (
+                    f"👤 <b>Technician:</b> {cls._safe_text(cls._display_name_by_user_id(ticket.technician_id))}"
+                ),
+                (
+                    f"🛠 <b>Assigned by:</b> {cls._safe_text(cls._display_name_by_user_id(actor_user_id))}"
+                ),
+                f"📍 <b>Status:</b> <code>{cls._safe_text(ticket.status)}</code>",
             ]
         )
         cls._notify_users(
@@ -77,9 +90,11 @@ class UserNotificationService:
             [
                 TechnicianTicketActionService.render_state_message(
                     state=technician_state,
-                    heading="New ticket assigned to you.",
+                    heading="🆕 <b>New ticket assigned to you</b>",
                 ),
-                f"Assigned by: {cls._display_name_by_user_id(actor_user_id)}",
+                (
+                    f"🛠 <b>Assigned by:</b> {cls._safe_text(cls._display_name_by_user_id(actor_user_id))}"
+                ),
             ]
         )
         technician_markup = TechnicianTicketActionService.build_action_keyboard(
@@ -102,12 +117,16 @@ class UserNotificationService:
 
         message = "\n".join(
             [
-                "Ticket work started.",
-                f"Ticket: #{ticket.id}",
-                f"Serial number: {cls._serial_number(ticket)}",
-                f"Technician: {cls._display_name_by_user_id(ticket.technician_id)}",
-                f"Started by: {cls._display_name_by_user_id(actor_user_id)}",
-                f"Status: {ticket.status}",
+                "▶️ <b>Ticket Work Started</b>",
+                f"🎫 <b>Ticket:</b> #{ticket.id}",
+                f"🔢 <b>Serial:</b> <code>{cls._safe_text(cls._serial_number(ticket))}</code>",
+                (
+                    f"👤 <b>Technician:</b> {cls._safe_text(cls._display_name_by_user_id(ticket.technician_id))}"
+                ),
+                (
+                    f"🛠 <b>Started by:</b> {cls._safe_text(cls._display_name_by_user_id(actor_user_id))}"
+                ),
+                f"📍 <b>Status:</b> <code>{cls._safe_text(ticket.status)}</code>",
             ]
         )
         cls._notify_users(
@@ -126,13 +145,17 @@ class UserNotificationService:
         )
         qc_message = "\n".join(
             [
-                "Ticket is waiting for QC.",
-                f"Ticket: #{ticket.id}",
-                f"Serial number: {cls._serial_number(ticket)}",
-                f"Technician: {cls._display_name_by_user_id(ticket.technician_id)}",
-                f"Moved by: {cls._display_name_by_user_id(actor_user_id)}",
-                f"Status: {ticket.status}",
-                "Action: choose QC decision from the buttons below.",
+                "🧪 <b>Ticket Waiting For QC</b>",
+                f"🎫 <b>Ticket:</b> #{ticket.id}",
+                f"🔢 <b>Serial:</b> <code>{cls._safe_text(cls._serial_number(ticket))}</code>",
+                (
+                    f"👤 <b>Technician:</b> {cls._safe_text(cls._display_name_by_user_id(ticket.technician_id))}"
+                ),
+                (
+                    f"🛠 <b>Moved by:</b> {cls._safe_text(cls._display_name_by_user_id(actor_user_id))}"
+                ),
+                f"📍 <b>Status:</b> <code>{cls._safe_text(ticket.status)}</code>",
+                "👇 <b>Action:</b> choose a QC decision using buttons below.",
             ]
         )
         cls._notify_users(
@@ -155,19 +178,23 @@ class UserNotificationService:
         base_xp: int,
         first_pass_bonus: int,
     ) -> None:
-        xp_summary = f"XP awarded: base={base_xp}"
+        xp_summary = f"⭐ <b>XP awarded:</b> base={base_xp}"
         if first_pass_bonus > 0:
-            xp_summary += f", first_pass_bonus={first_pass_bonus}"
+            xp_summary += f", first-pass bonus={first_pass_bonus}"
 
         message = "\n".join(
             [
-                "Ticket passed QC.",
-                f"Ticket: #{ticket.id}",
-                f"Serial number: {cls._serial_number(ticket)}",
-                f"Technician: {cls._display_name_by_user_id(ticket.technician_id)}",
-                f"QC by: {cls._display_name_by_user_id(actor_user_id)}",
-                f"Status: {ticket.status}",
-                xp_summary,
+                "✅ <b>Ticket Passed QC</b>",
+                f"🎫 <b>Ticket:</b> #{ticket.id}",
+                f"🔢 <b>Serial:</b> <code>{cls._safe_text(cls._serial_number(ticket))}</code>",
+                (
+                    f"👤 <b>Technician:</b> {cls._safe_text(cls._display_name_by_user_id(ticket.technician_id))}"
+                ),
+                (
+                    f"🧪 <b>QC by:</b> {cls._safe_text(cls._display_name_by_user_id(actor_user_id))}"
+                ),
+                f"📍 <b>Status:</b> <code>{cls._safe_text(ticket.status)}</code>",
+                f"⭐ <b>{cls._safe_text(xp_summary)}</b>",
             ]
         )
         cls._notify_users(
@@ -192,9 +219,11 @@ class UserNotificationService:
             [
                 TechnicianTicketActionService.render_state_message(
                     state=technician_state,
-                    heading="Ticket returned from QC. Continue rework.",
+                    heading="❌ <b>Returned from QC</b>",
                 ),
-                f"QC by: {cls._display_name_by_user_id(actor_user_id)}",
+                (
+                    f"🧪 <b>QC by:</b> {cls._safe_text(cls._display_name_by_user_id(actor_user_id))}"
+                ),
             ]
         )
         technician_markup = TechnicianTicketActionService.build_action_keyboard(
@@ -220,10 +249,12 @@ class UserNotificationService:
         signed_amount = f"+{amount}" if amount > 0 else str(amount)
         message = "\n".join(
             [
-                "Your XP was adjusted by admin.",
-                f"Amount: {signed_amount}",
-                f"By: {cls._display_name_by_user_id(actor_user_id)}",
-                f"Comment: {comment}",
+                "⭐ <b>XP Adjustment Applied</b>",
+                f"📈 <b>Amount:</b> <code>{cls._safe_text(signed_amount)}</code>",
+                (
+                    f"👤 <b>By:</b> {cls._safe_text(cls._display_name_by_user_id(actor_user_id))}"
+                ),
+                f"💬 <b>Comment:</b> {cls._safe_text(comment or '-')}",
             ]
         )
         cls._notify_users(
@@ -325,6 +356,7 @@ class UserNotificationService:
                         chat_id=telegram_id,
                         text=message,
                         reply_markup=reply_markup,
+                        parse_mode=getattr(settings, "BOT_PARSE_MODE", "HTML"),
                     )
                 except Exception:
                     logger.exception(
@@ -402,3 +434,7 @@ class UserNotificationService:
     def _serial_number(ticket: Ticket) -> str:
         inventory_item = getattr(ticket, "inventory_item", None)
         return getattr(inventory_item, "serial_number", "") or "unknown"
+
+    @staticmethod
+    def _safe_text(value: object) -> str:
+        return escape(str(value if value is not None else "-"), quote=False)

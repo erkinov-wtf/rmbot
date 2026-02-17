@@ -33,7 +33,7 @@ class TicketReviewEntrypointSupportMixin:
         permissions = await ticket_admin_support._ticket_permissions(user=user)
         if not permissions.can_open_review_panel:
             await message.answer(
-                _("Your roles do not allow ticket review actions."),
+                _("⛔ <b>Your roles do not allow ticket review actions.</b>"),
                 reply_markup=await main_menu_markup_for_user(user=user, _=_),
             )
             return None

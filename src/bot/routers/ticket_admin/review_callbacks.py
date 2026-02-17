@@ -31,7 +31,7 @@ class TicketReviewCallbackSupportMixin:
         permissions = await ticket_admin_support._ticket_permissions(user=user)
         if not permissions.can_open_review_panel:
             await query.answer(
-                _("Your roles do not allow ticket review actions."),
+                _("⛔ Your roles do not allow ticket review actions."),
                 show_alert=True,
             )
             return None
@@ -55,7 +55,7 @@ class TicketReviewQueueCallbackHandler(
             callback_data=query.data or ""
         )
         if parsed is None:
-            await query.answer(_("Unknown action."), show_alert=True)
+            await query.answer(_("⚠️ Unknown action."), show_alert=True)
             return
 
         permissions = await self.resolve_review_permissions(
@@ -75,7 +75,7 @@ class TicketReviewQueueCallbackHandler(
                 page=page,
                 _=_,
             )
-            await query.answer(_("Review queue refreshed."), show_alert=False)
+            await query.answer(_("🔄 Review queue refreshed."), show_alert=False)
             return
 
         if (
@@ -97,7 +97,7 @@ class TicketReviewQueueCallbackHandler(
             await query.answer()
             return
 
-        await query.answer(_("Unknown action."), show_alert=True)
+        await query.answer(_("⚠️ Unknown action."), show_alert=True)
 
 
 @router.callback_query(
@@ -116,7 +116,7 @@ class TicketReviewActionCallbackHandler(
             callback_data=query.data or ""
         )
         if parsed is None:
-            await query.answer(_("Unknown action."), show_alert=True)
+            await query.answer(_("⚠️ Unknown action."), show_alert=True)
             return
 
         permissions = await self.resolve_review_permissions(
@@ -152,7 +152,7 @@ class TicketReviewActionCallbackHandler(
         if action == ticket_admin_support.REVIEW_ACTION_ASSIGN_OPEN:
             if not permissions.can_approve_and_assign:
                 await query.answer(
-                    _("Your roles do not allow approve-and-assign action."),
+                    _("⛔ Your roles do not allow approve-and-assign action."),
                     show_alert=True,
                 )
                 return
@@ -160,11 +160,11 @@ class TicketReviewActionCallbackHandler(
                 ticket_admin_support._review_ticket, ticket_id=ticket_id
             )
             if ticket is None:
-                await query.answer(_("Ticket was not found."), show_alert=True)
+                await query.answer(_("⚠️ Ticket was not found."), show_alert=True)
                 return
             if not ticket_admin_support._can_assign_ticket_status(status=ticket.status):
                 await query.answer(
-                    _("Approve & assign is not available for this ticket status."),
+                    _("⚠️ Approve & assign is not available for this ticket status."),
                     show_alert=True,
                 )
                 return
@@ -181,7 +181,7 @@ class TicketReviewActionCallbackHandler(
             )
             if not technician_options:
                 await query.answer(
-                    _("No technicians are available for assignment."),
+                    _("⚠️ No technicians are available for assignment."),
                     show_alert=True,
                 )
                 return
@@ -190,7 +190,7 @@ class TicketReviewActionCallbackHandler(
             await state.update_data(assign_page=assign_page)
             await ticket_admin_support._safe_edit_message(
                 query=query,
-                text=_("Select technician for ticket #%(ticket_id)s.")
+                text=_("👤 Select technician for ticket #%(ticket_id)s.")
                 % {"ticket_id": ticket_id},
                 reply_markup=ticket_admin_support._assign_keyboard(
                     ticket_id=ticket_id,
@@ -205,7 +205,7 @@ class TicketReviewActionCallbackHandler(
         if action == ticket_admin_support.REVIEW_ACTION_ASSIGN_PAGE:
             if not permissions.can_approve_and_assign:
                 await query.answer(
-                    _("Your roles do not allow approve-and-assign action."),
+                    _("⛔ Your roles do not allow approve-and-assign action."),
                     show_alert=True,
                 )
                 return
@@ -213,11 +213,11 @@ class TicketReviewActionCallbackHandler(
                 ticket_admin_support._review_ticket, ticket_id=ticket_id
             )
             if ticket is None:
-                await query.answer(_("Ticket was not found."), show_alert=True)
+                await query.answer(_("⚠️ Ticket was not found."), show_alert=True)
                 return
             if not ticket_admin_support._can_assign_ticket_status(status=ticket.status):
                 await query.answer(
-                    _("Approve & assign is not available for this ticket status."),
+                    _("⚠️ Approve & assign is not available for this ticket status."),
                     show_alert=True,
                 )
                 return
@@ -225,7 +225,7 @@ class TicketReviewActionCallbackHandler(
             try:
                 assign_page = int(arg) if arg is not None else 1
             except (TypeError, ValueError):
-                await query.answer(_("Could not open this page."), show_alert=True)
+                await query.answer(_("⚠️ Could not open this page."), show_alert=True)
                 return
 
             (
@@ -240,7 +240,7 @@ class TicketReviewActionCallbackHandler(
             )
             if not technician_options:
                 await query.answer(
-                    _("No technicians are available for assignment."),
+                    _("⚠️ No technicians are available for assignment."),
                     show_alert=True,
                 )
                 return
@@ -249,7 +249,7 @@ class TicketReviewActionCallbackHandler(
             await state.update_data(assign_page=safe_page)
             await ticket_admin_support._safe_edit_message(
                 query=query,
-                text=_("Select technician for ticket #%(ticket_id)s.")
+                text=_("👤 Select technician for ticket #%(ticket_id)s.")
                 % {"ticket_id": ticket_id},
                 reply_markup=ticket_admin_support._assign_keyboard(
                     ticket_id=ticket_id,
@@ -264,7 +264,7 @@ class TicketReviewActionCallbackHandler(
         if action == ticket_admin_support.REVIEW_ACTION_ASSIGN_EXEC:
             if not permissions.can_approve_and_assign:
                 await query.answer(
-                    _("Your roles do not allow approve-and-assign action."),
+                    _("⛔ Your roles do not allow approve-and-assign action."),
                     show_alert=True,
                 )
                 return
@@ -272,29 +272,29 @@ class TicketReviewActionCallbackHandler(
                 ticket_admin_support._review_ticket, ticket_id=ticket_id
             )
             if ticket is None:
-                await query.answer(_("Ticket was not found."), show_alert=True)
+                await query.answer(_("⚠️ Ticket was not found."), show_alert=True)
                 return
             if not ticket_admin_support._can_assign_ticket_status(status=ticket.status):
                 await query.answer(
-                    _("Approve & assign is not available for this ticket status."),
+                    _("⚠️ Approve & assign is not available for this ticket status."),
                     show_alert=True,
                 )
                 return
 
             if arg is None:
                 await query.answer(
-                    _("Technician selection is invalid."), show_alert=True
+                    _("⚠️ Technician selection is invalid."), show_alert=True
                 )
                 return
             if user is None:
-                await query.answer(_("Unknown action."), show_alert=True)
+                await query.answer(_("⚠️ Unknown action."), show_alert=True)
                 return
             actor_user_id = cast(User, user).id
             try:
                 technician_id = int(arg)
             except (TypeError, ValueError):
                 await query.answer(
-                    _("Technician selection is invalid."), show_alert=True
+                    _("⚠️ Technician selection is invalid."), show_alert=True
                 )
                 return
 
@@ -307,7 +307,8 @@ class TicketReviewActionCallbackHandler(
                 )
             except ValueError as exc:
                 await query.answer(
-                    _("Approve & assign failed: %(reason)s") % {"reason": _(str(exc))},
+                    _("❌ Approve & assign failed: %(reason)s")
+                    % {"reason": _(str(exc))},
                     show_alert=True,
                 )
                 return
@@ -322,13 +323,13 @@ class TicketReviewActionCallbackHandler(
                     ticket_status=ticket.status,
                 ),
             )
-            await query.answer(_("Ticket approved and assigned."), show_alert=False)
+            await query.answer(_("✅ Ticket approved and assigned."), show_alert=False)
             return
 
         if action == ticket_admin_support.REVIEW_ACTION_MANUAL_OPEN:
             if not permissions.can_manual_metrics:
                 await query.answer(
-                    _("Your roles do not allow manual metrics override."),
+                    _("⛔ Your roles do not allow manual metrics override."),
                     show_alert=True,
                 )
                 return
@@ -337,7 +338,7 @@ class TicketReviewActionCallbackHandler(
                 ticket_admin_support._review_ticket, ticket_id=ticket_id
             )
             if ticket is None:
-                await query.answer(_("Ticket was not found."), show_alert=True)
+                await query.answer(_("⚠️ Ticket was not found."), show_alert=True)
                 return
 
             color = str(ticket.flag_color or "green").lower()
@@ -376,7 +377,7 @@ class TicketReviewActionCallbackHandler(
         }:
             if not permissions.can_manual_metrics:
                 await query.answer(
-                    _("Your roles do not allow manual metrics override."),
+                    _("⛔ Your roles do not allow manual metrics override."),
                     show_alert=True,
                 )
                 return
@@ -391,7 +392,7 @@ class TicketReviewActionCallbackHandler(
                     ticket_admin_support._review_ticket, ticket_id=ticket_id
                 )
                 if ticket is None:
-                    await query.answer(_("Ticket was not found."), show_alert=True)
+                    await query.answer(_("⚠️ Ticket was not found."), show_alert=True)
                     return
                 flag_color = str(ticket.flag_color or "green").lower()
                 xp_amount = max(0, int(ticket.xp_amount or 0))
@@ -403,35 +404,35 @@ class TicketReviewActionCallbackHandler(
 
             if action == ticket_admin_support.REVIEW_ACTION_MANUAL_COLOR:
                 if arg is None:
-                    await query.answer(_("Invalid color option."), show_alert=True)
+                    await query.answer(_("⚠️ Invalid color option."), show_alert=True)
                     return
                 next_color = str(arg).lower()
                 if next_color not in ticket_admin_support.VALID_TICKET_COLORS:
-                    await query.answer(_("Invalid color option."), show_alert=True)
+                    await query.answer(_("⚠️ Invalid color option."), show_alert=True)
                     return
                 flag_color = next_color
                 await state.update_data(manual_flag_color=flag_color)
 
             elif action == ticket_admin_support.REVIEW_ACTION_MANUAL_XP:
                 if arg is None:
-                    await query.answer(_("Invalid XP option."), show_alert=True)
+                    await query.answer(_("⚠️ Invalid XP option."), show_alert=True)
                     return
                 try:
                     xp_amount = int(arg)
                 except (TypeError, ValueError):
-                    await query.answer(_("Invalid XP option."), show_alert=True)
+                    await query.answer(_("⚠️ Invalid XP option."), show_alert=True)
                     return
                 xp_amount = max(0, xp_amount)
                 await state.update_data(manual_xp_amount=xp_amount)
 
             elif action == ticket_admin_support.REVIEW_ACTION_MANUAL_ADJ:
                 if arg is None:
-                    await query.answer(_("Invalid XP adjustment."), show_alert=True)
+                    await query.answer(_("⚠️ Invalid XP adjustment."), show_alert=True)
                     return
                 try:
                     delta = int(arg)
                 except (TypeError, ValueError):
-                    await query.answer(_("Invalid XP adjustment."), show_alert=True)
+                    await query.answer(_("⚠️ Invalid XP adjustment."), show_alert=True)
                     return
                 xp_amount = max(0, xp_amount + delta)
                 await state.update_data(manual_xp_amount=xp_amount)
@@ -446,7 +447,7 @@ class TicketReviewActionCallbackHandler(
                     )
                 except ValueError as exc:
                     await query.answer(
-                        _("Manual metrics update failed: %(reason)s")
+                        _("❌ Manual metrics update failed: %(reason)s")
                         % {"reason": _(str(exc))},
                         show_alert=True,
                     )
@@ -462,7 +463,7 @@ class TicketReviewActionCallbackHandler(
                         ticket_status=ticket.status,
                     ),
                 )
-                await query.answer(_("Manual metrics updated."), show_alert=False)
+                await query.answer(_("✅ Manual metrics updated."), show_alert=False)
                 return
 
             await ticket_admin_support._safe_edit_message(
@@ -482,4 +483,4 @@ class TicketReviewActionCallbackHandler(
             await query.answer()
             return
 
-        await query.answer(_("Unknown action."), show_alert=True)
+        await query.answer(_("⚠️ Unknown action."), show_alert=True)

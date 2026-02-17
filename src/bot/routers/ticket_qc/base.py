@@ -66,7 +66,7 @@ class QCTicketBaseMixin:
             total_count=total_count,
             page=safe_page,
             page_count=page_count,
-            heading=_("🧪 My QC checks."),
+            heading=_("🧪 <b>My QC Checks</b>"),
             _=_,
         )
         markup = QCTicketQueueService.build_queue_keyboard(

@@ -25,6 +25,7 @@ Resolves technician-allowed ticket actions for Telegram, executes selected actio
 ## Side Effects
 - Delegates to domain orchestration services (`TicketWorkflowService`, `TicketWorkSessionService`) for all state mutations.
 - Reuses existing transition logging, inventory updates, XP side effects, and notification hooks from those services.
+- `to_waiting_qc` action tags transition metadata with Telegram source context (`source=telegram_bot`, `channel=technician_callback`, `telegram_action=to_waiting_qc`) so status-change audit logs identify bot-originated transitions.
 
 ## Failure Modes
 - Ticket not found for technician ownership returns user-safe validation error.

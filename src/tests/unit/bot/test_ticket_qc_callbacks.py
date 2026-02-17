@@ -60,6 +60,26 @@ def test_qc_keyboard_for_non_waiting_ticket_has_only_refresh():
     assert callbacks == [f"tqc:31:{TicketQCActionService.ACTION_REFRESH}"]
 
 
+def test_qc_transition_metadata_has_telegram_source_for_decisions():
+    pass_metadata = TicketQCActionService.transition_metadata(
+        action=TicketQCActionService.ACTION_PASS,
+    )
+    fail_metadata = TicketQCActionService.transition_metadata(
+        action=TicketQCActionService.ACTION_FAIL,
+    )
+
+    assert pass_metadata == {
+        "source": "telegram_bot",
+        "channel": "qc_callback",
+        "telegram_action": TicketQCActionService.ACTION_PASS,
+    }
+    assert fail_metadata == {
+        "source": "telegram_bot",
+        "channel": "qc_callback",
+        "telegram_action": TicketQCActionService.ACTION_FAIL,
+    }
+
+
 def test_qc_queue_callback_roundtrip_for_open_and_refresh():
     open_payload = QCTicketQueueService.build_queue_callback_data(
         action=QCTicketQueueService.QUEUE_ACTION_OPEN,
@@ -80,7 +100,11 @@ def test_qc_queue_callback_roundtrip_for_open_and_refresh():
     )
     assert QCTicketQueueService.parse_queue_callback_data(
         callback_data=refresh_payload
-    ) == (QCTicketQueueService.QUEUE_ACTION_REFRESH, None, 2)
+    ) == (
+        QCTicketQueueService.QUEUE_ACTION_REFRESH,
+        None,
+        2,
+    )
 
 
 def test_qc_queue_keyboard_keeps_pagination_row_even_when_empty():

@@ -1,6 +1,7 @@
 import pytest
 from django.utils import timezone
 
+from bot.services.ticket_qc_actions import TicketQCActionService
 from core.utils.constants import (
     RoleSlug,
     TicketStatus,
@@ -163,3 +164,54 @@ def test_qc_pass_logs_transition_and_creates_base_reference(xp_ticket_context):
         XPTransaction.objects.filter(reference=f"ticket_base_xp:{ticket.id}").count()
         == 1
     )
+
+
+def test_qc_decisions_from_telegram_store_transition_metadata_and_logs(
+    xp_ticket_context,
+    caplog,
+):
+    qc_user_id = xp_ticket_context["qc"].id
+    ticket = xp_ticket_context["make_waiting_qc_ticket"](25, worked_minutes=25)
+
+    with caplog.at_level("INFO", logger="ticket.services_workflow"):
+        TicketWorkflowService.qc_fail_ticket(
+            ticket=ticket,
+            actor_user_id=qc_user_id,
+            transition_metadata=TicketQCActionService.transition_metadata(
+                action=TicketQCActionService.ACTION_FAIL,
+            ),
+        )
+
+        ticket.status = TicketStatus.WAITING_QC
+        ticket.finished_at = None
+        ticket.save(update_fields=["status", "finished_at"])
+
+        TicketWorkflowService.qc_pass_ticket(
+            ticket=ticket,
+            actor_user_id=qc_user_id,
+            transition_metadata=TicketQCActionService.transition_metadata(
+                action=TicketQCActionService.ACTION_PASS,
+            ),
+        )
+
+    fail_transition = TicketTransition.objects.get(
+        ticket=ticket,
+        action=TicketTransitionAction.QC_FAIL,
+    )
+    pass_transition = TicketTransition.objects.get(
+        ticket=ticket,
+        action=TicketTransitionAction.QC_PASS,
+    )
+
+    assert fail_transition.metadata == {
+        "source": "telegram_bot",
+        "channel": "qc_callback",
+        "telegram_action": TicketQCActionService.ACTION_FAIL,
+    }
+    assert pass_transition.metadata == {
+        "source": "telegram_bot",
+        "channel": "qc_callback",
+        "telegram_action": TicketQCActionService.ACTION_PASS,
+    }
+    assert any("action=qc_fail" in record.message for record in caplog.records)
+    assert any("action=qc_pass" in record.message for record in caplog.records)
