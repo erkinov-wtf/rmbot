@@ -33,6 +33,13 @@ class InventoryItemCategory(TimestampedModel, SoftDeleteModel):
 class InventoryItemPart(TimestampedModel, SoftDeleteModel):
     domain = managers.InventoryItemPartDomainManager()
 
+    category = models.ForeignKey(
+        InventoryItemCategory,
+        on_delete=models.PROTECT,
+        related_name="parts",
+        null=True,
+        blank=True,
+    )
     inventory_item = models.ForeignKey(
         "InventoryItem",
         on_delete=models.CASCADE,
@@ -44,6 +51,10 @@ class InventoryItemPart(TimestampedModel, SoftDeleteModel):
 
     class Meta:
         indexes = [
+            models.Index(
+                fields=["category", "name"],
+                name="inv_item_part_cat_name_idx",
+            ),
             models.Index(
                 fields=["inventory_item", "name"],
                 name="inv_item_part_item_name_idx",
@@ -57,6 +68,11 @@ class InventoryItemPart(TimestampedModel, SoftDeleteModel):
                 name="inv_item_part_unique_name_per_item",
             )
         ]
+
+    def save(self, *args, **kwargs):
+        if self.category_id is None and self.inventory_item_id is not None:
+            self.category_id = self.inventory_item.category_id
+        super().save(*args, **kwargs)
 
     def __str__(self) -> str:
         return self.name

@@ -22,7 +22,6 @@ import { cn } from "@/lib/utils";
 type AccessRequestsAdminProps = {
   accessToken: string;
   canManage: boolean;
-  roleTitles: string[];
   roleSlugs: string[];
 };
 
@@ -84,7 +83,6 @@ function statusLabel(status: AccessRequestStatus): string {
 export function AccessRequestsAdmin({
   accessToken,
   canManage,
-  roleTitles,
   roleSlugs,
 }: AccessRequestsAdminProps) {
   const [requests, setRequests] = useState<AccessRequest[]>([]);
@@ -232,20 +230,6 @@ export function AccessRequestsAdmin({
           <p className="mt-1 text-sm text-slate-600">
             Approve or reject bot onboarding requests and assign user roles.
           </p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {roleTitles.length ? (
-              roleTitles.map((roleTitle) => (
-                <span
-                  key={roleTitle}
-                  className="rm-role-pill"
-                >
-                  {roleTitle}
-                </span>
-              ))
-            ) : (
-              <span className="text-xs text-slate-500">No role titles</span>
-            )}
-          </div>
           {!canManage ? (
             <p className="mt-2 text-xs text-amber-700">
               Roles ({roleSlugs.join(", ") || "none"}) cannot manage access requests.

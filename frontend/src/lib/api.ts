@@ -107,7 +107,8 @@ export type InventoryItem = {
 
 export type InventoryPart = {
   id: number;
-  inventory_item: number | null;
+  category: number | null;
+  inventory_item?: number | null;
   name: string;
   created_at: string;
   updated_at: string;
@@ -621,7 +622,7 @@ export async function listParts(accessToken: string): Promise<InventoryPart[]> {
 
 export async function createPart(
   accessToken: string,
-  body: { inventory_item: number; name: string },
+  body: { category: number; name: string },
 ): Promise<InventoryPart> {
   const payload = await apiRequest<unknown>("inventory/parts/", {
     method: "POST",
@@ -634,7 +635,7 @@ export async function createPart(
 export async function updatePart(
   accessToken: string,
   id: number,
-  body: Partial<{ inventory_item: number; name: string }>,
+  body: Partial<{ category: number; name: string }>,
 ): Promise<InventoryPart> {
   const payload = await apiRequest<unknown>(`inventory/parts/${id}/`, {
     method: "PATCH",

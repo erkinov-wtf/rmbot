@@ -4,7 +4,7 @@ import pytest
 from django.utils import timezone
 
 from core.utils.constants import RoleSlug
-from inventory.models import InventoryItem, InventoryItemCategory
+from inventory.models import Inventory, InventoryItem, InventoryItemCategory
 from ticket.models import Ticket
 
 pytestmark = pytest.mark.django_db
@@ -70,8 +70,13 @@ def test_superuser_can_create_inventory_item_without_assigned_roles(
         is_staff=True,
     )
     client = authed_client_factory(superuser)
+    category = InventoryItemCategory.objects.create(name="Super Category")
 
-    resp = client.post(LIST_CREATE_URL, {"serial_number": "RM-0202"}, format="json")
+    resp = client.post(
+        LIST_CREATE_URL,
+        {"serial_number": "RM-0202", "category": category.id},
+        format="json",
+    )
 
     assert resp.status_code == 201
     assert resp.data["data"]["serial_number"] == "RM-0202"
@@ -86,8 +91,13 @@ def test_ops_manager_can_create_inventory_item(
     )
     assign_roles(manager_user, RoleSlug.OPS_MANAGER)
     client = authed_client_factory(manager_user)
+    category = InventoryItemCategory.objects.create(name="Ops Category")
 
-    resp = client.post(LIST_CREATE_URL, {"serial_number": "RM-0200"}, format="json")
+    resp = client.post(
+        LIST_CREATE_URL,
+        {"serial_number": "RM-0200", "category": category.id},
+        format="json",
+    )
 
     assert resp.status_code == 201
     assert resp.data["data"]["serial_number"] == "RM-0200"
@@ -103,13 +113,60 @@ def test_create_accepts_non_pattern_serial_number(
     )
     assign_roles(manager_user, RoleSlug.OPS_MANAGER)
     client = authed_client_factory(manager_user)
+    category = InventoryItemCategory.objects.create(name="Regex Category")
 
     resp = client.post(
-        LIST_CREATE_URL, {"serial_number": "inventory_item-0200"}, format="json"
+        LIST_CREATE_URL,
+        {"serial_number": "inventory_item-0200", "category": category.id},
+        format="json",
     )
 
     assert resp.status_code == 201
     assert resp.data["data"]["serial_number"] == "INVENTORY_ITEM-0200"
+
+
+def test_create_item_restores_soft_deleted_default_inventory(
+    authed_client_factory, user_factory, assign_roles
+):
+    manager_user = user_factory(
+        username="ops_inventory_item_default_inventory_restore",
+        first_name="Ops",
+    )
+    assign_roles(manager_user, RoleSlug.OPS_MANAGER)
+    default_inventory = Inventory.objects.create(name="Default Inventory")
+    default_inventory.delete()
+    category = InventoryItemCategory.objects.create(name="Restore Inventory Category")
+    client = authed_client_factory(manager_user)
+
+    resp = client.post(
+        LIST_CREATE_URL,
+        {"serial_number": "RM-0203", "category": category.id},
+        format="json",
+    )
+
+    assert resp.status_code == 201
+    created_item = InventoryItem.objects.get(pk=resp.data["data"]["id"])
+    assert created_item.inventory_id == default_inventory.id
+    assert Inventory.objects.filter(pk=default_inventory.pk).exists()
+    assert Inventory.all_objects.filter(name="Default Inventory").count() == 1
+
+
+def test_create_requires_category_and_does_not_create_uncategorized(
+    authed_client_factory, user_factory, assign_roles
+):
+    manager_user = user_factory(
+        username="ops_inventory_item_category_required",
+        first_name="Ops",
+    )
+    assign_roles(manager_user, RoleSlug.OPS_MANAGER)
+    InventoryItemCategory.all_objects.filter(name="Uncategorized").delete()
+    client = authed_client_factory(manager_user)
+
+    resp = client.post(LIST_CREATE_URL, {"serial_number": "RM-0204"}, format="json")
+
+    assert resp.status_code == 400
+    assert "category" in resp.data["message"].lower()
+    assert InventoryItemCategory.all_objects.filter(name="Uncategorized").exists() is False
 
 
 def test_list_supports_query_filter_for_serial_number_lookup(
@@ -278,6 +335,7 @@ def test_ops_manager_can_soft_delete_inventory_item(
     resp = client.delete(detail_url(inventory_item.id))
 
     assert resp.status_code == 204
+    assert resp.content == b""
     assert InventoryItem.objects.filter(pk=inventory_item.pk).exists() is False
     assert InventoryItem.all_objects.filter(
         pk=inventory_item.pk, deleted_at__isnull=False

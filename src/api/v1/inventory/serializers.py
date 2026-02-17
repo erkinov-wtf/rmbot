@@ -24,32 +24,71 @@ class InventoryItemCategorySerializer(serializers.ModelSerializer):
 
 
 class InventoryItemPartSerializer(serializers.ModelSerializer):
+    category = serializers.PrimaryKeyRelatedField(
+        queryset=InventoryItemCategory.domain.get_queryset(),
+        required=False,
+        allow_null=True,
+    )
     inventory_item = serializers.PrimaryKeyRelatedField(
         queryset=InventoryItem.domain.get_queryset(),
+        required=False,
+        allow_null=True,
     )
 
     class Meta:
         model = InventoryItemPart
-        fields = ("id", "inventory_item", "name", "created_at", "updated_at")
+        fields = (
+            "id",
+            "category",
+            "inventory_item",
+            "name",
+            "created_at",
+            "updated_at",
+        )
         read_only_fields = ("id", "created_at", "updated_at")
 
     def validate_name(self, value: str) -> str:
         return value.strip()
 
     def validate(self, attrs):
+        category = attrs.get("category")
+        if category is None and self.instance is not None:
+            category = self.instance.category
+
         inventory_item = attrs.get("inventory_item")
         if inventory_item is None and self.instance is not None:
             inventory_item = self.instance.inventory_item
+
+        if category is None and inventory_item is not None:
+            category = inventory_item.category
+
+        if category is None:
+            raise serializers.ValidationError(
+                {"category": "Category is required for category-level parts."}
+            )
+
+        if inventory_item is not None and inventory_item.category_id != category.id:
+            raise serializers.ValidationError(
+                {
+                    "inventory_item": (
+                        "inventory_item category must match selected category."
+                    )
+                }
+            )
 
         name = attrs.get("name")
         if name is None and self.instance is not None:
             name = self.instance.name
 
-        if inventory_item is None or not name:
+        if not name:
             return attrs
 
+        attrs["category"] = category
+        # Parts are category-level entities. Keep inventory_item unset in API writes.
+        attrs["inventory_item"] = None
+
         existing = InventoryItemPart.domain.get_queryset().filter(
-            inventory_item=inventory_item,
+            category=category,
             name__iexact=name,
         )
         if self.instance is not None:
@@ -59,7 +98,7 @@ class InventoryItemPartSerializer(serializers.ModelSerializer):
                 {
                     "name": (
                         "Part with this name already exists for the selected "
-                        "inventory item."
+                        "category."
                     )
                 }
             )
@@ -75,9 +114,8 @@ class InventoryItemSerializer(serializers.ModelSerializer):
     )
     category = serializers.PrimaryKeyRelatedField(
         queryset=InventoryItemCategory.domain.get_queryset(),
-        required=False,
     )
-    parts = serializers.PrimaryKeyRelatedField(many=True, read_only=True)
+    parts = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = InventoryItem
@@ -114,5 +152,12 @@ class InventoryItemSerializer(serializers.ModelSerializer):
             if not attrs.get("name"):
                 attrs["name"] = attrs.get("serial_number")
             attrs.setdefault("inventory", InventoryItemService.get_default_inventory())
-            attrs.setdefault("category", InventoryItemService.get_default_category())
         return attrs
+
+    def get_parts(self, obj: InventoryItem) -> list[int]:
+        return list(
+            InventoryItemPart.domain.get_queryset()
+            .with_category(obj.category_id)
+            .order_by("name", "id")
+            .values_list("id", flat=True)
+        )

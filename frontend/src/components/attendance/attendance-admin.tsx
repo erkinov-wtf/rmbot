@@ -26,7 +26,6 @@ import { cn } from "@/lib/utils";
 type AttendanceAdminProps = {
   accessToken: string;
   canManage: boolean;
-  roleTitles: string[];
   roleSlugs: string[];
 };
 
@@ -138,7 +137,6 @@ function punctualityLabel(value: AttendancePunctuality | null | undefined): stri
 export function AttendanceAdmin({
   accessToken,
   canManage,
-  roleTitles,
   roleSlugs,
 }: AttendanceAdminProps) {
   const [clockMs, setClockMs] = useState(() => Date.now());
@@ -328,17 +326,6 @@ export function AttendanceAdmin({
           <p className="mt-1 text-sm text-slate-600">
             Review attendance by day and mark check-in/check-out for any user.
           </p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {roleTitles.length ? (
-              roleTitles.map((roleTitle) => (
-                <span key={roleTitle} className="rm-role-pill">
-                  {roleTitle}
-                </span>
-              ))
-            ) : (
-              <span className="text-xs text-slate-500">No role titles</span>
-            )}
-          </div>
           {!canManage ? (
             <p className="mt-2 text-xs text-amber-700">
               Roles ({roleSlugs.join(", ") || "none"}) cannot manage attendance.

@@ -1,7 +1,7 @@
 import pytest
 
 from core.utils.constants import RoleSlug
-from inventory.models import InventoryItemPart
+from inventory.models import InventoryItemCategory, InventoryItemPart
 
 pytestmark = pytest.mark.django_db
 
@@ -22,14 +22,14 @@ def test_create_part_requires_inventory_manager_role(
 
     resp = client.post(
         PART_LIST_URL,
-        {"name": "RM-ENGINE", "inventory_item": inventory_item.id},
+        {"name": "RM-ENGINE", "category": inventory_item.category_id},
         format="json",
     )
 
     assert resp.status_code == 403
 
 
-def test_ops_manager_can_create_inventory_item_part(
+def test_ops_manager_can_create_category_part(
     authed_client_factory,
     user_factory,
     assign_roles,
@@ -45,19 +45,19 @@ def test_ops_manager_can_create_inventory_item_part(
 
     resp = client.post(
         PART_LIST_URL,
-        {"name": "RM-HANDLE", "inventory_item": inventory_item.id},
+        {"name": "RM-HANDLE", "category": inventory_item.category_id},
         format="json",
     )
 
     assert resp.status_code == 201
-    assert resp.data["data"]["inventory_item"] == inventory_item.id
+    assert resp.data["data"]["category"] == inventory_item.category_id
     assert InventoryItemPart.objects.filter(
         name="RM-HANDLE",
-        inventory_item=inventory_item,
+        category_id=inventory_item.category_id,
     ).exists()
 
 
-def test_part_name_uniqueness_is_scoped_to_inventory_item(
+def test_part_name_uniqueness_is_scoped_to_category(
     authed_client_factory,
     user_factory,
     assign_roles,
@@ -68,26 +68,33 @@ def test_part_name_uniqueness_is_scoped_to_inventory_item(
         first_name="Ops",
     )
     assign_roles(manager_user, RoleSlug.OPS_MANAGER)
-    inventory_item_a = inventory_item_factory(serial_number="RM-PART-0100")
-    inventory_item_b = inventory_item_factory(serial_number="RM-PART-0101")
+    category_a = InventoryItemCategory.objects.create(name="Category A")
+    category_b = InventoryItemCategory.objects.create(name="Category B")
+    inventory_item_a = inventory_item_factory(
+        serial_number="RM-PART-0100", category=category_a
+    )
+    inventory_item_b = inventory_item_factory(
+        serial_number="RM-PART-0101", category=category_b
+    )
     client = authed_client_factory(manager_user)
 
     InventoryItemPart.objects.create(
         name="RM-SEAT",
+        category=inventory_item_a.category,
         inventory_item=inventory_item_a,
     )
 
     same_item_resp = client.post(
         PART_LIST_URL,
-        {"name": "RM-SEAT", "inventory_item": inventory_item_a.id},
+        {"name": "RM-SEAT", "category": inventory_item_a.category_id},
         format="json",
     )
     assert same_item_resp.status_code == 400
 
-    other_item_resp = client.post(
+    other_category_resp = client.post(
         PART_LIST_URL,
-        {"name": "RM-SEAT", "inventory_item": inventory_item_b.id},
+        {"name": "RM-SEAT", "category": inventory_item_b.category_id},
         format="json",
     )
-    assert other_item_resp.status_code == 201
+    assert other_category_resp.status_code == 201
     assert InventoryItemPart.objects.filter(name="RM-SEAT").count() == 2

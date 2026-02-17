@@ -52,7 +52,6 @@ type TicketFlowProps = {
   canReview: boolean;
   canWork: boolean;
   canQc: boolean;
-  roleTitles: string[];
   roleSlugs: string[];
 };
 
@@ -294,7 +293,6 @@ export function TicketFlow({
   canReview,
   canWork,
   canQc,
-  roleTitles,
   roleSlugs,
 }: TicketFlowProps) {
   const [route, setRoute] = useState<TicketRoute>(() =>
@@ -767,7 +765,7 @@ export function TicketFlow({
           listTickets(accessToken, { per_page: 400 }),
         ]);
 
-        const itemParts = allParts.filter((part) => part.inventory_item === item.id);
+        const itemParts = allParts.filter((part) => part.category === item.category);
         const itemTickets = tickets
           .filter((ticket) => ticket.inventory_item === item.id)
           .sort((left, right) => {
@@ -3020,20 +3018,6 @@ export function TicketFlow({
           <p className="mt-1 text-sm text-slate-600">
             Full lifecycle: intake, admin review/assignment, technician execution, and QC.
           </p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {roleTitles.length ? (
-              roleTitles.map((roleTitle) => (
-                <span
-                  key={roleTitle}
-                  className="rm-role-pill"
-                >
-                  {roleTitle}
-                </span>
-              ))
-            ) : (
-              <span className="text-xs text-slate-500">No role titles</span>
-            )}
-          </div>
           {!canCreate ? (
             <p className="mt-2 text-xs text-amber-700">
               Roles ({roleSlugs.join(", ") || "none"}) cannot create tickets.

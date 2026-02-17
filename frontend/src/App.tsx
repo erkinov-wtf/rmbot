@@ -392,14 +392,12 @@ export default function App() {
             <InventoryAdmin
               accessToken={session.accessToken}
               canManage={canManageInventory}
-              roleTitles={effectiveRoleTitles}
               roleSlugs={effectiveRoleSlugs}
             />
           ) : section === "attendance" ? (
             <AttendanceAdmin
               accessToken={session.accessToken}
               canManage={canManageAttendance}
-              roleTitles={effectiveRoleTitles}
               roleSlugs={effectiveRoleSlugs}
             />
           ) : section === "tickets" ? (
@@ -410,21 +408,18 @@ export default function App() {
               canReview={canReviewTicket}
               canWork={canWorkTicket}
               canQc={canQcTicket}
-              roleTitles={effectiveRoleTitles}
               roleSlugs={effectiveRoleSlugs}
             />
           ) : section === "access_requests" ? (
             <AccessRequestsAdmin
               accessToken={session.accessToken}
               canManage={canManageAccessRequests}
-              roleTitles={effectiveRoleTitles}
               roleSlugs={effectiveRoleSlugs}
             />
           ) : (
             <XpAdmin
               accessToken={session.accessToken}
               canManage={canManageXp}
-              roleTitles={effectiveRoleTitles}
               roleSlugs={effectiveRoleSlugs}
             />
           )}

@@ -5,7 +5,7 @@ from django.utils import timezone
 from rest_framework import serializers
 
 from core.utils.constants import RoleSlug, TicketColor, TicketStatus
-from inventory.models import InventoryItem, InventoryItemPart
+from inventory.models import InventoryItem, InventoryItemCategory, InventoryItemPart
 from inventory.services import InventoryItemService
 from rules.services import RulesService
 from ticket.models import Ticket, TicketPartSpec
@@ -227,14 +227,18 @@ class TicketSerializer(serializers.ModelSerializer):
                 )
 
         raw_part_specs = attrs.get("part_specs") or []
-        normalized_specs, part_ids, total_minutes = self._resolve_part_specs(
+        (
+            normalized_specs,
+            total_minutes,
+            part_category_id,
+        ) = self._resolve_part_specs(
             part_specs=raw_part_specs,
             inventory_item=inventory_item,
             creating_inventory_item=bool(attrs.get("_create_inventory_item")),
         )
         attrs["_part_specs"] = normalized_specs
-        attrs["_part_ids"] = part_ids
         attrs["_total_minutes"] = total_minutes
+        attrs["_part_category_id"] = part_category_id
 
         auto_flag_color = Ticket.flag_color_from_minutes(total_minutes=total_minutes)
         xp_divisor = self._ticket_xp_divisor()
@@ -274,8 +278,8 @@ class TicketSerializer(serializers.ModelSerializer):
             "_inventory_item_creation_reason", None
         )
         part_specs = validated_data.pop("_part_specs", [])
-        part_ids = validated_data.pop("_part_ids", [])
         total_minutes = int(validated_data.pop("_total_minutes", 0) or 0)
+        part_category_id = validated_data.pop("_part_category_id", None)
         approve_review = bool(validated_data.pop("approve_review", False))
         validated_data.pop("part_specs", None)
 
@@ -287,14 +291,27 @@ class TicketSerializer(serializers.ModelSerializer):
 
         if create_inventory_item:
             default_inventory = InventoryItemService.get_default_inventory()
-            default_category = InventoryItemService.get_default_category()
+            part_category = None
+            if part_category_id:
+                part_category = InventoryItemCategory.domain.get_queryset().filter(
+                    pk=part_category_id
+                ).first()
+            if part_category is None:
+                raise serializers.ValidationError(
+                    {
+                        "part_specs": (
+                            "Selected parts must belong to a category when creating "
+                            "a new inventory item."
+                        )
+                    }
+                )
             try:
                 inventory_item, created = InventoryItem.objects.get_or_create(
                     serial_number=serial_number,
                     defaults={
                         "name": serial_number,
                         "inventory": default_inventory,
-                        "category": default_category,
+                        "category": part_category,
                         "is_active": True,
                     },
                 )
@@ -340,18 +357,6 @@ class TicketSerializer(serializers.ModelSerializer):
             validated_data["inventory_item"] = inventory_item
             self._inventory_item_created_during_intake = created
             self._inventory_item_creation_reason = inventory_item_creation_reason
-            if part_ids:
-                cloned_part_id_map = self._clone_parts_for_inventory_item(
-                    inventory_item=inventory_item,
-                    source_part_ids=part_ids,
-                )
-                part_specs = [
-                    {
-                        **spec,
-                        "part_id": cloned_part_id_map[int(spec["part_id"])],
-                    }
-                    for spec in part_specs
-                ]
 
         request = self.context.get("request")
         if (
@@ -412,7 +417,7 @@ class TicketSerializer(serializers.ModelSerializer):
         part_specs: list[dict],
         inventory_item: InventoryItem | None,
         creating_inventory_item: bool,
-    ) -> tuple[list[dict], list[int], int]:
+    ) -> tuple[list[dict], int, int | None]:
         if not part_specs:
             raise serializers.ValidationError(
                 {"part_specs": "part_specs must contain at least one part entry."}
@@ -424,10 +429,12 @@ class TicketSerializer(serializers.ModelSerializer):
                 {"part_specs": "Each part_id must appear only once."}
             )
 
-        parts_by_id = {
+        parts_by_id: dict[int, InventoryItemPart] = {
             part.id: part
             for part in InventoryItemPart.objects.filter(id__in=provided_ids).only(
-                "id", "name"
+                "id",
+                "name",
+                "category_id",
             )
         }
         missing_part_ids = sorted(set(provided_ids) - set(parts_by_id.keys()))
@@ -441,25 +448,46 @@ class TicketSerializer(serializers.ModelSerializer):
                 }
             )
 
+        part_category_ids = sorted(
+            {
+                int(part.category_id)
+                for part in parts_by_id.values()
+                if part.category_id is not None
+            }
+        )
+        if any(part.category_id is None for part in parts_by_id.values()):
+            raise serializers.ValidationError(
+                {
+                    "part_specs": (
+                        "Selected parts must belong to an inventory category."
+                    )
+                }
+            )
+        if not part_category_ids:
+            raise serializers.ValidationError(
+                {
+                    "part_specs": (
+                        "Selected parts must belong to an inventory category."
+                    )
+                }
+            )
+        if len(part_category_ids) > 1:
+            raise serializers.ValidationError(
+                {
+                    "part_specs": (
+                        "All selected parts must belong to the same category."
+                    )
+                }
+            )
+        part_category_id = int(part_category_ids[0])
+
         if inventory_item and not creating_inventory_item:
-            item_part_ids = set(inventory_item.parts.values_list("id", flat=True))
-            if not item_part_ids:
+            if inventory_item.category_id != part_category_id:
                 raise serializers.ValidationError(
                     {
                         "part_specs": (
-                            "Selected inventory item has no parts. Add parts before "
-                            "creating tickets."
-                        )
-                    }
-                )
-            provided_id_set = set(provided_ids)
-            unexpected_parts = sorted(provided_id_set - item_part_ids)
-            if unexpected_parts:
-                raise serializers.ValidationError(
-                    {
-                        "part_specs": (
-                            "unexpected part ids: "
-                            + ", ".join(str(part_id) for part_id in unexpected_parts)
+                            "Selected parts do not belong to the inventory item's "
+                            "category."
                         )
                     }
                 )
@@ -477,44 +505,4 @@ class TicketSerializer(serializers.ModelSerializer):
                     "minutes": minutes,
                 }
             )
-        return normalized, sorted(set(provided_ids)), total_minutes
-
-    @staticmethod
-    def _clone_parts_for_inventory_item(
-        *,
-        inventory_item: InventoryItem,
-        source_part_ids: list[int],
-    ) -> dict[int, int]:
-        source_parts = list(
-            InventoryItemPart.objects.filter(id__in=source_part_ids)
-            .only("id", "name")
-            .order_by("id")
-        )
-
-        duplicate_names: set[str] = set()
-        seen_names: set[str] = set()
-        for part in source_parts:
-            if part.name in seen_names:
-                duplicate_names.add(part.name)
-            seen_names.add(part.name)
-
-        if duplicate_names:
-            raise serializers.ValidationError(
-                {
-                    "part_specs": (
-                        "Cannot reuse multiple source parts with the same name while "
-                        "creating a new inventory item. Duplicate names: "
-                        + ", ".join(sorted(duplicate_names))
-                        + "."
-                    )
-                }
-            )
-
-        source_to_cloned: dict[int, int] = {}
-        for part in source_parts:
-            cloned_part = InventoryItemPart.objects.create(
-                inventory_item=inventory_item,
-                name=part.name,
-            )
-            source_to_cloned[part.id] = cloned_part.id
-        return source_to_cloned
+        return normalized, total_minutes, part_category_id

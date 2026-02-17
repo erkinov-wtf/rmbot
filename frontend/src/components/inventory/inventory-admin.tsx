@@ -36,7 +36,6 @@ import { cn } from "@/lib/utils";
 type InventoryAdminProps = {
   accessToken: string;
   canManage: boolean;
-  roleTitles: string[];
   roleSlugs: string[];
 };
 
@@ -165,7 +164,6 @@ function areFiltersEqual(left: ItemFilters, right: ItemFilters): boolean {
 export function InventoryAdmin({
   accessToken,
   canManage,
-  roleTitles,
   roleSlugs,
 }: InventoryAdminProps) {
   const [route, setRoute] = useState<InventoryRoute>(() =>
@@ -176,9 +174,11 @@ export function InventoryAdmin({
 
   const [categories, setCategories] = useState<InventoryCategory[]>([]);
   const [items, setItems] = useState<InventoryItem[]>([]);
+  const [allParts, setAllParts] = useState<InventoryPart[]>([]);
 
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
   const [isLoadingItems, setIsLoadingItems] = useState(true);
+  const [isLoadingParts, setIsLoadingParts] = useState(true);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [isMutating, setIsMutating] = useState(false);
 
@@ -192,6 +192,7 @@ export function InventoryAdmin({
 
   const [categoryName, setCategoryName] = useState("");
   const [editingCategoryId, setEditingCategoryId] = useState<number | null>(null);
+  const [partCategoryId, setPartCategoryId] = useState("");
 
   const [detailItem, setDetailItem] = useState<InventoryItem | null>(null);
   const [detailItemForm, setDetailItemForm] = useState<ItemFormState | null>(null);
@@ -212,6 +213,30 @@ export function InventoryAdmin({
     () =>
       new Map(ITEM_STATUS_OPTIONS.map((option) => [option.value, option.label])),
     [],
+  );
+
+  const categoryParts = useMemo(() => {
+    const parsedCategoryId = Number(partCategoryId);
+    if (!parsedCategoryId) {
+      return [];
+    }
+    return allParts.filter((part) => part.category === parsedCategoryId);
+  }, [allParts, partCategoryId]);
+
+  const partCountByCategory = useMemo(() => {
+    const counts = new Map<number, number>();
+    allParts.forEach((part) => {
+      if (!part.category) {
+        return;
+      }
+      counts.set(part.category, (counts.get(part.category) ?? 0) + 1);
+    });
+    return counts;
+  }, [allParts]);
+
+  const selectedPartCategory = useMemo(
+    () => categories.find((category) => String(category.id) === partCategoryId) ?? null,
+    [categories, partCategoryId],
   );
 
   const hasPendingFilterChanges = useMemo(
@@ -253,6 +278,21 @@ export function InventoryAdmin({
     }
   }, [accessToken]);
 
+  const loadParts = useCallback(async () => {
+    setIsLoadingParts(true);
+    try {
+      const nextParts = await listParts(accessToken);
+      setAllParts(nextParts);
+    } catch (error) {
+      setFeedback({
+        type: "error",
+        message: toErrorMessage(error, "Failed to load category parts."),
+      });
+    } finally {
+      setIsLoadingParts(false);
+    }
+  }, [accessToken]);
+
   const loadItems = useCallback(
     async (filters: ItemFilters) => {
       setIsLoadingItems(true);
@@ -284,10 +324,7 @@ export function InventoryAdmin({
     async (itemId: number) => {
       setIsLoadingDetail(true);
       try {
-        const [item, allParts] = await Promise.all([
-          getInventoryItem(accessToken, itemId),
-          listParts(accessToken),
-        ]);
+        const item = await getInventoryItem(accessToken, itemId);
 
         setDetailItem(item);
         setDetailItemForm({
@@ -298,9 +335,13 @@ export function InventoryAdmin({
           isActive: item.is_active,
         });
 
-        setDetailParts(
-          allParts.filter((part) => part.inventory_item === item.id),
-        );
+        let partRows = allParts;
+        if (!partRows.length) {
+          partRows = await listParts(accessToken);
+          setAllParts(partRows);
+        }
+
+        setDetailParts(partRows.filter((part) => part.category === item.category));
         resetPartForm();
       } catch (error) {
         setDetailItem(null);
@@ -314,7 +355,7 @@ export function InventoryAdmin({
         setIsLoadingDetail(false);
       }
     },
-    [accessToken],
+    [accessToken, allParts],
   );
 
   useEffect(() => {
@@ -332,6 +373,10 @@ export function InventoryAdmin({
   useEffect(() => {
     void loadCategories();
   }, [loadCategories]);
+
+  useEffect(() => {
+    void loadParts();
+  }, [loadParts]);
 
   useEffect(() => {
     void loadItems(appliedFilters);
@@ -352,6 +397,7 @@ export function InventoryAdmin({
   useEffect(() => {
     if (!categories.length) {
       setCreateItemForm((prev) => ({ ...prev, categoryId: "" }));
+      setPartCategoryId("");
       return;
     }
 
@@ -363,6 +409,13 @@ export function InventoryAdmin({
         ...prev,
         categoryId: String(categories[0].id),
       };
+    });
+
+    setPartCategoryId((prev) => {
+      if (prev && categories.some((category) => String(category.id) === prev)) {
+        return prev;
+      }
+      return String(categories[0].id);
     });
   }, [categories]);
 
@@ -387,6 +440,14 @@ export function InventoryAdmin({
     }
   }, [categories, detailItemForm]);
 
+  useEffect(() => {
+    if (!detailItem) {
+      setDetailParts([]);
+      return;
+    }
+    setDetailParts(allParts.filter((part) => part.category === detailItem.category));
+  }, [allParts, detailItem]);
+
   const runMutation = useCallback(
     async (task: () => Promise<void>, successMessage: string) => {
       setIsMutating(true);
@@ -409,7 +470,7 @@ export function InventoryAdmin({
 
   const handleRefresh = async () => {
     setFeedback(null);
-    await Promise.all([loadCategories(), loadItems(appliedFilters)]);
+    await Promise.all([loadCategories(), loadItems(appliedFilters), loadParts()]);
     if (route.name === "itemDetail") {
       await loadItemDetail(route.itemId);
     }
@@ -475,7 +536,10 @@ export function InventoryAdmin({
         if (editingCategoryId === categoryId) {
           resetCategoryForm();
         }
-        await Promise.all([loadCategories(), loadItems(appliedFilters)]);
+        if (partCategoryId === String(categoryId)) {
+          resetPartForm();
+        }
+        await Promise.all([loadCategories(), loadItems(appliedFilters), loadParts()]);
       }, "Category deleted.");
     } catch {
       // feedback already set
@@ -594,7 +658,13 @@ export function InventoryAdmin({
 
   const handlePartSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!canManage || !detailItem) {
+    if (!canManage) {
+      return;
+    }
+
+    const selectedPartCategoryId = Number(partCategoryId);
+    if (!selectedPartCategoryId) {
+      setFeedback({ type: "error", message: "Select a category for part management." });
       return;
     }
 
@@ -608,17 +678,18 @@ export function InventoryAdmin({
       await runMutation(async () => {
         if (editingPartId) {
           await updatePart(accessToken, editingPartId, {
-            inventory_item: detailItem.id,
+            category: selectedPartCategoryId,
             name: trimmedPartName,
           });
         } else {
           await createPart(accessToken, {
-            inventory_item: detailItem.id,
+            category: selectedPartCategoryId,
             name: trimmedPartName,
           });
         }
 
-        await loadItemDetail(detailItem.id);
+        await loadParts();
+        resetPartForm();
       }, editingPartId ? "Part updated." : "Part created.");
     } catch {
       // feedback already set
@@ -626,14 +697,17 @@ export function InventoryAdmin({
   };
 
   const handlePartDelete = async (partId: number) => {
-    if (!canManage || !detailItem || !window.confirm("Delete this part?")) {
+    if (!canManage || !window.confirm("Delete this part?")) {
       return;
     }
 
     try {
       await runMutation(async () => {
         await deletePart(accessToken, partId);
-        await loadItemDetail(detailItem.id);
+        await loadParts();
+        if (editingPartId === partId) {
+          resetPartForm();
+        }
       }, "Part deleted.");
     } catch {
       // feedback already set
@@ -641,7 +715,7 @@ export function InventoryAdmin({
   };
 
   const renderCategoryPage = () => (
-    <div className="mt-4 grid gap-4 lg:grid-cols-[340px_1fr]">
+    <div className="mt-4 grid gap-4 xl:grid-cols-[340px_1fr_1fr]">
       <form onSubmit={handleCategorySubmit} className="rounded-lg border border-slate-200 p-4">
         <p className="text-sm font-semibold text-slate-900">
           {editingCategoryId ? "Edit Category" : "Create Category"}
@@ -733,6 +807,127 @@ export function InventoryAdmin({
           </p>
         )}
       </div>
+
+      <section className="rounded-lg border border-slate-200 p-4">
+        <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
+          <Package className="h-4 w-4" />
+          Category Parts
+        </p>
+        <p className="mt-1 text-xs text-slate-600">
+          Parts are shared by all inventory items inside the selected category.
+        </p>
+
+        <label className="mt-3 block text-xs font-semibold uppercase tracking-wide text-slate-600">
+          Category
+        </label>
+        <select
+          className={cn(fieldClassName, "mt-1")}
+          value={partCategoryId}
+          onChange={(event) => {
+            setPartCategoryId(event.target.value);
+            resetPartForm();
+          }}
+          disabled={!categories.length || isMutating}
+        >
+          <option value="">Select category</option>
+          {categories.map((category) => (
+            <option key={category.id} value={category.id}>
+              {category.name}
+            </option>
+          ))}
+        </select>
+
+        <form
+          onSubmit={handlePartSubmit}
+          className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3"
+        >
+          <p className="text-sm font-semibold text-slate-800">
+            {editingPartId ? "Edit Part" : "Add Part"}
+          </p>
+          <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+            <input
+              className={fieldClassName}
+              value={partName}
+              onChange={(event) => setPartName(event.target.value)}
+              placeholder="Part name"
+              disabled={!canManage || isMutating || !partCategoryId}
+            />
+            {canManage ? (
+              <div className="flex gap-2">
+                <Button
+                  type="submit"
+                  className="h-10"
+                  disabled={isMutating || !partCategoryId}
+                >
+                  {editingPartId ? "Update" : "Add"}
+                </Button>
+                {editingPartId ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-10"
+                    onClick={resetPartForm}
+                    disabled={isMutating}
+                  >
+                    Cancel
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        </form>
+
+        <div className="mt-3 space-y-2">
+          {isLoadingParts ? (
+            <p className="text-sm text-slate-600">Loading parts...</p>
+          ) : categoryParts.length ? (
+            categoryParts.map((part) => (
+              <div
+                key={part.id}
+                className="flex flex-col gap-2 rounded-md border border-slate-200 bg-white p-3 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div>
+                  <p className="text-sm font-medium text-slate-900">{part.name}</p>
+                  <p className="text-xs text-slate-500">{formatDate(part.updated_at)}</p>
+                </div>
+
+                {canManage ? (
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-8 px-2 text-xs"
+                      onClick={() => {
+                        setPartName(part.name);
+                        setEditingPartId(part.id);
+                        setPartCategoryId(String(part.category));
+                      }}
+                      disabled={isMutating}
+                    >
+                      <PencilLine className="mr-1 h-3.5 w-3.5" />
+                      Edit
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-8 px-2 text-xs text-rose-700"
+                      onClick={() => void handlePartDelete(part.id)}
+                      disabled={isMutating}
+                    >
+                      <Trash2 className="mr-1 h-3.5 w-3.5" />
+                      Delete
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+            ))
+          ) : (
+            <p className="rounded-md border border-dashed border-slate-300 px-3 py-5 text-center text-sm text-slate-500">
+              No parts for this category.
+            </p>
+          )}
+        </div>
+      </section>
     </div>
   );
 
@@ -747,7 +942,7 @@ export function InventoryAdmin({
               <p className="text-sm font-semibold text-slate-900">Inventory Items</p>
               <p className="text-sm text-slate-600">
                 Full-screen list view with top filters. Open any item for details and
-                parts management.
+                inherited category parts.
               </p>
             </div>
 
@@ -1351,46 +1546,14 @@ export function InventoryAdmin({
           <section className="rounded-lg border border-slate-200 p-4">
             <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
               <Package className="h-4 w-4" />
-              Parts ({detailParts.length})
+              Inherited Category Parts ({detailParts.length})
+            </p>
+            <p className="mt-1 text-xs text-slate-600">
+              These parts come from the selected category and are shared across all
+              items in that category. Manage them in the Categories tab.
             </p>
 
-            <form
-              onSubmit={handlePartSubmit}
-              className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3"
-            >
-              <p className="text-sm font-semibold text-slate-800">
-                {editingPartId ? "Edit Part" : "Add Part"}
-              </p>
-              <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-                <input
-                  className={fieldClassName}
-                  value={partName}
-                  onChange={(event) => setPartName(event.target.value)}
-                  placeholder="Part name"
-                  disabled={!canManage || isMutating}
-                />
-                {canManage ? (
-                  <div className="flex gap-2">
-                    <Button type="submit" className="h-10" disabled={isMutating}>
-                      {editingPartId ? "Update" : "Add"}
-                    </Button>
-                    {editingPartId ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="h-10"
-                        onClick={resetPartForm}
-                        disabled={isMutating}
-                      >
-                        Cancel
-                      </Button>
-                    ) : null}
-                  </div>
-                ) : null}
-              </div>
-            </form>
-
-            <div className="mt-3 space-y-2">
+            <div className="mt-3 space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3">
               {detailParts.length ? (
                 detailParts.map((part) => (
                   <div
@@ -1401,39 +1564,11 @@ export function InventoryAdmin({
                       <p className="text-sm font-medium text-slate-900">{part.name}</p>
                       <p className="text-xs text-slate-500">{formatDate(part.updated_at)}</p>
                     </div>
-
-                    {canManage ? (
-                      <div className="flex gap-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="h-8 px-2 text-xs"
-                          onClick={() => {
-                            setPartName(part.name);
-                            setEditingPartId(part.id);
-                          }}
-                          disabled={isMutating}
-                        >
-                          <PencilLine className="mr-1 h-3.5 w-3.5" />
-                          Edit
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="h-8 px-2 text-xs text-rose-700"
-                          onClick={() => void handlePartDelete(part.id)}
-                          disabled={isMutating}
-                        >
-                          <Trash2 className="mr-1 h-3.5 w-3.5" />
-                          Delete
-                        </Button>
-                      </div>
-                    ) : null}
                   </div>
                 ))
               ) : (
                 <p className="rounded-md border border-dashed border-slate-300 px-3 py-5 text-center text-sm text-slate-500">
-                  No parts for this item.
+                  No parts for this category.
                 </p>
               )}
             </div>
@@ -1451,20 +1586,6 @@ export function InventoryAdmin({
           <p className="mt-1 text-sm text-slate-600">
             Categories and inventory are split into dedicated screens for large data.
           </p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {roleTitles.length ? (
-              roleTitles.map((roleTitle) => (
-                <span
-                  key={roleTitle}
-                  className="rm-role-pill"
-                >
-                  {roleTitle}
-                </span>
-              ))
-            ) : (
-              <span className="text-xs text-slate-500">No role titles</span>
-            )}
-          </div>
           {!canManage ? (
             <p className="mt-2 text-xs text-amber-700">
               Roles ({roleSlugs.join(", ") || "none"}) can view inventory data but cannot modify it.
@@ -1477,7 +1598,13 @@ export function InventoryAdmin({
           variant="outline"
           className="h-10 w-full sm:w-auto"
           onClick={() => void handleRefresh()}
-          disabled={isMutating || isLoadingCategories || isLoadingItems || isLoadingDetail}
+          disabled={
+            isMutating ||
+            isLoadingCategories ||
+            isLoadingItems ||
+            isLoadingParts ||
+            isLoadingDetail
+          }
         >
           <RefreshCcw className="mr-2 h-4 w-4" />
           Refresh

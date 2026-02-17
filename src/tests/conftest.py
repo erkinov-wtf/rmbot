@@ -6,7 +6,7 @@ from rest_framework.test import APIClient
 
 from account.models import Role, User
 from core.utils.constants import RoleSlug, TicketStatus
-from inventory.models import InventoryItem
+from inventory.models import InventoryItem, InventoryItemCategory
 from inventory.services import InventoryItemService
 from ticket.models import Ticket
 
@@ -78,17 +78,15 @@ def inventory_item_factory(db) -> Callable[..., InventoryItem]:
     seq = itertools.count(1000)
 
     def _create_inventory_item(**overrides) -> InventoryItem:
-        serial_number = overrides.pop(
-            "serial_number",
-            overrides.pop("serial_number", f"RM-{next(seq):04d}"),
-        )
+        idx = next(seq)
+        serial_number = overrides.pop("serial_number", f"RM-{idx:04d}")
         inventory = overrides.pop(
             "inventory",
             InventoryItemService.get_default_inventory(),
         )
         category = overrides.pop(
             "category",
-            InventoryItemService.get_default_category(),
+            InventoryItemCategory.objects.create(name=f"Category {idx}"),
         )
         name = overrides.pop("name", serial_number)
         return InventoryItem.objects.create(

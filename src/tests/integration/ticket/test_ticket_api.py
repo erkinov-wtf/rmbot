@@ -49,10 +49,12 @@ def ticket_api_context(user_factory, assign_roles, inventory_item_factory):
     inventory_item = inventory_item_factory(serial_number="RM-0100")
     part_a = InventoryItemPart.objects.create(
         name="RM-API-PART-A",
+        category=inventory_item.category,
         inventory_item=inventory_item,
     )
     part_b = InventoryItemPart.objects.create(
         name="RM-API-PART-B",
+        category=inventory_item.category,
         inventory_item=inventory_item,
     )
 
@@ -208,6 +210,7 @@ def test_ticket_create_allows_existing_non_rm_serial_inventory_item(
     odd_item = inventory_item_factory(serial_number="CUSTOM-01")
     odd_part = InventoryItemPart.objects.create(
         name="RM-API-PART-C",
+        category=odd_item.category,
         inventory_item=odd_item,
     )
 
@@ -292,24 +295,19 @@ def test_ticket_create_confirm_create_builds_new_inventory_item_and_logs_reason(
     payload = resp.data["data"]
     created_ticket = Ticket.objects.get(pk=payload["id"])
     assert created_ticket.inventory_item.serial_number == "RM-0999"
-    created_part_names = set(
-        created_ticket.inventory_item.parts.values_list("name", flat=True)
+    assert (
+        created_ticket.inventory_item.category_id
+        == ticket_api_context["inventory_item"].category_id
     )
-    assert created_part_names == {"RM-API-PART-A", "RM-API-PART-B"}
-    created_part_ids = set(
-        created_ticket.inventory_item.parts.values_list("id", flat=True)
-    )
-    assert created_part_ids == set(
+    selected_part_ids = set(
         created_ticket.part_specs.values_list("inventory_item_part_id", flat=True)
     )
-    assert created_part_ids.isdisjoint(
-        {ticket_api_context["part_a"].id, ticket_api_context["part_b"].id}
-    )
+    assert selected_part_ids == {ticket_api_context["part_a"].id, ticket_api_context["part_b"].id}
     assert set(
         created_ticket.part_specs.values_list(
-            "inventory_item_part__inventory_item_id", flat=True
+            "inventory_item_part__category_id", flat=True
         )
-    ) == {created_ticket.inventory_item_id}
+    ) == {created_ticket.inventory_item.category_id}
     transition = TicketTransition.objects.get(ticket_id=payload["id"])
     assert transition.metadata["inventory_item_created_during_intake"] is True
     assert transition.metadata["inventory_item_creation_reason"] == reason

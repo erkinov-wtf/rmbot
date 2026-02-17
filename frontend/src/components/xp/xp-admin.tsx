@@ -8,7 +8,6 @@ import { cn } from "@/lib/utils";
 type XpAdminProps = {
   accessToken: string;
   canManage: boolean;
-  roleTitles: string[];
   roleSlugs: string[];
 };
 
@@ -33,7 +32,6 @@ function toErrorMessage(error: unknown, fallback: string): string {
 export function XpAdmin({
   accessToken,
   canManage,
-  roleTitles,
   roleSlugs,
 }: XpAdminProps) {
   const [users, setUsers] = useState<UserOption[]>([]);
@@ -167,17 +165,6 @@ export function XpAdmin({
           <p className="mt-1 text-sm text-slate-600">
             Admin-only XP adjustments with required comment and Telegram notification.
           </p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {roleTitles.length ? (
-              roleTitles.map((roleTitle) => (
-                <span key={roleTitle} className="rm-role-pill">
-                  {roleTitle}
-                </span>
-              ))
-            ) : (
-              <span className="text-xs text-slate-500">No role titles</span>
-            )}
-          </div>
           {!canManage ? (
             <p className="mt-2 text-xs text-amber-700">
               Roles ({roleSlugs.join(", ") || "none"}) cannot manage XP.

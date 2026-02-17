@@ -75,14 +75,29 @@ class InventoryItemCategoryViewSet(InventoryManageMixin, BaseModelViewSet):
 
 @extend_schema(
     tags=["Inventory"],
-    summary="Inventory item parts CRUD",
-    description="Provides inventory-item part list/create/update/delete operations.",
+    summary="Inventory category parts CRUD",
+    description=(
+        "Provides category-level inventory part list/create/update/delete operations."
+    ),
 )
 class InventoryItemPartViewSet(InventoryManageMixin, BaseModelViewSet):
     serializer_class = InventoryItemPartSerializer
     queryset = InventoryItemPart.domain.get_queryset().order_by(
-        "inventory_item_id", "name", "id"
+        "category_id", "name", "id"
     )
+
+    def get_queryset(self):
+        queryset = self.queryset
+        category_id_raw = self.request.query_params.get("category")
+        if not category_id_raw:
+            return queryset
+        try:
+            category_id = int(category_id_raw)
+        except (TypeError, ValueError):
+            return queryset.none()
+        if category_id < 1:
+            return queryset.none()
+        return queryset.filter(category_id=category_id)
 
 
 @extend_schema(

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import difflib
 
-from django.db import models
+from django.db import IntegrityError, models, transaction
 
 from core.utils.constants import InventoryItemStatus, TicketStatus
 
@@ -15,7 +15,6 @@ ACTIVE_TICKET_STATUSES = (
 )
 
 DEFAULT_INVENTORY_NAME = "Default Inventory"
-DEFAULT_CATEGORY_NAME = "Uncategorized"
 
 
 class InventoryQuerySet(models.QuerySet):
@@ -28,8 +27,33 @@ class InventoryDomainManager(models.Manager.from_queryset(InventoryQuerySet)):
         return super().get_queryset().filter(deleted_at__isnull=True)
 
     def get_default(self):
-        inventory, _ = self.get_or_create(name=DEFAULT_INVENTORY_NAME)
-        return inventory
+        model_cls = self.model
+        existing = (
+            model_cls.all_objects.filter(name__iexact=DEFAULT_INVENTORY_NAME)
+            .order_by("id")
+            .first()
+        )
+        if existing is not None:
+            if existing.deleted_at is not None:
+                model_cls.all_objects.filter(pk=existing.pk).update(deleted_at=None)
+                existing.deleted_at = None
+            return existing
+
+        try:
+            with transaction.atomic():
+                return self.create(name=DEFAULT_INVENTORY_NAME)
+        except IntegrityError:
+            fallback = (
+                model_cls.all_objects.filter(name__iexact=DEFAULT_INVENTORY_NAME)
+                .order_by("id")
+                .first()
+            )
+            if fallback is None:
+                raise
+            if fallback.deleted_at is not None:
+                model_cls.all_objects.filter(pk=fallback.pk).update(deleted_at=None)
+                fallback.deleted_at = None
+            return fallback
 
 
 class InventoryItemCategoryQuerySet(models.QuerySet):
@@ -44,11 +68,16 @@ class InventoryItemCategoryDomainManager(
         return super().get_queryset().filter(deleted_at__isnull=True)
 
     def get_default(self):
-        category, _ = self.get_or_create(name=DEFAULT_CATEGORY_NAME)
+        category = self.get_queryset().order_by("id").first()
+        if category is None:
+            raise self.model.DoesNotExist("No inventory category exists.")
         return category
 
 
 class InventoryItemPartQuerySet(models.QuerySet):
+    def with_category(self, category_id: int):
+        return self.filter(category_id=category_id)
+
     def with_inventory_item(self, inventory_item_id: int):
         return self.filter(inventory_item_id=inventory_item_id)
 

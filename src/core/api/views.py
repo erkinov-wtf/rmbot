@@ -50,9 +50,17 @@ class CustomResponseMixin:
 
     SUCCESS_MESSAGE = "OK"
     ERROR_MESSAGE = "NOT OK"
+    NO_BODY_STATUS_CODES = {
+        status.HTTP_204_NO_CONTENT,
+        status.HTTP_205_RESET_CONTENT,
+        status.HTTP_304_NOT_MODIFIED,
+    }
 
     def finalize_response(self, request, response, *args, **kwargs):
         response = super().finalize_response(request, response, *args, **kwargs)  # noqa
+
+        if response.status_code in self.NO_BODY_STATUS_CODES:
+            return response
 
         if self._is_structured_response(response):
             return response
