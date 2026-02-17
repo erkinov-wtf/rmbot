@@ -1,13 +1,19 @@
 from aiogram import Router
 
-from bot.routers import fallback, start, technician_tickets, ticket_admin, ticket_qc
-
 
 class BotRouterRegistry:
     """Builds and wires the aiogram root router with all feature routers."""
 
     @staticmethod
     def build() -> Router:
+        from bot.routers import (
+            fallback,
+            start,
+            technician_tickets,
+            ticket_admin,
+            ticket_qc,
+        )
+
         root = Router(name="root")
         root.include_router(start.router)
         root.include_router(technician_tickets.router)

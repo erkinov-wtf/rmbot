@@ -17,4 +17,4 @@ Covers identity, role linkage, Telegram profile binding, and access-request mode
 - `apps/account/managers.py`
 - `apps/account/services.py`
 - `api/v1/account/`
-- `bot/routers/start.py`
+- `bot/routers/start/__init__.py`

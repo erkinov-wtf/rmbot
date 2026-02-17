@@ -1,7 +1,7 @@
 # Ticket Admin Bot Controls
 
 ## Scope
-Documents Telegram ticket-intake and ticket-review handlers for users with create/review ticket permissions.
+Documents class-based Telegram ticket-intake and ticket-review handlers for users with create/review ticket permissions.
 
 ## Execution Flows
 - Reply-keyboard entrypoints:
@@ -19,6 +19,11 @@ Documents Telegram ticket-intake and ticket-review handlers for users with creat
     - Manual metrics flow: open editor (`tra:manual:<ticket_id>`), mutate color/xp (`tra:mc`, `tra:mx`, `tra:adj`), save (`tra:ms`).
     - Return to ticket detail (`tra:bk:<ticket_id>`).
 - Ticket create/review callback steps stay inline-driven, but users can switch context at any time with reply-keyboard buttons or commands (state is cleared by those entrypoints).
+- Router entrypoints are implemented with class handlers (`MessageHandler`, `CallbackQueryHandler`) and split by job:
+  - create entrypoint: `bot/routers/ticket_admin/create_entry.py`
+  - create callbacks: `bot/routers/ticket_admin/create_callbacks.py`
+  - review entrypoint: `bot/routers/ticket_admin/review_entry.py`
+  - review callbacks: `bot/routers/ticket_admin/review_callbacks.py`
 
 ## Invariants and Contracts
 - Menu-button visibility is permission-gated from `resolve_ticket_bot_permissions`.
@@ -37,7 +42,13 @@ Documents Telegram ticket-intake and ticket-review handlers for users with creat
 - Workflow/domain validation errors (invalid transitions, missing ticket) are surfaced to the operator.
 
 ## Related Code
-- `bot/routers/ticket_admin.py`
+- `bot/routers/ticket_admin/__init__.py`
+- `bot/routers/ticket_admin/create.py`
+- `bot/routers/ticket_admin/create_entry.py`
+- `bot/routers/ticket_admin/create_callbacks.py`
+- `bot/routers/ticket_admin/review.py`
+- `bot/routers/ticket_admin/review_entry.py`
+- `bot/routers/ticket_admin/review_callbacks.py`
 - `bot/permissions.py`
 - `api/v1/ticket/serializers/ticket.py`
 - `apps/ticket/services_workflow.py`

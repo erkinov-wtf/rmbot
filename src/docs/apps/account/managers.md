@@ -22,4 +22,4 @@ Provides domain query and identity-preparation helpers for onboarding and modera
 - `apps/account/models.py`
 - `apps/account/services.py`
 - `api/v1/account/views.py`
-- `bot/routers/start.py`
+- `bot/routers/start/__init__.py`

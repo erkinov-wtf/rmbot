@@ -37,5 +37,5 @@ Coordinates access onboarding and moderation workflows while delegating first-le
 - `apps/account/models.py`
 - `apps/account/managers.py`
 - `core/services/notifications.py`
-- `bot/routers/start.py`
+- `bot/routers/start/__init__.py`
 - `api/v1/account/views.py`

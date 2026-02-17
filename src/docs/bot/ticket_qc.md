@@ -1,7 +1,7 @@
 # QC Ticket Bot Controls
 
 ## Scope
-Documents Telegram QC handlers that allow QC inspectors to open their assigned QC queue from the bot keyboard and approve or reject tickets directly in Telegram.
+Documents class-based Telegram QC handlers that allow QC inspectors to open their assigned QC queue from the bot keyboard and approve or reject tickets directly in Telegram.
 
 ## Execution Flow
 - QC queue entrypoints:
@@ -15,13 +15,17 @@ Documents Telegram QC handlers that allow QC inspectors to open their assigned Q
   - `tqc:<ticket_id>:pass`
   - `tqc:<ticket_id>:fail`
   - `tqc:<ticket_id>:refresh`
-- QC callback handler (`bot/routers/ticket_qc.py`) flow:
+- QC callback handler (`bot/routers/ticket_qc/callbacks.py`) flow:
   1. Parse and validate callback payload.
   2. Validate active linked user.
-  3. Validate QC permission (`TicketQCPermission`).
+  3. Validate QC permission via bot permission mapping (`resolve_ticket_bot_permissions(...).can_qc`).
   4. Resolve ticket and validate status for QC decisions.
   5. Execute workflow transition (`qc_pass_ticket` or `qc_fail_ticket`) when action is decision.
   6. Re-read ticket and edit message with refreshed state + next action keyboard.
+- All QC command/button/callback handlers are class-based and split by job:
+  - shared classmethod helpers: `bot/routers/ticket_qc/base.py`
+  - entrypoints: `bot/routers/ticket_qc/entry.py`
+  - callbacks: `bot/routers/ticket_qc/callbacks.py`
 
 ## Invariants and Contracts
 - QC decision actions are allowed only when ticket status is `WAITING_QC`.
@@ -40,7 +44,10 @@ Documents Telegram QC handlers that allow QC inspectors to open their assigned Q
 - Workflow validation errors are surfaced from domain service as callback alerts.
 
 ## Related Code
-- `bot/routers/ticket_qc.py`
+- `bot/routers/ticket_qc/__init__.py`
+- `bot/routers/ticket_qc/base.py`
+- `bot/routers/ticket_qc/entry.py`
+- `bot/routers/ticket_qc/callbacks.py`
 - `bot/services/ticket_qc_actions.py`
 - `bot/services/ticket_qc_queue.py`
 - `bot/permissions.py`

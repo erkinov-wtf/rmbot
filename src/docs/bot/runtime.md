@@ -9,7 +9,8 @@ Documents aiogram runtime assembly, lifecycle entrypoints, webhook intake path, 
   - `Dispatcher` (in-memory FSM storage)
   - DI `Container` (settings/logger)
 - `bot/runtime.py` keeps a process-global lazy `BotBundle` behind an async lock.
-- Root router includes onboarding/fallback handlers, ticket-admin handlers (`/ticket_create`, `/ticket_review`), and technician ticket handlers (`/queue` + callback actions).
+- Root router includes class-based onboarding/fallback handlers, ticket-admin handlers (`/ticket_create`, `/ticket_review`), and technician ticket handlers (`/queue` + callback actions).
+- Router modules are split by job: composition modules include entrypoint and callback sub-routers for onboarding, technician, ticket-admin, and QC flows.
 
 ## Execution Flows
 
@@ -40,6 +41,8 @@ Documents aiogram runtime assembly, lifecycle entrypoints, webhook intake path, 
 - Bot handlers receive `_` from middleware, backed by Django `gettext`, so runtime language selection is per-update and per-user.
 - `AuthMiddleware` resolves identity from aiogram update context (`data["event_from_user"]`) first, then falls back to event/message objects, so update-level middleware execution still authenticates `/queue` and callback actions correctly.
 - `AuthMiddleware` uses `AccountService.resolve_bot_actor` to upsert/revive Telegram profiles and recover active user links from access-request history, reducing false "not registered" responses for legacy data.
+- Bot routers register class-based aiogram handlers only (`MessageHandler`, `CallbackQueryHandler`) to keep routing contracts explicit and testable.
+- Feature router package `__init__.py` files are composition-only; business-specific handler classes live in dedicated `entry.py` / `callbacks.py` modules.
 - `get_bundle()` is concurrency-safe; only one bundle instance exists per process.
 - `close_bundle()` must release HTTP resources and reset runtime singleton.
 
@@ -57,6 +60,10 @@ Documents aiogram runtime assembly, lifecycle entrypoints, webhook intake path, 
 ## Related Code
 - `bot/etc/loader.py`
 - `bot/runtime.py`
+- `bot/routers/start/__init__.py`
+- `bot/routers/technician_tickets/__init__.py`
+- `bot/routers/ticket_admin/__init__.py`
+- `bot/routers/ticket_qc/__init__.py`
 - `bot/webhook/views.py`
 - `bot/management/commands/runbot.py`
 - `bot/management/commands/botwebhook.py`

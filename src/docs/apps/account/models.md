@@ -32,4 +32,4 @@ Defines identity and onboarding entities (`User`, `Role`, `TelegramProfile`, `Ac
 - `apps/account/managers.py`
 - `apps/account/services.py`
 - `api/v1/account/views.py`
-- `bot/routers/start.py`
+- `bot/routers/start/__init__.py`

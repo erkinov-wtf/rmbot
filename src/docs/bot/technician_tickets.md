@@ -1,7 +1,7 @@
 # Technician Ticket Bot Controls
 
 ## Scope
-Documents Telegram command/callback handlers that let technicians run ticket workflow and work-session actions directly from inline bot buttons.
+Documents class-based Telegram command/callback handlers that let technicians run ticket workflow and work-session actions directly from inline bot buttons.
 
 ## Execution Flows
 - Reply-keyboard entrypoints (`🎟 Active Tickets`, `🧪 Under QC`, `✅ Past Tickets`) and command aliases (`/queue`, `/active`, `/tech`, `/under_qc`, `/past`) open technician ticket dashboards by scope.
@@ -38,6 +38,9 @@ Documents Telegram command/callback handlers that let technicians run ticket wor
 ## Operational Notes
 - Queue callback parser keeps backward compatibility for legacy payloads without scope and defaults them to `active`.
 - Queue callback parser keeps backward compatibility for legacy payloads without scope/page and defaults them to `active`, page `1`.
+- Router handlers are class-based (`MessageHandler` / `CallbackQueryHandler`) and split by job:
+  - entrypoints in `bot/routers/technician_tickets/entry.py`
+  - callbacks in `bot/routers/technician_tickets/callbacks.py`
 - Queue list rows include status icon, serial number, status label, and XP progress (`acquired/potential`) per ticket.
 - Pagination row is always visible after the listed rows: `<`, `X/Y`, `>`.
 - Ticket detail cards include readable status/session labels plus `Potential XP`, `Acquired XP`, and `XP progress`.
@@ -46,6 +49,8 @@ Documents Telegram command/callback handlers that let technicians run ticket wor
 - Message refresh uses service-driven action resolution so stale buttons self-correct after any action.
 
 ## Related Code
-- `bot/routers/technician_tickets.py`
+- `bot/routers/technician_tickets/__init__.py`
+- `bot/routers/technician_tickets/entry.py`
+- `bot/routers/technician_tickets/callbacks.py`
 - `bot/middlewares/auth.py`
 - `bot/services/technician_ticket_actions.py`

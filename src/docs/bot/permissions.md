@@ -24,5 +24,5 @@ Defines bot-side capability gates for ticket intake/review UI using the same rol
 ## Related Code
 - `bot/permissions.py`
 - `api/v1/ticket/permissions.py`
-- `bot/routers/start.py`
-- `bot/routers/ticket_admin.py`
+- `bot/routers/start/__init__.py`
+- `bot/routers/ticket_admin/__init__.py`

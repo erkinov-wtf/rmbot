@@ -45,4 +45,4 @@ Resolves technician-allowed ticket actions for Telegram, executes selected actio
 - `bot/services/technician_ticket_actions.py`
 - `apps/ticket/services_workflow.py`
 - `apps/ticket/services_work_session.py`
-- `bot/routers/technician_tickets.py`
+- `bot/routers/technician_tickets/__init__.py`

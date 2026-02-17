@@ -1,9 +1,13 @@
+from typing import Any
+
 from aiogram import F, Router
-from aiogram.types import Message
+from aiogram.handlers import MessageHandler
 
 router = Router(name="fallback")
 
 
 @router.message(F.text, F.text.startswith("/"))
-async def unknown_command_handler(message: Message, _):
-    await message.answer(_("Unknown command. Use /help."))
+class UnknownCommandHandler(MessageHandler):
+    async def handle(self) -> Any:
+        _ = self.data["_"]
+        await self.event.answer(_("Unknown command. Use /help."))
