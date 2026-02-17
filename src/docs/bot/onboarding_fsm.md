@@ -33,10 +33,11 @@ Documents `/start` onboarding state machine, input validation, and account-reque
 - Bottom reply-keyboard menu is shown for non-FSM interactions to reduce slash-command usage:
   - common: `📊 My Profile`, `❓ Help`
   - unregistered: `📝 Start Access Request`
+  - ticket admins (permission-gated): `🆕 Create Ticket`, `🧾 Review Tickets`
   - technician: `🎟 Active Tickets`, `🧪 Under QC`, `✅ Past Tickets`, `⭐ My XP`, `📜 XP Activity`
-- `/xp_history` now renders a paginated inline menu (callback data: `xph:<limit>:<offset>`) with previous/next controls and message edit-in-place navigation.
+- `/xp_history` now renders 5 activity rows per page with an always-visible inline pagination row (`<`, `X/Y`, `>`), using callback data format `xph:<limit>:<offset>` and message edit-in-place navigation.
 - XP summary/history text intentionally avoids raw enum/reference values and surfaces user-facing reason labels instead.
-- `/help` still exposes command hints for recovery paths, including technician dashboard aliases (`/queue`, `/active`, `/tech`, `/under_qc`, `/past`) and XP shortcuts (`/xp`, `/xp_history`).
+- `/help` still exposes command hints for recovery paths, including ticket-admin shortcuts (`/ticket_create`, `/ticket_review`), technician dashboard aliases (`/queue`, `/active`, `/tech`, `/under_qc`, `/past`), and XP shortcuts (`/xp`, `/xp_history`).
 
 ## Related Code
 - `bot/routers/start.py`

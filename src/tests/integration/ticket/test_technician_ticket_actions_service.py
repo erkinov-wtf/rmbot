@@ -1,5 +1,6 @@
 import pytest
 
+from bot.services.technician_ticket_actions import TechnicianTicketActionService
 from core.utils.constants import (
     RoleSlug,
     TicketStatus,
@@ -8,7 +9,6 @@ from core.utils.constants import (
 )
 from gamification.models import XPTransaction
 from ticket.models import WorkSession
-from ticket.services_technician_actions import TechnicianTicketActionService
 
 pytestmark = pytest.mark.django_db
 
@@ -226,6 +226,7 @@ def test_queue_callback_data_roundtrip(technician_ticket_context):
         TechnicianTicketActionService.QUEUE_ACTION_OPEN,
         ticket.id,
         TechnicianTicketActionService.VIEW_SCOPE_ACTIVE,
+        1,
     )
     assert TechnicianTicketActionService.parse_queue_callback_data(
         callback_data=refresh_payload
@@ -233,6 +234,7 @@ def test_queue_callback_data_roundtrip(technician_ticket_context):
         TechnicianTicketActionService.QUEUE_ACTION_REFRESH,
         None,
         TechnicianTicketActionService.VIEW_SCOPE_ACTIVE,
+        1,
     )
     assert TechnicianTicketActionService.parse_queue_callback_data(
         callback_data=f"{TechnicianTicketActionService.QUEUE_CALLBACK_PREFIX}:refresh"
@@ -240,6 +242,7 @@ def test_queue_callback_data_roundtrip(technician_ticket_context):
         TechnicianTicketActionService.QUEUE_ACTION_REFRESH,
         None,
         TechnicianTicketActionService.VIEW_SCOPE_ACTIVE,
+        1,
     )
     assert TechnicianTicketActionService.parse_queue_callback_data(
         callback_data=f"{TechnicianTicketActionService.QUEUE_CALLBACK_PREFIX}:open:{ticket.id}"
@@ -247,6 +250,7 @@ def test_queue_callback_data_roundtrip(technician_ticket_context):
         TechnicianTicketActionService.QUEUE_ACTION_OPEN,
         ticket.id,
         TechnicianTicketActionService.VIEW_SCOPE_ACTIVE,
+        1,
     )
     assert (
         TechnicianTicketActionService.parse_queue_callback_data(
@@ -256,7 +260,9 @@ def test_queue_callback_data_roundtrip(technician_ticket_context):
     )
 
 
-def test_queue_keyboard_renders_ticket_buttons_and_refresh(technician_ticket_context):
+def test_queue_keyboard_renders_ticket_buttons_and_pagination(
+    technician_ticket_context,
+):
     ticket = technician_ticket_context["ticket"]
     technician = technician_ticket_context["technician"]
     states = TechnicianTicketActionService.queue_states_for_technician(
@@ -270,12 +276,29 @@ def test_queue_keyboard_renders_ticket_buttons_and_refresh(technician_ticket_con
             action=TechnicianTicketActionService.QUEUE_ACTION_OPEN,
             ticket_id=ticket.id,
             scope=TechnicianTicketActionService.VIEW_SCOPE_ACTIVE,
+            page=1,
         )
     )
+    assert [button.text for button in markup.inline_keyboard[-1]] == ["<", "1/1", ">"]
     assert markup.inline_keyboard[-1][0].callback_data == (
         TechnicianTicketActionService.build_queue_callback_data(
             action=TechnicianTicketActionService.QUEUE_ACTION_REFRESH,
             scope=TechnicianTicketActionService.VIEW_SCOPE_ACTIVE,
+            page=1,
+        )
+    )
+    assert markup.inline_keyboard[-1][1].callback_data == (
+        TechnicianTicketActionService.build_queue_callback_data(
+            action=TechnicianTicketActionService.QUEUE_ACTION_REFRESH,
+            scope=TechnicianTicketActionService.VIEW_SCOPE_ACTIVE,
+            page=1,
+        )
+    )
+    assert markup.inline_keyboard[-1][2].callback_data == (
+        TechnicianTicketActionService.build_queue_callback_data(
+            action=TechnicianTicketActionService.QUEUE_ACTION_REFRESH,
+            scope=TechnicianTicketActionService.VIEW_SCOPE_ACTIVE,
+            page=1,
         )
     )
 
@@ -334,6 +357,39 @@ def test_view_states_for_under_qc_and_past_scopes(
     assert "Total waiting QC tickets: 1" in under_qc_summary
     assert "Total past tickets: 1" in past_summary
     assert "Total active tickets: 1" in active_summary
+
+
+def test_paginated_view_states_clamps_out_of_bounds_page(
+    technician_ticket_context,
+    ticket_factory,
+    inventory_item_factory,
+):
+    assigned_ticket = technician_ticket_context["ticket"]
+    technician = technician_ticket_context["technician"]
+
+    for index in range(6):
+        ticket_factory(
+            inventory_item=inventory_item_factory(
+                serial_number=f"RM-TG-PAGE-{index + 1:02d}"
+            ),
+            master=assigned_ticket.master,
+            technician=technician,
+            status=TicketStatus.ASSIGNED,
+        )
+
+    states, safe_page, page_count, total_count = (
+        TechnicianTicketActionService.paginated_view_states_for_technician(
+            technician_id=technician.id,
+            scope=TechnicianTicketActionService.VIEW_SCOPE_ACTIVE,
+            page=99,
+            per_page=5,
+        )
+    )
+
+    assert total_count == 7
+    assert page_count == 2
+    assert safe_page == 2
+    assert len(states) == 2
 
 
 def test_state_includes_acquired_xp_for_ticket(technician_ticket_context):

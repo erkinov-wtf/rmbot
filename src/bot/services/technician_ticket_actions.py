@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from django.db.models import Sum
 from django.db.models.functions import Coalesce
+from django.utils.translation import gettext as django_gettext
+from django.utils.translation import gettext_noop
 
 from core.utils.constants import TicketStatus, WorkSessionStatus
 from gamification.models import XPTransaction
@@ -43,6 +45,7 @@ class TechnicianTicketActionService:
     VIEW_SCOPE_ACTIVE = "active"
     VIEW_SCOPE_UNDER_QC = "under_qc"
     VIEW_SCOPE_PAST = "past"
+    QUEUE_PAGE_SIZE = 5
 
     _ACTION_ORDER = (
         ACTION_START,
@@ -52,15 +55,15 @@ class TechnicianTicketActionService:
         ACTION_TO_WAITING_QC,
     )
     _ACTION_LABELS = {
-        ACTION_START: "▶ Start work",
-        ACTION_PAUSE: "⏸ Pause work",
-        ACTION_RESUME: "▶ Resume work",
-        ACTION_STOP: "⏹ Stop session",
-        ACTION_TO_WAITING_QC: "🧪 Send to QC",
-        ACTION_REFRESH: "🔄 Refresh ticket",
+        ACTION_START: gettext_noop("▶ Start work"),
+        ACTION_PAUSE: gettext_noop("⏸ Pause work"),
+        ACTION_RESUME: gettext_noop("▶ Resume work"),
+        ACTION_STOP: gettext_noop("⏹ Stop session"),
+        ACTION_TO_WAITING_QC: gettext_noop("🧪 Send to QC"),
+        ACTION_REFRESH: gettext_noop("🔄 Refresh ticket"),
     }
     _QUEUE_ACTION_LABELS = {
-        QUEUE_ACTION_REFRESH: "🔄 Refresh list",
+        QUEUE_ACTION_REFRESH: gettext_noop("🔄 Refresh list"),
     }
     _VIEW_SCOPE_STATUSES = {
         VIEW_SCOPE_ACTIVE: (
@@ -72,35 +75,54 @@ class TechnicianTicketActionService:
         VIEW_SCOPE_PAST: (TicketStatus.DONE,),
     }
     _VIEW_SCOPE_EMPTY_MESSAGES = {
-        VIEW_SCOPE_ACTIVE: "No active tickets assigned right now.",
-        VIEW_SCOPE_UNDER_QC: "No tickets are currently waiting QC.",
-        VIEW_SCOPE_PAST: "No past tickets found yet.",
+        VIEW_SCOPE_ACTIVE: gettext_noop("No active tickets assigned right now."),
+        VIEW_SCOPE_UNDER_QC: gettext_noop("No tickets are currently waiting QC."),
+        VIEW_SCOPE_PAST: gettext_noop("No past tickets found yet."),
     }
     _VIEW_SCOPE_TOTAL_LABELS = {
-        VIEW_SCOPE_ACTIVE: "Total active tickets",
-        VIEW_SCOPE_UNDER_QC: "Total waiting QC tickets",
-        VIEW_SCOPE_PAST: "Total past tickets",
+        VIEW_SCOPE_ACTIVE: gettext_noop("Total active tickets"),
+        VIEW_SCOPE_UNDER_QC: gettext_noop("Total waiting QC tickets"),
+        VIEW_SCOPE_PAST: gettext_noop("Total past tickets"),
     }
     _TICKET_STATUS_LABELS = {
-        TicketStatus.ASSIGNED: "Assigned",
-        TicketStatus.REWORK: "Rework",
-        TicketStatus.IN_PROGRESS: "In progress",
-        TicketStatus.WAITING_QC: "Waiting QC",
-        TicketStatus.DONE: "Done",
+        TicketStatus.ASSIGNED: gettext_noop("Assigned"),
+        TicketStatus.REWORK: gettext_noop("Rework"),
+        TicketStatus.IN_PROGRESS: gettext_noop("In progress"),
+        TicketStatus.WAITING_QC: gettext_noop("Waiting QC"),
+        TicketStatus.DONE: gettext_noop("Done"),
     }
     _SESSION_STATUS_LABELS = {
-        WorkSessionStatus.RUNNING: "Running",
-        WorkSessionStatus.PAUSED: "Paused",
-        WorkSessionStatus.STOPPED: "Stopped",
+        WorkSessionStatus.RUNNING: gettext_noop("Running"),
+        WorkSessionStatus.PAUSED: gettext_noop("Paused"),
+        WorkSessionStatus.STOPPED: gettext_noop("Stopped"),
     }
     _ACTION_FEEDBACK = {
-        ACTION_START: "Work session started.",
-        ACTION_PAUSE: "Work session paused.",
-        ACTION_RESUME: "Work session resumed.",
-        ACTION_STOP: "Work session stopped.",
-        ACTION_TO_WAITING_QC: "Ticket sent to QC.",
-        ACTION_REFRESH: "Ticket details refreshed.",
+        ACTION_START: gettext_noop("Work session started."),
+        ACTION_PAUSE: gettext_noop("Work session paused."),
+        ACTION_RESUME: gettext_noop("Work session resumed."),
+        ACTION_STOP: gettext_noop("Work session stopped."),
+        ACTION_TO_WAITING_QC: gettext_noop("Ticket sent to QC."),
+        ACTION_REFRESH: gettext_noop("Ticket details refreshed."),
     }
+    _ERROR_TICKET_NOT_ASSIGNED = gettext_noop(
+        "Ticket is not found or is not assigned to you."
+    )
+    _ERROR_WRONG_TECHNICIAN = gettext_noop("Ticket is not assigned to this technician.")
+    _ERROR_UNSUPPORTED_QUEUE_CALLBACK = gettext_noop(
+        "Unsupported queue callback action."
+    )
+    _ERROR_UNSUPPORTED_VIEW_SCOPE = gettext_noop("Unsupported ticket view scope.")
+    _ERROR_ACTION_NOT_AVAILABLE = gettext_noop(
+        "Action is not available for this ticket right now."
+    )
+    _ERROR_UNSUPPORTED_ACTION = gettext_noop("Unsupported action.")
+    _SERIAL_UNKNOWN = gettext_noop("unknown")
+
+    @staticmethod
+    def _translate(*, text: str, _) -> str:
+        if _ is None:
+            return django_gettext(text)
+        return _(text)
 
     @classmethod
     def queue_states_for_technician(
@@ -130,6 +152,36 @@ class TechnicianTicketActionService:
         ]
 
     @classmethod
+    def paginated_view_states_for_technician(
+        cls,
+        *,
+        technician_id: int,
+        scope: str,
+        page: int = 1,
+        per_page: int = QUEUE_PAGE_SIZE,
+    ) -> tuple[list[TechnicianTicketState], int, int, int]:
+        cls._validate_view_scope(scope=scope)
+        normalized_per_page = cls._normalize_per_page(per_page=per_page)
+        total_count = cls._queue_ticket_count_for_technician(
+            technician_id=technician_id,
+            scope=scope,
+        )
+        page_count = max(1, math.ceil(total_count / normalized_per_page))
+        safe_page = min(cls._normalize_page(page=page), page_count)
+        offset = (safe_page - 1) * normalized_per_page
+        tickets = cls._queue_tickets_for_technician(
+            technician_id=technician_id,
+            scope=scope,
+            limit=normalized_per_page,
+            offset=offset,
+        )
+        states = [
+            cls.state_for_ticket(ticket=ticket, technician_id=technician_id)
+            for ticket in tickets
+        ]
+        return states, safe_page, page_count, total_count
+
+    @classmethod
     def state_for_technician_and_ticket(
         cls, *, technician_id: int, ticket_id: int
     ) -> TechnicianTicketState:
@@ -138,7 +190,7 @@ class TechnicianTicketActionService:
             ticket_id=ticket_id,
         )
         if ticket is None:
-            raise ValueError("Ticket is not found or is not assigned to you.")
+            raise ValueError(cls._ERROR_TICKET_NOT_ASSIGNED)
         return cls.state_for_ticket(ticket=ticket, technician_id=technician_id)
 
     @classmethod
@@ -154,7 +206,7 @@ class TechnicianTicketActionService:
             ticket_id=ticket_id,
         )
         if ticket is None:
-            raise ValueError("Ticket is not found or is not assigned to you.")
+            raise ValueError(cls._ERROR_TICKET_NOT_ASSIGNED)
 
         cls._execute_action(ticket=ticket, technician_id=technician_id, action=action)
 
@@ -163,7 +215,7 @@ class TechnicianTicketActionService:
             ticket_id=ticket_id,
         )
         if refreshed_ticket is None:
-            raise ValueError("Ticket is not found or is not assigned to you.")
+            raise ValueError(cls._ERROR_TICKET_NOT_ASSIGNED)
         return cls.state_for_ticket(
             ticket=refreshed_ticket, technician_id=technician_id
         )
@@ -173,7 +225,7 @@ class TechnicianTicketActionService:
         cls, *, ticket: Ticket, technician_id: int
     ) -> TechnicianTicketState:
         if ticket.technician_id != technician_id:
-            raise ValueError("Ticket is not assigned to this technician.")
+            raise ValueError(cls._ERROR_WRONG_TECHNICIAN)
 
         session_status = cls._latest_session_status(
             ticket=ticket,
@@ -236,13 +288,17 @@ class TechnicianTicketActionService:
         *,
         states: Iterable[TechnicianTicketState],
         scope: str = VIEW_SCOPE_ACTIVE,
-        include_refresh: bool = True,
+        page: int = 1,
+        page_count: int = 1,
+        _=None,
     ) -> InlineKeyboardMarkup | None:
         cls._validate_view_scope(scope=scope)
         states_list = list(states)
+        safe_page_count = max(1, int(page_count or 1))
+        safe_page = min(cls._normalize_page(page=page), safe_page_count)
         inline_keyboard: list[list[InlineKeyboardButton]] = []
         for state in states_list:
-            status_label = cls._ticket_status_label(status=state.ticket_status)
+            status_label = cls._ticket_status_label(status=state.ticket_status, _=_)
             inline_keyboard.append(
                 [
                     InlineKeyboardButton(
@@ -254,23 +310,42 @@ class TechnicianTicketActionService:
                             action=cls.QUEUE_ACTION_OPEN,
                             ticket_id=state.ticket_id,
                             scope=scope,
+                            page=safe_page,
                         ),
                     )
                 ]
             )
 
-        if include_refresh:
-            inline_keyboard.append(
-                [
-                    InlineKeyboardButton(
-                        text=cls._QUEUE_ACTION_LABELS[cls.QUEUE_ACTION_REFRESH],
-                        callback_data=cls.build_queue_callback_data(
-                            action=cls.QUEUE_ACTION_REFRESH,
-                            scope=scope,
-                        ),
-                    )
-                ]
-            )
+        prev_page = max(1, safe_page - 1)
+        next_page = min(safe_page_count, safe_page + 1)
+        inline_keyboard.append(
+            [
+                InlineKeyboardButton(
+                    text="<",
+                    callback_data=cls.build_queue_callback_data(
+                        action=cls.QUEUE_ACTION_REFRESH,
+                        scope=scope,
+                        page=prev_page,
+                    ),
+                ),
+                InlineKeyboardButton(
+                    text=f"{safe_page}/{safe_page_count}",
+                    callback_data=cls.build_queue_callback_data(
+                        action=cls.QUEUE_ACTION_REFRESH,
+                        scope=scope,
+                        page=safe_page,
+                    ),
+                ),
+                InlineKeyboardButton(
+                    text=">",
+                    callback_data=cls.build_queue_callback_data(
+                        action=cls.QUEUE_ACTION_REFRESH,
+                        scope=scope,
+                        page=next_page,
+                    ),
+                ),
+            ]
+        )
 
         if not inline_keyboard:
             return None
@@ -283,6 +358,7 @@ class TechnicianTicketActionService:
         ticket_id: int,
         actions: Iterable[str],
         include_refresh: bool = True,
+        _=None,
     ) -> InlineKeyboardMarkup | None:
         action_set = {
             action
@@ -302,7 +378,7 @@ class TechnicianTicketActionService:
         for action in ordered_actions:
             row.append(
                 InlineKeyboardButton(
-                    text=cls._ACTION_LABELS[action],
+                    text=cls._translate(text=cls._ACTION_LABELS[action], _=_),
                     callback_data=cls.build_callback_data(
                         ticket_id=ticket_id,
                         action=action,
@@ -322,7 +398,14 @@ class TechnicianTicketActionService:
         *,
         state: TechnicianTicketState,
         heading: str | None = None,
+        _=None,
     ) -> str:
+        _ = _ or django_gettext
+        serial_number = (
+            _(cls._SERIAL_UNKNOWN)
+            if state.serial_number == cls._SERIAL_UNKNOWN
+            else state.serial_number
+        )
         lines: list[str] = []
         if heading:
             lines.append(heading)
@@ -330,34 +413,52 @@ class TechnicianTicketActionService:
         lines.append("━━━━━━━━━━━━━━━━━━")
         lines.extend(
             [
-                f"🎫 Ticket: #{state.ticket_id}",
-                f"🔢 Serial number: {state.serial_number}",
-                f"📍 Status: {cls._ticket_status_label(status=state.ticket_status)}",
+                _("🎫 Ticket: #%(ticket_id)s") % {"ticket_id": state.ticket_id},
+                _("🔢 Serial number: %(serial)s") % {"serial": serial_number},
+                _("📍 Status: %(status)s")
+                % {
+                    "status": cls._ticket_status_label(
+                        status=state.ticket_status,
+                        _=_,
+                    )
+                },
             ]
         )
         if state.session_status:
             lines.append(
-                f"🛠 Work session: {cls._session_status_label(status=state.session_status)}"
+                _("🛠 Work session: %(session)s")
+                % {
+                    "session": cls._session_status_label(
+                        status=state.session_status,
+                        _=_,
+                    )
+                }
             )
         if state.potential_xp > 0:
-            lines.append(f"🎯 Potential XP: +{state.potential_xp}")
+            lines.append(_("🎯 Potential XP: +%(xp)s") % {"xp": state.potential_xp})
         else:
-            lines.append("🎯 Potential XP: pending metrics")
-        lines.append(f"🏆 Acquired XP: +{state.acquired_xp}")
+            lines.append(_("🎯 Potential XP: pending metrics"))
+        lines.append(_("🏆 Acquired XP: +%(xp)s") % {"xp": state.acquired_xp})
         if state.potential_xp > 0:
-            lines.append(f"📈 XP progress: {state.acquired_xp}/{state.potential_xp}")
+            lines.append(
+                _("📈 XP progress: %(current)s/%(target)s")
+                % {
+                    "current": state.acquired_xp,
+                    "target": state.potential_xp,
+                }
+            )
         lines.append("━━━━━━━━━━━━━━━━━━")
 
         available_labels = [
-            cls._ACTION_LABELS[action]
+            cls._translate(text=cls._ACTION_LABELS[action], _=_)
             for action in state.actions
             if action != cls.ACTION_REFRESH and action in cls._ACTION_LABELS
         ]
         if available_labels:
-            lines.append("⚡ Available actions:")
+            lines.append(_("⚡ Available actions:"))
             lines.extend(f"• {label}" for label in available_labels)
         else:
-            lines.append("🧊 No technician actions are available right now.")
+            lines.append(_("🧊 No technician actions are available right now."))
         return "\n".join(lines)
 
     @classmethod
@@ -367,8 +468,13 @@ class TechnicianTicketActionService:
         states: Iterable[TechnicianTicketState],
         scope: str = VIEW_SCOPE_ACTIVE,
         heading: str | None = None,
+        total_count: int | None = None,
+        page: int | None = None,
+        page_count: int | None = None,
+        _=None,
     ) -> str:
         cls._validate_view_scope(scope=scope)
+        _ = _ or django_gettext
         states_list = list(states)
         lines: list[str] = []
         if heading:
@@ -376,37 +482,67 @@ class TechnicianTicketActionService:
 
         if not states_list:
             lines.append(
-                cls._VIEW_SCOPE_EMPTY_MESSAGES.get(
-                    scope,
-                    cls._VIEW_SCOPE_EMPTY_MESSAGES[cls.VIEW_SCOPE_ACTIVE],
+                _(
+                    cls._VIEW_SCOPE_EMPTY_MESSAGES.get(
+                        scope,
+                        cls._VIEW_SCOPE_EMPTY_MESSAGES[cls.VIEW_SCOPE_ACTIVE],
+                    )
                 )
             )
             return "\n".join(lines)
 
-        total_label = cls._VIEW_SCOPE_TOTAL_LABELS.get(
-            scope,
-            cls._VIEW_SCOPE_TOTAL_LABELS[cls.VIEW_SCOPE_ACTIVE],
+        total_label = _(
+            cls._VIEW_SCOPE_TOTAL_LABELS.get(
+                scope,
+                cls._VIEW_SCOPE_TOTAL_LABELS[cls.VIEW_SCOPE_ACTIVE],
+            )
         )
-        lines.append(f"{total_label}: {len(states_list)}")
+        resolved_total_count = (
+            max(0, int(total_count)) if total_count is not None else len(states_list)
+        )
+        lines.append(
+            _("%(label)s: %(count)s")
+            % {"label": total_label, "count": resolved_total_count}
+        )
+        if page is not None and page_count is not None:
+            safe_page_count = max(1, int(page_count))
+            safe_page = min(cls._normalize_page(page=page), safe_page_count)
+            lines.append(
+                _("Page: %(page)s/%(page_count)s")
+                % {"page": safe_page, "page_count": safe_page_count}
+            )
         for state in states_list:
+            serial_number = (
+                _(cls._SERIAL_UNKNOWN)
+                if state.serial_number == cls._SERIAL_UNKNOWN
+                else state.serial_number
+            )
             session_suffix = (
                 (
-                    " | session: "
-                    f"{cls._session_status_label(status=state.session_status)}"
+                    _(" | session: %(session)s")
+                    % {
+                        "session": cls._session_status_label(
+                            status=state.session_status,
+                            _=_,
+                        )
+                    }
                 )
                 if state.session_status
                 else ""
             )
             potential_xp = str(state.potential_xp) if state.potential_xp > 0 else "?"
-            xp_suffix = f" | xp: +{state.acquired_xp}/{potential_xp}"
+            xp_suffix = _(" | xp: +%(current)s/%(target)s") % {
+                "current": state.acquired_xp,
+                "target": potential_xp,
+            }
             ticket_line = (
                 f"{cls._status_icon(status=state.ticket_status)} "
-                f"#{state.ticket_id} | {state.serial_number} | "
-                f"{cls._ticket_status_label(status=state.ticket_status)}"
+                f"#{state.ticket_id} | {serial_number} | "
+                f"{cls._ticket_status_label(status=state.ticket_status, _=_)}"
                 f"{session_suffix}{xp_suffix}"
             )
             lines.append(ticket_line)
-        lines.append("Use the inline buttons below to open ticket details.")
+        lines.append(_("Use the inline buttons below to open ticket details."))
         return "\n".join(lines)
 
     @classmethod
@@ -417,8 +553,11 @@ class TechnicianTicketActionService:
         return cls.VIEW_SCOPE_ACTIVE
 
     @classmethod
-    def action_feedback(cls, *, action: str) -> str:
-        return cls._ACTION_FEEDBACK.get(action, "Ticket state updated.")
+    def action_feedback(cls, *, action: str, _=None) -> str:
+        feedback = cls._ACTION_FEEDBACK.get(
+            action, gettext_noop("Ticket state updated.")
+        )
+        return cls._translate(text=feedback, _=_)
 
     @classmethod
     def build_callback_data(cls, *, ticket_id: int, action: str) -> str:
@@ -448,19 +587,24 @@ class TechnicianTicketActionService:
         action: str,
         ticket_id: int | None = None,
         scope: str = VIEW_SCOPE_ACTIVE,
+        page: int = 1,
     ) -> str:
         cls._validate_view_scope(scope=scope)
+        safe_page = cls._normalize_page(page=page)
         if action == cls.QUEUE_ACTION_REFRESH:
-            return f"{cls.QUEUE_CALLBACK_PREFIX}:{action}:{scope}"
+            return f"{cls.QUEUE_CALLBACK_PREFIX}:{action}:{scope}:{safe_page}"
         if action == cls.QUEUE_ACTION_OPEN and ticket_id is not None:
-            return f"{cls.QUEUE_CALLBACK_PREFIX}:{action}:{int(ticket_id)}:{scope}"
-        raise ValueError("Unsupported queue callback action.")
+            return (
+                f"{cls.QUEUE_CALLBACK_PREFIX}:{action}:{int(ticket_id)}:{scope}:"
+                f"{safe_page}"
+            )
+        raise ValueError(cls._ERROR_UNSUPPORTED_QUEUE_CALLBACK)
 
     @classmethod
     def parse_queue_callback_data(
         cls, *, callback_data: str
-    ) -> tuple[str, int | None, str] | None:
-        parts = str(callback_data or "").split(":", 3)
+    ) -> tuple[str, int | None, str, int] | None:
+        parts = str(callback_data or "").split(":")
         if len(parts) < 2 or parts[0] != cls.QUEUE_CALLBACK_PREFIX:
             return None
 
@@ -469,7 +613,14 @@ class TechnicianTicketActionService:
             scope = parts[2] if len(parts) >= 3 else cls.VIEW_SCOPE_ACTIVE
             if scope not in cls._VIEW_SCOPE_STATUSES:
                 return None
-            return action, None, scope
+            if len(parts) >= 4:
+                try:
+                    page = int(parts[3])
+                except (TypeError, ValueError):
+                    return None
+            else:
+                page = 1
+            return action, None, scope, cls._normalize_page(page=page)
 
         if action == cls.QUEUE_ACTION_OPEN:
             try:
@@ -479,7 +630,14 @@ class TechnicianTicketActionService:
             scope = parts[3] if len(parts) >= 4 else cls.VIEW_SCOPE_ACTIVE
             if scope not in cls._VIEW_SCOPE_STATUSES:
                 return None
-            return action, ticket_id, scope
+            if len(parts) >= 5:
+                try:
+                    page = int(parts[4])
+                except (TypeError, ValueError):
+                    return None
+            else:
+                page = 1
+            return action, ticket_id, scope, cls._normalize_page(page=page)
 
         return None
 
@@ -500,6 +658,7 @@ class TechnicianTicketActionService:
         technician_id: int,
         scope: str,
         limit: int = 20,
+        offset: int = 0,
     ) -> list[Ticket]:
         cls._validate_view_scope(scope=scope)
         queryset = (
@@ -510,14 +669,45 @@ class TechnicianTicketActionService:
             )
             .order_by("-created_at", "-id")
         )
+        normalized_offset = max(0, int(offset or 0))
+        if normalized_offset > 0:
+            queryset = queryset[normalized_offset:]
         if limit > 0:
             queryset = queryset[:limit]
         return list(queryset)
 
     @classmethod
+    def _queue_ticket_count_for_technician(
+        cls, *, technician_id: int, scope: str
+    ) -> int:
+        cls._validate_view_scope(scope=scope)
+        return int(
+            Ticket.domain.filter(
+                technician_id=technician_id,
+                status__in=list(cls._VIEW_SCOPE_STATUSES[scope]),
+            ).count()
+        )
+
+    @staticmethod
+    def _normalize_page(*, page: int) -> int:
+        try:
+            normalized_page = int(page)
+        except (TypeError, ValueError):
+            return 1
+        return max(1, normalized_page)
+
+    @classmethod
+    def _normalize_per_page(cls, *, per_page: int) -> int:
+        try:
+            normalized = int(per_page)
+        except (TypeError, ValueError):
+            return cls.QUEUE_PAGE_SIZE
+        return max(1, normalized)
+
+    @classmethod
     def _validate_view_scope(cls, *, scope: str) -> None:
         if scope not in cls._VIEW_SCOPE_STATUSES:
-            raise ValueError("Unsupported ticket view scope.")
+            raise ValueError(cls._ERROR_UNSUPPORTED_VIEW_SCOPE)
 
     @classmethod
     def _status_icon(cls, *, status: str) -> str:
@@ -530,12 +720,14 @@ class TechnicianTicketActionService:
         }.get(status, "🎟")
 
     @classmethod
-    def _ticket_status_label(cls, *, status: str) -> str:
-        return cls._TICKET_STATUS_LABELS.get(status, str(status))
+    def _ticket_status_label(cls, *, status: str, _=None) -> str:
+        label = cls._TICKET_STATUS_LABELS.get(status, str(status))
+        return cls._translate(text=label, _=_)
 
     @classmethod
-    def _session_status_label(cls, *, status: str) -> str:
-        return cls._SESSION_STATUS_LABELS.get(status, str(status))
+    def _session_status_label(cls, *, status: str, _=None) -> str:
+        label = cls._SESSION_STATUS_LABELS.get(status, str(status))
+        return cls._translate(text=label, _=_)
 
     @classmethod
     def _potential_xp_for_ticket(cls, *, ticket: Ticket) -> int:
@@ -595,7 +787,7 @@ class TechnicianTicketActionService:
             technician_id=technician_id,
         )
         if action not in available_actions:
-            raise ValueError("Action is not available for this ticket right now.")
+            raise ValueError(cls._ERROR_ACTION_NOT_AVAILABLE)
 
         if action == cls.ACTION_START:
             from ticket.services_workflow import TicketWorkflowService
@@ -642,9 +834,12 @@ class TechnicianTicketActionService:
             )
             return
 
-        raise ValueError("Unsupported action.")
+        raise ValueError(cls._ERROR_UNSUPPORTED_ACTION)
 
     @staticmethod
     def _serial_number(*, ticket: Ticket) -> str:
         inventory_item = getattr(ticket, "inventory_item", None)
-        return getattr(inventory_item, "serial_number", "") or "unknown"
+        return (
+            getattr(inventory_item, "serial_number", "")
+            or TechnicianTicketActionService._SERIAL_UNKNOWN
+        )

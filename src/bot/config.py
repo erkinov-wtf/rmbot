@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from pathlib import Path
 
 from django.conf import settings
 
@@ -14,7 +13,6 @@ class BotSettings:
     parse_mode: str
     default_locale: str
     fallback_locale: str
-    locales_path: Path
 
     @property
     def webhook_url(self) -> str:
@@ -37,5 +35,4 @@ def get_bot_settings() -> BotSettings:
         parse_mode=settings.BOT_PARSE_MODE,
         default_locale=settings.BOT_DEFAULT_LOCALE,
         fallback_locale=settings.BOT_FALLBACK_LOCALE,
-        locales_path=settings.LOCALE_PATHS,
     )

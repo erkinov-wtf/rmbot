@@ -8,7 +8,6 @@ Covers ticket lifecycle, work sessions, and analytics.
 - `docs/apps/ticket/managers.md`
 - `docs/apps/ticket/services_workflow.md`
 - `docs/apps/ticket/services_work_session.md`
-- `docs/apps/ticket/services_technician_actions.md`
 - `docs/apps/ticket/services_analytics.md`
 
 ## Maintenance Rules

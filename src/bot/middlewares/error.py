@@ -2,8 +2,10 @@ from logging import getLogger
 from typing import TYPE_CHECKING, Optional
 
 from aiogram import BaseMiddleware
+from django.utils.translation import gettext_noop
 
 logger = getLogger(__name__)
+ERROR_GENERIC_MESSAGE = gettext_noop("Something went wrong. Please try again later.")
 
 if TYPE_CHECKING:
     from aiogram.types import Message
@@ -21,9 +23,7 @@ class ErrorMiddleware(BaseMiddleware):
 
             if message:
                 translate = data.get("_", lambda x: x)
-                await message.answer(
-                    translate("Something went wrong. Please try again later.")
-                )
+                await message.answer(translate(ERROR_GENERIC_MESSAGE))
 
             return None
 

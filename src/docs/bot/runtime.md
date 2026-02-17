@@ -7,9 +7,9 @@ Documents aiogram runtime assembly, lifecycle entrypoints, webhook intake path, 
 - `create_bot_bundle` in `bot/etc/loader.py` assembles:
   - `Bot` (parse mode from settings)
   - `Dispatcher` (in-memory FSM storage)
-  - DI `Container` (settings/logger/i18n)
+  - DI `Container` (settings/logger)
 - `bot/runtime.py` keeps a process-global lazy `BotBundle` behind an async lock.
-- Root router includes onboarding/fallback handlers and technician ticket handlers (`/queue` + callback actions).
+- Root router includes onboarding/fallback handlers, ticket-admin handlers (`/ticket_create`, `/ticket_review`), and technician ticket handlers (`/queue` + callback actions).
 
 ## Execution Flows
 
@@ -36,6 +36,8 @@ Documents aiogram runtime assembly, lifecycle entrypoints, webhook intake path, 
   2. `I18nMiddleware`
   3. `DIMiddleware`
   4. `AuthMiddleware`
+- `I18nMiddleware` resolves locale from Telegram `language_code` dynamically, normalizes regional variants (`ru-RU`, `uz_UZ`) to supported bot locales (`en`, `ru`, `uz`), and wraps each update in `django.utils.translation.override(...)`.
+- Bot handlers receive `_` from middleware, backed by Django `gettext`, so runtime language selection is per-update and per-user.
 - `AuthMiddleware` resolves identity from aiogram update context (`data["event_from_user"]`) first, then falls back to event/message objects, so update-level middleware execution still authenticates `/queue` and callback actions correctly.
 - `AuthMiddleware` uses `AccountService.resolve_bot_actor` to upsert/revive Telegram profiles and recover active user links from access-request history, reducing false "not registered" responses for legacy data.
 - `get_bundle()` is concurrency-safe; only one bundle instance exists per process.
@@ -50,6 +52,7 @@ Documents aiogram runtime assembly, lifecycle entrypoints, webhook intake path, 
 - FSM storage is in-memory and not restart-safe.
 - Webhook mode is preferred for multi-worker deployments.
 - Polling can be started even when mode is not `polling` (warning-oriented behavior).
+- Bot translations are stored in Django locale catalogs (`locales/<lang>/LC_MESSAGES/django.po`) and compiled to `.mo` via `python manage.py compilemessages`.
 
 ## Related Code
 - `bot/etc/loader.py`

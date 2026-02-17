@@ -15,136 +15,138 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
 
 #: bot/middlewares/error.py:8
 msgid "Something went wrong. Please try again later."
-msgstr ""
+msgstr "Nimadir xato ketdi. Iltimos, keyinroq qayta urinib ko'ring."
 
 #: bot/routers/fallback.py:9
 msgid "Unknown command. Use /help."
-msgstr ""
+msgstr "Noma'lum buyruq. /help dan foydalaning."
 
 #: bot/routers/start.py:69
 msgid "Share phone number"
-msgstr ""
+msgstr "Telefon raqamini ulashish"
 
 #: bot/routers/start.py:89 bot/routers/ticket_admin_create.py:104
 #: bot/routers/ticket_admin_review.py:221
 msgid "Could not open this page."
-msgstr ""
+msgstr "Bu sahifani ochib bo'lmadi."
 
 #: bot/routers/start.py:138
 msgid "Your access request is already under review."
-msgstr ""
+msgstr "Kirish so'rovingiz allaqachon ko'rib chiqilmoqda."
 
 #: bot/routers/start.py:150
 msgid "You are all set. Your account is already active."
-msgstr ""
+msgstr "Hammasi tayyor. Hisobingiz allaqachon faol."
 
 #: bot/routers/start.py:157
 msgid "Let's create your access request. Please enter your first name."
-msgstr ""
+msgstr "Kirish so'rovingizni yaratamiz. Iltimos, ismingizni kiriting."
 
 #: bot/routers/start.py:172
 msgid "Available commands:"
-msgstr ""
+msgstr "Mavjud buyruqlar:"
 
 #: bot/routers/start.py:173
 msgid "Start the bot and access setup"
-msgstr ""
+msgstr "Botni va kirishni sozlashni boshlash"
 
 #: bot/routers/start.py:174
 msgid "Check my profile and access status"
-msgstr ""
+msgstr "Profilim va kirish holatini tekshirish"
 
 #: bot/routers/start.py:175
 msgid "Start ticket intake flow"
-msgstr ""
+msgstr "Ariza yaratish jarayonini boshlash"
 
 #: bot/routers/start.py:176
 msgid "Open ticket review queue"
-msgstr ""
+msgstr "Arizalar tekshiruv navbatini ochish"
 
 #: bot/routers/start.py:177 bot/routers/start.py:178
 msgid "Open my active ticket list"
-msgstr ""
+msgstr "Faol arizalar ro'yxatini ochish"
 
 #: bot/routers/start.py:179
 msgid "Open technician ticket controls"
-msgstr ""
+msgstr "Texnik arizalari boshqaruvini ochish"
 
 #: bot/routers/start.py:180
 msgid "Open tickets waiting for quality check"
-msgstr ""
+msgstr "Sifat tekshiruvini kutayotgan arizalarni ochish"
 
 #: bot/routers/start.py:181
 msgid "Open my completed tickets"
-msgstr ""
+msgstr "Yakunlangan arizalarimni ochish"
 
 #: bot/routers/start.py:182
 msgid "Open my assigned QC checks"
-msgstr ""
+msgstr "Menga biriktirilgan QC tekshiruvlarini ochish"
 
 #: bot/routers/start.py:183
 msgid "Show my XP summary"
-msgstr ""
+msgstr "XP hisobotimni ko'rsatish"
 
 #: bot/routers/start.py:184
 msgid "Show my XP activity with pages"
-msgstr ""
+msgstr "XP faolligimni sahifalar bilan ko'rsatish"
 
 #: bot/routers/start.py:185
 msgid "Cancel the current form"
-msgstr ""
+msgstr "Joriy formani bekor qilish"
 
 #: bot/routers/start.py:186
 msgid "Show this help message"
-msgstr ""
+msgstr "Ushbu yordam xabarini ko'rsatish"
 
 #: bot/routers/start.py:204
 msgid "There is no form in progress right now."
-msgstr ""
+msgstr "Hozir jarayonda forma yo'q."
 
 #: bot/routers/start.py:215
 msgid "Canceled. You can start a new request anytime."
-msgstr ""
+msgstr "Bekor qilindi. Istalgan payt yangi so'rovni boshlashingiz mumkin."
 
 #: bot/routers/start.py:228
 msgid "Please enter a valid first name (at least 2 letters)."
-msgstr ""
+msgstr "Iltimos, to'g'ri ism kiriting (kamida 2 ta harf)."
 
 #: bot/routers/start.py:232
 msgid "Please enter your last name."
-msgstr ""
+msgstr "Iltimos, familiyangizni kiriting."
 
 #: bot/routers/start.py:239
 msgid "Please enter a valid last name (at least 2 letters)."
-msgstr ""
+msgstr "Iltimos, to'g'ri familiya kiriting (kamida 2 ta harf)."
 
 #: bot/routers/start.py:244
 msgid "Please share your phone number or type it in international format."
-msgstr ""
+msgstr "Iltimos, telefon raqamingizni ulashing yoki xalqaro formatda kiriting."
 
 #: bot/routers/start.py:281
 msgid "Request submitted successfully. We will review it and message you here."
 msgstr ""
+"So'rov muvaffaqiyatli yuborildi. Uni ko'rib chiqamiz va shu yerda xabar "
+"beramiz."
 
 #: bot/routers/start.py:287
 msgid "Your request is already under review."
-msgstr ""
+msgstr "So'rovingiz allaqachon ko'rib chiqilmoqda."
 
 #: bot/routers/start.py:296
 msgid "Please share your own phone number, not someone else's."
-msgstr ""
+msgstr "Iltimos, boshqaniki emas, o'zingizning raqamingizni ulashing."
 
 #: bot/routers/start.py:300
 msgid "Please share a valid phone number."
-msgstr ""
+msgstr "Iltimos, to'g'ri telefon raqamini ulashing."
 
 #: bot/routers/start.py:309
 msgid "Please send a valid phone number in international format."
-msgstr ""
+msgstr "Iltimos, xalqaro formatda to'g'ri telefon raqamini yuboring."
 
 #: bot/routers/technician_tickets.py:137 bot/routers/technician_tickets.py:215
 #: bot/routers/technician_tickets.py:230 bot/routers/ticket_admin_create.py:70
@@ -154,168 +156,170 @@ msgstr ""
 #: bot/routers/ticket_admin_review.py:458 bot/routers/ticket_qc.py:138
 #: bot/routers/ticket_qc.py:196 bot/routers/ticket_qc.py:207
 msgid "Unknown action."
-msgstr ""
+msgstr "Noma'lum amal."
 
 #: bot/routers/technician_tickets.py:146 bot/routers/technician_tickets.py:239
 msgid "This action is available only for technicians."
-msgstr ""
+msgstr "Bu amal faqat texniklar uchun mavjud."
 
 #: bot/routers/technician_tickets.py:187
 msgid "🎛 Technician ticket controls."
-msgstr ""
+msgstr "🎛 Texnik arizasi boshqaruvi."
 
 #: bot/routers/technician_tickets.py:189
 msgid "🔎 Technician ticket details."
-msgstr ""
+msgstr "🔎 Texnik arizasi tafsilotlari."
 
 #: bot/routers/technician_tickets.py:210
 #, python-brace-format
 msgid "Ticket #{ticket_id} opened."
-msgstr ""
+msgstr "Ariza #{ticket_id} ochildi."
 
 #: bot/routers/technician_tickets.py:258
 msgid "✅ Ticket state updated."
-msgstr ""
+msgstr "✅ Ariza holati yangilandi."
 
 #: bot/routers/technician_tickets.py:295
 msgid ""
 "This old quick panel was removed. Use the bottom keyboard buttons for Stats, "
 "XP, and queue sections."
 msgstr ""
+"Eski tezkor panel olib tashlandi. Statistika, XP va navbat bo'limlari uchun "
+"pastdagi tugmalardan foydalaning."
 
 #: bot/routers/ticket_admin_create.py:34 bot/routers/ticket_admin_create.py:81
 msgid "Your roles do not allow ticket intake."
-msgstr ""
+msgstr "Rollaringiz ariza yaratishga ruxsat bermaydi."
 
 #: bot/routers/ticket_admin_create.py:94
 msgid "Ticket intake canceled."
-msgstr ""
+msgstr "Ariza yaratish bekor qilindi."
 
 #: bot/routers/ticket_admin_create.py:112
 #: bot/routers/ticket_admin_create.py:118
 msgid "Invalid item selection."
-msgstr ""
+msgstr "Noto'g'ri element tanlovi."
 
 #: bot/routers/ticket_admin_create.py:126
 msgid "Inventory item was not found."
-msgstr ""
+msgstr "Inventar elementi topilmadi."
 
 #: bot/routers/ticket_admin_create.py:135
 msgid "An active ticket already exists for this inventory item."
-msgstr ""
+msgstr "Bu inventar elementi uchun faol ariza allaqachon mavjud."
 
 #: bot/routers/ticket_admin_create.py:149
 #: bot/services/ticket_admin_support.py:477
 msgid "This inventory item has no parts configured."
-msgstr ""
+msgstr "Bu inventar elementi uchun detallar sozlanmagan."
 
 #: bot/routers/ticket_admin_create.py:193
 msgid "Ticket intake session expired. Start again."
-msgstr ""
+msgstr "Ariza yaratish sessiyasi tugadi. Qayta boshlang."
 
 #: bot/routers/ticket_admin_create.py:198
 #: bot/routers/ticket_admin_create.py:203
 #: bot/routers/ticket_admin_create.py:208
 msgid "Invalid part selection."
-msgstr ""
+msgstr "Noto'g'ri detal tanlovi."
 
 #: bot/routers/ticket_admin_create.py:236
 msgid "Select at least one part first."
-msgstr ""
+msgstr "Avval kamida bitta detalni tanlang."
 
 #: bot/routers/ticket_admin_create.py:301
 #: bot/routers/ticket_admin_create.py:341
 #: bot/routers/ticket_admin_create.py:478
 msgid "Part configuration session expired."
-msgstr ""
+msgstr "Detal sozlash sessiyasi tugadi."
 
 #: bot/routers/ticket_admin_create.py:306
 #: bot/routers/ticket_admin_create.py:310
 #: bot/routers/ticket_admin_review.py:379
 #: bot/routers/ticket_admin_review.py:383
 msgid "Invalid color option."
-msgstr ""
+msgstr "Noto'g'ri rang varianti."
 
 #: bot/routers/ticket_admin_create.py:317
 #: bot/routers/ticket_admin_create.py:322
 msgid "Invalid minutes option."
-msgstr ""
+msgstr "Noto'g'ri daqiqa varianti."
 
 #: bot/routers/ticket_admin_create.py:329
 #: bot/routers/ticket_admin_create.py:334
 msgid "Invalid minutes adjustment."
-msgstr ""
+msgstr "Noto'g'ri daqiqa tuzatishi."
 
 #: bot/routers/ticket_admin_create.py:395
 msgid "Part saved."
-msgstr ""
+msgstr "Detal saqlandi."
 
 #: bot/routers/ticket_admin_create.py:417
 msgid "All part specs configured."
-msgstr ""
+msgstr "Barcha detal parametrlari sozlandi."
 
 #: bot/routers/ticket_admin_create.py:423
 msgid "Configure parts first."
-msgstr ""
+msgstr "Avval detallarni sozlang."
 
 #: bot/routers/ticket_admin_create.py:428
 msgid "No part specs were configured."
-msgstr ""
+msgstr "Detal parametrlari sozlanmagan."
 
 #: bot/routers/ticket_admin_create.py:444
 #: bot/routers/ticket_admin_create.py:450
 #, python-format
 msgid "Ticket create failed: %(reason)s"
-msgstr ""
+msgstr "Ariza yaratish muvaffaqiyatsiz: %(reason)s"
 
 #: bot/routers/ticket_admin_create.py:459
 msgid "Ticket created successfully.\n"
-msgstr ""
+msgstr "Ariza muvaffaqiyatli yaratildi.\n"
 
 #: bot/routers/ticket_admin_create.py:460
 #, python-format
 msgid "Ticket: #%(ticket_id)s\n"
-msgstr ""
+msgstr "Ariza: #%(ticket_id)s\n"
 
 #: bot/routers/ticket_admin_create.py:461
 #, python-format
 msgid "Serial: %(serial)s\n"
-msgstr ""
+msgstr "Seriya: %(serial)s\n"
 
 #: bot/routers/ticket_admin_create.py:462
 #, python-format
 msgid "Status: %(status)s\n"
-msgstr ""
+msgstr "Holat: %(status)s\n"
 
 #: bot/routers/ticket_admin_create.py:464
 #, python-format
 msgid "Total minutes: %(minutes)s\n"
-msgstr ""
+msgstr "Jami daqiqa: %(minutes)s\n"
 
 #: bot/routers/ticket_admin_create.py:465
 #: bot/services/ticket_admin_support.py:775
 #, python-format
 msgid "Flag / XP: %(flag)s / %(xp)s"
-msgstr ""
+msgstr "Flag / XP: %(flag)s / %(xp)s"
 
 #: bot/routers/ticket_admin_create.py:471
 msgid "Ticket intake flow completed."
-msgstr ""
+msgstr "Ariza yaratish jarayoni yakunlandi."
 
 #: bot/routers/ticket_admin_review.py:32 bot/routers/ticket_admin_review.py:81
 #: bot/routers/ticket_admin_review.py:131
 msgid "Your roles do not allow ticket review actions."
-msgstr ""
+msgstr "Rollaringiz ariza tekshirish amallariga ruxsat bermaydi."
 
 #: bot/routers/ticket_admin_review.py:89
 msgid "Review queue refreshed."
-msgstr ""
+msgstr "Tekshiruv navbati yangilandi."
 
 #: bot/routers/ticket_admin_review.py:158
 #: bot/routers/ticket_admin_review.py:203
 #: bot/routers/ticket_admin_review.py:254
 msgid "Your roles do not allow approve-and-assign action."
-msgstr ""
+msgstr "Rollaringiz tasdiqlash va biriktirish amaliga ruxsat bermaydi."
 
 #: bot/routers/ticket_admin_review.py:164
 #: bot/routers/ticket_admin_review.py:209
@@ -326,522 +330,524 @@ msgstr ""
 #: bot/services/ticket_admin_support.py:1039
 #: bot/services/ticket_qc_actions.py:37
 msgid "Ticket was not found."
-msgstr ""
+msgstr "Ariza topilmadi."
 
 #: bot/routers/ticket_admin_review.py:168
 #: bot/routers/ticket_admin_review.py:213
 #: bot/routers/ticket_admin_review.py:264
 msgid "Approve & assign is not available for this ticket status."
-msgstr ""
+msgstr "Bu amal hozir ushbu ariza uchun mavjud emas."
 
 #: bot/routers/ticket_admin_review.py:180
 #: bot/routers/ticket_admin_review.py:231
 msgid "No technicians are available for assignment."
-msgstr ""
+msgstr "Biriktirish uchun texniklar mavjud emas."
 
 #: bot/routers/ticket_admin_review.py:189
 #: bot/routers/ticket_admin_review.py:240
 #, python-format
 msgid "Select technician for ticket #%(ticket_id)s."
-msgstr ""
+msgstr "Ariza #%(ticket_id)s uchun texnikni tanlang."
 
 #: bot/routers/ticket_admin_review.py:270
 #: bot/routers/ticket_admin_review.py:275
 msgid "Technician selection is invalid."
-msgstr ""
+msgstr "Noto'g'ri texnik tanlovi."
 
 #: bot/routers/ticket_admin_review.py:287
 #, python-format
 msgid "Approve & assign failed: %(reason)s"
-msgstr ""
+msgstr "Tasdiqlash va biriktirish muvaffaqiyatsiz: %(reason)s"
 
 #: bot/routers/ticket_admin_review.py:302
 msgid "Ticket approved and assigned."
-msgstr ""
+msgstr "Ariza tasdiqlandi va biriktirildi."
 
 #: bot/routers/ticket_admin_review.py:308
 #: bot/routers/ticket_admin_review.py:354
 msgid "Your roles do not allow manual metrics override."
-msgstr ""
+msgstr "Rollaringiz qo'lda metrikani o'zgartirishga ruxsat bermaydi."
 
 #: bot/routers/ticket_admin_review.py:390
 #: bot/routers/ticket_admin_review.py:395
 msgid "Invalid XP option."
-msgstr ""
+msgstr "Noto'g'ri XP varianti."
 
 #: bot/routers/ticket_admin_review.py:402
 #: bot/routers/ticket_admin_review.py:407
 msgid "Invalid XP adjustment."
-msgstr ""
+msgstr "Noto'g'ri XP tuzatishi."
 
 #: bot/routers/ticket_admin_review.py:422
 #, python-format
 msgid "Manual metrics update failed: %(reason)s"
-msgstr ""
+msgstr "Qo'lda metrikani yangilash muvaffaqiyatsiz: %(reason)s"
 
 #: bot/routers/ticket_admin_review.py:438
 msgid "Manual metrics updated."
-msgstr ""
+msgstr "Qo'lda metrikalar yangilandi."
 
 #: bot/routers/ticket_qc.py:77 bot/services/ticket_qc_queue.py:28
 msgid "🧪 My QC checks."
-msgstr ""
+msgstr "🧪 Mening QC tekshiruvlarim."
 
 #: bot/routers/ticket_qc.py:100 bot/routers/ticket_qc.py:143
 #: bot/routers/ticket_qc.py:212 bot/services/ticket_admin_support.py:373
 #: bot/services/ticket_admin_support.py:384
 msgid "You do not have access yet. Send /start to request access."
-msgstr ""
+msgstr "Sizda hali kirish yo'q. Kirish so'rash uchun /start yuboring."
 
 #: bot/routers/ticket_qc.py:110 bot/routers/ticket_qc.py:150
 #: bot/routers/ticket_qc.py:219
 msgid "This action is available only for QC inspectors."
-msgstr ""
+msgstr "Bu amal faqat QC inspektorlari uchun mavjud."
 
 #: bot/routers/ticket_qc.py:159
 msgid "QC checks refreshed."
-msgstr ""
+msgstr "QC tekshiruvlari ro'yxati yangilandi."
 
 #: bot/routers/ticket_qc.py:170
 msgid "Ticket is not assigned to you for QC."
-msgstr ""
+msgstr "Ariza QC uchun sizga biriktirilmagan."
 
 #: bot/routers/ticket_qc.py:188 bot/routers/ticket_qc.py:284
 msgid "🧪 QC ticket action panel."
-msgstr ""
+msgstr "🧪 Ariza uchun QC amallari paneli."
 
 #: bot/routers/ticket_qc.py:193
 msgid "QC check opened."
-msgstr ""
+msgstr "QC tekshiruvi ochildi."
 
 #: bot/services/menu.py:12
 msgid "🎟 Active Tickets"
-msgstr ""
+msgstr "🎟 Faol arizalar"
 
 #: bot/services/menu.py:13
 msgid "🧪 Under QC"
-msgstr ""
+msgstr "🧪 QC kutilmoqda"
 
 #: bot/services/menu.py:14
 msgid "✅ Past Tickets"
-msgstr ""
+msgstr "✅ O'tgan arizalar"
 
 #: bot/services/menu.py:15
 msgid "⭐ My XP"
-msgstr ""
+msgstr "⭐ Mening XPim"
 
 #: bot/services/menu.py:16
 msgid "📜 XP Activity"
-msgstr ""
+msgstr "📜 XP tarixi"
 
 #: bot/services/menu.py:17
 msgid "📊 My Profile"
-msgstr ""
+msgstr "📊 Mening profilim"
 
 #: bot/services/menu.py:18
 msgid "🧪 QC Checks"
-msgstr ""
+msgstr "🧪 QC tekshiruvlari"
 
 #: bot/services/menu.py:19
 msgid "🆕 Create Ticket"
-msgstr ""
+msgstr "🆕 Ariza yaratish"
 
 #: bot/services/menu.py:20
 msgid "🧾 Review Tickets"
-msgstr ""
+msgstr "🧾 Arizalarni tekshirish"
 
 #: bot/services/menu.py:21
 msgid "❓ Help"
-msgstr ""
+msgstr "❓ Yordam"
 
 #: bot/services/menu.py:22
 msgid "📝 Start Access Request"
-msgstr ""
+msgstr "📝 Kirish so'rovi"
 
 #: bot/services/start_support.py:132
 msgid "On-time attendance reward"
-msgstr ""
+msgstr "O'z vaqtida kelish mukofoti"
 
 #: bot/services/start_support.py:133
 msgid "Reward for completing a ticket"
-msgstr ""
+msgstr "Arizani yakunlash uchun mukofot"
 
 #: bot/services/start_support.py:134
 msgid "Quality check first-pass bonus"
-msgstr ""
+msgstr "Sifat tekshiruvdan birinchi urinishda o'tish bonusi"
 
 #: bot/services/start_support.py:135
 msgid "Quality check update"
-msgstr ""
+msgstr "Sifat tekshiruv yangilanishi"
 
 #: bot/services/start_support.py:136
 msgid "Manual XP update"
-msgstr ""
+msgstr "Qo'lda XP yangilash"
 
 #: bot/services/start_support.py:137
 msgid "Weekly level-up bonus"
-msgstr ""
+msgstr "Haftalik daraja oshirish bonusi"
 
 #: bot/services/start_support.py:151
 msgid "XP update"
-msgstr ""
+msgstr "XP yangilanishi"
 
 #: bot/services/start_support.py:182
 msgid "Roles"
-msgstr ""
+msgstr "Rollar"
 
 #: bot/services/start_support.py:182
 msgid "Role"
-msgstr ""
+msgstr "Rol"
 
 #: bot/services/start_support.py:187
 msgid "Your access is active ✅"
-msgstr ""
+msgstr "Kirish huquqingiz faol ✅"
 
 #: bot/services/start_support.py:188 bot/services/start_support.py:229
 msgid "Name"
-msgstr ""
+msgstr "Ism"
 
 #: bot/services/start_support.py:190 bot/services/start_support.py:192
 #: bot/services/start_support.py:231 bot/services/start_support.py:233
 msgid "Username"
-msgstr ""
+msgstr "Foydalanuvchi nomi"
 
 #: bot/services/start_support.py:194 bot/services/start_support.py:235
 msgid "Phone"
-msgstr ""
+msgstr "Telefon"
 
 #: bot/services/start_support.py:195
 msgid "Current level"
-msgstr ""
+msgstr "Joriy daraja"
 
 #: bot/services/start_support.py:196
 msgid "No role assigned yet"
-msgstr ""
+msgstr "Hali rol biriktirilmagan"
 
 #: bot/services/start_support.py:200
 #, python-format
 msgid "XP balance: %(xp)s points (%(updates)s updates)."
-msgstr ""
+msgstr "XP balansi: %(xp)s ball (%(updates)s yangilanish)."
 
 #: bot/services/start_support.py:210
 #, python-format
 msgid "Open tickets: %(count)s"
-msgstr ""
+msgstr "Ochiq arizalar: %(count)s"
 
 #: bot/services/start_support.py:212
 #, python-format
 msgid "Waiting for quality check: %(count)s"
-msgstr ""
+msgstr "Sifat tekshiruvini kutayotganlar: %(count)s"
 
 #: bot/services/start_support.py:216
 #, python-format
 msgid "Completed tickets: %(count)s"
-msgstr ""
+msgstr "Yakunlangan arizalar: %(count)s"
 
 #: bot/services/start_support.py:228
 msgid "Your access request is under review ⏳"
-msgstr ""
+msgstr "Kirish so'rovingiz ko'rib chiqilmoqda ⏳"
 
 #: bot/services/start_support.py:236
 msgid "Submitted at"
-msgstr ""
+msgstr "Yuborilgan vaqti"
 
 #: bot/services/start_support.py:237
 msgid "We will notify you here as soon as the review is complete."
-msgstr ""
+msgstr "Tekshiruv yakunlangach sizga shu yerda xabar beramiz."
 
 #: bot/services/start_support.py:247
 msgid "Your XP summary"
-msgstr ""
+msgstr "XP xulosangiz"
 
 #: bot/services/start_support.py:248
 msgid "Total XP"
-msgstr ""
+msgstr "Jami XP"
 
 #: bot/services/start_support.py:249
 msgid "Updates"
-msgstr ""
+msgstr "Yangilanishlar"
 
 #: bot/services/start_support.py:252 bot/services/start_support.py:367
 msgid "No XP activity yet."
-msgstr ""
+msgstr "Hali XP faolligi yo'q."
 
 #: bot/services/start_support.py:255
 msgid "Latest updates:"
-msgstr ""
+msgstr "So'nggi yangilanishlar:"
 
 #: bot/services/start_support.py:365
 msgid "Your XP activity"
-msgstr ""
+msgstr "XP faolligingiz"
 
 #: bot/services/start_support.py:378
 #, python-format
 msgid "Showing %(start)s-%(end)s of %(total)s updates."
-msgstr ""
+msgstr "%(total)s yangilanishdan %(start)s-%(end)s ko'rsatilmoqda."
 
 #: bot/services/start_support.py:409
 msgid "You do not have access yet. Send /start or tap the button below."
-msgstr ""
+msgstr "Sizda hali kirish yo'q. /start yuboring yoki quyidagi tugmani bosing."
 
 #: bot/services/start_support.py:477
 msgid "You do not have access yet. Please send /start first."
-msgstr ""
+msgstr "Sizda hali kirish yo'q. Avval /start yuboring."
 
 #: bot/services/start_support.py:483 bot/services/technician_queue.py:48
 #: bot/services/ticket_admin_support.py:390
 msgid "Open access request from the menu below."
-msgstr ""
+msgstr "Quyidagi menyudan kirish so'rovini oching."
 
 #: bot/services/technician_queue.py:42 bot/services/technician_queue.py:175
 msgid "You are not registered. Use /start to submit access request."
 msgstr ""
+"Siz ro'yxatdan o'tmagansiz. Kirish so'rovini yuborish uchun /start dan "
+"foydalaning."
 
 #: bot/services/technician_queue.py:59
 msgid "⬅ Back to waiting QC tickets"
-msgstr ""
+msgstr "⬅ QC kutayotgan arizalarga qaytish"
 
 #: bot/services/technician_queue.py:61
 msgid "⬅ Back to past tickets"
-msgstr ""
+msgstr "⬅ O'tgan arizalarga qaytish"
 
 #: bot/services/technician_queue.py:62
 msgid "⬅ Back to active tickets"
-msgstr ""
+msgstr "⬅ Faol arizalarga qaytish"
 
 #: bot/services/technician_queue.py:94
 msgid "🧪 Technician tickets waiting QC."
-msgstr ""
+msgstr "🧪 Texnik arizalari QC kutmoqda."
 
 #: bot/services/technician_queue.py:96
 msgid "✅ Technician past tickets."
-msgstr ""
+msgstr "✅ Texnikning o'tgan arizalari."
 
 #: bot/services/technician_queue.py:97
 msgid "🎟 Technician active ticket queue."
-msgstr ""
+msgstr "🎟 Texnikning faol arizalar navbati."
 
 #: bot/services/technician_queue.py:102
 msgid "Waiting QC list refreshed."
-msgstr ""
+msgstr "QC kutayotgan arizalar ro'yxati yangilandi."
 
 #: bot/services/technician_queue.py:104
 msgid "Past tickets list refreshed."
-msgstr ""
+msgstr "O'tgan arizalar ro'yxati yangilandi."
 
 #: bot/services/technician_queue.py:105
 msgid "Active tickets list refreshed."
-msgstr ""
+msgstr "Faol arizalar ro'yxati yangilandi."
 
 #: bot/services/technician_queue.py:186
 msgid "This command is available only for technicians."
-msgstr ""
+msgstr "Bu buyruq faqat texniklar uchun mavjud."
 
 #: bot/services/technician_ticket_actions.py:58
 msgid "▶ Start work"
-msgstr ""
+msgstr "▶ Ishni boshlash"
 
 #: bot/services/technician_ticket_actions.py:59
 msgid "⏸ Pause work"
-msgstr ""
+msgstr "⏸ Ishni pauza qilish"
 
 #: bot/services/technician_ticket_actions.py:60
 msgid "▶ Resume work"
-msgstr ""
+msgstr "▶ Ishni davom ettirish"
 
 #: bot/services/technician_ticket_actions.py:61
 msgid "⏹ Stop session"
-msgstr ""
+msgstr "⏹ Sessiyani to'xtatish"
 
 #: bot/services/technician_ticket_actions.py:62
 msgid "🧪 Send to QC"
-msgstr ""
+msgstr "🧪 QC ga yuborish"
 
 #: bot/services/technician_ticket_actions.py:63
 #: bot/services/ticket_admin_support.py:818
 #: bot/services/ticket_qc_actions.py:21
 msgid "🔄 Refresh ticket"
-msgstr ""
+msgstr "🔄 Arizani yangilash"
 
 #: bot/services/technician_ticket_actions.py:66
 msgid "🔄 Refresh list"
-msgstr ""
+msgstr "🔄 Ro'yxatni yangilash"
 
 #: bot/services/technician_ticket_actions.py:78
 msgid "No active tickets assigned right now."
-msgstr ""
+msgstr "Hozircha biriktirilgan faol arizalar yo'q."
 
 #: bot/services/technician_ticket_actions.py:79
 msgid "No tickets are currently waiting QC."
-msgstr ""
+msgstr "Hozir QC kutayotgan arizalar yo'q."
 
 #: bot/services/technician_ticket_actions.py:80
 msgid "No past tickets found yet."
-msgstr ""
+msgstr "Hali o'tgan arizalar topilmadi."
 
 #: bot/services/technician_ticket_actions.py:83
 msgid "Total active tickets"
-msgstr ""
+msgstr "Jami faol arizalar"
 
 #: bot/services/technician_ticket_actions.py:84
 msgid "Total waiting QC tickets"
-msgstr ""
+msgstr "QC kutayotgan jami arizalar"
 
 #: bot/services/technician_ticket_actions.py:85
 msgid "Total past tickets"
-msgstr ""
+msgstr "Jami o'tgan arizalar"
 
 #: bot/services/technician_ticket_actions.py:88
 #: bot/services/ticket_admin_support.py:55 core/utils/constants.py:44
 #: core/utils/constants.py:66
 msgid "Assigned"
-msgstr ""
+msgstr "Biriktirilgan"
 
 #: bot/services/technician_ticket_actions.py:89
 #: bot/services/ticket_admin_support.py:58 bot/services/ticket_qc_actions.py:30
 #: core/utils/constants.py:47
 msgid "Rework"
-msgstr ""
+msgstr "Qayta ishlash"
 
 #: bot/services/technician_ticket_actions.py:90
 #: bot/services/ticket_admin_support.py:56
 msgid "In progress"
-msgstr ""
+msgstr "Jarayonda"
 
 #: bot/services/technician_ticket_actions.py:91
 #: bot/services/ticket_admin_support.py:57 bot/services/ticket_qc_actions.py:29
 #: core/utils/constants.py:46
 msgid "Waiting QC"
-msgstr ""
+msgstr "QC kutilmoqda"
 
 #: bot/services/technician_ticket_actions.py:92
 #: bot/services/ticket_admin_support.py:59 bot/services/ticket_qc_actions.py:31
 #: core/utils/constants.py:48
 msgid "Done"
-msgstr ""
+msgstr "Yakunlangan"
 
 #: bot/services/technician_ticket_actions.py:95 core/utils/constants.py:52
 msgid "Running"
-msgstr ""
+msgstr "Ishlamoqda"
 
 #: bot/services/technician_ticket_actions.py:96 core/utils/constants.py:53
 #: core/utils/constants.py:59
 msgid "Paused"
-msgstr ""
+msgstr "Pauza"
 
 #: bot/services/technician_ticket_actions.py:97 core/utils/constants.py:54
 #: core/utils/constants.py:61
 msgid "Stopped"
-msgstr ""
+msgstr "To'xtatilgan"
 
 #: bot/services/technician_ticket_actions.py:100
 msgid "Work session started."
-msgstr ""
+msgstr "Ish sessiyasi boshlandi."
 
 #: bot/services/technician_ticket_actions.py:101
 msgid "Work session paused."
-msgstr ""
+msgstr "Ish sessiyasi pauzaga qo'yildi."
 
 #: bot/services/technician_ticket_actions.py:102
 msgid "Work session resumed."
-msgstr ""
+msgstr "Ish sessiyasi davom ettirildi."
 
 #: bot/services/technician_ticket_actions.py:103
 msgid "Work session stopped."
-msgstr ""
+msgstr "Ish sessiyasi to'xtatildi."
 
 #: bot/services/technician_ticket_actions.py:104
 msgid "Ticket sent to QC."
-msgstr ""
+msgstr "Ariza QC ga yuborildi."
 
 #: bot/services/technician_ticket_actions.py:105
 #: bot/services/ticket_qc_actions.py:26
 msgid "Ticket details refreshed."
-msgstr ""
+msgstr "Ariza tafsilotlari yangilandi."
 
 #: bot/services/technician_ticket_actions.py:108
 msgid "Ticket is not found or is not assigned to you."
-msgstr ""
+msgstr "Ariza topilmadi yoki sizga biriktirilmagan."
 
 #: bot/services/technician_ticket_actions.py:111
 msgid "Ticket is not assigned to this technician."
-msgstr ""
+msgstr "Ariza ushbu texnikka biriktirilmagan."
 
 #: bot/services/technician_ticket_actions.py:114
 msgid "Unsupported queue callback action."
-msgstr ""
+msgstr "Qo'llab-quvvatlanmaydigan navbat callback amali."
 
 #: bot/services/technician_ticket_actions.py:116
 msgid "Unsupported ticket view scope."
-msgstr ""
+msgstr "Arizani ko'rish sohasi qo'llab-quvvatlanmaydi."
 
 #: bot/services/technician_ticket_actions.py:118
 msgid "Action is not available for this ticket right now."
-msgstr ""
+msgstr "Bu amal hozir ushbu ariza uchun mavjud emas."
 
 #: bot/services/technician_ticket_actions.py:120
 msgid "Unsupported action."
-msgstr ""
+msgstr "Qo'llab-quvvatlanmaydigan amal."
 
 #: bot/services/technician_ticket_actions.py:121
 #: bot/services/ticket_qc_queue.py:35
 msgid "unknown"
-msgstr ""
+msgstr "noma'lum"
 
 #: bot/services/technician_ticket_actions.py:418
 #: bot/services/ticket_qc_actions.py:121
 #, python-format
 msgid "🎫 Ticket: #%(ticket_id)s"
-msgstr ""
+msgstr "🎫 Ariza: #%(ticket_id)s"
 
 #: bot/services/technician_ticket_actions.py:419
 #: bot/services/ticket_qc_actions.py:123
 #, python-format
 msgid "🔢 Serial number: %(serial)s"
-msgstr ""
+msgstr "🔢 Seriya raqami: %(serial)s"
 
 #: bot/services/technician_ticket_actions.py:421
 #: bot/services/ticket_qc_actions.py:125
 #, python-format
 msgid "📍 Status: %(status)s"
-msgstr ""
+msgstr "📍 Holat: %(status)s"
 
 #: bot/services/technician_ticket_actions.py:432
 #, python-format
 msgid "🛠 Work session: %(session)s"
-msgstr ""
+msgstr "🛠 Ish sessiyasi: %(session)s"
 
 #: bot/services/technician_ticket_actions.py:442
 #, python-format
 msgid "🎯 Potential XP: +%(xp)s"
-msgstr ""
+msgstr "🎯 Potensial XP: +%(xp)s"
 
 #: bot/services/technician_ticket_actions.py:446
 msgid "🎯 Potential XP: pending metrics"
-msgstr ""
+msgstr "🎯 Potensial XP: metrikalar kutilmoqda"
 
 #: bot/services/technician_ticket_actions.py:448
 #, python-format
 msgid "🏆 Acquired XP: +%(xp)s"
-msgstr ""
+msgstr "🏆 Olingan XP: +%(xp)s"
 
 #: bot/services/technician_ticket_actions.py:452
 #, python-format
 msgid "📈 XP progress: %(current)s/%(target)s"
-msgstr ""
+msgstr "📈 XP progress: %(current)s/%(target)s"
 
 #: bot/services/technician_ticket_actions.py:466
 msgid "⚡ Available actions:"
-msgstr ""
+msgstr "⚡ Mavjud amallar:"
 
 #: bot/services/technician_ticket_actions.py:469
 msgid "🧊 No technician actions are available right now."
-msgstr ""
+msgstr "🧊 Hozir texnik uchun mavjud amallar yo'q."
 
 #: bot/services/technician_ticket_actions.py:514
 #, python-format
 msgid "%(label)s: %(count)s"
-msgstr ""
+msgstr "%(label)s: %(count)s"
 
 #: bot/services/technician_ticket_actions.py:521
 #: bot/services/ticket_admin_support.py:403
@@ -849,385 +855,386 @@ msgstr ""
 #: bot/services/ticket_admin_support.py:708 bot/services/ticket_qc_queue.py:31
 #, python-format
 msgid "Page: %(page)s/%(page_count)s"
-msgstr ""
+msgstr "Sahifa: %(page)s/%(page_count)s"
 
 #: bot/services/technician_ticket_actions.py:532
 #, python-format
 msgid " | session: %(session)s"
-msgstr ""
+msgstr " | sessiya: %(session)s"
 
 #: bot/services/technician_ticket_actions.py:544
 #, python-format
 msgid " | xp: +%(current)s/%(target)s"
-msgstr ""
+msgstr " | XP: +%(current)s/%(target)s"
 
 #: bot/services/technician_ticket_actions.py:555
 msgid "Use the inline buttons below to open ticket details."
 msgstr ""
+"Ariza tafsilotlarini ochish uchun quyidagi inline tugmalardan foydalaning."
 
 #: bot/services/technician_ticket_actions.py:567
 msgid "Ticket state updated."
-msgstr ""
+msgstr "Ariza holati yangilandi."
 
 #: bot/services/ticket_admin_support.py:53
 msgid "Under review"
-msgstr ""
+msgstr "Ko'rib chiqilmoqda"
 
 #: bot/services/ticket_admin_support.py:54 core/utils/constants.py:43
 msgid "New"
-msgstr ""
+msgstr "Yangi"
 
 #: bot/services/ticket_admin_support.py:68
 msgid "Invalid input."
-msgstr ""
+msgstr "Noto'g'ri kiritish."
 
 #: bot/services/ticket_admin_support.py:70
 msgid "Technician user does not exist."
-msgstr ""
+msgstr "Texnik foydalanuvchi mavjud emas."
 
 #: bot/services/ticket_admin_support.py:72
 msgid "Selected user does not have TECHNICIAN role."
-msgstr ""
+msgstr "Tanlangan foydalanuvchida TECHNICIAN roli yo'q."
 
 #: bot/services/ticket_admin_support.py:206
 #, python-format
 msgid "User #%(user_id)s"
-msgstr ""
+msgstr "Foydalanuvchi #%(user_id)s"
 
 #: bot/services/ticket_admin_support.py:401
 #: bot/services/ticket_admin_support.py:472
 #: bot/services/ticket_admin_support.py:543
 msgid "🆕 Ticket intake"
-msgstr ""
+msgstr "🆕 Ariza yaratish"
 
 #: bot/services/ticket_admin_support.py:402
 msgid "Step 1/3: Select an inventory item"
-msgstr ""
+msgstr "1/3-bosqich: Inventar elementini tanlang"
 
 #: bot/services/ticket_admin_support.py:406
 msgid "No active inventory items found on this page."
-msgstr ""
+msgstr "Bu sahifada faol inventar elementlari topilmadi."
 
 #: bot/services/ticket_admin_support.py:409
 msgid "Available items:"
-msgstr ""
+msgstr "Mavjud elementlar:"
 
 #: bot/services/ticket_admin_support.py:412
 #, python-format
 msgid "• #%(item_id)s | %(serial)s | %(status)s"
-msgstr ""
+msgstr "• #%(item_id)s | %(serial)s | %(status)s"
 
 #: bot/services/ticket_admin_support.py:419
 msgid "Choose an item using the inline buttons."
-msgstr ""
+msgstr "Elementni inline tugmalar orqali tanlang."
 
 #: bot/services/ticket_admin_support.py:462
 #: bot/services/ticket_admin_support.py:522
 #: bot/services/ticket_admin_support.py:622
 #: bot/services/ticket_admin_support.py:674
 msgid "❌ Cancel"
-msgstr ""
+msgstr "❌ Bekor qilish"
 
 #: bot/services/ticket_admin_support.py:473
 msgid "Step 2/3: Select parts"
-msgstr ""
+msgstr "2/3-bosqich: Detallarni tanlang"
 
 #: bot/services/ticket_admin_support.py:474
 #: bot/services/ticket_admin_support.py:545
 #: bot/services/ticket_admin_support.py:634
 #, python-format
 msgid "Serial number: %(serial)s"
-msgstr ""
+msgstr "Seriya raqami: %(serial)s"
 
 #: bot/services/ticket_admin_support.py:480
 msgid "Toggle parts to include in the ticket:"
-msgstr ""
+msgstr "Arizaga qo'shiladigan detallarni tanlang:"
 
 #: bot/services/ticket_admin_support.py:485
 #, python-format
 msgid "Selected parts: %(count)s"
-msgstr ""
+msgstr "Tanlangan detallar: %(count)s"
 
 #: bot/services/ticket_admin_support.py:506
 msgid "➡ Configure selected parts"
-msgstr ""
+msgstr "➡ Tanlangan detallarni sozlash"
 
 #: bot/services/ticket_admin_support.py:514
 msgid "⬅ Back to items"
-msgstr ""
+msgstr "⬅ Elementlarga qaytish"
 
 #: bot/services/ticket_admin_support.py:544
 msgid "Step 3/3: Configure part metrics"
-msgstr ""
+msgstr "3/3-bosqich: Detal metrikalarini sozlang"
 
 #: bot/services/ticket_admin_support.py:546
 #, python-format
 msgid "Part %(index)s/%(total)s: %(name)s"
-msgstr ""
+msgstr "Detal %(index)s/%(total)s: %(name)s"
 
 #: bot/services/ticket_admin_support.py:552
 #, python-format
 msgid "Draft color: %(color)s"
-msgstr ""
+msgstr "Qoralama rang: %(color)s"
 
 #: bot/services/ticket_admin_support.py:553
 #, python-format
 msgid "Draft minutes: %(minutes)s"
-msgstr ""
+msgstr "Qoralama daqiqa: %(minutes)s"
 
 #: bot/services/ticket_admin_support.py:554
 #, python-format
 msgid "Configured parts: %(count)s"
-msgstr ""
+msgstr "Sozlangan detallar: %(count)s"
 
 #: bot/services/ticket_admin_support.py:555
 msgid "Use inline buttons only to configure values."
-msgstr ""
+msgstr "Qiymatlarni sozlash uchun faqat inline tugmalardan foydalaning."
 
 #: bot/services/ticket_admin_support.py:564
 #: bot/services/ticket_admin_support.py:903
 msgid "🟢 Green"
-msgstr ""
+msgstr "🟢 Yashil"
 
 #: bot/services/ticket_admin_support.py:566
 #: bot/services/ticket_admin_support.py:905 core/utils/constants.py:36
 msgid "Green"
-msgstr ""
+msgstr "Yashil"
 
 #: bot/services/ticket_admin_support.py:572
 #: bot/services/ticket_admin_support.py:911
 msgid "🟡 Yellow"
-msgstr ""
+msgstr "🟡 Sariq"
 
 #: bot/services/ticket_admin_support.py:574
 #: bot/services/ticket_admin_support.py:913 core/utils/constants.py:37
 msgid "Yellow"
-msgstr ""
+msgstr "Sariq"
 
 #: bot/services/ticket_admin_support.py:580
 #: bot/services/ticket_admin_support.py:919
 msgid "🔴 Red"
-msgstr ""
+msgstr "🔴 Qizil"
 
 #: bot/services/ticket_admin_support.py:582
 #: bot/services/ticket_admin_support.py:921 core/utils/constants.py:38
 msgid "Red"
-msgstr ""
+msgstr "Qizil"
 
 #: bot/services/ticket_admin_support.py:606
 msgid "✅ Save part"
-msgstr ""
+msgstr "✅ Detalni saqlash"
 
 #: bot/services/ticket_admin_support.py:614
 #: bot/services/ticket_admin_support.py:668
 msgid "⬅ Back to parts"
-msgstr ""
+msgstr "⬅ Detallarga qaytish"
 
 #: bot/services/ticket_admin_support.py:633
 msgid "🆕 Ticket intake summary"
-msgstr ""
+msgstr "🆕 Ariza yaratish xulosasi"
 
 #: bot/services/ticket_admin_support.py:635
 #: bot/services/ticket_admin_support.py:774
 #, python-format
 msgid "Total minutes: %(minutes)s"
-msgstr ""
+msgstr "Jami daqiqa: %(minutes)s"
 
 #: bot/services/ticket_admin_support.py:636
 msgid "Part specs:"
-msgstr ""
+msgstr "Detal parametrlari:"
 
 #: bot/services/ticket_admin_support.py:642
 #, python-format
 msgid "Part #%(part_id)s"
-msgstr ""
+msgstr "Detal #%(part_id)s"
 
 #: bot/services/ticket_admin_support.py:645
 #, python-format
 msgid "• %(part)s | %(color)s | %(minutes)s min"
-msgstr ""
+msgstr "• %(part)s | %(color)s | %(minutes)s daq"
 
 #: bot/services/ticket_admin_support.py:653
 msgid "Create ticket using the button below."
-msgstr ""
+msgstr "Quyidagi tugma orqali ariza yarating."
 
 #: bot/services/ticket_admin_support.py:662
 msgid "✅ Create ticket"
-msgstr ""
+msgstr "✅ Ariza yaratish"
 
 #: bot/services/ticket_admin_support.py:701
 msgid "🧾 Ticket review queue"
-msgstr ""
+msgstr "🧾 Ariza tekshiruv navbati"
 
 #: bot/services/ticket_admin_support.py:704
 msgid "No tickets found for review."
-msgstr ""
+msgstr "Tekshiruv uchun arizalar topilmadi."
 
 #: bot/services/ticket_admin_support.py:707
 #, python-format
 msgid "Total tickets: %(count)s"
-msgstr ""
+msgstr "Jami arizalar: %(count)s"
 
 #: bot/services/ticket_admin_support.py:711
 #, python-format
 msgid "• #%(id)s | %(serial)s | %(status)s"
-msgstr ""
+msgstr "• #%(id)s | %(serial)s | %(status)s"
 
 #: bot/services/ticket_admin_support.py:718
 msgid "Use inline buttons to open ticket details."
-msgstr ""
+msgstr "Ariza tafsilotlarini ochish uchun inline tugmalardan foydalaning."
 
 #: bot/services/ticket_admin_support.py:761
 msgid "No title"
-msgstr ""
+msgstr "Sarlavhasiz"
 
 #: bot/services/ticket_admin_support.py:762
 msgid "Not assigned"
-msgstr ""
+msgstr "Biriktirilmagan"
 
 #: bot/services/ticket_admin_support.py:763
 #: bot/services/ticket_admin_support.py:776
 msgid "Yes"
-msgstr ""
+msgstr "Ha"
 
 #: bot/services/ticket_admin_support.py:763
 #: bot/services/ticket_admin_support.py:776
 msgid "No"
-msgstr ""
+msgstr "Yo'q"
 
 #: bot/services/ticket_admin_support.py:767
 #, python-format
 msgid "🎫 Ticket #%(ticket_id)s"
-msgstr ""
+msgstr "🎫 Ariza #%(ticket_id)s"
 
 #: bot/services/ticket_admin_support.py:768
 #, python-format
 msgid "Serial: %(serial)s"
-msgstr ""
+msgstr "Seriya: %(serial)s"
 
 #: bot/services/ticket_admin_support.py:769
 #, python-format
 msgid "Status: %(status)s"
-msgstr ""
+msgstr "Holat: %(status)s"
 
 #: bot/services/ticket_admin_support.py:771
 #, python-format
 msgid "Title: %(title)s"
-msgstr ""
+msgstr "Sarlavha: %(title)s"
 
 #: bot/services/ticket_admin_support.py:772
 #, python-format
 msgid "Technician: %(technician)s"
-msgstr ""
+msgstr "Texnik: %(technician)s"
 
 #: bot/services/ticket_admin_support.py:773
 #, python-format
 msgid "Admin review approved: %(approved)s"
-msgstr ""
+msgstr "Admin tekshiruvi tasdiqlandi: %(approved)s"
 
 #: bot/services/ticket_admin_support.py:776
 #, python-format
 msgid "Manual metrics mode: %(manual)s"
-msgstr ""
+msgstr "Qo'lda metrika rejimi: %(manual)s"
 
 #: bot/services/ticket_admin_support.py:800
 msgid "✅ Approve & Assign"
-msgstr ""
+msgstr "✅ Tasdiqlash va biriktirish"
 
 #: bot/services/ticket_admin_support.py:809
 msgid "🛠 Manual Metrics"
-msgstr ""
+msgstr "🛠 Qo'lda metrikalar"
 
 #: bot/services/ticket_admin_support.py:826
 msgid "⬅ Back to review queue"
-msgstr ""
+msgstr "⬅ Tekshiruv navbatiga qaytish"
 
 #: bot/services/ticket_admin_support.py:879
 #: bot/services/ticket_admin_support.py:973
 msgid "⬅ Back to ticket"
-msgstr ""
+msgstr "⬅ Arizaga qaytish"
 
 #: bot/services/ticket_admin_support.py:890
 msgid "🛠 Manual metrics override"
-msgstr ""
+msgstr "🛠 Qo'lda metrikani o'zgartirish"
 
 #: bot/services/ticket_admin_support.py:891
 #, python-format
 msgid "Ticket: #%(ticket_id)s"
-msgstr ""
+msgstr "Ariza: #%(ticket_id)s"
 
 #: bot/services/ticket_admin_support.py:892
 #, python-format
 msgid "Flag color: %(color)s"
-msgstr ""
+msgstr "Flag rangi: %(color)s"
 
 #: bot/services/ticket_admin_support.py:893
 #, python-format
 msgid "XP amount: %(xp)s"
-msgstr ""
+msgstr "XP miqdori: %(xp)s"
 
 #: bot/services/ticket_admin_support.py:894
 msgid "Use inline buttons only to update values."
-msgstr ""
+msgstr "Qiymatlarni yangilash uchun faqat inline tugmalardan foydalaning."
 
 #: bot/services/ticket_admin_support.py:965
 msgid "✅ Save manual metrics"
-msgstr ""
+msgstr "✅ Qo'lda metrikalarni saqlash"
 
 #: bot/services/ticket_qc_actions.py:19
 msgid "✅ QC Pass"
-msgstr ""
+msgstr "✅ QC tasdiqlash"
 
 #: bot/services/ticket_qc_actions.py:20
 msgid "❌ QC Fail"
-msgstr ""
+msgstr "❌ QC rad etish"
 
 #: bot/services/ticket_qc_actions.py:24
 msgid "Ticket marked as QC passed."
-msgstr ""
+msgstr "Ariza QC'dan o'tdi deb belgilandi."
 
 #: bot/services/ticket_qc_actions.py:25
 msgid "Ticket marked as QC failed."
-msgstr ""
+msgstr "Ariza QC'dan o'tmadi deb belgilandi."
 
 #: bot/services/ticket_qc_actions.py:33
 msgid "Unsupported QC action."
-msgstr ""
+msgstr "Qo'llab-quvvatlanmaydigan QC amali."
 
 #: bot/services/ticket_qc_actions.py:35
 msgid "QC action is not available for this ticket status."
-msgstr ""
+msgstr "Ushbu ariza holati uchun QC amali mavjud emas."
 
 #: bot/services/ticket_qc_actions.py:127
 #, python-format
 msgid "🛠 Technician: %(technician)s"
-msgstr ""
+msgstr "🛠 Texnik: %(technician)s"
 
 #: bot/services/ticket_qc_queue.py:29
 msgid "No QC checks assigned to you."
-msgstr ""
+msgstr "Sizga biriktirilgan QC tekshiruvlari yo'q."
 
 #: bot/services/ticket_qc_queue.py:30
 #, python-format
 msgid "Total QC checks: %(count)s"
-msgstr ""
+msgstr "Jami QC tekshiruvlari: %(count)s"
 
 #: bot/services/ticket_qc_queue.py:32
 msgid "Select a ticket to review."
-msgstr ""
+msgstr "Tekshirish uchun arizani tanlang."
 
 #: bot/services/ticket_qc_queue.py:33
 msgid "⬅ Back to my QC checks"
-msgstr ""
+msgstr "⬅ Mening QC tekshiruvlarimga qaytish"
 
 #: bot/services/ticket_qc_queue.py:34
 #, python-format
 msgid "🧪 #%(ticket_id)s · %(serial)s · %(technician)s"
-msgstr ""
+msgstr "🧪 #%(ticket_id)s · %(serial)s · %(technician)s"
 
 #: bot/services/ticket_qc_queue.py:36
 msgid "unassigned"
-msgstr ""
+msgstr "biriktirilmagan"
 
 #: core/api/views.py:129
 msgid "Error message is invalid"
@@ -1267,7 +1274,7 @@ msgstr ""
 
 #: core/utils/constants.py:9
 msgid "Technician"
-msgstr ""
+msgstr "Texnik"
 
 #: core/utils/constants.py:10
 msgid "QC Inspector"
@@ -1351,11 +1358,11 @@ msgstr ""
 
 #: core/utils/constants.py:69
 msgid "QC Pass"
-msgstr ""
+msgstr "QC o'tdi"
 
 #: core/utils/constants.py:70
 msgid "QC Fail"
-msgstr ""
+msgstr "QC o'tmadi"
 
 #: core/utils/constants.py:74
 msgid "Attendance Punctuality"
@@ -1376,3 +1383,43 @@ msgstr ""
 #: core/utils/constants.py:84
 msgid "Manual Adjustment"
 msgstr ""
+
+#~ msgid "Moderator"
+#~ msgstr "Moderator"
+
+#~ msgid "Administrator"
+#~ msgstr "Administrator"
+
+#~ msgid ""
+#~ "Use the inline buttons for ticket intake. Arbitrary text input is "
+#~ "disabled."
+#~ msgstr ""
+#~ "Ariza yaratish uchun inline tugmalardan foydalaning. Ixtiyoriy matn "
+#~ "kiritish o'chirilgan."
+
+#~ msgid ""
+#~ "Use the inline buttons for review actions. Arbitrary text input is "
+#~ "disabled."
+#~ msgstr ""
+#~ "Tekshiruv amallari uchun inline tugmalardan foydalaning. Ixtiyoriy matn "
+#~ "kiritish o'chirilgan."
+
+#~ msgid "Please use /ticket_create to open ticket intake."
+#~ msgstr "Ariza yaratishni ochish uchun /ticket_create dan foydalaning."
+
+#~ msgid "Please use /ticket_review to open the review queue."
+#~ msgstr "Tekshiruv navbatini ochish uchun /ticket_review dan foydalaning."
+
+#~ msgid "Please use /queue to open your active ticket list."
+#~ msgstr "Faol arizalar ro'yxatini ochish uchun /queue dan foydalaning."
+
+#~ msgid "Please use /under_qc to open tickets waiting for quality check."
+#~ msgstr ""
+#~ "Sifat tekshiruvini kutayotgan arizalarni ochish uchun /under_qc dan "
+#~ "foydalaning."
+
+#~ msgid "Please use /past to open your completed tickets."
+#~ msgstr "Yakunlangan arizalarni ochish uchun /past dan foydalaning."
+
+#~ msgid "Please use /help for commands."
+#~ msgstr "Buyruqlar uchun /help dan foydalaning."

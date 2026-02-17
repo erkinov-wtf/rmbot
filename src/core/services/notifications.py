@@ -11,8 +11,9 @@ from django.conf import settings
 from django.db import transaction
 
 from account.models import TelegramProfile, User
+from bot.services.technician_ticket_actions import TechnicianTicketActionService
+from bot.services.ticket_qc_actions import TicketQCActionService
 from core.utils.constants import RoleSlug
-from ticket.services_technician_actions import TechnicianTicketActionService
 
 if TYPE_CHECKING:
     from account.models import AccessRequest
@@ -96,6 +97,9 @@ class UserNotificationService:
     def notify_ticket_started(
         cls, *, ticket: Ticket, actor_user_id: int | None
     ) -> None:
+        if not ticket.technician_id:
+            return
+
         message = "\n".join(
             [
                 "Ticket work started.",
@@ -107,8 +111,8 @@ class UserNotificationService:
             ]
         )
         cls._notify_users(
-            event_key="ticket_started",
-            user_ids=[ticket.master_id],
+            event_key="ticket_started_technician",
+            user_ids=[ticket.technician_id],
             message=message,
             exclude_user_ids=[actor_user_id],
         )
@@ -117,7 +121,10 @@ class UserNotificationService:
     def notify_ticket_waiting_qc(
         cls, *, ticket: Ticket, actor_user_id: int | None
     ) -> None:
-        message = "\n".join(
+        qc_user_ids = cls._user_ids_for_role_slugs(
+            [RoleSlug.QC_INSPECTOR, RoleSlug.SUPER_ADMIN]
+        )
+        qc_message = "\n".join(
             [
                 "Ticket is waiting for QC.",
                 f"Ticket: #{ticket.id}",
@@ -125,15 +132,18 @@ class UserNotificationService:
                 f"Technician: {cls._display_name_by_user_id(ticket.technician_id)}",
                 f"Moved by: {cls._display_name_by_user_id(actor_user_id)}",
                 f"Status: {ticket.status}",
-                "Action: please run QC review.",
+                "Action: choose QC decision from the buttons below.",
             ]
         )
-        qc_user_ids = cls._user_ids_for_role_slugs([RoleSlug.QC_INSPECTOR])
         cls._notify_users(
-            event_key="ticket_waiting_qc",
-            user_ids=[ticket.master_id, *qc_user_ids],
-            message=message,
+            event_key="ticket_waiting_qc_reviewers",
+            user_ids=qc_user_ids,
+            message=qc_message,
             exclude_user_ids=[actor_user_id],
+            reply_markup=TicketQCActionService.build_action_keyboard(
+                ticket_id=ticket.id,
+                ticket_status=ticket.status,
+            ),
         )
 
     @classmethod
@@ -162,7 +172,7 @@ class UserNotificationService:
         )
         cls._notify_users(
             event_key="ticket_qc_pass",
-            user_ids=[ticket.master_id, ticket.technician_id],
+            user_ids=[ticket.technician_id],
             message=message,
             exclude_user_ids=[actor_user_id],
         )
@@ -171,24 +181,6 @@ class UserNotificationService:
     def notify_ticket_qc_fail(
         cls, *, ticket: Ticket, actor_user_id: int | None
     ) -> None:
-        master_message = "\n".join(
-            [
-                "Ticket failed QC and moved to rework.",
-                f"Ticket: #{ticket.id}",
-                f"Serial number: {cls._serial_number(ticket)}",
-                f"Technician: {cls._display_name_by_user_id(ticket.technician_id)}",
-                f"QC by: {cls._display_name_by_user_id(actor_user_id)}",
-                f"Status: {ticket.status}",
-                "Action: technician should continue rework.",
-            ]
-        )
-        cls._notify_users(
-            event_key="ticket_qc_fail_master",
-            user_ids=[ticket.master_id],
-            message=master_message,
-            exclude_user_ids=[actor_user_id],
-        )
-
         if not ticket.technician_id:
             return
 

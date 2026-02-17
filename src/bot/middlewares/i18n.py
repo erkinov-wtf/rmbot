@@ -1,6 +1,8 @@
 from aiogram import BaseMiddleware
+from django.utils import translation
 
 from bot.etc.container import Container
+from bot.etc.i18n import normalize_bot_locale
 
 
 class I18nMiddleware(BaseMiddleware):
@@ -9,11 +11,12 @@ class I18nMiddleware(BaseMiddleware):
 
     async def __call__(self, handler, event, data):
         user = data.get("event_from_user")
-        locale = (
-            getattr(user, "language_code", None)
-            or self.container.settings.default_locale
-            or self.container.settings.fallback_locale
+        locale = normalize_bot_locale(
+            locale=getattr(user, "language_code", None),
+            default_locale=self.container.settings.default_locale,
+            fallback_locale=self.container.settings.fallback_locale,
         )
         data["locale"] = locale
-        data["_"] = self.container.translator.gettext(locale)
-        return await handler(event, data)
+        with translation.override(locale):
+            data["_"] = translation.gettext
+            return await handler(event, data)

@@ -1,4 +1,4 @@
-# Technician Telegram Actions Service (`apps/ticket/services_technician_actions.py`)
+# Technician Telegram Actions Service (`bot/services/technician_ticket_actions.py`)
 
 ## Scope
 Resolves technician-allowed ticket actions for Telegram, executes selected actions through existing workflow/session services, and builds callback/keyboard payloads for inline bot controls.
@@ -6,6 +6,7 @@ Resolves technician-allowed ticket actions for Telegram, executes selected actio
 ## Execution Flows
 - `queue_states_for_technician`: returns actionable ticket snapshots for `/queue` bot command.
 - `view_states_for_technician`: returns technician ticket snapshots for a specific scope (`active`, `under_qc`, `past`).
+- `paginated_view_states_for_technician`: returns scoped snapshots with page metadata (`states`, `safe_page`, `page_count`, `total_count`) for Telegram pagination.
 - `state_for_technician_and_ticket`: resolves one technician-owned ticket and current available actions plus XP context (`potential_xp`, `acquired_xp`).
 - `execute_for_technician`: validates ownership + action availability, performs action (`start/pause/resume/stop/to_waiting_qc`), then returns refreshed state.
 - Queue helpers (`render_queue_summary`, `build_queue_keyboard`, `build_queue_callback_data`, `parse_queue_callback_data`) drive queue-list and scoped refresh navigation in chat.
@@ -19,7 +20,7 @@ Resolves technician-allowed ticket actions for Telegram, executes selected actio
   - `IN_PROGRESS` + `PAUSED` -> `resume`, `stop`
   - `IN_PROGRESS` + `STOPPED` -> `to_waiting_qc`
 - Callback payload format is stable: `tt:<ticket_id>:<action>`.
-- Queue payload format is scope-aware: `ttq:refresh:<scope>` and `ttq:open:<ticket_id>:<scope>` (legacy payloads without scope are still parsed as `active`).
+- Queue payload format is scope/page-aware: `ttq:refresh:<scope>:<page>` and `ttq:open:<ticket_id>:<scope>:<page>` (legacy payloads without scope/page are still parsed as `active`, page `1`).
 
 ## Side Effects
 - Delegates to domain orchestration services (`TicketWorkflowService`, `TicketWorkSessionService`) for all state mutations.
@@ -31,7 +32,7 @@ Resolves technician-allowed ticket actions for Telegram, executes selected actio
 - Underlying workflow/session domain validation errors are propagated (for example, invalid transition state).
 
 ## Operational Notes
-- Keyboard rendering automatically appends a `refresh` action while actionable buttons exist.
+- Queue keyboard appends a fixed pagination row (`<`, `X/Y`, `>`) after ticket rows; callbacks are page-clamped to avoid out-of-bounds navigation.
 - Queue summaries are scope-aware for both empty-state text and total counters (`active`, `under_qc`, `past`).
 - Queue lines expose ticket status + XP progress (`acquired/potential`) and ticket-detail cards show explicit `Potential XP`, `Acquired XP`, and `XP progress`.
 - Inline labels are action-specific (`Start work`, `Pause work`, `Send to QC`, `Refresh list/ticket`) to keep button intent explicit in Telegram UI.
@@ -41,7 +42,7 @@ Resolves technician-allowed ticket actions for Telegram, executes selected actio
   - `past` -> `done`
 
 ## Related Code
-- `apps/ticket/services_technician_actions.py`
+- `bot/services/technician_ticket_actions.py`
 - `apps/ticket/services_workflow.py`
 - `apps/ticket/services_work_session.py`
 - `bot/routers/technician_tickets.py`

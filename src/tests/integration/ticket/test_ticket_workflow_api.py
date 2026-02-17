@@ -1,6 +1,7 @@
 import pytest
 from django.utils import timezone
 
+from bot.services.ticket_qc_queue import QCTicketQueueService
 from core.services.notifications import UserNotificationService
 from core.utils.constants import (
     InventoryItemStatus,
@@ -551,3 +552,178 @@ def test_assign_notification_includes_technician_inline_actions(
         if payload["event_key"] == "ticket_assigned_technician"
     )
     assert technician_payload["reply_markup"] is not None
+
+
+def test_waiting_qc_notification_includes_qc_inline_actions_for_qc_creator(
+    workflow_context,
+    monkeypatch,
+    assign_roles,
+):
+    ticket = workflow_context["ticket"]
+    ticket.status = TicketStatus.WAITING_QC
+    ticket.technician = workflow_context["tech"]
+    ticket.save(update_fields=["status", "technician"])
+
+    assign_roles(workflow_context["master"], RoleSlug.QC_INSPECTOR)
+
+    captured_payloads: list[dict] = []
+
+    def _capture_notify_users(cls, **kwargs):
+        captured_payloads.append(kwargs)
+
+    monkeypatch.setattr(
+        UserNotificationService,
+        "_notify_users",
+        classmethod(_capture_notify_users),
+    )
+
+    UserNotificationService.notify_ticket_waiting_qc(
+        ticket=ticket,
+        actor_user_id=workflow_context["tech"].id,
+    )
+
+    assert {payload["event_key"] for payload in captured_payloads} == {
+        "ticket_waiting_qc_reviewers"
+    }
+    reviewers_payload = captured_payloads[0]
+    assert workflow_context["master"].id in reviewers_payload["user_ids"]
+    assert workflow_context["qc"].id in reviewers_payload["user_ids"]
+    assert reviewers_payload["reply_markup"] is not None
+
+
+def test_started_notification_targets_technician_only(
+    workflow_context,
+    monkeypatch,
+    assign_roles,
+):
+    ticket = workflow_context["ticket"]
+    ticket.status = TicketStatus.IN_PROGRESS
+    ticket.technician = workflow_context["tech"]
+    ticket.save(update_fields=["status", "technician"])
+
+    assign_roles(workflow_context["master"], RoleSlug.QC_INSPECTOR)
+
+    captured_payloads: list[dict] = []
+
+    def _capture_notify_users(cls, **kwargs):
+        captured_payloads.append(kwargs)
+
+    monkeypatch.setattr(
+        UserNotificationService,
+        "_notify_users",
+        classmethod(_capture_notify_users),
+    )
+
+    UserNotificationService.notify_ticket_started(
+        ticket=ticket,
+        actor_user_id=workflow_context["ops"].id,
+    )
+
+    assert len(captured_payloads) == 1
+    payload = captured_payloads[0]
+    assert payload["event_key"] == "ticket_started_technician"
+    assert payload["user_ids"] == [workflow_context["tech"].id]
+
+
+def test_qc_pass_notification_targets_technician_only(
+    workflow_context,
+    monkeypatch,
+    assign_roles,
+):
+    ticket = workflow_context["ticket"]
+    ticket.status = TicketStatus.DONE
+    ticket.technician = workflow_context["tech"]
+    ticket.save(update_fields=["status", "technician"])
+
+    assign_roles(workflow_context["master"], RoleSlug.QC_INSPECTOR)
+
+    captured_payloads: list[dict] = []
+
+    def _capture_notify_users(cls, **kwargs):
+        captured_payloads.append(kwargs)
+
+    monkeypatch.setattr(
+        UserNotificationService,
+        "_notify_users",
+        classmethod(_capture_notify_users),
+    )
+
+    UserNotificationService.notify_ticket_qc_pass(
+        ticket=ticket,
+        actor_user_id=workflow_context["qc"].id,
+        base_xp=20,
+        first_pass_bonus=5,
+    )
+
+    assert len(captured_payloads) == 1
+    payload = captured_payloads[0]
+    assert payload["event_key"] == "ticket_qc_pass"
+    assert payload["user_ids"] == [workflow_context["tech"].id]
+
+
+def test_qc_fail_notification_targets_technician_only(
+    workflow_context,
+    monkeypatch,
+    assign_roles,
+):
+    ticket = workflow_context["ticket"]
+    ticket.status = TicketStatus.REWORK
+    ticket.technician = workflow_context["tech"]
+    ticket.save(update_fields=["status", "technician"])
+
+    assign_roles(workflow_context["master"], RoleSlug.QC_INSPECTOR)
+
+    captured_payloads: list[dict] = []
+
+    def _capture_notify_users(cls, **kwargs):
+        captured_payloads.append(kwargs)
+
+    monkeypatch.setattr(
+        UserNotificationService,
+        "_notify_users",
+        classmethod(_capture_notify_users),
+    )
+
+    UserNotificationService.notify_ticket_qc_fail(
+        ticket=ticket,
+        actor_user_id=workflow_context["qc"].id,
+    )
+
+    assert len(captured_payloads) == 1
+    payload = captured_payloads[0]
+    assert payload["event_key"] == "ticket_qc_fail_technician"
+    assert payload["user_ids"] == [workflow_context["tech"].id]
+    assert payload["reply_markup"] is not None
+
+
+def test_qc_queue_contains_only_current_user_assigned_waiting_qc_checks(
+    workflow_context,
+    ticket_factory,
+    inventory_item_factory,
+):
+    assigned_ticket = workflow_context["ticket"]
+    assigned_ticket.status = TicketStatus.WAITING_QC
+    assigned_ticket.technician = workflow_context["tech"]
+    assigned_ticket.save(update_fields=["status", "technician"])
+
+    other_ticket = ticket_factory(
+        inventory_item=inventory_item_factory(serial_number="RM-WF-QUEUE-02"),
+        master=workflow_context["qc"],
+        technician=workflow_context["tech"],
+        status=TicketStatus.WAITING_QC,
+        title="Other QC queue ticket",
+    )
+
+    items, safe_page, page_count, total_count = (
+        QCTicketQueueService.paginated_queue_for_qc_user(
+            qc_user_id=workflow_context["master"].id,
+            page=1,
+            per_page=QCTicketQueueService.PAGE_SIZE,
+        )
+    )
+
+    assert safe_page == 1
+    assert page_count == 1
+    assert total_count == 1
+    assert [item.ticket_id for item in items] == [assigned_ticket.id]
+    assert other_ticket.id not in [item.ticket_id for item in items]

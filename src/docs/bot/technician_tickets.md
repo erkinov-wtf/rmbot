@@ -5,8 +5,8 @@ Documents Telegram command/callback handlers that let technicians run ticket wor
 
 ## Execution Flows
 - Reply-keyboard entrypoints (`🎟 Active Tickets`, `🧪 Under QC`, `✅ Past Tickets`) and command aliases (`/queue`, `/active`, `/tech`, `/under_qc`, `/past`) open technician ticket dashboards by scope.
-- Dashboard view renders a scoped ticket list with inline `open` buttons and a scoped `refresh` button.
-- Queue callback flow (`ttq:<action>:<scope>` and `ttq:open:<ticket_id>:<scope>`):
+- Dashboard view renders a scoped ticket list in pages of 5 rows and appends a fixed pagination row (`<`, `X/Y`, `>`).
+- Queue callback flow (`ttq:refresh:<scope>:<page>` and `ttq:open:<ticket_id>:<scope>:<page>`):
   1. Parse queue callback payload.
   2. Validate active linked user + technician role.
   3. Either refresh/switch dashboard scope or open one ticket control card.
@@ -25,7 +25,9 @@ Documents Telegram command/callback handlers that let technicians run ticket wor
   - `active`: `assigned`, `rework`, `in_progress`
   - `under_qc`: `waiting_qc`
   - `past`: `done`
+- Dashboard page size is fixed to 5 items; navigation callbacks are page-clamped to prevent underflow/overflow.
 - Callback message editing is best-effort; "message is not modified" errors are ignored safely.
+- Queue/detail labels and bottom-menu entrypoint labels are localized through Django i18n (`en`, `ru`, `uz`) using Telegram `language_code`.
 
 ## Failure Modes
 - Invalid callback payloads return user-safe alert (`Unknown action`).
@@ -35,7 +37,9 @@ Documents Telegram command/callback handlers that let technicians run ticket wor
 
 ## Operational Notes
 - Queue callback parser keeps backward compatibility for legacy payloads without scope and defaults them to `active`.
+- Queue callback parser keeps backward compatibility for legacy payloads without scope/page and defaults them to `active`, page `1`.
 - Queue list rows include status icon, serial number, status label, and XP progress (`acquired/potential`) per ticket.
+- Pagination row is always visible after the listed rows: `<`, `X/Y`, `>`.
 - Ticket detail cards include readable status/session labels plus `Potential XP`, `Acquired XP`, and `XP progress`.
 - Ticket cards always include a back-to-scope inline button so operators can return to the exact queue context.
 - Bottom reply-keyboard buttons are the primary entrypoints; inline buttons are reserved for queue/ticket sub-menu navigation.
@@ -44,4 +48,4 @@ Documents Telegram command/callback handlers that let technicians run ticket wor
 ## Related Code
 - `bot/routers/technician_tickets.py`
 - `bot/middlewares/auth.py`
-- `apps/ticket/services_technician_actions.py`
+- `bot/services/technician_ticket_actions.py`
