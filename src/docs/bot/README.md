@@ -48,6 +48,11 @@ Ticket-admin controls now include permission-gated ticket intake and review acti
 - `bot/routers/technician_tickets/__init__.py`
 - `bot/routers/technician_tickets/entry.py`
 - `bot/routers/technician_tickets/callbacks.py`
+- `bot/services/menu.py`
+- `bot/services/start_support.py`
+- `bot/services/ticket_admin_common_service.py`
+- `bot/services/ticket_admin_create_service.py`
+- `bot/services/ticket_admin_review_service.py`
 - `bot/services/ticket_qc_actions.py`
 - `bot/services/ticket_qc_queue.py`
 - `bot/services/technician_ticket_actions.py`

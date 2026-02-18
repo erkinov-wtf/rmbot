@@ -53,6 +53,11 @@ def _client_from_tma_verify(
     assert verify.status_code == 200
     assert verify.data["data"]["user_exists"] is True
 
+    # DEBUG: Print the user data returned from TMA verify
+    print(
+        f"\n[DEBUG] TMA verify response for telegram_id {user_payload['id']}: {verify.data['data'].get('user', {})}"
+    )
+
     access = verify.data["data"]["access"]
     client = APIClient()
     client.credentials(HTTP_AUTHORIZATION=f"Bearer {access}")

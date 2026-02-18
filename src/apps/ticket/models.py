@@ -3,6 +3,7 @@ import math
 from django.db import models
 from django.utils import timezone
 
+from core.api.exceptions import DomainValidationError
 from core.models import AppendOnlyModel, SoftDeleteModel, TimestampedModel
 from core.utils.constants import (
     TicketColor,
@@ -98,12 +99,14 @@ class Ticket(TimestampedModel, SoftDeleteModel):
             TicketStatus.ASSIGNED,
             TicketStatus.REWORK,
         ):
-            raise ValueError("Ticket cannot be assigned in current status.")
+            raise DomainValidationError("Ticket cannot be assigned in current status.")
         if (
             self.status in (TicketStatus.UNDER_REVIEW, TicketStatus.NEW)
             and not self.is_admin_reviewed
         ):
-            raise ValueError("Ticket must pass admin review before assignment.")
+            raise DomainValidationError(
+                "Ticket must pass admin review before assignment."
+            )
 
         self.technician_id = technician_id
         self.assigned_at = assigned_at or timezone.now()
@@ -120,7 +123,9 @@ class Ticket(TimestampedModel, SoftDeleteModel):
 
     def mark_admin_review_approved(self, *, approved_by_id: int, approved_at=None):
         if not approved_by_id:
-            raise ValueError("approved_by_id is required for admin review approval.")
+            raise DomainValidationError(
+                "approved_by_id is required for admin review approval."
+            )
         self.approved_by_id = approved_by_id
         self.approved_at = approved_at or timezone.now()
         update_fields = ["approved_by", "approved_at"]
@@ -155,11 +160,15 @@ class Ticket(TimestampedModel, SoftDeleteModel):
     def start_progress(self, *, actor_user_id: int, started_at=None) -> str:
         from_status = self.status
         if self.status not in (TicketStatus.ASSIGNED, TicketStatus.REWORK):
-            raise ValueError("Ticket can be started only from ASSIGNED or REWORK.")
+            raise DomainValidationError(
+                "Ticket can be started only from ASSIGNED or REWORK."
+            )
         if not self.technician_id:
-            raise ValueError("Ticket has no assigned technician.")
+            raise DomainValidationError("Ticket has no assigned technician.")
         if self.technician_id != actor_user_id:
-            raise ValueError("Only assigned technician can start this ticket.")
+            raise DomainValidationError(
+                "Only assigned technician can start this ticket."
+            )
 
         self.status = TicketStatus.IN_PROGRESS
         update_fields = ["status"]
@@ -173,9 +182,13 @@ class Ticket(TimestampedModel, SoftDeleteModel):
     def move_to_waiting_qc(self, *, actor_user_id: int) -> str:
         from_status = self.status
         if self.status != TicketStatus.IN_PROGRESS:
-            raise ValueError("Ticket can be sent to QC only from IN_PROGRESS.")
+            raise DomainValidationError(
+                "Ticket can be sent to QC only from IN_PROGRESS."
+            )
         if not self.technician_id or self.technician_id != actor_user_id:
-            raise ValueError("Only assigned technician can send ticket to QC.")
+            raise DomainValidationError(
+                "Only assigned technician can send ticket to QC."
+            )
 
         self.status = TicketStatus.WAITING_QC
         self.save(update_fields=["status"])
@@ -184,9 +197,11 @@ class Ticket(TimestampedModel, SoftDeleteModel):
     def mark_qc_pass(self, *, finished_at=None) -> str:
         from_status = self.status
         if self.status != TicketStatus.WAITING_QC:
-            raise ValueError("QC PASS allowed only from WAITING_QC.")
+            raise DomainValidationError("QC PASS allowed only from WAITING_QC.")
         if not self.technician_id:
-            raise ValueError("Ticket must have an assigned technician before QC PASS.")
+            raise DomainValidationError(
+                "Ticket must have an assigned technician before QC PASS."
+            )
 
         self.status = TicketStatus.DONE
         self.finished_at = finished_at or timezone.now()
@@ -196,7 +211,7 @@ class Ticket(TimestampedModel, SoftDeleteModel):
     def mark_qc_fail(self) -> str:
         from_status = self.status
         if self.status != TicketStatus.WAITING_QC:
-            raise ValueError("QC FAIL allowed only from WAITING_QC.")
+            raise DomainValidationError("QC FAIL allowed only from WAITING_QC.")
 
         self.status = TicketStatus.REWORK
         self.finished_at = None
@@ -260,10 +275,7 @@ class TicketPartSpec(TimestampedModel, SoftDeleteModel):
         ]
 
     def __str__(self) -> str:
-        return (
-            f"TicketPartSpec#{self.pk} ticket={self.ticket_id} "
-            f"part={self.inventory_item_part_id} color={self.color}"
-        )
+        return f"TicketPartSpec#{self.pk} ticket={self.ticket_id} part={self.inventory_item_part_id} color={self.color}"
 
 
 class WorkSession(TimestampedModel, SoftDeleteModel):
@@ -313,9 +325,9 @@ class WorkSession(TimestampedModel, SoftDeleteModel):
     @classmethod
     def start_for_ticket(cls, *, ticket: Ticket, actor_user_id: int, started_at=None):
         if cls.domain.has_open_for_ticket(ticket=ticket):
-            raise ValueError("Ticket already has an active work session.")
+            raise DomainValidationError("Ticket already has an active work session.")
         if cls.domain.has_open_for_technician(technician_id=actor_user_id):
-            raise ValueError(
+            raise DomainValidationError(
                 "Technician already has an active work session. "
                 "Stop current work session or move ticket to waiting QC before starting another ticket."
             )
@@ -401,7 +413,9 @@ class WorkSession(TimestampedModel, SoftDeleteModel):
         metadata: dict | None = None,
     ) -> None:
         if self.status != WorkSessionStatus.RUNNING:
-            raise ValueError("Work session can be paused only from RUNNING state.")
+            raise DomainValidationError(
+                "Work session can be paused only from RUNNING state."
+            )
 
         now_dt = paused_at or timezone.now()
         self.add_transition(
@@ -425,7 +439,9 @@ class WorkSession(TimestampedModel, SoftDeleteModel):
         metadata: dict | None = None,
     ) -> None:
         if self.status != WorkSessionStatus.PAUSED:
-            raise ValueError("Work session can be resumed only from PAUSED state.")
+            raise DomainValidationError(
+                "Work session can be resumed only from PAUSED state."
+            )
 
         now_dt = resumed_at or timezone.now()
         self.add_transition(
@@ -443,7 +459,7 @@ class WorkSession(TimestampedModel, SoftDeleteModel):
 
     def stop(self, *, actor_user_id: int, stopped_at=None) -> None:
         if self.status not in (WorkSessionStatus.RUNNING, WorkSessionStatus.PAUSED):
-            raise ValueError(
+            raise DomainValidationError(
                 "Work session can be stopped only from RUNNING or PAUSED state."
             )
 

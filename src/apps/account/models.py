@@ -3,6 +3,7 @@ from django.db import models
 from django.utils import timezone
 
 from account import managers
+from core.api.exceptions import DomainValidationError
 from core.models import SoftDeleteModel, TimestampedModel
 from core.utils.constants import AccessRequestStatus, EmployeeLevel, RoleSlug
 
@@ -75,7 +76,9 @@ class User(AbstractBaseUser, TimestampedModel, SoftDeleteModel):
             updates["last_name"] = last_name
         if phone and phone != self.phone:
             if User.objects.phone_in_use(phone=phone, exclude_user_id=self.pk):
-                raise ValueError("Phone number is already used by another account.")
+                raise DomainValidationError(
+                    "Phone number is already used by another account."
+                )
             updates["phone"] = phone
         if updates:
             User.all_objects.filter(pk=self.pk).update(**updates)

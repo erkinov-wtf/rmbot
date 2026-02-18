@@ -8,8 +8,7 @@ from account.models import User
 from bot.routers.ticket_qc.base import QCTicketBaseMixin
 from bot.services.menu import (
     MENU_BUTTON_QC_CHECKS_VARIANTS,
-    build_main_menu_keyboard,
-    main_menu_markup_for_user,
+    BotMenuService,
 )
 
 router = Router(name="ticket_qc_entry")
@@ -31,7 +30,7 @@ class QCQueueHandler(QCTicketBaseMixin, MessageHandler):
                 _(
                     "🚫 <b>No access yet.</b>\nSend <code>/start</code> to request access."
                 ),
-                reply_markup=build_main_menu_keyboard(
+                reply_markup=BotMenuService.build_main_menu_keyboard(
                     is_technician=False,
                     include_start_access=True,
                     _=_,
@@ -41,7 +40,10 @@ class QCQueueHandler(QCTicketBaseMixin, MessageHandler):
         if not await type(self).can_qc_ticket_async(user=user):
             await message.answer(
                 _("⛔ <b>This action is available only for QC inspectors.</b>"),
-                reply_markup=await main_menu_markup_for_user(user=user, _=_),
+                reply_markup=await BotMenuService.main_menu_markup_for_user(
+                    user=user,
+                    _=_,
+                ),
             )
             return
 

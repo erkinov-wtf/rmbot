@@ -11,22 +11,18 @@ from ticket.models import Ticket
 class TicketViewSet(BaseModelViewSet):
     serializer_class = TicketSerializer
     queryset = (
-        Ticket.objects.select_related(
-            "inventory_item",
-            "master",
-            "technician",
-        )
-        .prefetch_related(
-            "part_specs__inventory_item_part",
-        )
+        Ticket.objects.select_related("inventory_item", "master", "technician")
+        .prefetch_related("part_specs__inventory_item_part")
         .order_by("-created_at")
     )
 
     def get_permissions(self):
+
+        permission_classes = [IsAuthenticated]
+
         if self.action == "create":
-            permission_classes = (IsAuthenticated, TicketCreatePermission)
-        else:
-            permission_classes = (IsAuthenticated,)
+            permission_classes += [TicketCreatePermission]
+
         return [permission() for permission in permission_classes]
 
     @extend_schema(
@@ -45,9 +41,7 @@ class TicketViewSet(BaseModelViewSet):
     @extend_schema(
         tags=["Tickets / Workflow"],
         summary="Retrieve ticket",
-        description=(
-            "Returns a single ticket with inventory item, master, and technician data."
-        ),
+        description="Returns a single ticket with inventory item, master, and technician data.",
     )
     def retrieve(self, request, *args, **kwargs):
         return super().retrieve(request, *args, **kwargs)

@@ -8,6 +8,7 @@ from django.db.models.functions import Coalesce
 from django.utils import timezone
 
 from account.models import User
+from core.api.exceptions import DomainValidationError
 from core.services.notifications import UserNotificationService
 from core.utils.constants import EmployeeLevel, XPTransactionEntryType
 from gamification.models import LevelUpCouponEvent, WeeklyLevelEvaluation, XPTransaction
@@ -48,14 +49,14 @@ class GamificationService:
     ) -> XPTransaction:
         normalized_amount = int(amount)
         if normalized_amount == 0:
-            raise ValueError("amount must not be 0.")
+            raise DomainValidationError("amount must not be 0.")
 
         normalized_comment = str(comment).strip()
         if not normalized_comment:
-            raise ValueError("comment is required.")
+            raise DomainValidationError("comment is required.")
 
         if not User.objects.filter(id=target_user_id).exists():
-            raise ValueError("Target user was not found.")
+            raise DomainValidationError("Target user was not found.")
 
         reference = f"manual_adjustment:{target_user_id}:{uuid4().hex}"
         description = "Manual XP adjustment"
@@ -108,10 +109,12 @@ class ProgressionService:
         try:
             parsed = datetime.strptime(week_start_token, "%Y-%m-%d")
         except ValueError as exc:
-            raise ValueError("week_start must be in YYYY-MM-DD format.") from exc
+            raise DomainValidationError(
+                "week_start must be in YYYY-MM-DD format."
+            ) from exc
         week_start = date(parsed.year, parsed.month, parsed.day)
         if week_start.weekday() != 0:
-            raise ValueError("week_start must be a Monday date.")
+            raise DomainValidationError("week_start must be a Monday date.")
         return week_start
 
     @classmethod
@@ -123,7 +126,7 @@ class ProgressionService:
     @classmethod
     def _week_bounds(cls, week_start: date) -> tuple[date, date, datetime]:
         if week_start.weekday() != 0:
-            raise ValueError("week_start must be a Monday date.")
+            raise DomainValidationError("week_start must be a Monday date.")
 
         week_end = week_start + timedelta(days=6)
         week_end_exclusive_dt = timezone.make_aware(

@@ -3,6 +3,7 @@ from collections.abc import Iterable
 from django.db import IntegrityError, transaction
 
 from account.models import AccessRequest, TelegramProfile, User
+from core.api.exceptions import DomainValidationError
 from core.services.notifications import UserNotificationService
 from core.utils.constants import AccessRequestStatus
 
@@ -163,15 +164,15 @@ class AccountService:
             and existing_profile.user
             and existing_profile.user.is_active
         ):
-            raise ValueError("You are already registered and linked.")
+            raise DomainValidationError("You are already registered and linked.")
 
         if AccessRequest.domain.approved_exists_for_telegram(telegram_id=telegram_id):
-            raise ValueError("Your access request was already approved.")
+            raise DomainValidationError("Your access request was already approved.")
 
         if AccessRequest.domain.active_user_link_exists_for_telegram(
             telegram_id=telegram_id
         ):
-            raise ValueError("You are already registered and linked.")
+            raise DomainValidationError("You are already registered and linked.")
 
         existing = AccessRequest.domain.pending_for_telegram(telegram_id=telegram_id)
         if existing:

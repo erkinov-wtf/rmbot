@@ -17,9 +17,7 @@ from django.utils.translation import gettext, gettext_noop
 from account.models import User
 from api.v1.ticket.serializers import TicketSerializer
 from bot.permissions import TicketBotPermissionSet, resolve_ticket_bot_permissions
-from bot.services.menu import (
-    build_main_menu_keyboard,
-)
+from bot.services.menu import BotMenuService
 from core.utils.asyncio import run_sync
 from core.utils.constants import (
     RoleSlug,
@@ -401,7 +399,7 @@ async def _ticket_permissions(*, user: User | None) -> TicketBotPermissionSet:
 async def _notify_not_registered_message(*, message: Message, _) -> None:
     await message.answer(
         _("🚫 <b>No access yet.</b>\nSend <code>/start</code> to request access."),
-        reply_markup=build_main_menu_keyboard(
+        reply_markup=BotMenuService.build_main_menu_keyboard(
             is_technician=False,
             include_start_access=True,
             _=_,
@@ -420,7 +418,7 @@ async def _notify_not_registered_callback(*, query: CallbackQuery, _) -> None:
         _(
             "📝 <b>Open Access Request</b>\nUse <code>/start</code> or tap the button below."
         ),
-        reply_markup=build_main_menu_keyboard(
+        reply_markup=BotMenuService.build_main_menu_keyboard(
             is_technician=False,
             include_start_access=True,
             _=_,

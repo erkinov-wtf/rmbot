@@ -7,7 +7,10 @@ from api.v1.gamification.filters import (
     XPTransactionFilterSet,
     can_view_all_transaction_entries,
 )
-from api.v1.gamification.serializers import XPAdjustmentSerializer, XPTransactionSerializer
+from api.v1.gamification.serializers import (
+    XPAdjustmentSerializer,
+    XPTransactionSerializer,
+)
 from core.api.permissions import HasRole
 from core.api.schema import extend_schema
 from core.api.views import BaseAPIView, ListAPIView
@@ -22,8 +25,7 @@ XPAdjustmentPermission = HasRole.as_any(RoleSlug.SUPER_ADMIN, RoleSlug.OPS_MANAG
     tags=["XP Transactions"],
     summary="List XP transactions",
     description=(
-        "Returns paginated XP transaction entries with optional filters. Regular users "
-        "can only see their own entries."
+        "Returns paginated XP transaction entries with optional filters. Regular users can only see their own entries."
     ),
 )
 class XPTransactionListAPIView(ListAPIView):
@@ -63,15 +65,12 @@ class XPAdjustmentCreateAPIView(BaseAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        try:
-            entry = GamificationService.adjust_user_xp(
-                actor_user_id=request.user.id,
-                target_user_id=serializer.validated_data["user_id"],
-                amount=serializer.validated_data["amount"],
-                comment=serializer.validated_data["comment"],
-            )
-        except ValueError as exc:
-            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        entry = GamificationService.adjust_user_xp(
+            actor_user_id=request.user.id,
+            target_user_id=serializer.validated_data["user_id"],
+            amount=serializer.validated_data["amount"],
+            comment=serializer.validated_data["comment"],
+        )
 
         output = XPTransactionSerializer(entry).data
         return Response(output, status=status.HTTP_201_CREATED)

@@ -104,7 +104,7 @@ def test_cannot_assign_technician_before_admin_review(
     )
 
     assert resp.status_code == 400
-    assert "admin review" in resp.data["error"]["detail"].lower()
+    assert "admin review" in resp.data["message"].lower()
 
 
 def test_admin_can_approve_ticket_review(authed_client_factory, workflow_context):
@@ -146,7 +146,7 @@ def test_only_assigned_technician_can_start(authed_client_factory, workflow_cont
     other_client = authed_client_factory(workflow_context["other_tech"])
     denied = other_client.post(f"/api/v1/tickets/{ticket.id}/start/", {}, format="json")
     assert denied.status_code == 400
-    assert "assigned technician" in denied.data["error"]["detail"].lower()
+    assert "assigned technician" in denied.data["message"].lower()
 
     tech_client = authed_client_factory(workflow_context["tech"])
     allowed = tech_client.post(f"/api/v1/tickets/{ticket.id}/start/", {}, format="json")
@@ -196,7 +196,7 @@ def test_technician_must_stop_current_session_before_starting_another_ticket(
         format="json",
     )
     assert denied.status_code == 400
-    assert "active work session" in denied.data["error"]["detail"].lower()
+    assert "active work session" in denied.data["message"].lower()
 
     stop = tech_client.post(
         f"/api/v1/tickets/{primary_ticket.id}/work-session/stop/",
@@ -305,7 +305,7 @@ def test_cannot_move_to_waiting_qc_with_non_stopped_work_session(
         f"/api/v1/tickets/{ticket.id}/to-waiting-qc/", {}, format="json"
     )
     assert to_qc.status_code == 400
-    assert "work session must be stopped" in to_qc.data["error"]["detail"].lower()
+    assert "work session must be stopped" in to_qc.data["message"].lower()
 
 
 def test_transition_history_endpoint_returns_ordered_audit_records(

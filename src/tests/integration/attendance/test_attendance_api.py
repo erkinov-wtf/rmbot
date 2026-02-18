@@ -64,7 +64,7 @@ def test_checkin_twice_fails(attendance_context):
 
     assert second.status_code == 400
     assert second.data["success"] is False
-    assert "already checked in" in second.data["error"]["detail"].lower()
+    assert "already checked in" in second.data["message"].lower()
 
 
 def test_checkout_requires_checkin(attendance_context):
@@ -73,7 +73,7 @@ def test_checkout_requires_checkin(attendance_context):
     resp = client.post(CHECKOUT_URL, {"technician_id": technician.id}, format="json")
 
     assert resp.status_code == 400
-    assert "before check in" in resp.data["error"]["detail"].lower()
+    assert "before check in" in resp.data["message"].lower()
 
 
 def test_checkout_after_checkin_succeeds(attendance_context):
@@ -162,8 +162,7 @@ def test_today_endpoint_supports_date_technician_and_punctuality_filters(
     assert early_resp.data["results"][0]["punctuality_status"] == "early"
 
     technician_resp = client.get(
-        f"{RECORDS_URL}?work_date={target_date.isoformat()}"
-        f"&technician_id={on_time_technician.id}"
+        f"{RECORDS_URL}?work_date={target_date.isoformat()}&technician_id={on_time_technician.id}"
     )
     assert technician_resp.status_code == 200
     assert len(technician_resp.data["results"]) == 1

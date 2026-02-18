@@ -50,8 +50,7 @@ class AttendanceRecordsAPIView(ListAPIView):
 @extend_schema(
     tags=["Attendance"],
     summary="Check in user for today",
-    description="Checks the selected user in for today and returns the attendance "
-    "record with awarded XP.",
+    description="Checks the selected user in for today and returns the attendance record with awarded XP.",
 )
 class AttendanceCheckInAPIView(BaseAPIView):
     permission_classes = (IsAuthenticated, AttendanceManagerPermission)
@@ -61,27 +60,19 @@ class AttendanceCheckInAPIView(BaseAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        try:
-            record, xp_awarded = AttendanceService.check_in(
-                user_id=serializer.validated_data["user_id"]
-            )
-        except ValueError as exc:
-            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
-
-        return Response(
-            {
-                "attendance": AttendanceRecordSerializer(record).data,
-                "xp_awarded": xp_awarded,
-            },
-            status=status.HTTP_200_OK,
+        record, xp_awarded = AttendanceService.check_in(
+            user_id=serializer.validated_data["user_id"]
         )
+
+        data = AttendanceRecordSerializer(record).data
+        data["xp_awarded"] = xp_awarded
+        return Response(data, status=status.HTTP_200_OK)
 
 
 @extend_schema(
     tags=["Attendance"],
     summary="Check out user for today",
-    description="Checks the selected user out for today and returns the updated "
-    "attendance record.",
+    description="Checks the selected user out for today and returns the updated attendance record.",
 )
 class AttendanceCheckOutAPIView(BaseAPIView):
     permission_classes = (IsAuthenticated, AttendanceManagerPermission)
@@ -91,12 +82,9 @@ class AttendanceCheckOutAPIView(BaseAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        try:
-            record = AttendanceService.check_out(
-                user_id=serializer.validated_data["user_id"]
-            )
-        except ValueError as exc:
-            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        record = AttendanceService.check_out(
+            user_id=serializer.validated_data["user_id"]
+        )
 
         return Response(
             AttendanceRecordSerializer(record).data, status=status.HTTP_200_OK

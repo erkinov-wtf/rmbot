@@ -4,6 +4,7 @@ from django.contrib.auth.base_user import BaseUserManager
 from django.db import models
 from django.utils import timezone
 
+from core.api.exceptions import DomainValidationError
 from core.utils.constants import AccessRequestStatus
 
 
@@ -17,7 +18,7 @@ class UserManager(BaseUserManager):
         Creates and returns a user with given username, password.
         """
         if not username:
-            raise ValueError(
+            raise DomainValidationError(
                 f"The username field must be set: {self.model.USERNAME_FIELD}"
             )
 
@@ -77,7 +78,9 @@ class UserManager(BaseUserManager):
         phone: str | None,
     ):
         if self.phone_in_use(phone=phone):
-            raise ValueError("Phone number is already used by another account.")
+            raise DomainValidationError(
+                "Phone number is already used by another account."
+            )
 
         seed = self.normalize_username_seed(username, telegram_id)
         resolved_username = self.build_unique_username(seed=seed)

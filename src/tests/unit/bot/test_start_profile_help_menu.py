@@ -47,7 +47,7 @@ def test_help_hides_start_access_button_for_pending_request(monkeypatch):
         lambda *, user: TicketBotPermissionSet(),
     )
     monkeypatch.setattr(
-        "bot.routers.start.profile.main_menu_markup_for_user",
+        "bot.routers.start.profile.BotMenuService.main_menu_markup_for_user",
         _main_menu_stub,
     )
 
@@ -90,7 +90,7 @@ def test_help_shows_start_access_button_for_unregistered_user(monkeypatch):
         lambda *, user: TicketBotPermissionSet(),
     )
     monkeypatch.setattr(
-        "bot.routers.start.profile.main_menu_markup_for_user",
+        "bot.routers.start.profile.BotMenuService.main_menu_markup_for_user",
         _main_menu_stub,
     )
 
@@ -133,7 +133,7 @@ def test_help_hides_start_access_button_for_active_user(user_factory, monkeypatc
         lambda *, user: TicketBotPermissionSet(),
     )
     monkeypatch.setattr(
-        "bot.routers.start.profile.main_menu_markup_for_user",
+        "bot.routers.start.profile.BotMenuService.main_menu_markup_for_user",
         _main_menu_stub,
     )
 

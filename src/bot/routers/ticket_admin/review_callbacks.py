@@ -7,7 +7,11 @@ from aiogram.types import CallbackQuery
 
 from account.models import User
 from bot.permissions import TicketBotPermissionSet
-from bot.services import ticket_admin_support
+from bot.services.ticket_admin_common_service import (
+    TicketAdminCommonService,
+    TicketReviewForm,
+)
+from bot.services.ticket_admin_review_service import TicketAdminReviewService
 from core.utils.asyncio import run_sync
 
 router = Router(name="ticket_admin_review_callbacks")
@@ -25,10 +29,13 @@ class TicketReviewCallbackSupportMixin:
     ) -> TicketBotPermissionSet | None:
         if not user or not user.is_active:
             await state.clear()
-            await ticket_admin_support._notify_not_registered_callback(query=query, _=_)
+            await TicketAdminCommonService.notify_not_registered_callback(
+                query=query,
+                _=_,
+            )
             return None
 
-        permissions = await ticket_admin_support._ticket_permissions(user=user)
+        permissions = await TicketAdminCommonService.ticket_permissions(user=user)
         if not permissions.can_open_review_panel:
             await query.answer(
                 _("⛔ Your roles do not allow ticket review actions."),
@@ -40,7 +47,7 @@ class TicketReviewCallbackSupportMixin:
 
 
 @router.callback_query(
-    F.data.startswith(f"{ticket_admin_support.REVIEW_QUEUE_CALLBACK_PREFIX}:")
+    F.data.startswith(f"{TicketAdminReviewService.QUEUE_CALLBACK_PREFIX}:")
 )
 class TicketReviewQueueCallbackHandler(
     TicketReviewCallbackSupportMixin, CallbackQueryHandler
@@ -51,7 +58,7 @@ class TicketReviewQueueCallbackHandler(
         _ = self.data["_"]
         user: User | None = self.data.get("user")
 
-        parsed = ticket_admin_support._parse_review_queue_callback(
+        parsed = TicketAdminReviewService.parse_queue_callback(
             callback_data=query.data or ""
         )
         if parsed is None:
@@ -68,8 +75,8 @@ class TicketReviewQueueCallbackHandler(
             return
 
         action, ticket_id, page = parsed
-        if action == ticket_admin_support.REVIEW_QUEUE_ACTION_REFRESH:
-            await ticket_admin_support._show_review_queue(
+        if action == TicketAdminReviewService.QUEUE_ACTION_REFRESH:
+            await TicketAdminReviewService.show_review_queue(
                 query=query,
                 state=state,
                 page=page,
@@ -79,18 +86,18 @@ class TicketReviewQueueCallbackHandler(
             return
 
         if (
-            action == ticket_admin_support.REVIEW_QUEUE_ACTION_OPEN
+            action == TicketAdminReviewService.QUEUE_ACTION_OPEN
             and ticket_id is not None
         ):
-            await state.set_state(ticket_admin_support.TicketReviewForm.flow)
+            await state.set_state(TicketReviewForm.flow)
             await state.update_data(
                 review_ticket_id=ticket_id,
-                review_page=ticket_admin_support._normalize_page(page=page),
+                review_page=TicketAdminCommonService.normalize_page(page=page),
             )
-            await ticket_admin_support._show_review_ticket(
+            await TicketAdminReviewService.show_review_ticket(
                 query=query,
                 ticket_id=ticket_id,
-                page=ticket_admin_support._normalize_page(page=page),
+                page=TicketAdminCommonService.normalize_page(page=page),
                 permissions=permissions,
                 _=_,
             )
@@ -101,7 +108,7 @@ class TicketReviewQueueCallbackHandler(
 
 
 @router.callback_query(
-    F.data.startswith(f"{ticket_admin_support.REVIEW_ACTION_CALLBACK_PREFIX}:")
+    F.data.startswith(f"{TicketAdminReviewService.ACTION_CALLBACK_PREFIX}:")
 )
 class TicketReviewActionCallbackHandler(
     TicketReviewCallbackSupportMixin, CallbackQueryHandler
@@ -112,7 +119,7 @@ class TicketReviewActionCallbackHandler(
         _ = self.data["_"]
         user: User | None = self.data.get("user")
 
-        parsed = ticket_admin_support._parse_review_action_callback(
+        parsed = TicketAdminReviewService.parse_action_callback(
             callback_data=query.data or ""
         )
         if parsed is None:
@@ -130,7 +137,7 @@ class TicketReviewActionCallbackHandler(
 
         action, ticket_id, arg = parsed
         state_data = await state.get_data()
-        review_page = ticket_admin_support._normalize_page(
+        review_page = TicketAdminCommonService.normalize_page(
             page=state_data.get("review_page") or 1
         )
 
@@ -138,8 +145,8 @@ class TicketReviewActionCallbackHandler(
             await query.answer()
             return
 
-        if action == ticket_admin_support.REVIEW_ACTION_BACK:
-            await ticket_admin_support._show_review_ticket(
+        if action == TicketAdminReviewService.ACTION_BACK:
+            await TicketAdminReviewService.show_review_ticket(
                 query=query,
                 ticket_id=ticket_id,
                 page=review_page,
@@ -149,7 +156,7 @@ class TicketReviewActionCallbackHandler(
             await query.answer()
             return
 
-        if action == ticket_admin_support.REVIEW_ACTION_ASSIGN_OPEN:
+        if action == TicketAdminReviewService.ACTION_ASSIGN_OPEN:
             if not permissions.can_approve_and_assign:
                 await query.answer(
                     _("⛔ Your roles do not allow approve-and-assign action."),
@@ -157,12 +164,14 @@ class TicketReviewActionCallbackHandler(
                 )
                 return
             ticket = await run_sync(
-                ticket_admin_support._review_ticket, ticket_id=ticket_id
+                TicketAdminReviewService.review_ticket, ticket_id=ticket_id
             )
             if ticket is None:
                 await query.answer(_("⚠️ Ticket was not found."), show_alert=True)
                 return
-            if not ticket_admin_support._can_assign_ticket_status(status=ticket.status):
+            if not TicketAdminCommonService.can_assign_ticket_status(
+                status=ticket.status
+            ):
                 await query.answer(
                     _("⚠️ Approve & assign is not available for this ticket status."),
                     show_alert=True,
@@ -175,9 +184,9 @@ class TicketReviewActionCallbackHandler(
                 assign_page_count,
                 _assign_total_count,
             ) = await run_sync(
-                ticket_admin_support._list_technician_options_page,
+                TicketAdminReviewService.list_technician_options_page,
                 page=1,
-                per_page=ticket_admin_support.TECHNICIAN_OPTIONS_PER_PAGE,
+                per_page=TicketAdminReviewService.TECHNICIAN_OPTIONS_PER_PAGE,
             )
             if not technician_options:
                 await query.answer(
@@ -186,13 +195,13 @@ class TicketReviewActionCallbackHandler(
                 )
                 return
 
-            await state.set_state(ticket_admin_support.TicketReviewForm.flow)
+            await state.set_state(TicketReviewForm.flow)
             await state.update_data(assign_page=assign_page)
-            await ticket_admin_support._safe_edit_message(
+            await TicketAdminCommonService.safe_edit_message(
                 query=query,
                 text=_("👤 Select technician for ticket #%(ticket_id)s.")
                 % {"ticket_id": ticket_id},
-                reply_markup=ticket_admin_support._assign_keyboard(
+                reply_markup=TicketAdminReviewService.assign_keyboard(
                     ticket_id=ticket_id,
                     technician_options=technician_options,
                     page=assign_page,
@@ -202,7 +211,7 @@ class TicketReviewActionCallbackHandler(
             await query.answer()
             return
 
-        if action == ticket_admin_support.REVIEW_ACTION_ASSIGN_PAGE:
+        if action == TicketAdminReviewService.ACTION_ASSIGN_PAGE:
             if not permissions.can_approve_and_assign:
                 await query.answer(
                     _("⛔ Your roles do not allow approve-and-assign action."),
@@ -210,12 +219,14 @@ class TicketReviewActionCallbackHandler(
                 )
                 return
             ticket = await run_sync(
-                ticket_admin_support._review_ticket, ticket_id=ticket_id
+                TicketAdminReviewService.review_ticket, ticket_id=ticket_id
             )
             if ticket is None:
                 await query.answer(_("⚠️ Ticket was not found."), show_alert=True)
                 return
-            if not ticket_admin_support._can_assign_ticket_status(status=ticket.status):
+            if not TicketAdminCommonService.can_assign_ticket_status(
+                status=ticket.status
+            ):
                 await query.answer(
                     _("⚠️ Approve & assign is not available for this ticket status."),
                     show_alert=True,
@@ -234,9 +245,9 @@ class TicketReviewActionCallbackHandler(
                 page_count,
                 _assign_total_count,
             ) = await run_sync(
-                ticket_admin_support._list_technician_options_page,
+                TicketAdminReviewService.list_technician_options_page,
                 page=assign_page,
-                per_page=ticket_admin_support.TECHNICIAN_OPTIONS_PER_PAGE,
+                per_page=TicketAdminReviewService.TECHNICIAN_OPTIONS_PER_PAGE,
             )
             if not technician_options:
                 await query.answer(
@@ -245,13 +256,13 @@ class TicketReviewActionCallbackHandler(
                 )
                 return
 
-            await state.set_state(ticket_admin_support.TicketReviewForm.flow)
+            await state.set_state(TicketReviewForm.flow)
             await state.update_data(assign_page=safe_page)
-            await ticket_admin_support._safe_edit_message(
+            await TicketAdminCommonService.safe_edit_message(
                 query=query,
                 text=_("👤 Select technician for ticket #%(ticket_id)s.")
                 % {"ticket_id": ticket_id},
-                reply_markup=ticket_admin_support._assign_keyboard(
+                reply_markup=TicketAdminReviewService.assign_keyboard(
                     ticket_id=ticket_id,
                     technician_options=technician_options,
                     page=safe_page,
@@ -261,7 +272,7 @@ class TicketReviewActionCallbackHandler(
             await query.answer()
             return
 
-        if action == ticket_admin_support.REVIEW_ACTION_ASSIGN_EXEC:
+        if action == TicketAdminReviewService.ACTION_ASSIGN_EXEC:
             if not permissions.can_approve_and_assign:
                 await query.answer(
                     _("⛔ Your roles do not allow approve-and-assign action."),
@@ -269,12 +280,14 @@ class TicketReviewActionCallbackHandler(
                 )
                 return
             ticket = await run_sync(
-                ticket_admin_support._review_ticket, ticket_id=ticket_id
+                TicketAdminReviewService.review_ticket, ticket_id=ticket_id
             )
             if ticket is None:
                 await query.answer(_("⚠️ Ticket was not found."), show_alert=True)
                 return
-            if not ticket_admin_support._can_assign_ticket_status(status=ticket.status):
+            if not TicketAdminCommonService.can_assign_ticket_status(
+                status=ticket.status
+            ):
                 await query.answer(
                     _("⚠️ Approve & assign is not available for this ticket status."),
                     show_alert=True,
@@ -300,7 +313,7 @@ class TicketReviewActionCallbackHandler(
 
             try:
                 ticket = await run_sync(
-                    ticket_admin_support._approve_and_assign_ticket,
+                    TicketAdminReviewService.approve_and_assign_ticket,
                     ticket_id=ticket_id,
                     technician_id=technician_id,
                     actor_user_id=actor_user_id,
@@ -313,10 +326,10 @@ class TicketReviewActionCallbackHandler(
                 )
                 return
 
-            await ticket_admin_support._safe_edit_message(
+            await TicketAdminCommonService.safe_edit_message(
                 query=query,
-                text=ticket_admin_support._review_ticket_text(ticket=ticket, _=_),
-                reply_markup=ticket_admin_support._review_ticket_keyboard(
+                text=TicketAdminReviewService.review_ticket_text(ticket=ticket, _=_),
+                reply_markup=TicketAdminReviewService.review_ticket_keyboard(
                     ticket_id=ticket.id,
                     page=review_page,
                     permissions=permissions,
@@ -326,7 +339,7 @@ class TicketReviewActionCallbackHandler(
             await query.answer(_("✅ Ticket approved and assigned."), show_alert=False)
             return
 
-        if action == ticket_admin_support.REVIEW_ACTION_MANUAL_OPEN:
+        if action == TicketAdminReviewService.ACTION_MANUAL_OPEN:
             if not permissions.can_manual_metrics:
                 await query.answer(
                     _("⛔ Your roles do not allow manual metrics override."),
@@ -335,32 +348,32 @@ class TicketReviewActionCallbackHandler(
                 return
 
             ticket = await run_sync(
-                ticket_admin_support._review_ticket, ticket_id=ticket_id
+                TicketAdminReviewService.review_ticket, ticket_id=ticket_id
             )
             if ticket is None:
                 await query.answer(_("⚠️ Ticket was not found."), show_alert=True)
                 return
 
             color = str(ticket.flag_color or "green").lower()
-            if color not in ticket_admin_support.VALID_TICKET_COLORS:
+            if color not in TicketAdminCommonService.VALID_TICKET_COLORS:
                 color = "green"
             xp_amount = max(0, int(ticket.xp_amount or 0))
 
-            await state.set_state(ticket_admin_support.TicketReviewForm.flow)
+            await state.set_state(TicketReviewForm.flow)
             await state.update_data(
                 manual_ticket_id=ticket_id,
                 manual_flag_color=color,
                 manual_xp_amount=xp_amount,
             )
-            await ticket_admin_support._safe_edit_message(
+            await TicketAdminCommonService.safe_edit_message(
                 query=query,
-                text=ticket_admin_support._manual_metrics_text(
+                text=TicketAdminReviewService.manual_metrics_text(
                     ticket_id=ticket_id,
                     flag_color=color,
                     xp_amount=xp_amount,
                     _=_,
                 ),
-                reply_markup=ticket_admin_support._manual_metrics_keyboard(
+                reply_markup=TicketAdminReviewService.manual_metrics_keyboard(
                     ticket_id=ticket_id,
                     flag_color=color,
                     xp_amount=xp_amount,
@@ -370,10 +383,10 @@ class TicketReviewActionCallbackHandler(
             return
 
         if action in {
-            ticket_admin_support.REVIEW_ACTION_MANUAL_COLOR,
-            ticket_admin_support.REVIEW_ACTION_MANUAL_XP,
-            ticket_admin_support.REVIEW_ACTION_MANUAL_ADJ,
-            ticket_admin_support.REVIEW_ACTION_MANUAL_SAVE,
+            TicketAdminReviewService.ACTION_MANUAL_COLOR,
+            TicketAdminReviewService.ACTION_MANUAL_XP,
+            TicketAdminReviewService.ACTION_MANUAL_ADJ,
+            TicketAdminReviewService.ACTION_MANUAL_SAVE,
         }:
             if not permissions.can_manual_metrics:
                 await query.answer(
@@ -389,7 +402,7 @@ class TicketReviewActionCallbackHandler(
 
             if manual_ticket_id != ticket_id:
                 ticket = await run_sync(
-                    ticket_admin_support._review_ticket, ticket_id=ticket_id
+                    TicketAdminReviewService.review_ticket, ticket_id=ticket_id
                 )
                 if ticket is None:
                     await query.answer(_("⚠️ Ticket was not found."), show_alert=True)
@@ -402,18 +415,18 @@ class TicketReviewActionCallbackHandler(
                     manual_xp_amount=xp_amount,
                 )
 
-            if action == ticket_admin_support.REVIEW_ACTION_MANUAL_COLOR:
+            if action == TicketAdminReviewService.ACTION_MANUAL_COLOR:
                 if arg is None:
                     await query.answer(_("⚠️ Invalid color option."), show_alert=True)
                     return
                 next_color = str(arg).lower()
-                if next_color not in ticket_admin_support.VALID_TICKET_COLORS:
+                if next_color not in TicketAdminCommonService.VALID_TICKET_COLORS:
                     await query.answer(_("⚠️ Invalid color option."), show_alert=True)
                     return
                 flag_color = next_color
                 await state.update_data(manual_flag_color=flag_color)
 
-            elif action == ticket_admin_support.REVIEW_ACTION_MANUAL_XP:
+            elif action == TicketAdminReviewService.ACTION_MANUAL_XP:
                 if arg is None:
                     await query.answer(_("⚠️ Invalid XP option."), show_alert=True)
                     return
@@ -425,7 +438,7 @@ class TicketReviewActionCallbackHandler(
                 xp_amount = max(0, xp_amount)
                 await state.update_data(manual_xp_amount=xp_amount)
 
-            elif action == ticket_admin_support.REVIEW_ACTION_MANUAL_ADJ:
+            elif action == TicketAdminReviewService.ACTION_MANUAL_ADJ:
                 if arg is None:
                     await query.answer(_("⚠️ Invalid XP adjustment."), show_alert=True)
                     return
@@ -437,10 +450,10 @@ class TicketReviewActionCallbackHandler(
                 xp_amount = max(0, xp_amount + delta)
                 await state.update_data(manual_xp_amount=xp_amount)
 
-            elif action == ticket_admin_support.REVIEW_ACTION_MANUAL_SAVE:
+            elif action == TicketAdminReviewService.ACTION_MANUAL_SAVE:
                 try:
                     ticket = await run_sync(
-                        ticket_admin_support._set_ticket_manual_metrics,
+                        TicketAdminReviewService.set_ticket_manual_metrics,
                         ticket_id=ticket_id,
                         flag_color=flag_color,
                         xp_amount=xp_amount,
@@ -453,10 +466,12 @@ class TicketReviewActionCallbackHandler(
                     )
                     return
 
-                await ticket_admin_support._safe_edit_message(
+                await TicketAdminCommonService.safe_edit_message(
                     query=query,
-                    text=ticket_admin_support._review_ticket_text(ticket=ticket, _=_),
-                    reply_markup=ticket_admin_support._review_ticket_keyboard(
+                    text=TicketAdminReviewService.review_ticket_text(
+                        ticket=ticket, _=_
+                    ),
+                    reply_markup=TicketAdminReviewService.review_ticket_keyboard(
                         ticket_id=ticket.id,
                         page=review_page,
                         permissions=permissions,
@@ -466,15 +481,15 @@ class TicketReviewActionCallbackHandler(
                 await query.answer(_("✅ Manual metrics updated."), show_alert=False)
                 return
 
-            await ticket_admin_support._safe_edit_message(
+            await TicketAdminCommonService.safe_edit_message(
                 query=query,
-                text=ticket_admin_support._manual_metrics_text(
+                text=TicketAdminReviewService.manual_metrics_text(
                     ticket_id=ticket_id,
                     flag_color=flag_color,
                     xp_amount=xp_amount,
                     _=_,
                 ),
-                reply_markup=ticket_admin_support._manual_metrics_keyboard(
+                reply_markup=TicketAdminReviewService.manual_metrics_keyboard(
                     ticket_id=ticket_id,
                     flag_color=flag_color,
                     xp_amount=xp_amount,

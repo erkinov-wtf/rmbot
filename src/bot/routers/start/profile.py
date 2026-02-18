@@ -9,19 +9,13 @@ from aiogram.types import Message
 from account.models import TelegramProfile, User
 from account.services import AccountService
 from bot.permissions import resolve_ticket_bot_permissions
-from bot.routers.start.common import StartStateMixin
+from bot.routers.start.base import StartStateMixin
 from bot.services.menu import (
     MENU_BUTTON_HELP_VARIANTS,
     MENU_BUTTON_MY_STATUS_VARIANTS,
-    build_main_menu_keyboard,
-    main_menu_markup_for_user,
+    BotMenuService,
 )
-from bot.services.start_support import (
-    _build_active_status_text,
-    _build_pending_status_text,
-    _reply_not_registered,
-    _resolve_active_user_for_status,
-)
+from bot.services.start_support import StartProfileService
 from core.utils.asyncio import run_sync
 from core.utils.constants import RoleSlug
 
@@ -200,7 +194,7 @@ class StartProfileSupportMixin(StartStateMixin):
                 telegram_id,
             )
 
-        resolved_user = await _resolve_active_user_for_status(
+        resolved_user = await StartProfileService.resolve_active_user_for_status(
             user=user,
             telegram_profile=telegram_profile,
         )
@@ -233,7 +227,7 @@ class StartProfileSupportMixin(StartStateMixin):
                 can_qc_checks=ticket_permissions.can_qc,
                 _=_,
             ),
-            reply_markup=await main_menu_markup_for_user(
+            reply_markup=await BotMenuService.main_menu_markup_for_user(
                 user=resolved_user or user,
                 include_start_access=include_start_access,
                 _=_,
@@ -260,8 +254,8 @@ class StartProfileSupportMixin(StartStateMixin):
         )
         if pending:
             await message.answer(
-                _build_pending_status_text(pending=pending, _=_),
-                reply_markup=build_main_menu_keyboard(
+                StartProfileService.build_pending_status_text(pending=pending, _=_),
+                reply_markup=BotMenuService.build_main_menu_keyboard(
                     is_technician=False,
                     include_start_access=False,
                     _=_,
@@ -269,18 +263,24 @@ class StartProfileSupportMixin(StartStateMixin):
             )
             return
 
-        resolved_user = await _resolve_active_user_for_status(
+        resolved_user = await StartProfileService.resolve_active_user_for_status(
             user=user,
             telegram_profile=telegram_profile,
         )
         if resolved_user:
             await message.answer(
-                await _build_active_status_text(user=resolved_user, _=_),
-                reply_markup=await main_menu_markup_for_user(user=resolved_user, _=_),
+                await StartProfileService.build_active_status_text(
+                    user=resolved_user,
+                    _=_,
+                ),
+                reply_markup=await BotMenuService.main_menu_markup_for_user(
+                    user=resolved_user,
+                    _=_,
+                ),
             )
             return
 
-        await _reply_not_registered(message=message, _=_)
+        await StartProfileService.reply_not_registered(message=message, _=_)
 
 
 @router.message(Command("help"))

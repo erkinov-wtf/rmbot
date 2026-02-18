@@ -5,6 +5,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from attendance.models import AttendanceRecord
+from core.api.exceptions import DomainValidationError
 from core.utils.constants import XPTransactionEntryType
 from gamification.services import GamificationService
 from rules.services import RulesService
@@ -144,7 +145,7 @@ class AttendanceService:
             work_date=today,
         )
         if not record:
-            raise ValueError("Cannot check out before check in.")
+            raise DomainValidationError("Cannot check out before check in.")
 
         record.mark_check_out(check_out_at=now_dt)
         return record

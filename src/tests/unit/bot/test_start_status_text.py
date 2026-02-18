@@ -6,13 +6,8 @@ from django.utils import timezone
 from account.models import AccessRequest
 from bot.services.start_support import (
     XP_HISTORY_DEFAULT_LIMIT,
-    _build_active_status_text,
-    _build_pending_status_text,
-    _build_xp_history_callback_data,
-    _build_xp_history_pagination_markup,
-    _build_xp_history_text,
-    _build_xp_summary_text,
-    _parse_xp_history_callback_data,
+    StartProfileService,
+    StartXPService,
 )
 from core.utils.constants import RoleSlug
 
@@ -28,7 +23,10 @@ def test_pending_status_text_contains_request_details():
         phone="+15550001111",
     )
 
-    text = _build_pending_status_text(pending=pending, _=lambda value: value)
+    text = StartProfileService.build_pending_status_text(
+        pending=pending,
+        _=lambda value: value,
+    )
 
     assert "<b>Access Request</b>" in text
     assert "<b>Status:</b> under review" in text
@@ -71,21 +69,24 @@ def test_active_status_text_for_technician_includes_queue_size(monkeypatch):
         assert user_id == 77
         return 120, 6
 
-    monkeypatch.setattr("bot.services.start_support._active_role_slugs", _stub_roles)
+    monkeypatch.setattr(StartProfileService, "active_role_slugs", _stub_roles)
     monkeypatch.setattr(
-        "bot.services.start_support._active_ticket_count_for_technician",
+        StartProfileService,
+        "active_ticket_count_for_technician",
         _stub_active_ticket_count,
     )
     monkeypatch.setattr(
-        "bot.services.start_support._ticket_status_counts_for_technician",
+        StartProfileService,
+        "ticket_status_counts_for_technician",
         _stub_status_counts,
     )
-    monkeypatch.setattr(
-        "bot.services.start_support._xp_totals_for_user", _stub_xp_totals
-    )
+    monkeypatch.setattr(StartProfileService, "xp_totals_for_user", _stub_xp_totals)
 
     text = asyncio.run(
-        _build_active_status_text(user=_DummyUser(), _=lambda value: value)
+        StartProfileService.build_active_status_text(
+            user=_DummyUser(),
+            _=lambda value: value,
+        )
     )
 
     assert "<b>My Profile</b>" in text
@@ -134,12 +135,12 @@ def test_xp_summary_text_contains_recent_entries(monkeypatch):
             )
         ]
 
-    monkeypatch.setattr("bot.services.start_support._xp_totals_for_user", _stub_totals)
-    monkeypatch.setattr(
-        "bot.services.start_support._xp_history_for_user", _stub_history
-    )
+    monkeypatch.setattr(StartProfileService, "xp_totals_for_user", _stub_totals)
+    monkeypatch.setattr(StartXPService, "xp_history_for_user", _stub_history)
 
-    text = asyncio.run(_build_xp_summary_text(user=_DummyUser(), _=lambda v: v))
+    text = asyncio.run(
+        StartXPService.build_summary_text(user=_DummyUser(), _=lambda v: v)
+    )
 
     assert "<b>XP Summary</b>" in text
     assert "<b>Total XP:</b> 240" in text
@@ -187,15 +188,11 @@ def test_xp_history_text_is_human_friendly(monkeypatch):
         assert user_id == 99
         return 1
 
-    monkeypatch.setattr(
-        "bot.services.start_support._xp_history_for_user", _stub_history
-    )
-    monkeypatch.setattr(
-        "bot.services.start_support._xp_history_count_for_user", _stub_count
-    )
+    monkeypatch.setattr(StartXPService, "xp_history_for_user", _stub_history)
+    monkeypatch.setattr(StartXPService, "xp_history_count_for_user", _stub_count)
 
     text, total_count, limit, offset = asyncio.run(
-        _build_xp_history_text(user=_DummyUser(), _=lambda v: v)
+        StartXPService.build_history_text(user=_DummyUser(), _=lambda v: v)
     )
 
     assert total_count == 1
@@ -210,19 +207,24 @@ def test_xp_history_text_is_human_friendly(monkeypatch):
 
 
 def test_xp_history_callback_data_roundtrip():
-    callback_data = _build_xp_history_callback_data(limit=15, offset=30)
+    callback_data = StartXPService.build_history_callback_data(limit=15, offset=30)
     assert callback_data == "xph:15:30"
-    assert _parse_xp_history_callback_data(callback_data=callback_data) == (15, 30)
+    assert StartXPService.parse_history_callback_data(callback_data=callback_data) == (
+        15,
+        30,
+    )
 
 
 def test_xp_history_callback_data_rejects_invalid_payload():
-    assert _parse_xp_history_callback_data(callback_data="xph:bad:10") is None
-    assert _parse_xp_history_callback_data(callback_data="xph:10:-1") is None
-    assert _parse_xp_history_callback_data(callback_data="oops:10:0") is None
+    assert (
+        StartXPService.parse_history_callback_data(callback_data="xph:bad:10") is None
+    )
+    assert StartXPService.parse_history_callback_data(callback_data="xph:10:-1") is None
+    assert StartXPService.parse_history_callback_data(callback_data="oops:10:0") is None
 
 
 def test_xp_history_pagination_markup_has_nav_buttons():
-    markup = _build_xp_history_pagination_markup(
+    markup = StartXPService.build_history_pagination_markup(
         total_count=25,
         limit=10,
         offset=10,
@@ -237,7 +239,7 @@ def test_xp_history_pagination_markup_has_nav_buttons():
 
 
 def test_xp_history_pagination_markup_is_always_visible_for_single_page():
-    markup = _build_xp_history_pagination_markup(
+    markup = StartXPService.build_history_pagination_markup(
         total_count=3,
         limit=10,
         offset=0,

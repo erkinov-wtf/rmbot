@@ -4,6 +4,7 @@ import math
 from django.db import transaction
 from django.utils import timezone
 
+from core.api.exceptions import DomainValidationError
 from core.services.notifications import UserNotificationService
 from core.utils.constants import (
     TicketStatus,
@@ -53,7 +54,7 @@ class TicketWorkflowService:
     @transaction.atomic
     def start_ticket(cls, ticket: Ticket, actor_user_id: int) -> Ticket:
         if WorkSession.domain.has_open_for_technician(technician_id=actor_user_id):
-            raise ValueError(
+            raise DomainValidationError(
                 "Technician already has an active work session. Stop current work session "
                 "or move ticket to waiting QC before starting another ticket."
             )
@@ -96,11 +97,12 @@ class TicketWorkflowService:
             technician_id=actor_user_id,
         )
         if latest_session is None or latest_session.status != WorkSessionStatus.STOPPED:
-            raise ValueError(
+            raise DomainValidationError(
                 "Work session must be stopped before moving ticket to waiting QC."
             )
 
         from_status = ticket.move_to_waiting_qc(actor_user_id=actor_user_id)
+
         cls.log_ticket_transition(
             ticket=ticket,
             from_status=from_status,
@@ -235,14 +237,22 @@ class TicketWorkflowService:
             return ticket
 
         if ticket.status not in (TicketStatus.UNDER_REVIEW, TicketStatus.NEW):
-            raise ValueError(
+            raise DomainValidationError(
                 "Ticket review can be approved only from UNDER_REVIEW or NEW status."
             )
 
-        ticket.mark_admin_review_approved(
-            approved_by_id=actor_user_id,
-            approved_at=timezone.now(),
-        )
+        # Mark as admin reviewed
+        ticket.approved_by_id = actor_user_id
+        ticket.approved_at = timezone.now()
+        update_fields = ["approved_by", "approved_at"]
+
+        # Transition UNDER_REVIEW -> NEW; if already NEW, no change
+        if ticket.status == TicketStatus.UNDER_REVIEW:
+            ticket.status = TicketStatus.NEW
+            update_fields.append("status")
+
+        ticket.save(update_fields=update_fields)
+
         return ticket
 
     @classmethod

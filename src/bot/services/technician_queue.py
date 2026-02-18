@@ -7,7 +7,7 @@ from aiogram.types import (
 )
 
 from account.models import User
-from bot.services.menu import build_main_menu_keyboard
+from bot.services.menu import BotMenuService
 from bot.services.technician_ticket_actions import TechnicianTicketActionService
 from core.utils.asyncio import run_sync
 from core.utils.constants import RoleSlug
@@ -27,11 +27,13 @@ class TechnicianQueueService:
         text: str,
         reply_markup,
     ) -> None:
-        if query.message is None:
+        message = query.message
+        edit_text = getattr(message, "edit_text", None)
+        if edit_text is None:
             return
 
         try:
-            await query.message.edit_text(text=text, reply_markup=reply_markup)
+            await edit_text(text=text, reply_markup=reply_markup)
         except TelegramBadRequest as exc:
             if "message is not modified" in str(exc).lower():
                 return
@@ -53,7 +55,7 @@ class TechnicianQueueService:
             _(
                 "📝 <b>Open Access Request</b>\nUse <code>/start</code> or tap the button below."
             ),
-            reply_markup=build_main_menu_keyboard(
+            reply_markup=BotMenuService.build_main_menu_keyboard(
                 is_technician=False,
                 include_start_access=True,
                 _=_,
@@ -182,7 +184,7 @@ class TechnicianQueueService:
                 _(
                     "🚫 <b>No access yet.</b>\nSend <code>/start</code> to submit access request."
                 ),
-                reply_markup=build_main_menu_keyboard(
+                reply_markup=BotMenuService.build_main_menu_keyboard(
                     is_technician=False,
                     include_start_access=True,
                     _=_,
@@ -193,7 +195,7 @@ class TechnicianQueueService:
         if not await cls.is_technician(user):
             await message.answer(
                 _("⛔ <b>This command is available only for technicians.</b>"),
-                reply_markup=build_main_menu_keyboard(
+                reply_markup=BotMenuService.build_main_menu_keyboard(
                     is_technician=False,
                     include_start_access=False,
                     _=_,

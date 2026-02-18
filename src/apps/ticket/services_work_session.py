@@ -5,6 +5,7 @@ from django.db import transaction
 from django.db.models import Prefetch
 from django.utils import timezone
 
+from core.api.exceptions import DomainValidationError
 from core.utils.constants import WorkSessionStatus, WorkSessionTransitionAction
 from rules.services import RulesService
 from ticket.models import Ticket, WorkSession, WorkSessionTransition
@@ -28,7 +29,7 @@ class TicketWorkSessionService:
             now_dt=now_dt,
         )
         if remaining_pause_seconds <= 0:
-            raise ValueError("Daily pause limit is fully reached for today.")
+            raise DomainValidationError("Daily pause limit is fully reached for today.")
 
         session.pause(
             actor_user_id=actor_user_id,
@@ -241,7 +242,7 @@ class TicketWorkSessionService:
             technician_id=actor_user_id,
         )
         if not session:
-            raise ValueError(
+            raise DomainValidationError(
                 "No active work session found for this ticket and technician."
             )
         return session

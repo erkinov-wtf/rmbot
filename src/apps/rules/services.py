@@ -10,6 +10,7 @@ from typing import Any
 from django.core.cache import cache
 from django.db import transaction
 
+from core.api.exceptions import DomainValidationError
 from rules.models import RulesConfigAction, RulesConfigState, RulesConfigVersion
 
 
@@ -53,9 +54,9 @@ class RulesService:
     @staticmethod
     def _require_int(value: Any, *, field: str, allow_negative: bool = False) -> int:
         if not isinstance(value, int):
-            raise ValueError(f"{field} must be an integer.")
+            raise DomainValidationError(f"{field} must be an integer.")
         if not allow_negative and value < 0:
-            raise ValueError(f"{field} must be >= 0.")
+            raise DomainValidationError(f"{field} must be >= 0.")
         return value
 
     @classmethod
@@ -79,29 +80,31 @@ class RulesService:
     @classmethod
     def validate_and_normalize_rules_config(cls, raw_config: Any) -> dict[str, Any]:
         if not isinstance(raw_config, dict):
-            raise ValueError("config must be a JSON object.")
+            raise DomainValidationError("config must be a JSON object.")
 
         allowed_keys = {"ticket_xp", "attendance", "work_session"}
         unknown_keys = sorted(set(raw_config.keys()) - allowed_keys)
         if unknown_keys:
-            raise ValueError(f"Unknown config keys: {', '.join(unknown_keys)}.")
+            raise DomainValidationError(
+                f"Unknown config keys: {', '.join(unknown_keys)}."
+            )
 
         ticket_xp = raw_config.get("ticket_xp")
         attendance = raw_config.get("attendance")
         work_session = raw_config.get("work_session")
 
         if not isinstance(ticket_xp, dict):
-            raise ValueError("ticket_xp must be an object.")
+            raise DomainValidationError("ticket_xp must be an object.")
         if not isinstance(attendance, dict):
-            raise ValueError("attendance must be an object.")
+            raise DomainValidationError("attendance must be an object.")
         if not isinstance(work_session, dict):
-            raise ValueError("work_session must be an object.")
+            raise DomainValidationError("work_session must be an object.")
 
         base_divisor = cls._require_int(
             ticket_xp.get("base_divisor"), field="ticket_xp.base_divisor"
         )
         if base_divisor <= 0:
-            raise ValueError("ticket_xp.base_divisor must be > 0.")
+            raise DomainValidationError("ticket_xp.base_divisor must be > 0.")
         first_pass_bonus = cls._require_int(
             ticket_xp.get("first_pass_bonus"), field="ticket_xp.first_pass_bonus"
         )
@@ -132,19 +135,25 @@ class RulesService:
             or len(on_time_cutoff) != 5
             or on_time_cutoff[2] != ":"
         ):
-            raise ValueError("attendance.on_time_cutoff must be in HH:MM format.")
+            raise DomainValidationError(
+                "attendance.on_time_cutoff must be in HH:MM format."
+            )
         if (
             not isinstance(grace_cutoff, str)
             or len(grace_cutoff) != 5
             or grace_cutoff[2] != ":"
         ):
-            raise ValueError("attendance.grace_cutoff must be in HH:MM format.")
+            raise DomainValidationError(
+                "attendance.grace_cutoff must be in HH:MM format."
+            )
         if on_time_cutoff > grace_cutoff:
-            raise ValueError(
+            raise DomainValidationError(
                 "attendance.on_time_cutoff must be <= attendance.grace_cutoff."
             )
         if not isinstance(timezone_value, str) or not timezone_value.strip():
-            raise ValueError("attendance.timezone must be a non-empty string.")
+            raise DomainValidationError(
+                "attendance.timezone must be a non-empty string."
+            )
 
         daily_pause_limit_minutes = cls._require_int(
             work_session.get("daily_pause_limit_minutes"),
@@ -155,7 +164,9 @@ class RulesService:
             not isinstance(work_session_timezone, str)
             or not work_session_timezone.strip()
         ):
-            raise ValueError("work_session.timezone must be a non-empty string.")
+            raise DomainValidationError(
+                "work_session.timezone must be a non-empty string."
+            )
 
         return {
             "ticket_xp": {
@@ -255,7 +266,7 @@ class RulesService:
         current_version = state.active_version
 
         if normalized == current_version.config:
-            raise ValueError("No config changes detected.")
+            raise DomainValidationError("No config changes detected.")
 
         diff = cls._diff_rules(current_version.config, normalized)
         new_version = RulesConfigVersion.domain.create_version_entry(
@@ -292,9 +303,9 @@ class RulesService:
             version_number=target_version_number
         )
         if not target_version:
-            raise ValueError("Target version does not exist.")
+            raise DomainValidationError("Target version does not exist.")
         if target_version.id == current_version.id:
-            raise ValueError("Target version is already active.")
+            raise DomainValidationError("Target version is already active.")
 
         restored_config = copy.deepcopy(target_version.config)
         diff = cls._diff_rules(current_version.config, restored_config)

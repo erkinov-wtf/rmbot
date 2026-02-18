@@ -16,13 +16,12 @@ from aiogram.types import (
 
 from account.models import TelegramProfile, User
 from account.services import AccountService
-from bot.routers.start.common import AccessRequestForm, StartStateMixin
+from bot.routers.start.base import AccessRequestForm, StartStateMixin
 from bot.services.menu import (
     MENU_BUTTON_START_ACCESS_VARIANTS,
-    build_main_menu_keyboard,
-    main_menu_markup_for_user,
+    BotMenuService,
 )
-from bot.services.start_support import _has_active_linked_user
+from bot.services.start_support import StartProfileService
 from core.utils.asyncio import run_sync
 
 router = Router(name="start_access")
@@ -382,7 +381,7 @@ class AccessRequestSupportMixin(StartStateMixin):
             )
             return
 
-        pending_menu = build_main_menu_keyboard(
+        pending_menu = BotMenuService.build_main_menu_keyboard(
             is_technician=False,
             include_start_access=False,
             _=_,
@@ -436,7 +435,7 @@ class AccessRequestSupportMixin(StartStateMixin):
             await state.clear()
             await message.answer(
                 _("ℹ️ <b>Your access request is already under review.</b>"),
-                reply_markup=build_main_menu_keyboard(
+                reply_markup=BotMenuService.build_main_menu_keyboard(
                     is_technician=False,
                     include_start_access=False,
                     _=_,
@@ -444,13 +443,16 @@ class AccessRequestSupportMixin(StartStateMixin):
             )
             return
 
-        if await _has_active_linked_user(user, profile):
+        if await StartProfileService.has_active_linked_user(user, profile):
             await cls.delete_progress_message(message=message, state=state)
             await cls.delete_phone_prompt_message(message=message, state=state)
             await state.clear()
             await message.answer(
                 _("✅ <b>You are all set.</b> Your account is already active."),
-                reply_markup=await main_menu_markup_for_user(user=user, _=_),
+                reply_markup=await BotMenuService.main_menu_markup_for_user(
+                    user=user,
+                    _=_,
+                ),
             )
             return
 
@@ -502,7 +504,7 @@ class CancelHandler(AccessRequestSupportMixin, MessageHandler):
         if not current_state:
             await message.answer(
                 _("ℹ️ <b>No form in progress.</b>"),
-                reply_markup=await main_menu_markup_for_user(
+                reply_markup=await BotMenuService.main_menu_markup_for_user(
                     user=user,
                     include_start_access=not bool(user and user.is_active),
                     _=_,
@@ -516,7 +518,7 @@ class CancelHandler(AccessRequestSupportMixin, MessageHandler):
         await state.clear()
         await message.answer(
             _("🛑 <b>Draft canceled.</b>\nYou can start a new request anytime."),
-            reply_markup=await main_menu_markup_for_user(
+            reply_markup=await BotMenuService.main_menu_markup_for_user(
                 user=user,
                 include_start_access=not bool(user and user.is_active),
                 _=_,

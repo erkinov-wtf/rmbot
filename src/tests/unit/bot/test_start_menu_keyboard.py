@@ -10,7 +10,7 @@ from bot.services.menu import (
     MENU_BUTTON_START_ACCESS,
     MENU_BUTTON_UNDER_QC_TICKETS,
     MENU_BUTTON_XP_HISTORY,
-    build_main_menu_keyboard,
+    BotMenuService,
 )
 
 
@@ -19,7 +19,7 @@ def _keyboard_text_rows(markup):
 
 
 def test_technician_menu_contains_full_technician_controls():
-    markup = build_main_menu_keyboard(
+    markup = BotMenuService.build_main_menu_keyboard(
         is_technician=True,
         can_create_ticket=False,
         can_review_ticket=False,
@@ -34,7 +34,7 @@ def test_technician_menu_contains_full_technician_controls():
 
 
 def test_technician_menu_appends_ticket_admin_buttons_when_permitted():
-    markup = build_main_menu_keyboard(
+    markup = BotMenuService.build_main_menu_keyboard(
         is_technician=True,
         can_create_ticket=True,
         can_review_ticket=True,
@@ -50,7 +50,7 @@ def test_technician_menu_appends_ticket_admin_buttons_when_permitted():
 
 
 def test_non_technician_menu_shows_ticket_admin_buttons_when_permitted():
-    markup = build_main_menu_keyboard(
+    markup = BotMenuService.build_main_menu_keyboard(
         is_technician=False,
         can_create_ticket=True,
         can_review_ticket=True,
@@ -63,7 +63,7 @@ def test_non_technician_menu_shows_ticket_admin_buttons_when_permitted():
 
 
 def test_non_technician_menu_can_offer_start_access():
-    markup = build_main_menu_keyboard(
+    markup = BotMenuService.build_main_menu_keyboard(
         is_technician=False,
         can_create_ticket=False,
         can_review_ticket=False,
@@ -76,7 +76,7 @@ def test_non_technician_menu_can_offer_start_access():
 
 
 def test_non_technician_menu_can_include_qc_checks_button():
-    markup = build_main_menu_keyboard(
+    markup = BotMenuService.build_main_menu_keyboard(
         is_technician=False,
         can_create_ticket=False,
         can_review_ticket=False,
@@ -90,7 +90,7 @@ def test_non_technician_menu_can_include_qc_checks_button():
 
 
 def test_technician_menu_can_include_qc_checks_button():
-    markup = build_main_menu_keyboard(
+    markup = BotMenuService.build_main_menu_keyboard(
         is_technician=True,
         can_create_ticket=False,
         can_review_ticket=False,

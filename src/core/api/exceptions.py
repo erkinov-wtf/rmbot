@@ -1,7 +1,29 @@
+from rest_framework.response import Response
+from rest_framework.status import HTTP_400_BAD_REQUEST
 from rest_framework.views import exception_handler
 
 
+class DomainValidationError(Exception):
+    """
+    Raised when business logic validation fails.
+    Caught by custom_exception_handler and returns HTTP 400 Bad Request.
+    """
+
+    pass
+
+
 def custom_exception_handler(exc, context):
+    # Handle DomainValidationError (business logic validation failures) → 400
+    if isinstance(exc, DomainValidationError):
+        return Response(
+            {
+                "success": False,
+                "message": str(exc),
+                "error": "validation_error",
+            },
+            status=HTTP_400_BAD_REQUEST,
+        )
+
     response = exception_handler(exc, context)
 
     def _get_error_code(exc):

@@ -23,6 +23,7 @@ from ticket.services_workflow import TicketWorkflowService
 
 
 class TicketWorkflowViewSet(BaseViewSet):
+    permission_classes = (IsAuthenticated,)
     serializer_class = TicketAssignSerializer
     queryset = Ticket.objects.select_related(
         "inventory_item", "master", "technician"
@@ -34,40 +35,37 @@ class TicketWorkflowViewSet(BaseViewSet):
         return super().get_serializer_class()
 
     def get_permissions(self):
+
+        permission_classes = self.permission_classes
+
         if self.action == "assign":
-            permission_classes = (IsAuthenticated, TicketAssignPermission)
+            permission_classes += (TicketAssignPermission,)
         elif self.action == "review_approve":
-            permission_classes = (IsAuthenticated, TicketReviewPermission)
+            permission_classes += (TicketReviewPermission,)
         elif self.action == "manual_metrics":
-            permission_classes = (IsAuthenticated, TicketManualMetricsPermission)
-        elif self.action in {"start", "to_waiting_qc"}:
-            permission_classes = (IsAuthenticated, TicketWorkPermission)
-        elif self.action in {"qc_pass", "qc_fail"}:
-            permission_classes = (IsAuthenticated, TicketQCPermission)
-        else:
-            permission_classes = (IsAuthenticated,)
+            permission_classes += (TicketManualMetricsPermission,)
+        elif self.action in ("start", "to_waiting_qc"):
+            permission_classes += (TicketWorkPermission,)
+        elif self.action in ("qc_pass", "qc_fail"):
+            permission_classes += (TicketQCPermission,)
+
         return [permission() for permission in permission_classes]
 
     @extend_schema(
         tags=["Tickets / Workflow"],
         summary="Assign technician to ticket",
-        description=(
-            "Assigns a technician to the ticket and applies assignment workflow rules."
-        ),
+        description="Assigns a technician to the ticket and applies assignment workflow rules.",
     )
     def assign(self, request, pk: int, *args, **kwargs):
         ticket = self._ticket(pk)
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        try:
-            TicketWorkflowService.assign_ticket(
-                ticket=ticket,
-                technician_id=serializer.validated_data["technician_id"],
-                actor_user_id=request.user.id,
-            )
-        except ValueError as exc:
-            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        TicketWorkflowService.assign_ticket(
+            ticket=ticket,
+            technician_id=serializer.validated_data["technician_id"],
+            actor_user_id=request.user.id,
+        )
         return Response(TicketSerializer(ticket).data, status=status.HTTP_200_OK)
 
     @extend_schema(
@@ -80,12 +78,7 @@ class TicketWorkflowViewSet(BaseViewSet):
     )
     def start(self, request, pk: int, *args, **kwargs):
         ticket = self._ticket(pk)
-        try:
-            TicketWorkflowService.start_ticket(
-                ticket=ticket, actor_user_id=request.user.id
-            )
-        except ValueError as exc:
-            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        TicketWorkflowService.start_ticket(ticket=ticket, actor_user_id=request.user.id)
         return Response(TicketSerializer(ticket).data, status=status.HTTP_200_OK)
 
     @extend_schema(
@@ -98,64 +91,45 @@ class TicketWorkflowViewSet(BaseViewSet):
     )
     def to_waiting_qc(self, request, pk: int, *args, **kwargs):
         ticket = self._ticket(pk)
-        try:
-            TicketWorkflowService.move_ticket_to_waiting_qc(
-                ticket=ticket, actor_user_id=request.user.id
-            )
-        except ValueError as exc:
-            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        TicketWorkflowService.move_ticket_to_waiting_qc(
+            ticket=ticket, actor_user_id=request.user.id
+        )
         return Response(TicketSerializer(ticket).data, status=status.HTTP_200_OK)
 
     @extend_schema(
         tags=["Tickets / Workflow"],
         summary="Mark ticket as QC passed",
-        description=(
-            "Marks the ticket as QC passed and runs completion side effects like XP awarding."
-        ),
+        description="Marks the ticket as QC passed and runs completion side effects like XP awarding.",
     )
     def qc_pass(self, request, pk: int, *args, **kwargs):
         ticket = self._ticket(pk)
-        try:
-            TicketWorkflowService.qc_pass_ticket(
-                ticket=ticket, actor_user_id=request.user.id
-            )
-        except ValueError as exc:
-            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        TicketWorkflowService.qc_pass_ticket(
+            ticket=ticket, actor_user_id=request.user.id
+        )
         return Response(TicketSerializer(ticket).data, status=status.HTTP_200_OK)
 
     @extend_schema(
         tags=["Tickets / Workflow"],
         summary="Mark ticket as QC failed",
-        description=(
-            "Marks the ticket as QC failed and sends it back through the rework path."
-        ),
+        description="Marks the ticket as QC failed and sends it back through the rework path.",
     )
     def qc_fail(self, request, pk: int, *args, **kwargs):
         ticket = self._ticket(pk)
-        try:
-            TicketWorkflowService.qc_fail_ticket(
-                ticket=ticket, actor_user_id=request.user.id
-            )
-        except ValueError as exc:
-            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        TicketWorkflowService.qc_fail_ticket(
+            ticket=ticket, actor_user_id=request.user.id
+        )
         return Response(TicketSerializer(ticket).data, status=status.HTTP_200_OK)
 
     @extend_schema(
         tags=["Tickets / Workflow"],
         summary="Approve ticket admin review",
-        description=(
-            "Approves ticket admin review and moves ticket from UNDER_REVIEW to NEW when applicable."
-        ),
+        description="Approves ticket admin review and moves ticket from UNDER_REVIEW to NEW when applicable.",
     )
     def review_approve(self, request, pk: int, *args, **kwargs):
         ticket = self._ticket(pk)
-        try:
-            TicketWorkflowService.approve_ticket_review(
-                ticket=ticket,
-                actor_user_id=request.user.id,
-            )
-        except ValueError as exc:
-            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        TicketWorkflowService.approve_ticket_review(
+            ticket=ticket, actor_user_id=request.user.id
+        )
         return Response(TicketSerializer(ticket).data, status=status.HTTP_200_OK)
 
     @extend_schema(
@@ -185,9 +159,7 @@ class TicketWorkflowViewSet(BaseViewSet):
 @extend_schema(
     tags=["Tickets / Workflow"],
     summary="List ticket transitions",
-    description=(
-        "Returns workflow transition history for a specific ticket in reverse chronological order."
-    ),
+    description="Returns workflow transition history for a specific ticket in reverse chronological order.",
 )
 class TicketTransitionListAPIView(ListAPIView):
     permission_classes = (IsAuthenticated,)

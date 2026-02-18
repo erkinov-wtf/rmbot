@@ -5,11 +5,15 @@ from aiogram.handlers import MessageHandler
 from aiogram.types import Message
 
 from account.models import User
-from bot.services import ticket_admin_support
 from bot.services.menu import (
     MENU_BUTTON_CREATE_TICKET_VARIANTS,
-    main_menu_markup_for_user,
+    BotMenuService,
 )
+from bot.services.ticket_admin_common_service import (
+    TicketAdminCommonService,
+    TicketCreateForm,
+)
+from bot.services.ticket_admin_create_service import TicketAdminCreateService
 from core.utils.asyncio import run_sync
 
 router = Router(name="ticket_admin_create_entrypoints")
@@ -25,16 +29,19 @@ class TicketCreateEntrypointSupportMixin:
         _,
     ):
         if not user or not user.is_active:
-            await ticket_admin_support._notify_not_registered_message(
+            await TicketAdminCommonService.notify_not_registered_message(
                 message=message, _=_
             )
             return None
 
-        permissions = await ticket_admin_support._ticket_permissions(user=user)
+        permissions = await TicketAdminCommonService.ticket_permissions(user=user)
         if not permissions.can_create:
             await message.answer(
                 _("⛔ <b>Your roles do not allow ticket intake.</b>"),
-                reply_markup=await main_menu_markup_for_user(user=user, _=_),
+                reply_markup=await BotMenuService.main_menu_markup_for_user(
+                    user=user,
+                    _=_,
+                ),
             )
             return None
 
@@ -60,19 +67,19 @@ class TicketCreateEntrypointHandler(TicketCreateEntrypointSupportMixin, MessageH
 
         await state.clear()
         items, safe_page, page_count, _total_count = await run_sync(
-            ticket_admin_support._query_inventory_items_page,
+            TicketAdminCreateService.query_inventory_items_page,
             page=1,
         )
-        await state.set_state(ticket_admin_support.TicketCreateForm.flow)
+        await state.set_state(TicketCreateForm.flow)
         await state.update_data(create_page=safe_page)
         await message.answer(
-            ticket_admin_support._create_items_text(
+            TicketAdminCreateService.create_items_text(
                 page=safe_page,
                 page_count=page_count,
                 items=items,
                 _=_,
             ),
-            reply_markup=ticket_admin_support._create_items_keyboard(
+            reply_markup=TicketAdminCreateService.create_items_keyboard(
                 page=safe_page,
                 page_count=page_count,
                 items=items,

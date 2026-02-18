@@ -52,8 +52,10 @@ class MeAPIView(BaseAPIView):
 class UserOptionListAPIView(ListAPIView):
     serializer_class = UserOptionSerializer
     permission_classes = (IsAuthenticated, UserOptionsPermission)
-    queryset = User.objects.filter(is_active=True).prefetch_related("roles").order_by(
-        "first_name", "last_name", "username", "id"
+    queryset = (
+        User.objects.filter(is_active=True)
+        .prefetch_related("roles")
+        .order_by("first_name", "last_name", "username", "id")
     )
 
     def get_queryset(self):
@@ -104,13 +106,10 @@ class AccessRequestApproveAPIView(BaseAPIView):
 
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        try:
-            approved = AccountService.approve_access_request(
-                access_request=access_request,
-                role_slugs=serializer.validated_data.get("role_slugs", []),
-            )
-        except ValueError as exc:
-            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        approved = AccountService.approve_access_request(
+            access_request=access_request,
+            role_slugs=serializer.validated_data.get("role_slugs", []),
+        )
         output = AccessRequestSerializer(approved).data
         return Response(output, status=status.HTTP_200_OK)
 

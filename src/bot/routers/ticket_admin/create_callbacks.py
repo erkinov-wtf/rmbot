@@ -5,8 +5,12 @@ from aiogram.types import CallbackQuery, Message
 from rest_framework import serializers as drf_serializers
 
 from account.models import User
-from bot.services import ticket_admin_support
-from bot.services.menu import main_menu_markup_for_user
+from bot.services.menu import BotMenuService
+from bot.services.ticket_admin_common_service import (
+    TicketAdminCommonService,
+    TicketCreateForm,
+)
+from bot.services.ticket_admin_create_service import TicketAdminCreateService
 from core.utils.asyncio import run_sync
 from inventory.models import InventoryItem, InventoryItemPart
 from ticket.models import Ticket
@@ -31,10 +35,13 @@ class TicketCreateCallbackSupportMixin:
     ) -> bool:
         if not user or not user.is_active:
             await state.clear()
-            await ticket_admin_support._notify_not_registered_callback(query=query, _=_)
+            await TicketAdminCommonService.notify_not_registered_callback(
+                query=query,
+                _=_,
+            )
             return False
 
-        permissions = await ticket_admin_support._ticket_permissions(user=user)
+        permissions = await TicketAdminCommonService.ticket_permissions(user=user)
         if not permissions.can_create:
             await state.clear()
             await query.answer(
@@ -46,7 +53,7 @@ class TicketCreateCallbackSupportMixin:
 
 
 @router.callback_query(
-    F.data.startswith(f"{ticket_admin_support.CREATE_CALLBACK_PREFIX}:")
+    F.data.startswith(f"{TicketAdminCreateService.CALLBACK_PREFIX}:")
 )
 class TicketCreateCallbackHandler(
     TicketCreateCallbackSupportMixin, CallbackQueryHandler
@@ -57,9 +64,7 @@ class TicketCreateCallbackHandler(
         _ = self.data["_"]
         user: User | None = self.data.get("user")
 
-        parsed = ticket_admin_support._parse_create_callback(
-            callback_data=query.data or ""
-        )
+        parsed = TicketAdminCreateService.parse_callback(callback_data=query.data or "")
         if parsed is None:
             await query.answer(_("⚠️ Unknown action."), show_alert=True)
             return
@@ -144,7 +149,10 @@ class TicketCreateCallbackHandler(
             if source_message is not None:
                 await source_message.answer(
                     _("🛑 Ticket intake canceled."),
-                    reply_markup=await main_menu_markup_for_user(user=user, _=_),
+                    reply_markup=await BotMenuService.main_menu_markup_for_user(
+                        user=user,
+                        _=_,
+                    ),
                 )
             await query.answer()
             return True
@@ -155,7 +163,7 @@ class TicketCreateCallbackHandler(
             except (TypeError, ValueError):
                 await query.answer(_("⚠️ Could not open this page."), show_alert=True)
                 return True
-            await ticket_admin_support._show_create_items_page(
+            await TicketAdminCreateService.show_items_page(
                 query=query,
                 state=state,
                 page=page,
@@ -212,9 +220,9 @@ class TicketCreateCallbackHandler(
                 )
                 return True
 
-            await state.set_state(ticket_admin_support.TicketCreateForm.flow)
+            await state.set_state(TicketCreateForm.flow)
             await state.update_data(
-                create_page=ticket_admin_support._normalize_page(page=page),
+                create_page=TicketAdminCommonService.normalize_page(page=page),
                 inventory_item_id=inventory_item.id,
                 serial_number=inventory_item.serial_number,
                 available_parts=parts,
@@ -227,18 +235,18 @@ class TicketCreateCallbackHandler(
                 create_mode="parts",
             )
 
-            await ticket_admin_support._safe_edit_message(
+            await TicketAdminCommonService.safe_edit_message(
                 query=query,
-                text=ticket_admin_support._parts_selection_text(
+                text=TicketAdminCreateService.parts_selection_text(
                     serial_number=inventory_item.serial_number,
                     parts=parts,
                     selected_ids=set(),
                     _=_,
                 ),
-                reply_markup=ticket_admin_support._parts_selection_keyboard(
+                reply_markup=TicketAdminCreateService.parts_selection_keyboard(
                     parts=parts,
                     selected_ids=set(),
-                    item_page=ticket_admin_support._normalize_page(page=page),
+                    item_page=TicketAdminCommonService.normalize_page(page=page),
                 ),
             )
             await query.answer()
@@ -283,15 +291,15 @@ class TicketCreateCallbackHandler(
             await state.update_data(
                 selected_part_ids=sorted(selected_ids), create_mode="parts"
             )
-            await ticket_admin_support._safe_edit_message(
+            await TicketAdminCommonService.safe_edit_message(
                 query=query,
-                text=ticket_admin_support._parts_selection_text(
+                text=TicketAdminCreateService.parts_selection_text(
                     serial_number=serial_number,
                     parts=parts,
                     selected_ids=selected_ids,
                     _=_,
                 ),
-                reply_markup=ticket_admin_support._parts_selection_keyboard(
+                reply_markup=TicketAdminCreateService.parts_selection_keyboard(
                     parts=parts,
                     selected_ids=selected_ids,
                     item_page=item_page,
@@ -312,7 +320,7 @@ class TicketCreateCallbackHandler(
             ]
             data = await state.get_data()
             part_specs = list(data.get("part_specs") or [])
-            draft_color, draft_minutes = ticket_admin_support._draft_for_part(
+            draft_color, draft_minutes = TicketAdminCreateService.draft_for_part(
                 part_id=part_order[0],
                 part_specs=part_specs,
             )
@@ -332,9 +340,9 @@ class TicketCreateCallbackHandler(
                 ),
                 f"Part #{part_order[0]}",
             )
-            await ticket_admin_support._safe_edit_message(
+            await TicketAdminCommonService.safe_edit_message(
                 query=query,
-                text=ticket_admin_support._spec_editor_text(
+                text=TicketAdminCreateService.spec_editor_text(
                     serial_number=serial_number,
                     current_index=0,
                     total_parts=len(part_order),
@@ -344,7 +352,7 @@ class TicketCreateCallbackHandler(
                     completed_count=len(part_specs),
                     _=_,
                 ),
-                reply_markup=ticket_admin_support._spec_editor_keyboard(
+                reply_markup=TicketAdminCreateService.spec_editor_keyboard(
                     draft_color=draft_color,
                     draft_minutes=draft_minutes,
                 ),
@@ -354,15 +362,15 @@ class TicketCreateCallbackHandler(
 
         if action == "back":
             await state.update_data(create_mode="parts")
-            await ticket_admin_support._safe_edit_message(
+            await TicketAdminCommonService.safe_edit_message(
                 query=query,
-                text=ticket_admin_support._parts_selection_text(
+                text=TicketAdminCreateService.parts_selection_text(
                     serial_number=serial_number,
                     parts=parts,
                     selected_ids=selected_ids,
                     _=_,
                 ),
-                reply_markup=ticket_admin_support._parts_selection_keyboard(
+                reply_markup=TicketAdminCreateService.parts_selection_keyboard(
                     parts=parts,
                     selected_ids=selected_ids,
                     item_page=item_page,
@@ -404,7 +412,7 @@ class TicketCreateCallbackHandler(
                 await query.answer(_("⚠️ Invalid color option."), show_alert=True)
                 return
             color = str(args[0]).lower()
-            if color not in ticket_admin_support.VALID_TICKET_COLORS:
+            if color not in TicketAdminCommonService.VALID_TICKET_COLORS:
                 await query.answer(_("⚠️ Invalid color option."), show_alert=True)
                 return
             draft_color = color
@@ -464,7 +472,7 @@ class TicketCreateCallbackHandler(
             current_index += 1
             if current_index < len(part_order):
                 next_part_id = part_order[current_index]
-                draft_color, draft_minutes = ticket_admin_support._draft_for_part(
+                draft_color, draft_minutes = TicketAdminCreateService.draft_for_part(
                     part_id=next_part_id,
                     part_specs=part_specs,
                 )
@@ -483,9 +491,9 @@ class TicketCreateCallbackHandler(
                     draft_minutes=draft_minutes,
                     create_mode="spec",
                 )
-                await ticket_admin_support._safe_edit_message(
+                await TicketAdminCommonService.safe_edit_message(
                     query=query,
-                    text=ticket_admin_support._spec_editor_text(
+                    text=TicketAdminCreateService.spec_editor_text(
                         serial_number=serial_number,
                         current_index=current_index,
                         total_parts=len(part_order),
@@ -495,7 +503,7 @@ class TicketCreateCallbackHandler(
                         completed_count=len(part_specs),
                         _=_,
                     ),
-                    reply_markup=ticket_admin_support._spec_editor_keyboard(
+                    reply_markup=TicketAdminCreateService.spec_editor_keyboard(
                         draft_color=draft_color,
                         draft_minutes=draft_minutes,
                     ),
@@ -513,15 +521,15 @@ class TicketCreateCallbackHandler(
                 current_part_index=current_index,
                 create_mode="summary",
             )
-            await ticket_admin_support._safe_edit_message(
+            await TicketAdminCommonService.safe_edit_message(
                 query=query,
-                text=ticket_admin_support._summary_text(
+                text=TicketAdminCreateService.summary_text(
                     serial_number=serial_number,
                     specs=ordered_specs,
                     parts_by_id=parts_by_id,
                     _=_,
                 ),
-                reply_markup=ticket_admin_support._summary_keyboard(),
+                reply_markup=TicketAdminCreateService.summary_keyboard(),
             )
             await query.answer(_("✅ All part specs configured."))
             return
@@ -541,13 +549,13 @@ class TicketCreateCallbackHandler(
 
             try:
                 ticket = await run_sync(
-                    ticket_admin_support._create_ticket_from_payload,
+                    TicketAdminCreateService.create_ticket_from_payload,
                     actor_user=user,
                     serial_number=serial_number,
                     part_specs=part_specs,
                 )
             except drf_serializers.ValidationError as exc:
-                error_message = ticket_admin_support._extract_error_message(
+                error_message = TicketAdminCommonService.extract_error_message(
                     exc.detail,
                     _=_,
                 )
@@ -565,7 +573,7 @@ class TicketCreateCallbackHandler(
                 return
 
             await state.clear()
-            await ticket_admin_support._safe_edit_message(
+            await TicketAdminCommonService.safe_edit_message(
                 query=query,
                 text=(
                     _("✅ <b>Ticket created successfully.</b>\n")
@@ -574,8 +582,9 @@ class TicketCreateCallbackHandler(
                     % {"serial": ticket.inventory_item.serial_number}
                     + _("• <b>Status:</b> %(status)s\n")
                     % {
-                        "status": ticket_admin_support._status_label(
-                            status=ticket.status, _=_
+                        "status": TicketAdminCommonService.status_label(
+                            status=ticket.status,
+                            _=_,
                         )
                     }
                     + _("• <b>Total minutes:</b> %(minutes)s\n")
@@ -592,7 +601,10 @@ class TicketCreateCallbackHandler(
             if source_message is not None:
                 await source_message.answer(
                     _("✅ Ticket intake flow completed."),
-                    reply_markup=await main_menu_markup_for_user(user=user, _=_),
+                    reply_markup=await BotMenuService.main_menu_markup_for_user(
+                        user=user,
+                        _=_,
+                    ),
                 )
             await query.answer()
             return
@@ -608,9 +620,9 @@ class TicketCreateCallbackHandler(
             (str(part["name"]) for part in parts if int(part["id"]) == current_part_id),
             f"Part #{current_part_id}",
         )
-        await ticket_admin_support._safe_edit_message(
+        await TicketAdminCommonService.safe_edit_message(
             query=query,
-            text=ticket_admin_support._spec_editor_text(
+            text=TicketAdminCreateService.spec_editor_text(
                 serial_number=serial_number,
                 current_index=current_index,
                 total_parts=len(part_order),
@@ -620,7 +632,7 @@ class TicketCreateCallbackHandler(
                 completed_count=len(part_specs),
                 _=_,
             ),
-            reply_markup=ticket_admin_support._spec_editor_keyboard(
+            reply_markup=TicketAdminCreateService.spec_editor_keyboard(
                 draft_color=draft_color,
                 draft_minutes=draft_minutes,
             ),

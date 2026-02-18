@@ -54,6 +54,7 @@ All onboarding command/button/message/callback entrypoints are implemented as cl
   - technician command set (`/queue`, `/active`, `/tech`, `/under_qc`, `/past`, `/xp`, `/xp_history`)
   - QC command (`/qc_checks`) when QC permission is granted
 - `/help` hides `📝 Start Access Request` for pending users (even when linked user is inactive/missing) by checking pending-request state directly.
+- Start/profile/XP support helpers are class-based service modules (`StartProfileService`, `StartXPService`) and menu markup generation is centralized in `BotMenuService`.
 
 ## Related Code
 - `bot/routers/start/__init__.py`
@@ -61,5 +62,7 @@ All onboarding command/button/message/callback entrypoints are implemented as cl
 - `bot/routers/start/access.py`
 - `bot/routers/start/profile.py`
 - `bot/routers/start/xp.py`
+- `bot/services/menu.py`
+- `bot/services/start_support.py`
 - `apps/account/services.py`
 - `apps/account/models.py`

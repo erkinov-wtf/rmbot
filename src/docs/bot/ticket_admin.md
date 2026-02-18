@@ -24,6 +24,10 @@ Documents class-based Telegram ticket-intake and ticket-review handlers for user
   - create callbacks: `bot/routers/ticket_admin/create_callbacks.py`
   - review entrypoint: `bot/routers/ticket_admin/review_entry.py`
   - review callbacks: `bot/routers/ticket_admin/review_callbacks.py`
+- Ticket-admin bot service layer is class-based and split by responsibility:
+  - shared permissions + callback guards: `TicketAdminCommonService`
+  - intake flow orchestration helpers: `TicketAdminCreateService`
+  - review/assign/manual-metrics helpers: `TicketAdminReviewService`
 
 ## Invariants and Contracts
 - Menu-button visibility is permission-gated from `resolve_ticket_bot_permissions`.
@@ -49,6 +53,9 @@ Documents class-based Telegram ticket-intake and ticket-review handlers for user
 - `bot/routers/ticket_admin/review.py`
 - `bot/routers/ticket_admin/review_entry.py`
 - `bot/routers/ticket_admin/review_callbacks.py`
+- `bot/services/ticket_admin_common_service.py`
+- `bot/services/ticket_admin_create_service.py`
+- `bot/services/ticket_admin_review_service.py`
 - `bot/permissions.py`
 - `api/v1/ticket/serializers/ticket.py`
 - `apps/ticket/services_workflow.py`

@@ -38,3 +38,13 @@ class RulesConfigVersionSerializer(serializers.ModelSerializer):
             "created_at",
         )
         read_only_fields = fields
+
+
+class RuleConfigStateSerializer(serializers.Serializer):
+    active_version = serializers.IntegerField(
+        source="active_version.version", read_only=True
+    )
+    cache_key = serializers.CharField(read_only=True)
+    checksum = serializers.CharField(read_only=True)
+    config = serializers.JSONField(source="active_version.config", read_only=True)
+    updated_at = serializers.DateTimeField(read_only=True)

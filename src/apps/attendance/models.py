@@ -1,6 +1,7 @@
 from django.db import models
 
 from attendance.managers import AttendanceRecordDomainManager
+from core.api.exceptions import DomainValidationError
 from core.models import SoftDeleteModel, TimestampedModel
 
 
@@ -28,15 +29,15 @@ class AttendanceRecord(TimestampedModel, SoftDeleteModel):
 
     def mark_check_in(self, *, check_in_at) -> None:
         if self.check_in_at:
-            raise ValueError("Already checked in for today.")
+            raise DomainValidationError("Already checked in for today.")
         self.check_in_at = check_in_at
         self.save(update_fields=["check_in_at"])
 
     def mark_check_out(self, *, check_out_at) -> None:
         if not self.check_in_at:
-            raise ValueError("Cannot check out before check in.")
+            raise DomainValidationError("Cannot check out before check in.")
         if self.check_out_at:
-            raise ValueError("Already checked out for today.")
+            raise DomainValidationError("Already checked out for today.")
         self.check_out_at = check_out_at
         self.save(update_fields=["check_out_at"])
 

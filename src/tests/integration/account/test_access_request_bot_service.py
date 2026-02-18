@@ -2,6 +2,7 @@ import pytest
 
 from account.models import AccessRequest, TelegramProfile, User
 from account.services import AccountService
+from core.api.exceptions import DomainValidationError
 from core.utils.constants import AccessRequestStatus
 
 pytestmark = pytest.mark.django_db
@@ -68,7 +69,7 @@ def test_bot_request_rejects_phone_that_belongs_to_another_user(user_factory):
         phone="+998909999999",
     )
 
-    with pytest.raises(ValueError, match="Phone number is already used"):
+    with pytest.raises(DomainValidationError, match="Phone number is already used"):
         AccountService.ensure_pending_access_request_from_bot(
             telegram_id=700003,
             username="incoming",
@@ -95,7 +96,7 @@ def test_bot_request_rejects_when_access_request_was_already_approved(user_facto
         user=approved_user,
     )
 
-    with pytest.raises(ValueError, match="already approved"):
+    with pytest.raises(DomainValidationError, match="already approved"):
         AccountService.ensure_pending_access_request_from_bot(
             telegram_id=700004,
             username="approved.user",
@@ -119,7 +120,7 @@ def test_bot_request_rejects_when_telegram_is_linked_to_active_user(user_factory
         first_name="Linked",
     )
 
-    with pytest.raises(ValueError, match="already registered and linked"):
+    with pytest.raises(DomainValidationError, match="already registered and linked"):
         AccountService.ensure_pending_access_request_from_bot(
             telegram_id=700005,
             username="linked.active",
