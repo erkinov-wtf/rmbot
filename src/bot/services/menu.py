@@ -4,10 +4,12 @@ from django.utils.translation import gettext as django_gettext
 from django.utils.translation import gettext_noop
 
 from account.models import User
-from bot.etc.i18n import SUPPORTED_BOT_LOCALES
+from bot.etc.i18n import SUPPORTED_BOT_LOCALES, ensure_bot_locales_compiled
 from bot.permissions import resolve_ticket_bot_permissions
 from core.utils.asyncio import run_sync
 from core.utils.constants import RoleSlug
+
+ensure_bot_locales_compiled()
 
 
 class BotMenuService:

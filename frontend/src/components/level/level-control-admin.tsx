@@ -17,6 +17,7 @@ import {
   setLevelControlUserLevel,
   type LevelControlOverview,
   type LevelControlUserHistory,
+  type ManualLevelSetResult,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -62,6 +63,40 @@ function toErrorMessage(error: unknown, fallback: string): string {
     return error.message;
   }
   return fallback;
+}
+
+function warningWeekChangeLabel(result: ManualLevelSetResult): string {
+  if (!result.warning_active_before && result.warning_active_after) {
+    return "Warning week added";
+  }
+  if (result.warning_active_before && !result.warning_active_after) {
+    return "Warning week removed";
+  }
+  return result.warning_active_after
+    ? "Warning week unchanged (active)"
+    : "Warning week unchanged (not active)";
+}
+
+function levelChangeLabel(result: ManualLevelSetResult): string {
+  if (result.new_level > result.previous_level) {
+    return `Levelling up: L${result.previous_level} -> L${result.new_level}`;
+  }
+  if (result.new_level < result.previous_level) {
+    return `Levelling down: L${result.previous_level} -> L${result.new_level}`;
+  }
+  return `Level unchanged: L${result.new_level}`;
+}
+
+function manualLevelSuccessMessage(
+  result: ManualLevelSetResult,
+  note: string,
+): string {
+  const normalizedNote = note.trim();
+  return (
+    `${result.display_name}: ${warningWeekChangeLabel(result)}. ` +
+    `${levelChangeLabel(result)}. ` +
+    `Comment: ${normalizedNote || "-"}`
+  );
 }
 
 export function LevelControlAdmin({
@@ -203,14 +238,15 @@ export function LevelControlAdmin({
     setIsSettingLevel(true);
     setFeedback(null);
     try {
+      const normalizedNote = levelNote.trim();
       const result = await setLevelControlUserLevel(accessToken, selectedRow.user_id, {
         level: parsedLevel,
-        note: levelNote.trim(),
+        note: normalizedNote,
         clear_warning: clearWarningInput,
       });
       setFeedback({
         type: "success",
-        message: `${result.display_name} updated to L${result.new_level} (${result.status}).`,
+        message: manualLevelSuccessMessage(result, normalizedNote),
       });
       setLevelNote("");
       setClearWarningInput(false);
@@ -611,6 +647,9 @@ export function LevelControlAdmin({
                                 </p>
                                 {row.warning_active_after ? (
                                   <p className="text-rose-700">Warning active after this event</p>
+                                ) : null}
+                                {row.note ? (
+                                  <p className="text-slate-600">Comment: {row.note}</p>
                                 ) : null}
                               </div>
                             ))

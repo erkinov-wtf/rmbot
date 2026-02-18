@@ -165,6 +165,28 @@ def test_review_ticket_keyboard_hides_assign_for_non_assignable_status():
     )
 
 
+def test_review_ticket_keyboard_hides_assign_for_assigned_status():
+    markup = _review_ticket_keyboard(
+        ticket_id=44,
+        page=1,
+        permissions=TicketBotPermissionSet(
+            can_review=True,
+            can_assign=True,
+            can_manual_metrics=True,
+        ),
+        ticket_status=TicketStatus.ASSIGNED,
+    )
+    callbacks = _callback_values(markup)
+
+    assert (
+        f"{REVIEW_ACTION_CALLBACK_PREFIX}:{REVIEW_ACTION_ASSIGN_OPEN}:44"
+        not in callbacks
+    )
+    assert (
+        f"{REVIEW_ACTION_CALLBACK_PREFIX}:{REVIEW_ACTION_MANUAL_OPEN}:44" in callbacks
+    )
+
+
 def test_create_items_keyboard_has_always_visible_pagination_controls():
     items = [
         SimpleNamespace(id=1, serial_number="RM-1"),

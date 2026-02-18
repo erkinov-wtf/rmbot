@@ -264,6 +264,43 @@ class UserNotificationService:
         )
 
     @classmethod
+    def notify_manual_level_update(
+        cls,
+        *,
+        target_user_id: int,
+        actor_user_id: int | None,
+        previous_level: int,
+        new_level: int,
+        warning_active_before: bool,
+        warning_active_after: bool,
+        note: str,
+    ) -> None:
+        warning_label = cls._manual_warning_label(
+            warning_active_before=warning_active_before,
+            warning_active_after=warning_active_after,
+        )
+        level_label = cls._manual_level_label(
+            previous_level=previous_level,
+            new_level=new_level,
+        )
+        message = "\n".join(
+            [
+                "🎚 <b>Level Update Applied</b>",
+                f"📊 <b>Level:</b> <code>L{previous_level} → L{new_level}</code> ({cls._safe_text(level_label)})",
+                f"⚠️ <b>Warning week:</b> {cls._safe_text(warning_label)}",
+                (
+                    f"👤 <b>By:</b> {cls._safe_text(cls._display_name_by_user_id(actor_user_id))}"
+                ),
+                f"💬 <b>Comment:</b> {cls._safe_text(note or '-')}",
+            ]
+        )
+        cls._notify_users(
+            event_key="manual_level_update",
+            user_ids=[target_user_id],
+            message=message,
+        )
+
+    @classmethod
     def _notify_users(
         cls,
         *,
@@ -438,3 +475,23 @@ class UserNotificationService:
     @staticmethod
     def _safe_text(value: object) -> str:
         return escape(str(value if value is not None else "-"), quote=False)
+
+    @staticmethod
+    def _manual_warning_label(
+        *,
+        warning_active_before: bool,
+        warning_active_after: bool,
+    ) -> str:
+        if not warning_active_before and warning_active_after:
+            return "added"
+        if warning_active_before and not warning_active_after:
+            return "removed"
+        return "active" if warning_active_after else "not active"
+
+    @staticmethod
+    def _manual_level_label(*, previous_level: int, new_level: int) -> str:
+        if new_level > previous_level:
+            return "level up"
+        if new_level < previous_level:
+            return "level down"
+        return "unchanged"

@@ -135,20 +135,38 @@ class Ticket(TimestampedModel, SoftDeleteModel):
         self.save(update_fields=update_fields)
 
     @staticmethod
-    def flag_color_from_minutes(*, total_minutes: int) -> str:
+    def flag_color_from_minutes(
+        *,
+        total_minutes: int,
+        green_max_minutes: int = 30,
+        yellow_max_minutes: int = 60,
+    ) -> str:
         minutes = max(int(total_minutes or 0), 0)
-        if minutes <= 30:
+        green_threshold = max(int(green_max_minutes or 0), 0)
+        yellow_threshold = max(int(yellow_max_minutes or 0), green_threshold)
+        if minutes <= green_threshold:
             return TicketColor.GREEN
-        if minutes <= 60:
+        if minutes <= yellow_threshold:
             return TicketColor.YELLOW
         return TicketColor.RED
 
-    def apply_auto_metrics(self, *, total_minutes: int, xp_divisor: int) -> None:
+    def apply_auto_metrics(
+        self,
+        *,
+        total_minutes: int,
+        xp_divisor: int,
+        green_max_minutes: int = 30,
+        yellow_max_minutes: int = 60,
+    ) -> None:
         normalized_minutes = max(int(total_minutes or 0), 0)
         normalized_divisor = max(int(xp_divisor or 0), 1)
         self.total_duration = normalized_minutes
         self.flag_minutes = normalized_minutes
-        self.flag_color = self.flag_color_from_minutes(total_minutes=normalized_minutes)
+        self.flag_color = self.flag_color_from_minutes(
+            total_minutes=normalized_minutes,
+            green_max_minutes=green_max_minutes,
+            yellow_max_minutes=yellow_max_minutes,
+        )
         self.xp_amount = math.ceil(normalized_minutes / normalized_divisor)
         self.is_manual = False
 

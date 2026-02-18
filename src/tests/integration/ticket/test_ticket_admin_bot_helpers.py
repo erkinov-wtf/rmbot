@@ -5,6 +5,7 @@ from bot.services.ticket_admin_support import (
     _create_ticket_from_payload,
     _set_ticket_manual_metrics,
 )
+from bot.services.ticket_admin_create_service import TicketAdminCreateService
 from core.utils.constants import RoleSlug, TicketStatus, TicketTransitionAction
 from inventory.models import InventoryItemPart
 from ticket.models import TicketTransition
@@ -80,6 +81,34 @@ def test_bot_helper_creates_ticket_with_created_transition(ticket_admin_bot_cont
         ticket=ticket,
         action=TicketTransitionAction.CREATED,
     ).exists()
+
+
+def test_create_service_lists_parts_by_item_category(
+    ticket_admin_bot_context,
+    inventory_item_factory,
+):
+    context = ticket_admin_bot_context
+    category_only_part = InventoryItemPart.objects.create(
+        name="BOT-PART-CATEGORY-ONLY",
+        category=context["inventory_item"].category,
+        inventory_item=None,
+    )
+    foreign_item = inventory_item_factory(serial_number="RM-BOT-0099")
+    foreign_part = InventoryItemPart.objects.create(
+        name="BOT-PART-FOREIGN",
+        category=foreign_item.category,
+        inventory_item=None,
+    )
+
+    rows = TicketAdminCreateService.available_parts_for_inventory_item(
+        inventory_item=context["inventory_item"]
+    )
+    part_ids = {int(row["id"]) for row in rows}
+
+    assert context["part_a"].id in part_ids
+    assert context["part_b"].id in part_ids
+    assert category_only_part.id in part_ids
+    assert foreign_part.id not in part_ids
 
 
 def test_bot_helper_approve_and_assign(ticket_admin_bot_context, ticket_factory):

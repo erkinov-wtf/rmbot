@@ -32,7 +32,7 @@ COPY --from=builder --chown=nonroot:nonroot /app /app
 COPY --chown=nonroot:nonroot ./src /app
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl \
+    && apt-get install -y --no-install-recommends curl gettext \
     && rm -rf /var/lib/apt/lists/* \
     && chmod +x /app/scripts/*.sh \
     && mkdir -p /app/logs \

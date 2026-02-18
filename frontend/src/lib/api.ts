@@ -112,6 +112,8 @@ export type RulesConfig = {
     base_divisor: number;
     first_pass_bonus: number;
     qc_status_update_xp: number;
+    flag_green_max_minutes: number;
+    flag_yellow_max_minutes: number;
   };
   attendance: {
     on_time_xp: number;
@@ -138,6 +140,23 @@ export type RulesConfigState = {
   checksum: string;
   config: RulesConfig;
   updated_at: string;
+};
+
+export type RulesConfigVersionAction = "bootstrap" | "update" | "rollback";
+
+export type RulesConfigVersion = {
+  id: number;
+  version: number;
+  action: RulesConfigVersionAction;
+  reason: string | null;
+  checksum: string;
+  source_version: number | null;
+  source_version_number: number | null;
+  created_by: number | null;
+  created_by_username: string | null;
+  diff: Record<string, unknown>;
+  config: RulesConfig;
+  created_at: string;
 };
 
 export type LevelControlOverviewRow = {
@@ -1301,6 +1320,40 @@ export async function updateRulesConfigState(
 ): Promise<RulesConfigState> {
   const payload = await apiRequest<unknown>("rules/config/", {
     method: "PUT",
+    accessToken,
+    body,
+  });
+  return extractData<RulesConfigState>(payload);
+}
+
+export async function listRulesConfigHistory(
+  accessToken: string,
+  query: {
+    page?: number;
+    per_page?: number;
+    ordering?: "version" | "-version" | "created_at" | "-created_at";
+  } = {},
+): Promise<RulesConfigVersion[]> {
+  const payload = await apiRequest<unknown>(
+    withQuery("rules/config/history/", {
+      page: query.page,
+      per_page: query.per_page ?? 100,
+      ordering: query.ordering ?? "-version",
+    }),
+    { accessToken },
+  );
+  return extractResults<RulesConfigVersion>(payload);
+}
+
+export async function rollbackRulesConfigState(
+  accessToken: string,
+  body: {
+    target_version: number;
+    reason?: string;
+  },
+): Promise<RulesConfigState> {
+  const payload = await apiRequest<unknown>("rules/config/rollback/", {
+    method: "POST",
     accessToken,
     body,
   });

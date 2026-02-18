@@ -27,6 +27,10 @@ msgstr "Что-то пошло не так. Пожалуйста, попробу
 msgid "Unknown command. Use /help."
 msgstr "Неизвестная команда. Используйте /help."
 
+#: bot/routers/fallback.py:11
+msgid "⚠️ <b>Unknown command.</b>\nUse <code>/help</code>."
+msgstr "⚠️ <b>Неизвестная команда.</b>\nИспользуйте <code>/help</code>."
+
 #: bot/routers/start.py:69
 msgid "Share phone number"
 msgstr "Поделиться номером телефона"
@@ -1236,39 +1240,43 @@ msgstr "не назначен"
 
 #: core/api/views.py:129
 msgid "Error message is invalid"
-msgstr ""
+msgstr "Сообщение об ошибке недопустимо."
 
 #: core/models.py:26
 msgid "Created At"
-msgstr ""
+msgstr "Создано"
 
 #: core/models.py:29
 msgid "Updated At"
-msgstr ""
+msgstr "Обновлено"
 
 #: core/models.py:39 core/models.py:63
 msgid "Append-only records cannot be updated. Create a reversal entry instead."
 msgstr ""
+"Записи только для добавления нельзя обновлять. Вместо этого создайте "
+"сторнирующую запись."
 
 #: core/models.py:44 core/models.py:70
 msgid "Append-only records cannot be deleted. Create a reversal entry instead."
 msgstr ""
+"Записи только для добавления нельзя удалять. Вместо этого создайте "
+"сторнирующую запись."
 
 #: core/models.py:76
 msgid "Deleted At"
-msgstr ""
+msgstr "Удалено"
 
 #: core/utils/constants.py:6
 msgid "Super Admin"
-msgstr ""
+msgstr "Супер-администратор"
 
 #: core/utils/constants.py:7
 msgid "Ops Manager"
-msgstr ""
+msgstr "Операционный менеджер"
 
 #: core/utils/constants.py:8
 msgid "Master (Service Lead)"
-msgstr ""
+msgstr "Мастер (руководитель сервиса)"
 
 #: core/utils/constants.py:9
 msgid "Technician"
@@ -1276,83 +1284,83 @@ msgstr "Техник"
 
 #: core/utils/constants.py:10
 msgid "QC Inspector"
-msgstr ""
+msgstr "Инспектор QC"
 
 #: core/utils/constants.py:14
 msgid "L1"
-msgstr ""
+msgstr "L1"
 
 #: core/utils/constants.py:15
 msgid "L2"
-msgstr ""
+msgstr "L2"
 
 #: core/utils/constants.py:16
 msgid "L3"
-msgstr ""
+msgstr "L3"
 
 #: core/utils/constants.py:17
 msgid "L4"
-msgstr ""
+msgstr "L4"
 
 #: core/utils/constants.py:18
 msgid "L5"
-msgstr ""
+msgstr "L5"
 
 #: core/utils/constants.py:22
 msgid "Pending"
-msgstr ""
+msgstr "В ожидании"
 
 #: core/utils/constants.py:23
 msgid "Approved"
-msgstr ""
+msgstr "Одобрено"
 
 #: core/utils/constants.py:24
 msgid "Rejected"
-msgstr ""
+msgstr "Отклонено"
 
 #: core/utils/constants.py:28
 msgid "Ready"
-msgstr ""
+msgstr "Готов"
 
 #: core/utils/constants.py:29
 msgid "In Service"
-msgstr ""
+msgstr "В работе"
 
 #: core/utils/constants.py:30
 msgid "Rented"
-msgstr ""
+msgstr "Сдан в аренду"
 
 #: core/utils/constants.py:31
 msgid "Blocked"
-msgstr ""
+msgstr "Заблокирован"
 
 #: core/utils/constants.py:32
 msgid "Write Off"
-msgstr ""
+msgstr "Списан"
 
 #: core/utils/constants.py:42
 msgid "Under Review"
-msgstr ""
+msgstr "На проверке"
 
 #: core/utils/constants.py:45
 msgid "In Progress"
-msgstr ""
+msgstr "В процессе"
 
 #: core/utils/constants.py:58 core/utils/constants.py:67
 msgid "Started"
-msgstr ""
+msgstr "Начато"
 
 #: core/utils/constants.py:60
 msgid "Resumed"
-msgstr ""
+msgstr "Возобновлено"
 
 #: core/utils/constants.py:65
 msgid "Created"
-msgstr ""
+msgstr "Создано"
 
 #: core/utils/constants.py:68
 msgid "To Waiting QC"
-msgstr ""
+msgstr "В ожидание QC"
 
 #: core/utils/constants.py:69
 msgid "QC Pass"
@@ -1364,23 +1372,23 @@ msgstr "QC не пройден"
 
 #: core/utils/constants.py:74
 msgid "Attendance Punctuality"
-msgstr ""
+msgstr "Пунктуальность посещаемости"
 
 #: core/utils/constants.py:75
 msgid "Ticket Base XP"
-msgstr ""
+msgstr "Базовый XP за заявку"
 
 #: core/utils/constants.py:78
 msgid "Ticket QC First Pass Bonus"
-msgstr ""
+msgstr "Бонус XP за прохождение QC с первого раза"
 
 #: core/utils/constants.py:82
 msgid "Ticket QC Status Update"
-msgstr ""
+msgstr "XP за обновление статуса QC"
 
 #: core/utils/constants.py:84
 msgid "Manual Adjustment"
-msgstr ""
+msgstr "Ручная корректировка"
 
 #~ msgid "Moderator"
 #~ msgstr "Модератор"

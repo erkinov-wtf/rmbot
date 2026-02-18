@@ -142,6 +142,8 @@ class TicketWorkflowService:
             base_divisor,
             first_pass_bonus,
             qc_status_update_xp,
+            _,
+            _,
         ) = cls._ticket_xp_rules()
         # Base XP comes from resolved ticket metrics (auto/manual), with formula fallback.
         base_xp = cls._base_ticket_xp(ticket=ticket, base_divisor=base_divisor)
@@ -212,7 +214,7 @@ class TicketWorkflowService:
             actor_user_id=actor_user_id,
             metadata=transition_metadata,
         )
-        _, _, qc_status_update_xp = cls._ticket_xp_rules()
+        _, _, qc_status_update_xp, _, _ = cls._ticket_xp_rules()
         cls._award_qc_status_update_xp(
             ticket=ticket,
             transition=transition,
@@ -304,7 +306,7 @@ class TicketWorkflowService:
         return transition
 
     @staticmethod
-    def _ticket_xp_rules() -> tuple[int, int, int]:
+    def _ticket_xp_rules() -> tuple[int, int, int, int, int]:
         rules = RulesService.get_active_rules_config()
         ticket_rules = rules.get("ticket_xp", {})
         base_divisor = int(ticket_rules.get("base_divisor", 20) or 20)
@@ -316,7 +318,25 @@ class TicketWorkflowService:
         qc_status_update_xp = int(ticket_rules.get("qc_status_update_xp", 1) or 0)
         if qc_status_update_xp < 0:
             qc_status_update_xp = 0
-        return base_divisor, first_pass_bonus, qc_status_update_xp
+        flag_green_max_minutes = int(
+            ticket_rules.get("flag_green_max_minutes", 30) or 30
+        )
+        if flag_green_max_minutes < 0:
+            flag_green_max_minutes = 30
+
+        flag_yellow_max_minutes = int(
+            ticket_rules.get("flag_yellow_max_minutes", 60) or 60
+        )
+        if flag_yellow_max_minutes < flag_green_max_minutes:
+            flag_yellow_max_minutes = max(flag_green_max_minutes, 60)
+
+        return (
+            base_divisor,
+            first_pass_bonus,
+            qc_status_update_xp,
+            flag_green_max_minutes,
+            flag_yellow_max_minutes,
+        )
 
     @staticmethod
     def _base_ticket_xp(*, ticket: Ticket, base_divisor: int) -> int:

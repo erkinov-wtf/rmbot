@@ -27,6 +27,8 @@ class RulesService:
                 "base_divisor": 20,
                 "first_pass_bonus": 1,
                 "qc_status_update_xp": 1,
+                "flag_green_max_minutes": 30,
+                "flag_yellow_max_minutes": 60,
             },
             "attendance": {
                 "on_time_xp": 2,
@@ -128,6 +130,18 @@ class RulesService:
             ticket_xp.get("qc_status_update_xp", 1),
             field="ticket_xp.qc_status_update_xp",
         )
+        flag_green_max_minutes = cls._require_int(
+            ticket_xp.get("flag_green_max_minutes", 30),
+            field="ticket_xp.flag_green_max_minutes",
+        )
+        flag_yellow_max_minutes = cls._require_int(
+            ticket_xp.get("flag_yellow_max_minutes", 60),
+            field="ticket_xp.flag_yellow_max_minutes",
+        )
+        if flag_yellow_max_minutes < flag_green_max_minutes:
+            raise DomainValidationError(
+                "ticket_xp.flag_yellow_max_minutes must be >= ticket_xp.flag_green_max_minutes."
+            )
 
         on_time_xp = cls._require_int(
             attendance.get("on_time_xp"),
@@ -234,6 +248,8 @@ class RulesService:
                 "base_divisor": base_divisor,
                 "first_pass_bonus": first_pass_bonus,
                 "qc_status_update_xp": qc_status_update_xp,
+                "flag_green_max_minutes": flag_green_max_minutes,
+                "flag_yellow_max_minutes": flag_yellow_max_minutes,
             },
             "attendance": {
                 "on_time_xp": on_time_xp,

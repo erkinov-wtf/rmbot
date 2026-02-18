@@ -3,6 +3,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
+from core.services.notifications import UserNotificationService
 from core.utils.constants import EmployeeLevel, RoleSlug, XPTransactionEntryType
 from gamification.models import UserLevelHistoryEvent, XPTransaction
 
@@ -142,6 +143,44 @@ def test_manual_level_set_creates_history_event(
     assert event.actor_id == level_control_context["ops"].id
     assert event.new_level == EmployeeLevel.L4
     assert event.note == "Escalated due special task"
+
+
+def test_manual_level_set_emits_user_notification(
+    authed_client_factory,
+    level_control_context,
+    monkeypatch,
+):
+    captured: list[dict] = []
+
+    def _capture(cls, **kwargs):
+        captured.append(kwargs)
+
+    monkeypatch.setattr(
+        UserNotificationService,
+        "notify_manual_level_update",
+        classmethod(_capture),
+    )
+
+    client = authed_client_factory(level_control_context["ops"])
+    target_user = level_control_context["tech_low"]
+    response = client.post(
+        LEVEL_SET_URL_TEMPLATE.format(user_id=target_user.id),
+        {
+            "level": EmployeeLevel.L3,
+            "note": "Manual promote from panel",
+            "clear_warning": False,
+        },
+        format="json",
+    )
+
+    assert response.status_code == 200
+    assert len(captured) == 1
+    payload = captured[0]
+    assert payload["target_user_id"] == target_user.id
+    assert payload["actor_user_id"] == level_control_context["ops"].id
+    assert payload["previous_level"] == EmployeeLevel.L2
+    assert payload["new_level"] == EmployeeLevel.L3
+    assert payload["note"] == "Manual promote from panel"
 
 
 def test_level_control_user_history_includes_xp_and_level_events(

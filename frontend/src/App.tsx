@@ -3,6 +3,7 @@ import {
   CalendarClock,
   LogOut,
   Package,
+  Settings2,
   ShieldCheck,
   Sparkles,
   Ticket,
@@ -15,9 +16,11 @@ import { AttendanceAdmin } from "@/components/attendance/attendance-admin";
 import { LoginForm } from "@/components/auth/login-form";
 import { InventoryAdmin } from "@/components/inventory/inventory-admin";
 import { LevelControlAdmin } from "@/components/level/level-control-admin";
+import { RulesAdmin } from "@/components/rules/rules-admin";
 import { TicketFlow } from "@/components/ticket/ticket-flow";
 import { XpAdmin } from "@/components/xp/xp-admin";
 import { Button } from "@/components/ui/button";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 import {
   getCurrentUser,
   type CurrentUser,
@@ -39,7 +42,8 @@ type Section =
   | "tickets"
   | "users"
   | "xp_admin"
-  | "level_control";
+  | "level_control"
+  | "rules";
 
 const INVENTORY_MANAGE_ROLES = new Set(["super_admin", "ops_manager", "master"]);
 const TICKET_CREATE_ROLES = new Set(["super_admin", "master"]);
@@ -50,6 +54,8 @@ const ACCESS_REQUEST_MANAGE_ROLES = new Set(["super_admin", "ops_manager"]);
 const ATTENDANCE_MANAGE_ROLES = new Set(["super_admin", "ops_manager", "master"]);
 const XP_MANAGE_ROLES = new Set(["super_admin", "ops_manager", "admin"]);
 const LEVEL_CONTROL_ROLES = new Set(["super_admin", "ops_manager"]);
+const RULES_READ_ROLES = new Set(["super_admin", "ops_manager"]);
+const RULES_WRITE_ROLES = new Set(["super_admin"]);
 
 function parseSectionFromPath(pathname: string): Section {
   if (pathname.startsWith("/users") || pathname.startsWith("/access-requests")) {
@@ -66,6 +72,9 @@ function parseSectionFromPath(pathname: string): Section {
   }
   if (pathname.startsWith("/level-control")) {
     return "level_control";
+  }
+  if (pathname.startsWith("/rules")) {
+    return "rules";
   }
   return "inventory";
 }
@@ -85,6 +94,9 @@ function sectionRootPath(section: Section): string {
   }
   if (section === "level_control") {
     return "/level-control";
+  }
+  if (section === "rules") {
+    return "/rules";
   }
   return "/inventory/items";
 }
@@ -158,6 +170,14 @@ export default function App() {
   );
   const canManageLevelControl = useMemo(
     () => effectiveRoleSlugs.some((slug) => LEVEL_CONTROL_ROLES.has(slug)),
+    [effectiveRoleSlugs],
+  );
+  const canReadRules = useMemo(
+    () => effectiveRoleSlugs.some((slug) => RULES_READ_ROLES.has(slug)),
+    [effectiveRoleSlugs],
+  );
+  const canWriteRules = useMemo(
+    () => effectiveRoleSlugs.some((slug) => RULES_WRITE_ROLES.has(slug)),
     [effectiveRoleSlugs],
   );
 
@@ -381,6 +401,22 @@ export default function App() {
                 XP Control
               </span>
             </button>
+
+            <button
+              type="button"
+              className={cn(
+                "rm-menu-btn w-full text-left",
+                section === "rules"
+                  ? "rm-menu-btn-active"
+                  : "rm-menu-btn-idle",
+              )}
+              onClick={() => navigateSection("rules")}
+            >
+              <span className="inline-flex items-center gap-2">
+                <Settings2 className="h-4 w-4" />
+                Rules
+              </span>
+            </button>
           </div>
 
           <div className="mt-4 space-y-3 border-t border-slate-200/80 pt-3 lg:mt-auto">
@@ -456,6 +492,15 @@ export default function App() {
               accessToken={session.accessToken}
               canManage={canManageLevelControl}
             />
+          ) : section === "rules" ? (
+            <ErrorBoundary title="Rules Panel">
+              <RulesAdmin
+                accessToken={session.accessToken}
+                canRead={canReadRules}
+                canWrite={canWriteRules}
+                roleSlugs={effectiveRoleSlugs}
+              />
+            </ErrorBoundary>
           ) : (
             <XpAdmin
               accessToken={session.accessToken}

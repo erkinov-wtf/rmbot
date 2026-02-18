@@ -65,7 +65,6 @@ TICKET_STATUS_LABELS = {
 ASSIGNABLE_TICKET_STATUSES = {
     TicketStatus.UNDER_REVIEW,
     TicketStatus.NEW,
-    TicketStatus.ASSIGNED,
     TicketStatus.REWORK,
 }
 

@@ -5,7 +5,7 @@ from aiogram.types import CallbackQuery
 
 from account.models import User
 from bot.services import ticket_admin_support as legacy
-from inventory.models import InventoryItem
+from inventory.models import InventoryItem, InventoryItemPart
 from ticket.models import Ticket
 
 
@@ -44,6 +44,18 @@ class TicketAdminCreateService:
             page=page,
             page_count=page_count,
             items=items,
+        )
+
+    @staticmethod
+    def available_parts_for_inventory_item(
+        *,
+        inventory_item: InventoryItem,
+    ) -> list[dict]:
+        return list(
+            InventoryItemPart.domain.get_queryset()
+            .with_category(inventory_item.category_id)
+            .order_by("id")
+            .values("id", "name")
         )
 
     @staticmethod

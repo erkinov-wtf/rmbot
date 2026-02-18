@@ -25,6 +25,10 @@ msgstr "Nimadir xato ketdi. Iltimos, keyinroq qayta urinib ko'ring."
 msgid "Unknown command. Use /help."
 msgstr "Noma'lum buyruq. /help dan foydalaning."
 
+#: bot/routers/fallback.py:11
+msgid "⚠️ <b>Unknown command.</b>\nUse <code>/help</code>."
+msgstr "⚠️ <b>Noma'lum buyruq.</b>\n<code>/help</code> dan foydalaning."
+
 #: bot/routers/start.py:69
 msgid "Share phone number"
 msgstr "Telefon raqamini ulashish"
@@ -1238,39 +1242,43 @@ msgstr "biriktirilmagan"
 
 #: core/api/views.py:129
 msgid "Error message is invalid"
-msgstr ""
+msgstr "Xato xabari noto'g'ri."
 
 #: core/models.py:26
 msgid "Created At"
-msgstr ""
+msgstr "Yaratilgan vaqt"
 
 #: core/models.py:29
 msgid "Updated At"
-msgstr ""
+msgstr "Yangilangan vaqt"
 
 #: core/models.py:39 core/models.py:63
 msgid "Append-only records cannot be updated. Create a reversal entry instead."
 msgstr ""
+"Faqat qo'shiladigan yozuvlarni yangilab bo'lmaydi. Buning o'rniga teskari "
+"yozuv yarating."
 
 #: core/models.py:44 core/models.py:70
 msgid "Append-only records cannot be deleted. Create a reversal entry instead."
 msgstr ""
+"Faqat qo'shiladigan yozuvlarni o'chirib bo'lmaydi. Buning o'rniga teskari "
+"yozuv yarating."
 
 #: core/models.py:76
 msgid "Deleted At"
-msgstr ""
+msgstr "O'chirilgan vaqt"
 
 #: core/utils/constants.py:6
 msgid "Super Admin"
-msgstr ""
+msgstr "Super administrator"
 
 #: core/utils/constants.py:7
 msgid "Ops Manager"
-msgstr ""
+msgstr "Operatsion menejer"
 
 #: core/utils/constants.py:8
 msgid "Master (Service Lead)"
-msgstr ""
+msgstr "Usta (xizmat rahbari)"
 
 #: core/utils/constants.py:9
 msgid "Technician"
@@ -1278,83 +1286,83 @@ msgstr "Texnik"
 
 #: core/utils/constants.py:10
 msgid "QC Inspector"
-msgstr ""
+msgstr "QC inspektori"
 
 #: core/utils/constants.py:14
 msgid "L1"
-msgstr ""
+msgstr "L1"
 
 #: core/utils/constants.py:15
 msgid "L2"
-msgstr ""
+msgstr "L2"
 
 #: core/utils/constants.py:16
 msgid "L3"
-msgstr ""
+msgstr "L3"
 
 #: core/utils/constants.py:17
 msgid "L4"
-msgstr ""
+msgstr "L4"
 
 #: core/utils/constants.py:18
 msgid "L5"
-msgstr ""
+msgstr "L5"
 
 #: core/utils/constants.py:22
 msgid "Pending"
-msgstr ""
+msgstr "Kutilmoqda"
 
 #: core/utils/constants.py:23
 msgid "Approved"
-msgstr ""
+msgstr "Tasdiqlangan"
 
 #: core/utils/constants.py:24
 msgid "Rejected"
-msgstr ""
+msgstr "Rad etilgan"
 
 #: core/utils/constants.py:28
 msgid "Ready"
-msgstr ""
+msgstr "Tayyor"
 
 #: core/utils/constants.py:29
 msgid "In Service"
-msgstr ""
+msgstr "Xizmatda"
 
 #: core/utils/constants.py:30
 msgid "Rented"
-msgstr ""
+msgstr "Ijarada"
 
 #: core/utils/constants.py:31
 msgid "Blocked"
-msgstr ""
+msgstr "Bloklangan"
 
 #: core/utils/constants.py:32
 msgid "Write Off"
-msgstr ""
+msgstr "Hisobdan chiqarilgan"
 
 #: core/utils/constants.py:42
 msgid "Under Review"
-msgstr ""
+msgstr "Ko'rib chiqilmoqda"
 
 #: core/utils/constants.py:45
 msgid "In Progress"
-msgstr ""
+msgstr "Jarayonda"
 
 #: core/utils/constants.py:58 core/utils/constants.py:67
 msgid "Started"
-msgstr ""
+msgstr "Boshlangan"
 
 #: core/utils/constants.py:60
 msgid "Resumed"
-msgstr ""
+msgstr "Davom ettirilgan"
 
 #: core/utils/constants.py:65
 msgid "Created"
-msgstr ""
+msgstr "Yaratilgan"
 
 #: core/utils/constants.py:68
 msgid "To Waiting QC"
-msgstr ""
+msgstr "QC kutishga o'tkazildi"
 
 #: core/utils/constants.py:69
 msgid "QC Pass"
@@ -1366,23 +1374,23 @@ msgstr "QC o'tmadi"
 
 #: core/utils/constants.py:74
 msgid "Attendance Punctuality"
-msgstr ""
+msgstr "Davomat aniqligi"
 
 #: core/utils/constants.py:75
 msgid "Ticket Base XP"
-msgstr ""
+msgstr "Ariza uchun bazaviy XP"
 
 #: core/utils/constants.py:78
 msgid "Ticket QC First Pass Bonus"
-msgstr ""
+msgstr "QC birinchi urinish bonusi XP"
 
 #: core/utils/constants.py:82
 msgid "Ticket QC Status Update"
-msgstr ""
+msgstr "QC holati yangilanishi XP"
 
 #: core/utils/constants.py:84
 msgid "Manual Adjustment"
-msgstr ""
+msgstr "Qo'lda tuzatish"
 
 #~ msgid "Moderator"
 #~ msgstr "Moderator"

@@ -12,7 +12,7 @@ from bot.services.ticket_admin_common_service import (
 )
 from bot.services.ticket_admin_create_service import TicketAdminCreateService
 from core.utils.asyncio import run_sync
-from inventory.models import InventoryItem, InventoryItemPart
+from inventory.models import InventoryItem
 from ticket.models import Ticket
 
 router = Router(name="ticket_admin_create_callbacks")
@@ -206,16 +206,13 @@ class TicketCreateCallbackHandler(
                 )
                 return True
 
-            parts_queryset = (
-                InventoryItemPart.domain.get_queryset()
-                .filter(inventory_item_id=inventory_item.id)
-                .order_by("id")
-                .values("id", "name")
+            parts = await run_sync(
+                TicketAdminCreateService.available_parts_for_inventory_item,
+                inventory_item=inventory_item,
             )
-            parts = await run_sync(list, parts_queryset)
             if not parts:
                 await query.answer(
-                    _("⚠️ This inventory item has no parts configured."),
+                    _("⚠️ This inventory item's category has no parts configured."),
                     show_alert=True,
                 )
                 return True

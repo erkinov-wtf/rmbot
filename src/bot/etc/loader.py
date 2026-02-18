@@ -7,6 +7,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 
 from bot.config import get_bot_settings
 from bot.etc.container import Container
+from bot.etc.i18n import ensure_bot_locales_compiled
 from bot.middlewares import (
     AuthMiddleware,
     DIMiddleware,
@@ -25,6 +26,7 @@ class BotBundle:
 
 def create_bot_bundle() -> BotBundle:
     settings = get_bot_settings()
+    ensure_bot_locales_compiled()
     parse_mode_key = settings.parse_mode.strip().upper().replace("-", "_")
     parse_mode_key = "MARKDOWN_V2" if parse_mode_key == "MARKDOWNV2" else parse_mode_key
     parse_mode = ParseMode.__members__.get(parse_mode_key, ParseMode.HTML)

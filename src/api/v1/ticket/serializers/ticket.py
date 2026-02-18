@@ -240,7 +240,12 @@ class TicketSerializer(serializers.ModelSerializer):
         attrs["_total_minutes"] = total_minutes
         attrs["_part_category_id"] = part_category_id
 
-        auto_flag_color = Ticket.flag_color_from_minutes(total_minutes=total_minutes)
+        flag_green_max_minutes, flag_yellow_max_minutes = self._ticket_flag_thresholds()
+        auto_flag_color = Ticket.flag_color_from_minutes(
+            total_minutes=total_minutes,
+            green_max_minutes=flag_green_max_minutes,
+            yellow_max_minutes=flag_yellow_max_minutes,
+        )
         xp_divisor = self._ticket_xp_divisor()
         auto_xp_amount = math.ceil(total_minutes / xp_divisor)
 
@@ -410,6 +415,21 @@ class TicketSerializer(serializers.ModelSerializer):
         if divisor <= 0:
             return 20
         return divisor
+
+    @staticmethod
+    def _ticket_flag_thresholds() -> tuple[int, int]:
+        rules = RulesService.get_active_rules_config()
+        ticket_rules = rules.get("ticket_xp", {})
+
+        green_max_minutes = int(ticket_rules.get("flag_green_max_minutes", 30) or 30)
+        if green_max_minutes < 0:
+            green_max_minutes = 30
+
+        yellow_max_minutes = int(ticket_rules.get("flag_yellow_max_minutes", 60) or 60)
+        if yellow_max_minutes < green_max_minutes:
+            yellow_max_minutes = max(green_max_minutes, 60)
+
+        return green_max_minutes, yellow_max_minutes
 
     @staticmethod
     def _resolve_part_specs(

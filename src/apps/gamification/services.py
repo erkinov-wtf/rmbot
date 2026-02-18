@@ -810,6 +810,16 @@ class ProgressionService:
             },
         )
 
+        UserNotificationService.notify_manual_level_update(
+            target_user_id=user.id,
+            actor_user_id=actor_user_id,
+            previous_level=previous_level,
+            new_level=target_level,
+            warning_active_before=warning_before,
+            warning_active_after=warning_after,
+            note=normalized_note,
+        )
+
         return {
             "user_id": user.id,
             "display_name": cls._display_name_for_user(user),
