@@ -5,6 +5,9 @@ from api.v1.account.views import (
     AccessRequestListAPIView,
     AccessRequestRejectAPIView,
     MeAPIView,
+    RoleListAPIView,
+    UserManagementDetailAPIView,
+    UserManagementListAPIView,
     UserOptionListAPIView,
 )
 
@@ -13,6 +16,13 @@ app_name = "account"
 urlpatterns = [
     path("me/", MeAPIView.as_view(), name="me"),
     path("options/", UserOptionListAPIView.as_view(), name="user-options"),
+    path("roles/", RoleListAPIView.as_view(), name="roles"),
+    path("management/", UserManagementListAPIView.as_view(), name="management-list"),
+    path(
+        "management/<int:pk>/",
+        UserManagementDetailAPIView.as_view(),
+        name="management-detail",
+    ),
     path(
         "access-requests/", AccessRequestListAPIView.as_view(), name="access-requests"
     ),

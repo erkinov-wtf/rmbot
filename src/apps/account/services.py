@@ -157,22 +157,6 @@ class AccountService:
         existing_profile = TelegramProfile.domain.any_for_telegram(
             telegram_id=telegram_id
         )
-
-        if (
-            existing_profile
-            and existing_profile.user
-            and existing_profile.user.is_active
-        ):
-            raise ValueError("You are already registered and linked.")
-
-        if AccessRequest.domain.approved_exists_for_telegram(telegram_id=telegram_id):
-            raise ValueError("Your access request was already approved.")
-
-        if AccessRequest.domain.active_user_link_exists_for_telegram(
-            telegram_id=telegram_id
-        ):
-            raise ValueError("You are already registered and linked.")
-
         existing = AccessRequest.domain.pending_for_telegram(telegram_id=telegram_id)
         if existing:
             pending_user = existing.user
@@ -208,6 +192,35 @@ class AccountService:
                 last_name=last_name,
             )
             return existing, False
+
+        if (
+            existing_profile
+            and existing_profile.user
+            and existing_profile.user.is_active
+        ):
+            raise ValueError("You are already registered and linked.")
+        if (
+            existing_profile
+            and existing_profile.user
+            and not existing_profile.user.is_active
+        ):
+            raise ValueError(
+                "Your account exists but is inactive. Please contact an administrator."
+            )
+
+        if AccessRequest.domain.approved_exists_for_telegram(telegram_id=telegram_id):
+            if not AccessRequest.domain.active_user_link_exists_for_telegram(
+                telegram_id=telegram_id
+            ):
+                raise ValueError(
+                    "Your account exists but is inactive. Please contact an administrator."
+                )
+            raise ValueError("Your access request was already approved.")
+
+        if AccessRequest.domain.active_user_link_exists_for_telegram(
+            telegram_id=telegram_id
+        ):
+            raise ValueError("You are already registered and linked.")
 
         pending_user = None
         if (

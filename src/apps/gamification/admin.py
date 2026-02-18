@@ -1,7 +1,12 @@
 from django.contrib import admin
 
 from core.admin import BaseModelAdmin
-from gamification.models import LevelUpCouponEvent, WeeklyLevelEvaluation, XPTransaction
+from gamification.models import (
+    LevelUpCouponEvent,
+    UserLevelHistoryEvent,
+    WeeklyLevelEvaluation,
+    XPTransaction,
+)
 
 
 @admin.register(XPTransaction)
@@ -92,6 +97,49 @@ class LevelUpCouponEventAdmin(BaseModelAdmin):
         "reference",
         "description",
         "issued_by",
+        "payload",
+        "created_at",
+        "updated_at",
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(UserLevelHistoryEvent)
+class UserLevelHistoryEventAdmin(BaseModelAdmin):
+    list_display = (
+        "id",
+        "user",
+        "source",
+        "status",
+        "previous_level",
+        "new_level",
+        "warning_active_after",
+        "created_at",
+    )
+    list_filter = ("source", "status", "warning_active_after", "new_level")
+    search_fields = ("id", "reference", "user__username", "note")
+    readonly_fields = (
+        "user",
+        "actor",
+        "weekly_evaluation",
+        "source",
+        "status",
+        "previous_level",
+        "new_level",
+        "warning_active_before",
+        "warning_active_after",
+        "week_start",
+        "week_end",
+        "reference",
+        "note",
         "payload",
         "created_at",
         "updated_at",

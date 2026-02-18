@@ -29,6 +29,17 @@ export type UserRole = {
   name: string;
 };
 
+export type TelegramProfile = {
+  telegram_id: number;
+  username: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  language_code: string | null;
+  is_bot: boolean;
+  is_premium: boolean;
+  verified_at: string | null;
+};
+
 type CurrentUserRaw = {
   id: number;
   first_name: string;
@@ -60,6 +71,31 @@ export type UserOption = Omit<UserOptionRaw, "roles"> & {
   display_name: string;
 };
 
+type ManagedUserRaw = {
+  id: number;
+  first_name: string;
+  last_name: string | null;
+  username: string;
+  phone: string | null;
+  level: number;
+  is_active: boolean;
+  is_staff: boolean;
+  is_superuser: boolean;
+  last_login: string | null;
+  roles: UserRole[];
+  telegram: TelegramProfile | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ManagedUser = Omit<ManagedUserRaw, "roles"> & {
+  roles: string[];
+  role_slugs: string[];
+  display_name: string;
+};
+
+export type RoleOption = UserRole;
+
 export type XpTransaction = {
   id: number;
   user: number;
@@ -69,6 +105,185 @@ export type XpTransaction = {
   description: string | null;
   payload: Record<string, unknown>;
   created_at: string;
+};
+
+export type RulesConfig = {
+  ticket_xp: {
+    base_divisor: number;
+    first_pass_bonus: number;
+    qc_status_update_xp: number;
+  };
+  attendance: {
+    on_time_xp: number;
+    grace_xp: number;
+    late_xp: number;
+    on_time_cutoff: string;
+    grace_cutoff: string;
+    timezone: string;
+  };
+  work_session: {
+    daily_pause_limit_minutes: number;
+    timezone: string;
+  };
+  progression?: {
+    level_thresholds?: Record<string, number>;
+    weekly_coupon_amount?: number;
+    weekly_target_xp?: number;
+  };
+};
+
+export type RulesConfigState = {
+  active_version: number;
+  cache_key: string;
+  checksum: string;
+  config: RulesConfig;
+  updated_at: string;
+};
+
+export type LevelControlOverviewRow = {
+  user_id: number;
+  display_name: string;
+  username: string;
+  current_level: number;
+  suggested_level_by_xp: number;
+  range_xp: number;
+  cumulative_xp: number;
+  weekly_target_xp: number;
+  range_target_xp: number;
+  meets_target: boolean;
+  warning_active: boolean;
+  suggested_warning: boolean;
+  suggested_reset_to_l1: boolean;
+  latest_history_event: {
+    id: number;
+    source: string;
+    status: string;
+    previous_level: number;
+    new_level: number;
+    warning_active_before: boolean;
+    warning_active_after: boolean;
+    week_start: string | null;
+    week_end: string | null;
+    actor_id: number | null;
+    actor_username: string | null;
+    created_at: string;
+    note: string | null;
+  } | null;
+  latest_weekly_evaluation: {
+    id: number;
+    week_start: string;
+    week_end: string;
+    raw_xp: number;
+    weekly_xp: number;
+    weekly_target_xp: number;
+    status: string;
+    warning_active_after: boolean;
+    evaluated_by_id: number | null;
+    evaluated_by_username: string | null;
+    created_at: string;
+  } | null;
+};
+
+export type LevelControlOverview = {
+  date_from: string;
+  date_to: string;
+  range_days: number;
+  weekly_target_xp: number;
+  range_target_xp: number;
+  rules_version: number;
+  rows: LevelControlOverviewRow[];
+  summary: {
+    technicians_total: number;
+    met_target: number;
+    below_target: number;
+    warning_active: number;
+    suggested_warning: number;
+    suggested_reset_to_l1: number;
+  };
+};
+
+export type LevelControlUserHistory = {
+  user: {
+    id: number;
+    display_name: string;
+    username: string;
+    is_active: boolean;
+    level: number;
+    warning_active_now: boolean;
+  };
+  range: {
+    date_from: string;
+    date_to: string;
+  } | null;
+  xp_history: Array<{
+    id: number;
+    amount: number;
+    entry_type: string;
+    reference: string;
+    description: string | null;
+    payload: Record<string, unknown>;
+    created_at: string;
+  }>;
+  weekly_evaluations: Array<{
+    id: number;
+    week_start: string;
+    week_end: string;
+    raw_xp: number;
+    previous_level: number;
+    new_level: number;
+    is_level_up: boolean;
+    target_status: string;
+    weekly_xp: number;
+    weekly_target_xp: number;
+    met_weekly_target: boolean;
+    warning_active_after: boolean;
+    evaluated_by_id: number | null;
+    evaluated_by_username: string | null;
+    created_at: string;
+  }>;
+  level_history: Array<{
+    id: number;
+    source: string;
+    status: string;
+    previous_level: number;
+    new_level: number;
+    warning_active_before: boolean;
+    warning_active_after: boolean;
+    week_start: string | null;
+    week_end: string | null;
+    actor_id: number | null;
+    actor_username: string | null;
+    reference: string;
+    note: string | null;
+    payload: Record<string, unknown>;
+    created_at: string;
+  }>;
+};
+
+export type ManualLevelSetResult = {
+  user_id: number;
+  display_name: string;
+  username: string;
+  previous_level: number;
+  new_level: number;
+  warning_active_before: boolean;
+  warning_active_after: boolean;
+  status: string;
+  history_event_id: number;
+  history_reference: string;
+  history_created_at: string;
+};
+
+export type WeeklyLevelEvaluationSummary = {
+  week_start: string;
+  week_end: string;
+  weekly_target_xp: number;
+  evaluations_created: number;
+  evaluations_skipped: number;
+  level_ups: number;
+  warnings_created: number;
+  levels_reset_to_l1: number;
+  coupon_events_created: number;
 };
 
 export type Inventory = {
@@ -254,6 +469,23 @@ export type InventoryItemQuery = {
   is_active?: boolean;
 };
 
+export type ManagedUserQuery = {
+  q?: string;
+  role_slug?: string;
+  is_active?: boolean;
+  ordering?:
+    | "created_at"
+    | "-created_at"
+    | "updated_at"
+    | "-updated_at"
+    | "username"
+    | "-username"
+    | "last_login"
+    | "-last_login";
+  page?: number;
+  per_page?: number;
+};
+
 export type AttendanceRecordQuery = {
   work_date?: string;
   user_id?: number;
@@ -344,6 +576,33 @@ function extractResults<TData>(payload: unknown): TData[] {
   return [];
 }
 
+function buildDisplayName(
+  firstName: string | null | undefined,
+  lastName: string | null | undefined,
+  username: string,
+): string {
+  const fullName = `${firstName ?? ""} ${lastName ?? ""}`.trim();
+  return fullName || username;
+}
+
+function mapUserOption(user: UserOptionRaw): UserOption {
+  return {
+    ...user,
+    roles: user.roles.map((role) => role.name),
+    role_slugs: user.roles.map((role) => role.slug),
+    display_name: buildDisplayName(user.first_name, user.last_name, user.username),
+  };
+}
+
+function mapManagedUser(user: ManagedUserRaw): ManagedUser {
+  return {
+    ...user,
+    roles: user.roles.map((role) => role.name),
+    role_slugs: user.roles.map((role) => role.slug),
+    display_name: buildDisplayName(user.first_name, user.last_name, user.username),
+  };
+}
+
 async function apiRequest<TResponse>(
   path: string,
   options: InventoryRequestOptions = {},
@@ -422,16 +681,57 @@ export async function listUserOptions(
     { accessToken },
   );
   const users = extractResults<UserOptionRaw>(payload);
+  return users.map(mapUserOption);
+}
 
-  return users.map((user) => {
-    const fullName = `${user.first_name ?? ""} ${user.last_name ?? ""}`.trim();
-    return {
-      ...user,
-      roles: user.roles.map((role) => role.name),
-      role_slugs: user.roles.map((role) => role.slug),
-      display_name: fullName || user.username,
-    };
+export async function listRoleOptions(
+  accessToken: string,
+  query: { page?: number; per_page?: number } = {},
+): Promise<RoleOption[]> {
+  const payload = await apiRequest<unknown>(
+    withQuery("users/roles/", {
+      page: query.page,
+      per_page: query.per_page ?? 100,
+    }),
+    { accessToken },
+  );
+  return extractResults<RoleOption>(payload);
+}
+
+export async function listManagedUsers(
+  accessToken: string,
+  query: ManagedUserQuery = {},
+): Promise<ManagedUser[]> {
+  const payload = await apiRequest<unknown>(
+    withQuery("users/management/", {
+      q: query.q,
+      role_slug: query.role_slug,
+      is_active: query.is_active,
+      ordering: query.ordering ?? "-created_at",
+      page: query.page,
+      per_page: query.per_page ?? 300,
+    }),
+    { accessToken },
+  );
+  return extractResults<ManagedUserRaw>(payload).map(mapManagedUser);
+}
+
+export async function updateManagedUser(
+  accessToken: string,
+  id: number,
+  body: Partial<{
+    role_slugs: string[];
+    is_active: boolean;
+    level: number;
+  }>,
+): Promise<ManagedUser> {
+  const payload = await apiRequest<unknown>(`users/management/${id}/`, {
+    method: "PATCH",
+    accessToken,
+    body,
   });
+  const updated = extractData<ManagedUserRaw>(payload);
+  return mapManagedUser(updated);
 }
 
 export async function listInventories(accessToken: string): Promise<Inventory[]> {
@@ -983,4 +1283,88 @@ export async function adjustUserXp(
     body,
   });
   return extractData<XpTransaction>(payload);
+}
+
+export async function getRulesConfigState(
+  accessToken: string,
+): Promise<RulesConfigState> {
+  const payload = await apiRequest<unknown>("rules/config/", { accessToken });
+  return extractData<RulesConfigState>(payload);
+}
+
+export async function updateRulesConfigState(
+  accessToken: string,
+  body: {
+    config: RulesConfig;
+    reason?: string;
+  },
+): Promise<RulesConfigState> {
+  const payload = await apiRequest<unknown>("rules/config/", {
+    method: "PUT",
+    accessToken,
+    body,
+  });
+  return extractData<RulesConfigState>(payload);
+}
+
+export async function getLevelControlOverview(
+  accessToken: string,
+  query: { date_from?: string; date_to?: string } = {},
+): Promise<LevelControlOverview> {
+  const payload = await apiRequest<unknown>(
+    withQuery("xp/levels/overview/", {
+      date_from: query.date_from,
+      date_to: query.date_to,
+    }),
+    { accessToken },
+  );
+  return extractData<LevelControlOverview>(payload);
+}
+
+export async function getLevelControlUserHistory(
+  accessToken: string,
+  userId: number,
+  query: { date_from?: string; date_to?: string; limit?: number } = {},
+): Promise<LevelControlUserHistory> {
+  const payload = await apiRequest<unknown>(
+    withQuery(`xp/levels/users/${userId}/history/`, {
+      date_from: query.date_from,
+      date_to: query.date_to,
+      limit: query.limit ?? 500,
+    }),
+    { accessToken },
+  );
+  return extractData<LevelControlUserHistory>(payload);
+}
+
+export async function setLevelControlUserLevel(
+  accessToken: string,
+  userId: number,
+  body: {
+    level: number;
+    note?: string;
+    clear_warning?: boolean;
+  },
+): Promise<ManualLevelSetResult> {
+  const payload = await apiRequest<unknown>(
+    `xp/levels/users/${userId}/set-level/`,
+    {
+      method: "POST",
+      accessToken,
+      body,
+    },
+  );
+  return extractData<ManualLevelSetResult>(payload);
+}
+
+export async function runWeeklyLevelEvaluation(
+  accessToken: string,
+  body: { week_start?: string } = {},
+): Promise<WeeklyLevelEvaluationSummary> {
+  const payload = await apiRequest<unknown>("xp/levels/evaluate/", {
+    method: "POST",
+    accessToken,
+    body,
+  });
+  return extractData<WeeklyLevelEvaluationSummary>(payload);
 }

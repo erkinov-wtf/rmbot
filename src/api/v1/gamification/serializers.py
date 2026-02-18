@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from gamification.models import XPTransaction
+from core.utils.constants import EmployeeLevel
 
 
 class XPTransactionSerializer(serializers.ModelSerializer):
@@ -34,3 +35,22 @@ class XPAdjustmentSerializer(serializers.Serializer):
         if not normalized:
             raise serializers.ValidationError("comment is required.")
         return normalized
+
+
+class WeeklyEvaluationRunSerializer(serializers.Serializer):
+    week_start = serializers.DateField(required=False)
+
+    def validate_week_start(self, value):
+        if value.weekday() != 0:
+            raise serializers.ValidationError("week_start must be a Monday date.")
+        return value
+
+
+class LevelManualSetSerializer(serializers.Serializer):
+    level = serializers.ChoiceField(choices=EmployeeLevel.values)
+    note = serializers.CharField(
+        max_length=255,
+        required=False,
+        allow_blank=True,
+    )
+    clear_warning = serializers.BooleanField(required=False, default=False)

@@ -20,7 +20,7 @@ from django.utils import timezone
 from account.models import TelegramProfile, User
 from account.services import AccountService
 from core.utils.asyncio import run_sync
-from core.utils.constants import RoleSlug, TicketStatus
+from core.utils.constants import AccessRequestStatus, RoleSlug, TicketStatus
 from gamification.models import XPTransaction
 from ticket.models import Ticket
 
@@ -158,6 +158,29 @@ async def _has_active_linked_user(
     )
 
 
+async def _has_inactive_linked_user(
+    *,
+    telegram_profile: TelegramProfile | None,
+) -> bool:
+    profile_user_id = telegram_profile.user_id if telegram_profile else None
+    if profile_user_id and await run_sync(
+        User.all_objects.filter(pk=profile_user_id, is_active=False).exists
+    ):
+        return True
+
+    telegram_id = telegram_profile.telegram_id if telegram_profile else None
+    if not telegram_id:
+        return False
+
+    return await run_sync(
+        User.all_objects.filter(
+            access_requests__telegram_id=telegram_id,
+            access_requests__status=AccessRequestStatus.APPROVED,
+            is_active=False,
+        ).exists
+    )
+
+
 def _format_status_datetime(value) -> str:
     if value is None:
         return "-"
@@ -233,10 +256,14 @@ def _normalize_xp_history_offset(offset: int) -> int:
 def _role_label(*, role_slug: str, _) -> str:
     if role_slug == RoleSlug.TECHNICIAN:
         return _("Technician")
-    if role_slug == RoleSlug.MODERATOR:
-        return _("Moderator")
-    if role_slug == RoleSlug.ADMIN:
-        return _("Administrator")
+    if role_slug == RoleSlug.MASTER:
+        return _("Master")
+    if role_slug == RoleSlug.QC_INSPECTOR:
+        return _("QC Inspector")
+    if role_slug == RoleSlug.OPS_MANAGER:
+        return _("Ops Manager")
+    if role_slug == RoleSlug.SUPER_ADMIN:
+        return _("Super Admin")
     return role_slug.replace("_", " ").replace("-", " ").title()
 
 
@@ -696,6 +723,20 @@ async def start_handler(
         await message.answer(
             _("You are all set. Your account is already active."),
             reply_markup=await _main_menu_markup_for_user(user=user),
+        )
+        return
+
+    if await _has_inactive_linked_user(telegram_profile=profile):
+        await state.clear()
+        await message.answer(
+            _(
+                "Your account already exists but is inactive. "
+                "Please contact an administrator to reactivate it."
+            ),
+            reply_markup=build_main_menu_keyboard(
+                is_technician=False,
+                include_start_access=False,
+            ),
         )
         return
 

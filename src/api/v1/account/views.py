@@ -5,12 +5,15 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from account.models import AccessRequest, User
+from account.models import AccessRequest, Role, User
 from account.services import AccountService
 from api.v1.account.filters import AccessRequestFilterSet
 from api.v1.account.serializers import (
     AccessRequestApproveSerializer,
     AccessRequestSerializer,
+    RoleSerializer,
+    UserManagementSerializer,
+    UserManagementUpdateSerializer,
     UserOptionSerializer,
     UserSerializer,
 )
@@ -22,6 +25,7 @@ from core.utils.constants import AccessRequestStatus, RoleSlug
 AccessRequestManagerPermission = HasRole.as_any(
     RoleSlug.SUPER_ADMIN, RoleSlug.OPS_MANAGER
 )
+UserManagementPermission = HasRole.as_any(RoleSlug.SUPER_ADMIN, RoleSlug.OPS_MANAGER)
 UserOptionsPermission = HasRole.as_any(
     RoleSlug.SUPER_ADMIN, RoleSlug.OPS_MANAGER, RoleSlug.MASTER
 )
@@ -68,6 +72,126 @@ class UserOptionListAPIView(ListAPIView):
             | Q(last_name__icontains=search)
             | Q(phone__icontains=search)
         )
+
+
+@extend_schema(
+    tags=["Users / Management"],
+    summary="List system roles",
+    description="Returns active role list for user-management role assignment.",
+)
+class RoleListAPIView(ListAPIView):
+    serializer_class = RoleSerializer
+    permission_classes = (IsAuthenticated, UserManagementPermission)
+    queryset = Role.objects.filter(deleted_at__isnull=True).order_by("name", "id")
+
+
+@extend_schema(
+    tags=["Users / Management"],
+    summary="List users",
+    description=(
+        "Lists users with profile, role, and telegram linkage data. "
+        "Supports q search, role_slug, is_active, and ordering."
+    ),
+)
+class UserManagementListAPIView(ListAPIView):
+    serializer_class = UserManagementSerializer
+    permission_classes = (IsAuthenticated, UserManagementPermission)
+    queryset = (
+        User.objects.filter(deleted_at__isnull=True)
+        .prefetch_related("roles", "telegram_profiles")
+        .order_by("-created_at", "-id")
+    )
+
+    def get_queryset(self):
+        queryset = self.queryset
+
+        search = str(self.request.query_params.get("q", "")).strip()
+        if search:
+            queryset = queryset.filter(
+                Q(username__icontains=search)
+                | Q(first_name__icontains=search)
+                | Q(last_name__icontains=search)
+                | Q(phone__icontains=search)
+            )
+
+        role_slug = str(self.request.query_params.get("role_slug", "")).strip()
+        if role_slug:
+            queryset = queryset.filter(
+                roles__slug=role_slug,
+                roles__deleted_at__isnull=True,
+            ).distinct()
+
+        is_active_raw = self.request.query_params.get("is_active")
+        if is_active_raw is not None:
+            normalized = str(is_active_raw).strip().lower()
+            if normalized in {"1", "true", "yes"}:
+                queryset = queryset.filter(is_active=True)
+            elif normalized in {"0", "false", "no"}:
+                queryset = queryset.filter(is_active=False)
+
+        ordering = str(
+            self.request.query_params.get("ordering", "-created_at")
+        ).strip()
+        allowed_orderings = {
+            "created_at",
+            "-created_at",
+            "updated_at",
+            "-updated_at",
+            "username",
+            "-username",
+            "last_login",
+            "-last_login",
+        }
+        if ordering not in allowed_orderings:
+            ordering = "-created_at"
+        return queryset.order_by(ordering, "-id")
+
+
+@extend_schema(
+    tags=["Users / Management"],
+    summary="Get/update user management data",
+    description=(
+        "Returns a user by id and allows updating role assignments, active state, and level."
+    ),
+)
+class UserManagementDetailAPIView(BaseAPIView):
+    serializer_class = UserManagementUpdateSerializer
+    permission_classes = (IsAuthenticated, UserManagementPermission)
+
+    @staticmethod
+    def _get_user_queryset():
+        return User.objects.filter(deleted_at__isnull=True).prefetch_related(
+            "roles",
+            "telegram_profiles",
+        )
+
+    def get(self, request, *args, **kwargs):
+        user = get_object_or_404(self._get_user_queryset(), pk=kwargs["pk"])
+        output = UserManagementSerializer(user).data
+        return Response(output, status=status.HTTP_200_OK)
+
+    def patch(self, request, *args, **kwargs):
+        user = get_object_or_404(self._get_user_queryset(), pk=kwargs["pk"])
+
+        if user.is_superuser and not request.user.is_superuser:
+            return Response(
+                {"detail": "Only super admins can update superuser accounts."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        serializer = self.get_serializer(instance=user, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+
+        if user.pk == request.user.pk and serializer.validated_data.get("is_active") is False:
+            return Response(
+                {"detail": "You cannot deactivate your own account."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer.save()
+        user.refresh_from_db()
+        output = UserManagementSerializer(user).data
+        return Response(output, status=status.HTTP_200_OK)
 
 
 @extend_schema(
