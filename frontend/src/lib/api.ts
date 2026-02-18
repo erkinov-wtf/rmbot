@@ -55,6 +55,30 @@ export type CurrentUser = Omit<CurrentUserRaw, "roles"> & {
   role_slugs: string[];
 };
 
+export type TicketFlowPermissions = {
+  can_create: boolean;
+  can_review: boolean;
+  can_assign: boolean;
+  can_manual_metrics: boolean;
+  can_qc: boolean;
+  can_work: boolean;
+  can_open_review_panel: boolean;
+  can_approve_and_assign: boolean;
+};
+
+type MiniAppPhoneLoginRaw = {
+  access: string;
+  refresh: string;
+  role_slugs: string[];
+  roles: string[];
+  permissions: TicketFlowPermissions;
+  user: CurrentUserRaw;
+};
+
+export type MiniAppPhoneLogin = Omit<MiniAppPhoneLoginRaw, "user"> & {
+  user: CurrentUser;
+};
+
 type UserOptionRaw = {
   id: number;
   first_name: string;
@@ -613,6 +637,16 @@ function mapUserOption(user: UserOptionRaw): UserOption {
   };
 }
 
+function mapCurrentUser(user: CurrentUserRaw): CurrentUser {
+  const { roles, ...rest } = user;
+
+  return {
+    ...rest,
+    roles: roles.map((role) => role.name),
+    role_slugs: roles.map((role) => role.slug),
+  };
+}
+
 function mapManagedUser(user: ManagedUserRaw): ManagedUser {
   return {
     ...user,
@@ -675,16 +709,27 @@ export async function loginWithPassword(
   return tokens;
 }
 
+export async function loginMiniAppWithPhone(phone: string): Promise<MiniAppPhoneLogin> {
+  const payload = await apiRequest<unknown>("auth/miniapp/phone-login/", {
+    method: "POST",
+    body: { phone },
+  });
+  const result = extractData<MiniAppPhoneLoginRaw>(payload);
+
+  if (!result?.access || !result?.refresh) {
+    throw new Error("Mini app login response is missing access/refresh tokens.");
+  }
+
+  return {
+    ...result,
+    user: mapCurrentUser(result.user),
+  };
+}
+
 export async function getCurrentUser(accessToken: string): Promise<CurrentUser> {
   const payload = await apiRequest<unknown>("users/me/", { accessToken });
   const user = extractData<CurrentUserRaw>(payload);
-  const { roles, ...rest } = user;
-
-  return {
-    ...rest,
-    roles: roles.map((role) => role.name),
-    role_slugs: roles.map((role) => role.slug),
-  };
+  return mapCurrentUser(user);
 }
 
 export async function listUserOptions(

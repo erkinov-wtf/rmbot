@@ -1,5 +1,7 @@
 import json
+import re
 from dataclasses import dataclass
+from types import SimpleNamespace
 
 from django.conf import settings
 from django.core.cache import cache
@@ -17,8 +19,17 @@ from rest_framework_simplejwt.views import (
     TokenVerifyView,
 )
 
+from account.models import User
 from account.services import AccountService
 from api.v1.account.serializers import UserSerializer
+from api.v1.ticket.permissions import (
+    TicketAssignPermission,
+    TicketCreatePermission,
+    TicketManualMetricsPermission,
+    TicketQCPermission,
+    TicketReviewPermission,
+    TicketWorkPermission,
+)
 from core.api.schema import extend_schema
 from core.api.views import BaseAPIView
 from core.utils.constants import RoleSlug
@@ -27,6 +38,9 @@ from core.utils.telegram import (
     extract_init_data_hash,
     validate_init_data,
 )
+
+
+PHONE_PATTERN = re.compile(r"^\+?[1-9][0-9]{7,14}$")
 
 
 def _build_role_claims(user) -> tuple[list[str], list[str]]:
@@ -47,6 +61,49 @@ def attach_user_role_claims(token: Token, user) -> None:
     role_slugs, role_titles = _build_role_claims(user)
     token["role_slugs"] = role_slugs
     token["roles"] = role_titles
+
+
+def _has_ticket_permission(*, user, permission_class) -> bool:
+    request = SimpleNamespace(user=user)
+    return bool(permission_class().has_permission(request=request, view=None))
+
+
+def _ticket_permissions_payload(*, user) -> dict[str, bool]:
+    can_create = _has_ticket_permission(
+        user=user,
+        permission_class=TicketCreatePermission,
+    )
+    can_review = _has_ticket_permission(
+        user=user,
+        permission_class=TicketReviewPermission,
+    )
+    can_assign = _has_ticket_permission(
+        user=user,
+        permission_class=TicketAssignPermission,
+    )
+    can_manual_metrics = _has_ticket_permission(
+        user=user,
+        permission_class=TicketManualMetricsPermission,
+    )
+    can_qc = _has_ticket_permission(
+        user=user,
+        permission_class=TicketQCPermission,
+    )
+    can_work = _has_ticket_permission(
+        user=user,
+        permission_class=TicketWorkPermission,
+    )
+
+    return {
+        "can_create": can_create,
+        "can_review": can_review,
+        "can_assign": can_assign,
+        "can_manual_metrics": can_manual_metrics,
+        "can_qc": can_qc,
+        "can_work": can_work,
+        "can_open_review_panel": can_review or can_assign or can_manual_metrics,
+        "can_approve_and_assign": can_review and can_assign,
+    }
 
 
 class LoginTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -100,6 +157,18 @@ class TMAInitDataSerializer(serializers.Serializer):
             raise serializers.ValidationError("init_data is required")
 
         return value
+
+
+class MiniAppPhoneLoginSerializer(serializers.Serializer):
+    phone = serializers.CharField(max_length=20)
+
+    def validate_phone(self, value: str) -> str:
+        compact = value.strip().replace(" ", "").replace("-", "")
+        if not compact:
+            raise serializers.ValidationError("phone is required")
+        if not PHONE_PATTERN.fullmatch(compact):
+            raise serializers.ValidationError("phone format is invalid")
+        return compact if compact.startswith("+") else f"+{compact}"
 
 
 @dataclass(slots=True)
@@ -235,3 +304,53 @@ class TMAInitDataVerifyAPIView(BaseAPIView):
         )
         replay_cache_key = f"tma:init-data-hash:{init_data_hash}"
         return not cache.add(replay_cache_key, "1", timeout=replay_ttl_seconds)
+
+
+@extend_schema(
+    tags=["Auth"],
+    summary="Temporary mini app phone login",
+    description=(
+        "Temporary development endpoint: authenticates mini app users by phone and "
+        "returns JWT tokens with roles and ticket permissions."
+    ),
+)
+class MiniAppPhoneLoginAPIView(BaseAPIView):
+    permission_classes = (AllowAny,)
+    serializer_class = MiniAppPhoneLoginSerializer
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        phone = serializer.validated_data["phone"]
+
+        user = (
+            User.all_objects.prefetch_related("roles")
+            .filter(
+                phone=phone,
+                is_active=True,
+                deleted_at__isnull=True,
+            )
+            .first()
+        )
+        if user is None:
+            return Response(
+                {"detail": "Active user with this phone number was not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # TODO: Replace temporary phone-based mini app auth with official Telegram initData verification.
+        refresh = RefreshToken.for_user(user)
+        attach_user_role_claims(refresh, user)
+        role_slugs, role_titles = _build_role_claims(user)
+
+        return Response(
+            {
+                "access": str(refresh.access_token),
+                "refresh": str(refresh),
+                "role_slugs": role_slugs,
+                "roles": role_titles,
+                "permissions": _ticket_permissions_payload(user=user),
+                "user": UserSerializer(user).data,
+            },
+            status=status.HTTP_200_OK,
+        )

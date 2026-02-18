@@ -4,7 +4,6 @@ from types import SimpleNamespace
 import pytest
 
 from account.services import AccountService
-from bot.permissions import TicketBotPermissionSet
 from bot.routers.start.profile import StartProfileSupportMixin
 
 pytestmark = pytest.mark.django_db
@@ -41,10 +40,6 @@ def test_help_hides_start_access_button_for_pending_request(monkeypatch):
         AccountService,
         "get_pending_access_request",
         staticmethod(lambda _telegram_id: object()),
-    )
-    monkeypatch.setattr(
-        "bot.routers.start.profile.resolve_ticket_bot_permissions",
-        lambda *, user: TicketBotPermissionSet(),
     )
     monkeypatch.setattr(
         "bot.routers.start.profile.BotMenuService.main_menu_markup_for_user",
@@ -86,10 +81,6 @@ def test_help_shows_start_access_button_for_unregistered_user(monkeypatch):
         staticmethod(lambda _telegram_id: None),
     )
     monkeypatch.setattr(
-        "bot.routers.start.profile.resolve_ticket_bot_permissions",
-        lambda *, user: TicketBotPermissionSet(),
-    )
-    monkeypatch.setattr(
         "bot.routers.start.profile.BotMenuService.main_menu_markup_for_user",
         _main_menu_stub,
     )
@@ -129,10 +120,6 @@ def test_help_hides_start_access_button_for_active_user(user_factory, monkeypatc
         staticmethod(lambda _telegram_id: None),
     )
     monkeypatch.setattr(
-        "bot.routers.start.profile.resolve_ticket_bot_permissions",
-        lambda *, user: TicketBotPermissionSet(),
-    )
-    monkeypatch.setattr(
         "bot.routers.start.profile.BotMenuService.main_menu_markup_for_user",
         _main_menu_stub,
     )
@@ -154,7 +141,7 @@ def test_help_hides_start_access_button_for_active_user(user_factory, monkeypatc
     assert "<code>/start</code>" not in help_text
 
 
-def test_help_text_includes_technician_and_admin_commands_when_permitted():
+def test_help_text_includes_technician_commands_and_excludes_ticket_admin_qc():
     text = StartProfileSupportMixin.build_help_text(
         include_start_access=False,
         has_pending_request=False,
@@ -166,11 +153,12 @@ def test_help_text_includes_technician_and_admin_commands_when_permitted():
         _=lambda value: value,
     )
 
-    assert "<b>Ticket Admin</b>" in text
-    assert "<code>/ticket_create</code>" in text
-    assert "<code>/ticket_review</code>" in text
     assert "<b>Technician</b>" in text
     assert "<code>/queue</code>" in text
     assert "<code>/xp_history</code>" in text
-    assert "<b>QC</b>" in text
-    assert "<code>/qc_checks</code>" in text
+    assert "<b>Ticket Admin</b>" not in text
+    assert "<code>/ticket_create</code>" not in text
+    assert "<code>/ticket_review</code>" not in text
+    assert "<b>QC</b>" not in text
+    assert "<code>/qc_checks</code>" not in text
+    assert "Telegram Mini App" in text

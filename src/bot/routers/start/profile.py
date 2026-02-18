@@ -8,7 +8,6 @@ from aiogram.types import Message
 
 from account.models import TelegramProfile, User
 from account.services import AccountService
-from bot.permissions import resolve_ticket_bot_permissions
 from bot.routers.start.base import StartStateMixin
 from bot.services.menu import (
     MENU_BUTTON_HELP_VARIANTS,
@@ -47,6 +46,7 @@ class StartProfileSupportMixin(StartStateMixin):
         can_qc_checks: bool,
         _,
     ) -> str:
+        del can_create_ticket, can_open_review_panel, can_qc_checks
         status_value = _("access not registered")
         if has_pending_request:
             status_value = _("access request under review")
@@ -86,25 +86,6 @@ class StartProfileSupportMixin(StartStateMixin):
                     description=_("Check your request status"),
                 )
             )
-
-        if can_create_ticket or can_open_review_panel:
-            lines.extend(["", _("🧾 <b>Ticket Admin</b>")])
-            if can_create_ticket:
-                lines.append(
-                    cls._command_help_line(
-                        command="/ticket_create",
-                        icon="🆕",
-                        description=_("Start ticket intake flow"),
-                    )
-                )
-            if can_open_review_panel:
-                lines.append(
-                    cls._command_help_line(
-                        command="/ticket_review",
-                        icon="🧰",
-                        description=_("Open ticket review queue"),
-                    )
-                )
 
         if is_technician:
             lines.extend(["", _("🛠 <b>Technician</b>")])
@@ -148,22 +129,17 @@ class StartProfileSupportMixin(StartStateMixin):
                 ]
             )
 
-        if can_qc_checks:
-            lines.extend(["", _("🧪 <b>QC</b>")])
-            lines.append(
-                cls._command_help_line(
-                    command="/qc_checks",
-                    icon="🔬",
-                    description=_("Open my assigned QC checks"),
-                )
-            )
-
         lines.extend(["", _("🧰 <b>Tools</b>")])
         lines.append(
             cls._command_help_line(
                 command="/cancel",
                 icon="✋",
                 description=_("Cancel the current form"),
+            )
+        )
+        lines.append(
+            _(
+                "ℹ️ Ticket intake/review/QC actions are now available in the Telegram Mini App."
             )
         )
         lines.append(_("💡 Use the buttons below for quick actions."))
@@ -198,10 +174,6 @@ class StartProfileSupportMixin(StartStateMixin):
             user=user,
             telegram_profile=telegram_profile,
         )
-        ticket_permissions = await run_sync(
-            resolve_ticket_bot_permissions,
-            user=resolved_user,
-        )
         is_technician = False
         if resolved_user is not None:
             is_technician = await run_sync(
@@ -222,9 +194,9 @@ class StartProfileSupportMixin(StartStateMixin):
                 has_pending_request=pending_request is not None,
                 is_active_user=bool(resolved_user and resolved_user.is_active),
                 is_technician=is_technician,
-                can_create_ticket=ticket_permissions.can_create,
-                can_open_review_panel=ticket_permissions.can_open_review_panel,
-                can_qc_checks=ticket_permissions.can_qc,
+                can_create_ticket=False,
+                can_open_review_panel=False,
+                can_qc_checks=False,
                 _=_,
             ),
             reply_markup=await BotMenuService.main_menu_markup_for_user(

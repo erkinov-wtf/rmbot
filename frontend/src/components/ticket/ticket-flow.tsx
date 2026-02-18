@@ -53,6 +53,10 @@ type TicketFlowProps = {
   canWork: boolean;
   canQc: boolean;
   roleSlugs: string[];
+  routeBase?: string;
+  showWorkTab?: boolean;
+  restrictTabsByPermission?: boolean;
+  syncRouteWithUrl?: boolean;
 };
 
 type FeedbackState =
@@ -69,6 +73,8 @@ type TicketRoute =
   | { name: "review" }
   | { name: "work" }
   | { name: "qc" };
+
+type TicketFlowMenu = "create" | "review" | "work" | "qc";
 
 type ItemFilterState = {
   search: string;
@@ -176,8 +182,52 @@ function formatMetadataValue(value: unknown): string {
   }
 }
 
-function parseTicketRoute(pathname: string): TicketRoute {
-  const createItemMatch = pathname.match(/^\/tickets\/create\/item\/(\d+)\/?$/);
+function normalizeTicketRouteBase(routeBase: string): string {
+  const compact = routeBase.trim();
+  if (!compact) {
+    return "/tickets";
+  }
+  const withLeadingSlash = compact.startsWith("/") ? compact : `/${compact}`;
+  const withoutTrailingSlash = withLeadingSlash.replace(/\/+$/, "");
+  return withoutTrailingSlash || "/tickets";
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function routeMenu(route: TicketRoute): TicketFlowMenu {
+  if (route.name === "review") {
+    return "review";
+  }
+  if (route.name === "work") {
+    return "work";
+  }
+  if (route.name === "qc") {
+    return "qc";
+  }
+  return "create";
+}
+
+function routeForMenu(menu: TicketFlowMenu): TicketRoute {
+  if (menu === "review") {
+    return { name: "review" };
+  }
+  if (menu === "work") {
+    return { name: "work" };
+  }
+  if (menu === "qc") {
+    return { name: "qc" };
+  }
+  return { name: "createList" };
+}
+
+function parseTicketRoute(pathname: string, routeBase = "/tickets"): TicketRoute {
+  const normalizedBase = normalizeTicketRouteBase(routeBase);
+  const escapedBase = escapeRegExp(normalizedBase);
+  const createItemMatch = pathname.match(
+    new RegExp(`^${escapedBase}/create/item/(\\d+)/?$`),
+  );
   if (createItemMatch) {
     const parsedId = Number(createItemMatch[1]);
     if (Number.isFinite(parsedId) && parsedId > 0) {
@@ -185,7 +235,9 @@ function parseTicketRoute(pathname: string): TicketRoute {
     }
   }
 
-  const historyTicketMatch = pathname.match(/^\/tickets\/history\/(\d+)\/?$/);
+  const historyTicketMatch = pathname.match(
+    new RegExp(`^${escapedBase}/history/(\\d+)/?$`),
+  );
   if (historyTicketMatch) {
     const parsedId = Number(historyTicketMatch[1]);
     if (Number.isFinite(parsedId) && parsedId > 0) {
@@ -193,40 +245,41 @@ function parseTicketRoute(pathname: string): TicketRoute {
     }
   }
 
-  if (pathname.startsWith("/tickets/review")) {
+  if (pathname.startsWith(`${normalizedBase}/review`)) {
     return { name: "review" };
   }
-  if (pathname.startsWith("/tickets/work")) {
+  if (pathname.startsWith(`${normalizedBase}/work`)) {
     return { name: "work" };
   }
-  if (pathname.startsWith("/tickets/qc")) {
+  if (pathname.startsWith(`${normalizedBase}/qc`)) {
     return { name: "qc" };
   }
 
-  if (pathname.startsWith("/tickets/create")) {
+  if (pathname.startsWith(`${normalizedBase}/create`)) {
     return { name: "createList" };
   }
 
   return { name: "createList" };
 }
 
-function toTicketPath(route: TicketRoute): string {
+function toTicketPath(route: TicketRoute, routeBase = "/tickets"): string {
+  const normalizedBase = normalizeTicketRouteBase(routeBase);
   if (route.name === "review") {
-    return "/tickets/review";
+    return `${normalizedBase}/review`;
   }
   if (route.name === "work") {
-    return "/tickets/work";
+    return `${normalizedBase}/work`;
   }
   if (route.name === "qc") {
-    return "/tickets/qc";
+    return `${normalizedBase}/qc`;
   }
   if (route.name === "createItem") {
-    return `/tickets/create/item/${route.itemId}`;
+    return `${normalizedBase}/create/item/${route.itemId}`;
   }
   if (route.name === "historyTicket") {
-    return `/tickets/history/${route.ticketId}`;
+    return `${normalizedBase}/history/${route.ticketId}`;
   }
-  return "/tickets/create";
+  return `${normalizedBase}/create`;
 }
 
 function areItemFiltersEqual(left: ItemFilterState, right: ItemFilterState): boolean {
@@ -294,9 +347,15 @@ export function TicketFlow({
   canWork,
   canQc,
   roleSlugs,
+  routeBase = "/tickets",
+  showWorkTab = true,
+  restrictTabsByPermission = false,
+  syncRouteWithUrl = true,
 }: TicketFlowProps) {
   const [route, setRoute] = useState<TicketRoute>(() =>
-    parseTicketRoute(window.location.pathname),
+    syncRouteWithUrl
+      ? parseTicketRoute(window.location.pathname, routeBase)
+      : { name: "createList" },
   );
 
   const [feedback, setFeedback] = useState<FeedbackState>(null);
@@ -377,14 +436,34 @@ export function TicketFlow({
     {},
   );
 
-  const activeMenu: "create" | "review" | "work" | "qc" =
-    route.name === "review"
-      ? "review"
-      : route.name === "work"
-        ? "work"
-        : route.name === "qc"
-          ? "qc"
-          : "create";
+  const activeMenu = routeMenu(route);
+
+  const canAccessCreateMenu = restrictTabsByPermission ? canCreate : true;
+  const canAccessReviewMenu = restrictTabsByPermission ? canReview : true;
+  const canAccessWorkMenu =
+    showWorkTab && (restrictTabsByPermission ? canWork : true);
+  const canAccessQcMenu = restrictTabsByPermission ? canQc : true;
+  const visibleMenus = useMemo<TicketFlowMenu[]>(() => {
+    const next: TicketFlowMenu[] = [];
+    if (canAccessCreateMenu) {
+      next.push("create");
+    }
+    if (canAccessReviewMenu) {
+      next.push("review");
+    }
+    if (canAccessWorkMenu) {
+      next.push("work");
+    }
+    if (canAccessQcMenu) {
+      next.push("qc");
+    }
+    return next;
+  }, [
+    canAccessCreateMenu,
+    canAccessQcMenu,
+    canAccessReviewMenu,
+    canAccessWorkMenu,
+  ]);
 
   const categoryNameById = useMemo(
     () => new Map(categories.map((category) => [category.id, category.name])),
@@ -669,13 +748,15 @@ export function TicketFlow({
   );
 
   const navigate = useCallback((nextRoute: TicketRoute) => {
-    const nextPath = toTicketPath(nextRoute);
-    if (window.location.pathname !== nextPath) {
-      window.history.pushState({}, "", nextPath);
+    if (syncRouteWithUrl) {
+      const nextPath = toTicketPath(nextRoute, routeBase);
+      if (window.location.pathname !== nextPath) {
+        window.history.pushState({}, "", nextPath);
+      }
     }
     setRoute(nextRoute);
     setFeedback(null);
-  }, []);
+  }, [routeBase, syncRouteWithUrl]);
 
   const cacheInventoryItems = useCallback((nextItems: InventoryItem[]) => {
     if (!nextItems.length) {
@@ -1050,8 +1131,11 @@ export function TicketFlow({
   );
 
   useEffect(() => {
+    if (!syncRouteWithUrl) {
+      return;
+    }
     const onPopState = () => {
-      setRoute(parseTicketRoute(window.location.pathname));
+      setRoute(parseTicketRoute(window.location.pathname, routeBase));
       setFeedback(null);
     };
 
@@ -1059,7 +1143,27 @@ export function TicketFlow({
     return () => {
       window.removeEventListener("popstate", onPopState);
     };
-  }, []);
+  }, [routeBase, syncRouteWithUrl]);
+
+  useEffect(() => {
+    if (!visibleMenus.length) {
+      return;
+    }
+    const active = routeMenu(route);
+    if (visibleMenus.includes(active)) {
+      return;
+    }
+
+    const fallbackRoute = routeForMenu(visibleMenus[0]);
+    if (syncRouteWithUrl) {
+      const fallbackPath = toTicketPath(fallbackRoute, routeBase);
+      if (window.location.pathname !== fallbackPath) {
+        window.history.replaceState({}, "", fallbackPath);
+      }
+    }
+    setRoute(fallbackRoute);
+    setFeedback(null);
+  }, [route, routeBase, syncRouteWithUrl, visibleMenus]);
 
   useEffect(() => {
     void loadCategories();
@@ -3028,7 +3132,7 @@ export function TicketFlow({
               Roles ({roleSlugs.join(", ") || "none"}) cannot perform admin review.
             </p>
           ) : null}
-          {!canWork ? (
+          {showWorkTab && !canWork ? (
             <p className="mt-1 text-xs text-amber-700">
               Roles ({roleSlugs.join(", ") || "none"}) cannot run technician workflow.
             </p>
@@ -3081,78 +3185,96 @@ export function TicketFlow({
         </p>
       ) : null}
 
+      {!visibleMenus.length ? (
+        <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-700">
+          Your current role does not have access to ticket flows in this app.
+        </p>
+      ) : null}
+
       <div className="mt-4 flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => navigate({ name: "createList" })}
-          className={cn(
-            "rm-menu-btn",
-            activeMenu === "create"
-              ? "rm-menu-btn-active"
-              : "rm-menu-btn-idle",
-          )}
-        >
-          <span className="inline-flex items-center gap-2">
-            <Ticket className="h-4 w-4" />
-            Create Ticket
-          </span>
-        </button>
+        {canAccessCreateMenu ? (
+          <button
+            type="button"
+            onClick={() => navigate({ name: "createList" })}
+            className={cn(
+              "rm-menu-btn",
+              activeMenu === "create"
+                ? "rm-menu-btn-active"
+                : "rm-menu-btn-idle",
+            )}
+          >
+            <span className="inline-flex items-center gap-2">
+              <Ticket className="h-4 w-4" />
+              Create Ticket
+            </span>
+          </button>
+        ) : null}
 
-        <button
-          type="button"
-          onClick={() => navigate({ name: "review" })}
-          className={cn(
-            "rm-menu-btn",
-            activeMenu === "review"
-              ? "rm-menu-btn-active"
-              : "rm-menu-btn-idle",
-          )}
-        >
-          <span className="inline-flex items-center gap-2">
-            <ClipboardCheck className="h-4 w-4" />
-            Review Tickets
-          </span>
-        </button>
+        {canAccessReviewMenu ? (
+          <button
+            type="button"
+            onClick={() => navigate({ name: "review" })}
+            className={cn(
+              "rm-menu-btn",
+              activeMenu === "review"
+                ? "rm-menu-btn-active"
+                : "rm-menu-btn-idle",
+            )}
+          >
+            <span className="inline-flex items-center gap-2">
+              <ClipboardCheck className="h-4 w-4" />
+              Review Tickets
+            </span>
+          </button>
+        ) : null}
 
-        <button
-          type="button"
-          onClick={() => navigate({ name: "work" })}
-          className={cn(
-            "rm-menu-btn",
-            activeMenu === "work"
-              ? "rm-menu-btn-active"
-              : "rm-menu-btn-idle",
-          )}
-        >
-          <span className="inline-flex items-center gap-2">
-            <ClipboardCheck className="h-4 w-4" />
-            Technician Work
-          </span>
-        </button>
+        {canAccessWorkMenu ? (
+          <button
+            type="button"
+            onClick={() => navigate({ name: "work" })}
+            className={cn(
+              "rm-menu-btn",
+              activeMenu === "work"
+                ? "rm-menu-btn-active"
+                : "rm-menu-btn-idle",
+            )}
+          >
+            <span className="inline-flex items-center gap-2">
+              <ClipboardCheck className="h-4 w-4" />
+              Technician Work
+            </span>
+          </button>
+        ) : null}
 
-        <button
-          type="button"
-          onClick={() => navigate({ name: "qc" })}
-          className={cn(
-            "rm-menu-btn",
-            activeMenu === "qc"
-              ? "rm-menu-btn-active"
-              : "rm-menu-btn-idle",
-          )}
-        >
-          <span className="inline-flex items-center gap-2">
-            <ClipboardCheck className="h-4 w-4" />
-            QC Queue
-          </span>
-        </button>
+        {canAccessQcMenu ? (
+          <button
+            type="button"
+            onClick={() => navigate({ name: "qc" })}
+            className={cn(
+              "rm-menu-btn",
+              activeMenu === "qc"
+                ? "rm-menu-btn-active"
+                : "rm-menu-btn-idle",
+            )}
+          >
+            <span className="inline-flex items-center gap-2">
+              <ClipboardCheck className="h-4 w-4" />
+              QC Queue
+            </span>
+          </button>
+        ) : null}
       </div>
 
-      {route.name === "createList" ? renderCreateListPage() : null}
-      {route.name === "createItem" ? renderCreateItemPage() : null}
-      {route.name === "historyTicket" ? renderHistoryTicketPage() : null}
-      {route.name === "review" ? renderReviewPage() : null}
-      {route.name === "work" ? renderWorkPage() : null}
-      {route.name === "qc" ? renderQcPage() : null}
+      {visibleMenus.length ? (
+        <>
+          {route.name === "createList" ? renderCreateListPage() : null}
+          {route.name === "createItem" ? renderCreateItemPage() : null}
+          {route.name === "historyTicket" ? renderHistoryTicketPage() : null}
+          {route.name === "review" ? renderReviewPage() : null}
+          {route.name === "work" ? renderWorkPage() : null}
+          {route.name === "qc" ? renderQcPage() : null}
+        </>
+      ) : null}
     </section>
   );
 }

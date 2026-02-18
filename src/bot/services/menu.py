@@ -5,7 +5,6 @@ from django.utils.translation import gettext_noop
 
 from account.models import User
 from bot.etc.i18n import SUPPORTED_BOT_LOCALES, ensure_bot_locales_compiled
-from bot.permissions import resolve_ticket_bot_permissions
 from core.utils.asyncio import run_sync
 from core.utils.constants import RoleSlug
 
@@ -62,18 +61,8 @@ class BotMenuService:
         include_start_access: bool = False,
         _=None,
     ) -> ReplyKeyboardMarkup:
+        del can_create_ticket, can_review_ticket, can_qc_checks
         rows: list[list[KeyboardButton]] = []
-        action_row: list[KeyboardButton] = []
-        if can_create_ticket:
-            action_row.append(
-                KeyboardButton(text=cls._label(text=cls.MENU_BUTTON_CREATE_TICKET, _=_))
-            )
-        if can_review_ticket:
-            action_row.append(
-                KeyboardButton(
-                    text=cls._label(text=cls.MENU_BUTTON_REVIEW_TICKETS, _=_)
-                )
-            )
 
         if is_technician:
             rows.extend(
@@ -107,30 +96,10 @@ class BotMenuService:
                     ],
                 ]
             )
-            if can_qc_checks:
-                rows.append(
-                    [
-                        KeyboardButton(
-                            text=cls._label(text=cls.MENU_BUTTON_QC_CHECKS, _=_)
-                        )
-                    ]
-                )
-            if action_row:
-                rows.append(action_row)
             rows.append(
                 [KeyboardButton(text=cls._label(text=cls.MENU_BUTTON_HELP, _=_))]
             )
         else:
-            if action_row:
-                rows.append(action_row)
-            if can_qc_checks:
-                rows.append(
-                    [
-                        KeyboardButton(
-                            text=cls._label(text=cls.MENU_BUTTON_QC_CHECKS, _=_)
-                        )
-                    ]
-                )
             rows.append(
                 [
                     KeyboardButton(
@@ -171,15 +140,8 @@ class BotMenuService:
         include_start_access: bool = False,
         _=None,
     ) -> ReplyKeyboardMarkup:
-        ticket_permissions = await run_sync(
-            resolve_ticket_bot_permissions,
-            user=user,
-        )
         return cls.build_main_menu_keyboard(
             is_technician=await cls._is_technician_user(user),
-            can_create_ticket=ticket_permissions.can_create,
-            can_review_ticket=ticket_permissions.can_open_review_panel,
-            can_qc_checks=ticket_permissions.can_qc,
             include_start_access=include_start_access,
             _=_,
         )
