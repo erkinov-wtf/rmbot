@@ -133,3 +133,59 @@ class LevelUpCouponEvent(AppendOnlyModel):
             f"LevelUpCouponEvent#{self.pk} user={self.user_id} amount={self.amount} "
             f"{self.currency} {self.week_start}"
         )
+
+
+class UserLevelHistorySource(models.TextChoices):
+    WEEKLY_EVALUATION = "weekly_evaluation", "Weekly Evaluation"
+    MANUAL_OVERRIDE = "manual_override", "Manual Override"
+
+
+class UserLevelHistoryEvent(AppendOnlyModel):
+    user = models.ForeignKey(
+        "account.User",
+        on_delete=models.PROTECT,
+        related_name="level_history_events",
+    )
+    actor = models.ForeignKey(
+        "account.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    weekly_evaluation = models.ForeignKey(
+        WeeklyLevelEvaluation,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="level_history_events",
+    )
+    source = models.CharField(
+        max_length=40,
+        choices=UserLevelHistorySource,
+        db_index=True,
+    )
+    status = models.CharField(max_length=40, db_index=True)
+    previous_level = models.PositiveSmallIntegerField(choices=EmployeeLevel)
+    new_level = models.PositiveSmallIntegerField(choices=EmployeeLevel)
+    warning_active_before = models.BooleanField(default=False)
+    warning_active_after = models.BooleanField(default=False)
+    week_start = models.DateField(null=True, blank=True, db_index=True)
+    week_end = models.DateField(null=True, blank=True, db_index=True)
+    reference = models.CharField(max_length=140, unique=True, db_index=True)
+    note = models.CharField(max_length=255, blank=True, null=True)
+    payload = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["user", "created_at"]),
+            models.Index(fields=["user", "week_start"]),
+            models.Index(fields=["source", "status", "created_at"]),
+            models.Index(fields=["warning_active_after", "created_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return (
+            f"UserLevelHistoryEvent#{self.pk} user={self.user_id} "
+            f"{self.previous_level}->{self.new_level} {self.source} {self.status}"
+        )

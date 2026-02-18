@@ -1,4 +1,5 @@
 import {
+  BarChart3,
   CalendarClock,
   LogOut,
   Package,
@@ -9,10 +10,11 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { AccessRequestsAdmin } from "@/components/account/access-requests-admin";
+import { UserManagementAdmin } from "@/components/account/user-management-admin";
 import { AttendanceAdmin } from "@/components/attendance/attendance-admin";
 import { LoginForm } from "@/components/auth/login-form";
 import { InventoryAdmin } from "@/components/inventory/inventory-admin";
+import { LevelControlAdmin } from "@/components/level/level-control-admin";
 import { TicketFlow } from "@/components/ticket/ticket-flow";
 import { XpAdmin } from "@/components/xp/xp-admin";
 import { Button } from "@/components/ui/button";
@@ -31,7 +33,13 @@ import {
 import { cn } from "@/lib/utils";
 
 type ProfileState = "idle" | "loading" | "ok" | "error";
-type Section = "inventory" | "attendance" | "tickets" | "access_requests" | "xp_admin";
+type Section =
+  | "inventory"
+  | "attendance"
+  | "tickets"
+  | "users"
+  | "xp_admin"
+  | "level_control";
 
 const INVENTORY_MANAGE_ROLES = new Set(["super_admin", "ops_manager", "master"]);
 const TICKET_CREATE_ROLES = new Set(["super_admin", "master"]);
@@ -41,10 +49,11 @@ const TICKET_QC_ROLES = new Set(["super_admin", "qc_inspector"]);
 const ACCESS_REQUEST_MANAGE_ROLES = new Set(["super_admin", "ops_manager"]);
 const ATTENDANCE_MANAGE_ROLES = new Set(["super_admin", "ops_manager", "master"]);
 const XP_MANAGE_ROLES = new Set(["super_admin", "ops_manager", "admin"]);
+const LEVEL_CONTROL_ROLES = new Set(["super_admin", "ops_manager"]);
 
 function parseSectionFromPath(pathname: string): Section {
-  if (pathname.startsWith("/access-requests")) {
-    return "access_requests";
+  if (pathname.startsWith("/users") || pathname.startsWith("/access-requests")) {
+    return "users";
   }
   if (pathname.startsWith("/attendance")) {
     return "attendance";
@@ -55,12 +64,15 @@ function parseSectionFromPath(pathname: string): Section {
   if (pathname.startsWith("/xp-admin") || pathname.startsWith("/system")) {
     return "xp_admin";
   }
+  if (pathname.startsWith("/level-control")) {
+    return "level_control";
+  }
   return "inventory";
 }
 
 function sectionRootPath(section: Section): string {
-  if (section === "access_requests") {
-    return "/access-requests";
+  if (section === "users") {
+    return "/users";
   }
   if (section === "attendance") {
     return "/attendance";
@@ -70,6 +82,9 @@ function sectionRootPath(section: Section): string {
   }
   if (section === "xp_admin") {
     return "/xp-admin";
+  }
+  if (section === "level_control") {
+    return "/level-control";
   }
   return "/inventory/items";
 }
@@ -129,7 +144,7 @@ export default function App() {
     () => effectiveRoleSlugs.some((slug) => TICKET_QC_ROLES.has(slug)),
     [effectiveRoleSlugs],
   );
-  const canManageAccessRequests = useMemo(
+  const canManageUsers = useMemo(
     () => effectiveRoleSlugs.some((slug) => ACCESS_REQUEST_MANAGE_ROLES.has(slug)),
     [effectiveRoleSlugs],
   );
@@ -139,6 +154,10 @@ export default function App() {
   );
   const canManageXp = useMemo(
     () => effectiveRoleSlugs.some((slug) => XP_MANAGE_ROLES.has(slug)),
+    [effectiveRoleSlugs],
+  );
+  const canManageLevelControl = useMemo(
+    () => effectiveRoleSlugs.some((slug) => LEVEL_CONTROL_ROLES.has(slug)),
     [effectiveRoleSlugs],
   );
 
@@ -319,15 +338,31 @@ export default function App() {
               type="button"
               className={cn(
                 "rm-menu-btn w-full text-left",
-                section === "access_requests"
+                section === "users"
                   ? "rm-menu-btn-active"
                   : "rm-menu-btn-idle",
               )}
-              onClick={() => navigateSection("access_requests")}
+              onClick={() => navigateSection("users")}
             >
               <span className="inline-flex items-center gap-2">
                 <Users className="h-4 w-4" />
-                Access Requests
+                Users
+              </span>
+            </button>
+
+            <button
+              type="button"
+              className={cn(
+                "rm-menu-btn w-full text-left",
+                section === "level_control"
+                  ? "rm-menu-btn-active"
+                  : "rm-menu-btn-idle",
+              )}
+              onClick={() => navigateSection("level_control")}
+            >
+              <span className="inline-flex items-center gap-2">
+                <BarChart3 className="h-4 w-4" />
+                Level Control
               </span>
             </button>
 
@@ -410,11 +445,16 @@ export default function App() {
               canQc={canQcTicket}
               roleSlugs={effectiveRoleSlugs}
             />
-          ) : section === "access_requests" ? (
-            <AccessRequestsAdmin
+          ) : section === "users" ? (
+            <UserManagementAdmin
               accessToken={session.accessToken}
-              canManage={canManageAccessRequests}
+              canManage={canManageUsers}
               roleSlugs={effectiveRoleSlugs}
+            />
+          ) : section === "level_control" ? (
+            <LevelControlAdmin
+              accessToken={session.accessToken}
+              canManage={canManageLevelControl}
             />
           ) : (
             <XpAdmin

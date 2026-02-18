@@ -106,6 +106,33 @@ def test_bot_request_rejects_when_access_request_was_already_approved(user_facto
         )
 
 
+def test_bot_request_rejects_when_approved_user_is_inactive(user_factory):
+    inactive_user = user_factory(
+        username="approved_inactive_user",
+        first_name="Approved",
+        phone="+998905551111",
+        is_active=False,
+    )
+    AccessRequest.objects.create(
+        telegram_id=700044,
+        username="approved.inactive",
+        first_name="Approved",
+        last_name="Inactive",
+        phone="+998905551111",
+        status=AccessRequestStatus.APPROVED,
+        user=inactive_user,
+    )
+
+    with pytest.raises(ValueError, match="inactive"):
+        AccountService.ensure_pending_access_request_from_bot(
+            telegram_id=700044,
+            username="approved.inactive",
+            first_name="Approved",
+            last_name="Inactive",
+            phone="+998905551111",
+        )
+
+
 def test_bot_request_rejects_when_telegram_is_linked_to_active_user(user_factory):
     active_user = user_factory(
         username="linked_active",

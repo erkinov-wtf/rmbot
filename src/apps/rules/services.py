@@ -11,6 +11,7 @@ from django.core.cache import cache
 from django.db import transaction
 
 from core.api.exceptions import DomainValidationError
+from core.utils.constants import EmployeeLevel
 from rules.models import RulesConfigAction, RulesConfigState, RulesConfigVersion
 
 
@@ -38,6 +39,17 @@ class RulesService:
             "work_session": {
                 "daily_pause_limit_minutes": 30,
                 "timezone": "Asia/Tashkent",
+            },
+            "progression": {
+                "level_thresholds": {
+                    str(int(EmployeeLevel.L1)): 0,
+                    str(int(EmployeeLevel.L2)): 200,
+                    str(int(EmployeeLevel.L3)): 450,
+                    str(int(EmployeeLevel.L4)): 750,
+                    str(int(EmployeeLevel.L5)): 1100,
+                },
+                "weekly_coupon_amount": 100_000,
+                "weekly_target_xp": 100,
             },
         }
 
@@ -82,16 +94,18 @@ class RulesService:
         if not isinstance(raw_config, dict):
             raise DomainValidationError("config must be a JSON object.")
 
-        allowed_keys = {"ticket_xp", "attendance", "work_session"}
+        allowed_keys = {"ticket_xp", "attendance", "work_session", "progression"}
         unknown_keys = sorted(set(raw_config.keys()) - allowed_keys)
         if unknown_keys:
             raise DomainValidationError(
                 f"Unknown config keys: {', '.join(unknown_keys)}."
             )
 
+        defaults = cls.default_rules_config()
         ticket_xp = raw_config.get("ticket_xp")
         attendance = raw_config.get("attendance")
         work_session = raw_config.get("work_session")
+        progression = raw_config.get("progression", defaults["progression"])
 
         if not isinstance(ticket_xp, dict):
             raise DomainValidationError("ticket_xp must be an object.")
@@ -99,6 +113,8 @@ class RulesService:
             raise DomainValidationError("attendance must be an object.")
         if not isinstance(work_session, dict):
             raise DomainValidationError("work_session must be an object.")
+        if not isinstance(progression, dict):
+            raise DomainValidationError("progression must be an object.")
 
         base_divisor = cls._require_int(
             ticket_xp.get("base_divisor"), field="ticket_xp.base_divisor"
@@ -168,6 +184,51 @@ class RulesService:
                 "work_session.timezone must be a non-empty string."
             )
 
+        default_progression = defaults["progression"]
+        thresholds_raw = progression.get(
+            "level_thresholds", default_progression["level_thresholds"]
+        )
+        if not isinstance(thresholds_raw, dict):
+            raise DomainValidationError("progression.level_thresholds must be an object.")
+
+        normalized_thresholds: dict[str, int] = {}
+        last_threshold = 0
+        for level in EmployeeLevel.values:
+            level_int = int(level)
+            default_threshold = int(default_progression["level_thresholds"][str(level_int)])
+            raw_threshold = thresholds_raw.get(str(level_int), thresholds_raw.get(level_int))
+            if raw_threshold is None:
+                parsed_threshold = default_threshold
+            else:
+                try:
+                    parsed_threshold = int(raw_threshold)
+                except (TypeError, ValueError) as exc:
+                    raise DomainValidationError(
+                        f"progression.level_thresholds.{level_int} must be an integer."
+                    ) from exc
+
+            if parsed_threshold < 0:
+                raise DomainValidationError(
+                    f"progression.level_thresholds.{level_int} must be >= 0."
+                )
+            if level_int == int(EmployeeLevel.L1):
+                parsed_threshold = 0
+            if parsed_threshold < last_threshold:
+                parsed_threshold = last_threshold
+            normalized_thresholds[str(level_int)] = parsed_threshold
+            last_threshold = parsed_threshold
+
+        weekly_coupon_amount = cls._require_int(
+            progression.get(
+                "weekly_coupon_amount", default_progression["weekly_coupon_amount"]
+            ),
+            field="progression.weekly_coupon_amount",
+        )
+        weekly_target_xp = cls._require_int(
+            progression.get("weekly_target_xp", default_progression["weekly_target_xp"]),
+            field="progression.weekly_target_xp",
+        )
+
         return {
             "ticket_xp": {
                 "base_divisor": base_divisor,
@@ -185,6 +246,11 @@ class RulesService:
             "work_session": {
                 "daily_pause_limit_minutes": daily_pause_limit_minutes,
                 "timezone": work_session_timezone,
+            },
+            "progression": {
+                "level_thresholds": normalized_thresholds,
+                "weekly_coupon_amount": weekly_coupon_amount,
+                "weekly_target_xp": weekly_target_xp,
             },
         }
 
