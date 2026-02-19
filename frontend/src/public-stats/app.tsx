@@ -5,7 +5,6 @@ import {
   BarChart3,
   Flag,
   Loader2,
-  Medal,
   RefreshCcw,
   ShieldCheck,
   Sparkles,
@@ -15,6 +14,8 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { LanguageSwitcher } from "@/components/ui/language-switcher";
+import { useI18n } from "@/i18n";
 import {
   getPublicTechnicianDetail,
   getPublicTechnicianLeaderboard,
@@ -53,23 +54,26 @@ function scoreBarWidth(score: number, topScore: number): number {
   return Math.max(6, Math.round((score / topScore) * 100));
 }
 
-function contributionLabel(label: string): string {
+function contributionLabel(
+  label: string,
+  t: (key: string, params?: Record<string, string | number>) => string,
+): string {
   if (label === "Closed tickets") {
-    return "Closed tickets contribution";
+    return t("Closed tickets contribution");
   }
   if (label === "First-pass completions") {
-    return "First-pass bonus";
+    return t("First-pass bonus");
   }
   if (label === "Quality flags") {
-    return "Flag quality impact";
+    return t("Flag quality impact");
   }
   if (label === "Attendance consistency") {
-    return "Attendance contribution";
+    return t("Attendance contribution");
   }
   if (label === "Rework / QC fail penalty") {
-    return "Penalty";
+    return t("Penalty");
   }
-  return label;
+  return t(label);
 }
 
 function rankBadgeClass(rank: number): string {
@@ -96,6 +100,7 @@ function flagBadgeClass(color: "green" | "yellow" | "red"): string {
 }
 
 export default function PublicStatsApp() {
+  const { t } = useI18n();
   const [leaderboard, setLeaderboard] = useState<PublicTechnicianLeaderboard | null>(null);
   const [isLoadingLeaderboard, setIsLoadingLeaderboard] = useState(true);
   const [leaderboardError, setLeaderboardError] = useState("");
@@ -118,12 +123,12 @@ export default function PublicStatsApp() {
     } catch (error) {
       setLeaderboard(null);
       setLeaderboardError(
-        toErrorMessage(error, "Could not load public technician leaderboard."),
+        toErrorMessage(error, t("Could not load public technician leaderboard.")),
       );
     } finally {
       setIsLoadingLeaderboard(false);
     }
-  }, []);
+  }, [t]);
 
   const loadDetail = useCallback(async (userId: number) => {
     setIsLoadingDetail(true);
@@ -133,11 +138,11 @@ export default function PublicStatsApp() {
       setDetail(data);
     } catch (error) {
       setDetail(null);
-      setDetailError(toErrorMessage(error, "Could not load technician detail."));
+      setDetailError(toErrorMessage(error, t("Could not load technician detail.")));
     } finally {
       setIsLoadingDetail(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void loadLeaderboard();
@@ -204,15 +209,15 @@ export default function PublicStatsApp() {
               </span>
               <p className="truncate text-sm font-semibold text-slate-900">{member.name}</p>
             </div>
-            <p className="mt-1 text-xs text-slate-500">
-              @{member.username} • Level {member.level}
-            </p>
+              <p className="mt-1 text-xs text-slate-500">
+                @{member.username} • {t("Level {{level}}", { level: member.level })}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs uppercase tracking-wide text-slate-500">{t("Score")}</p>
+              <p className="text-lg font-bold text-slate-900">{member.score}</p>
+            </div>
           </div>
-          <div className="text-right">
-            <p className="text-xs uppercase tracking-wide text-slate-500">Score</p>
-            <p className="text-lg font-bold text-slate-900">{member.score}</p>
-          </div>
-        </div>
 
         <div className="mt-3">
           <div className="h-2 rounded-full bg-slate-200">
@@ -224,21 +229,21 @@ export default function PublicStatsApp() {
         </div>
 
         <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-600 sm:grid-cols-4">
-          <span>Tasks: {member.tickets_done_total}</span>
+          <span>{t("Tasks")}: {member.tickets_done_total}</span>
           <span>XP: {member.xp_total}</span>
-          <span>1st pass: {member.first_pass_rate_percent}%</span>
-          <span>Attend: {member.attendance_days_total}d</span>
+          <span>{t("1st pass")}: {member.first_pass_rate_percent}%</span>
+          <span>{t("Attend")}: {member.attendance_days_total}d</span>
         </div>
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          <span className="text-xs font-semibold text-slate-700">Closed flags:</span>
+          <span className="text-xs font-semibold text-slate-700">{t("Closed flags")}:</span>
           <span
             className={cn(
               "rounded-full border px-2 py-0.5 text-xs font-semibold",
               flagBadgeClass("green"),
             )}
           >
-            Green {member.tickets_closed_by_flag.green}
+            {t("Green")} {member.tickets_closed_by_flag.green}
           </span>
           <span
             className={cn(
@@ -246,7 +251,7 @@ export default function PublicStatsApp() {
               flagBadgeClass("yellow"),
             )}
           >
-            Yellow {member.tickets_closed_by_flag.yellow}
+            {t("Yellow")} {member.tickets_closed_by_flag.yellow}
           </span>
           <span
             className={cn(
@@ -254,7 +259,7 @@ export default function PublicStatsApp() {
               flagBadgeClass("red"),
             )}
           >
-            Red {member.tickets_closed_by_flag.red}
+            {t("Red")} {member.tickets_closed_by_flag.red}
           </span>
         </div>
       </button>
@@ -269,14 +274,18 @@ export default function PublicStatsApp() {
             <div>
               <p className="inline-flex items-center gap-2 rounded-full bg-cyan-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-cyan-800">
                 <Trophy className="h-4 w-4" />
-                Public Stats
+                {t("Public Stats")}
               </p>
+              <div className="mt-2">
+                <LanguageSwitcher />
+              </div>
               <h1 className="mt-2 text-2xl font-bold text-slate-900">
-                Technician Top Chart
+                {t("Technician Top Chart")}
               </h1>
               <p className="mt-2 max-w-2xl text-sm text-slate-600">
-                Ranking is based on a combined system score from closed tasks, XP,
-                first-pass quality, flag quality, attendance, and rework penalties.
+                {t(
+                  "Ranking is based on a combined system score from closed tasks, XP, first-pass quality, flag quality, attendance, and rework penalties.",
+                )}
               </p>
             </div>
             <Button
@@ -293,7 +302,7 @@ export default function PublicStatsApp() {
               disabled={isLoadingLeaderboard || isLoadingDetail}
             >
               <RefreshCcw className="mr-2 h-4 w-4" />
-              Refresh
+              {t("Refresh")}
             </Button>
           </div>
         </section>
@@ -310,7 +319,7 @@ export default function PublicStatsApp() {
               <section className="rm-panel p-6 text-center">
                 <p className="inline-flex items-center gap-2 text-sm text-slate-600">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Loading leaderboard...
+                  {t("Loading leaderboard...")}
                 </p>
               </section>
             ) : leaderboard ? (
@@ -319,7 +328,7 @@ export default function PublicStatsApp() {
                   <article className="rm-panel p-4">
                     <p className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
                       <ShieldCheck className="h-4 w-4" />
-                      Technicians
+                      {t("Technicians")}
                     </p>
                     <p className="mt-2 text-2xl font-bold text-slate-900">
                       {leaderboard.summary.technicians_total}
@@ -328,7 +337,7 @@ export default function PublicStatsApp() {
                   <article className="rm-panel p-4">
                     <p className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
                       <Target className="h-4 w-4" />
-                      Closed Tickets
+                      {t("Closed Tickets")}
                     </p>
                     <p className="mt-2 text-2xl font-bold text-slate-900">
                       {leaderboard.summary.tickets_done_total}
@@ -337,7 +346,7 @@ export default function PublicStatsApp() {
                   <article className="rm-panel p-4">
                     <p className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
                       <Sparkles className="h-4 w-4" />
-                      First Pass Rate
+                      {t("First Pass Rate")}
                     </p>
                     <p className="mt-2 text-2xl font-bold text-slate-900">
                       {leaderboard.summary.first_pass_rate_percent}%
@@ -350,7 +359,7 @@ export default function PublicStatsApp() {
                     leaderboard.members.map((member) => renderLeaderboardRow(member))
                   ) : (
                     <section className="rm-panel p-6 text-center text-sm text-slate-600">
-                      No technicians available in leaderboard.
+                      {t("No technicians available in leaderboard.")}
                     </section>
                   )}
                 </section>
@@ -367,7 +376,7 @@ export default function PublicStatsApp() {
                 onClick={closeDetail}
               >
                 <ArrowLeft className="mr-2 h-4 w-4" />
-                Back To Leaderboard
+                {t("Back To Leaderboard")}
               </Button>
             </section>
 
@@ -381,7 +390,7 @@ export default function PublicStatsApp() {
               <section className="rm-panel p-6 text-center">
                 <p className="inline-flex items-center gap-2 text-sm text-slate-600">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Loading technician details...
+                  {t("Loading technician details...")}
                 </p>
               </section>
             ) : detail ? (
@@ -393,30 +402,33 @@ export default function PublicStatsApp() {
                         {detail.profile.name}
                       </p>
                       <p className="mt-1 text-xs text-slate-500">
-                        @{detail.profile.username} • Level {detail.profile.level}
+                        @{detail.profile.username} •{" "}
+                        {t("Level {{level}}", { level: detail.profile.level })}
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="text-xs uppercase tracking-wide text-slate-500">Rank</p>
+                      <p className="text-xs uppercase tracking-wide text-slate-500">{t("Rank")}</p>
                       <p className="text-2xl font-bold text-slate-900">
                         #{detail.leaderboard_position.rank}
                       </p>
                       <p className="text-xs text-slate-500">
-                        Top {detail.leaderboard_position.better_than_percent}%
+                        {t("Top {{value}}%", {
+                          value: detail.leaderboard_position.better_than_percent,
+                        })}
                       </p>
                     </div>
                   </div>
 
                   <div className="mt-4 grid gap-3 sm:grid-cols-3">
                     <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                      <p className="text-xs uppercase tracking-wide text-slate-500">Score</p>
+                      <p className="text-xs uppercase tracking-wide text-slate-500">{t("Score")}</p>
                       <p className="mt-1 text-xl font-bold text-slate-900">
                         {detail.leaderboard_position.score}
                       </p>
                     </div>
                     <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                       <p className="text-xs uppercase tracking-wide text-slate-500">
-                        Closed Tickets
+                        {t("Closed Tickets")}
                       </p>
                       <p className="mt-1 text-xl font-bold text-slate-900">
                         {detail.metrics.tickets.tickets_done_total}
@@ -424,7 +436,7 @@ export default function PublicStatsApp() {
                     </div>
                     <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                       <p className="text-xs uppercase tracking-wide text-slate-500">
-                        First Pass
+                        {t("First Pass")}
                       </p>
                       <p className="mt-1 text-xl font-bold text-slate-900">
                         {detail.metrics.tickets.first_pass_rate_percent}%
@@ -436,7 +448,7 @@ export default function PublicStatsApp() {
                 <section className="rm-panel p-5">
                   <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
                     <BarChart3 className="h-4 w-4" />
-                    Why This Rank
+                    {t("Why This Rank")}
                   </p>
                   <div className="mt-3 space-y-2">
                     {detail.score_breakdown.contribution_items.map((item) => (
@@ -445,7 +457,7 @@ export default function PublicStatsApp() {
                         className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
                       >
                         <span className="text-slate-700">
-                          {contributionLabel(item.label)}
+                          {contributionLabel(item.label, t)}
                         </span>
                         <span
                           className={cn(
@@ -462,37 +474,37 @@ export default function PublicStatsApp() {
                   <div className="mt-4 grid gap-3 sm:grid-cols-2">
                     <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
                       <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">
-                        Top Positive Factors
+                        {t("Top Positive Factors")}
                       </p>
                       <div className="mt-2 space-y-1">
                         {detail.score_breakdown.reasoning.top_positive_factors.length ? (
                           detail.score_breakdown.reasoning.top_positive_factors.map(
                             (factor) => (
                               <p key={factor.key} className="text-xs text-emerald-800">
-                                {contributionLabel(factor.label)}: +{factor.points}
+                                {contributionLabel(factor.label, t)}: +{factor.points}
                               </p>
                             ),
                           )
                         ) : (
-                          <p className="text-xs text-emerald-700">No positive factors.</p>
+                          <p className="text-xs text-emerald-700">{t("No positive factors.")}</p>
                         )}
                       </div>
                     </div>
                     <div className="rounded-xl border border-rose-200 bg-rose-50 p-3">
                       <p className="text-xs font-semibold uppercase tracking-wide text-rose-800">
-                        Top Negative Factors
+                        {t("Top Negative Factors")}
                       </p>
                       <div className="mt-2 space-y-1">
                         {detail.score_breakdown.reasoning.top_negative_factors.length ? (
                           detail.score_breakdown.reasoning.top_negative_factors.map(
                             (factor) => (
                               <p key={factor.key} className="text-xs text-rose-800">
-                                {contributionLabel(factor.label)}: {factor.points}
+                                {contributionLabel(factor.label, t)}: {factor.points}
                               </p>
                             ),
                           )
                         ) : (
-                          <p className="text-xs text-rose-700">No negative factors.</p>
+                          <p className="text-xs text-rose-700">{t("No negative factors.")}</p>
                         )}
                       </div>
                     </div>
@@ -502,15 +514,15 @@ export default function PublicStatsApp() {
                 <section className="rm-panel p-5">
                   <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
                     <Flag className="h-4 w-4" />
-                    Ticket Quality
+                    {t("Ticket Quality")}
                   </p>
                   <div className="mt-3 grid gap-3 sm:grid-cols-3">
                     <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-                      <p>Done: {detail.metrics.tickets.tickets_done_total}</p>
-                      <p>First pass: {detail.metrics.tickets.tickets_first_pass_total}</p>
-                      <p>Rework: {detail.metrics.tickets.tickets_rework_total}</p>
+                      <p>{t("Done")}: {detail.metrics.tickets.tickets_done_total}</p>
+                      <p>{t("First pass")}: {detail.metrics.tickets.tickets_first_pass_total}</p>
+                      <p>{t("Rework")}: {detail.metrics.tickets.tickets_rework_total}</p>
                       <p>
-                        Avg duration: {detail.metrics.tickets.average_resolution_minutes} min
+                        {t("Avg duration")}: {detail.metrics.tickets.average_resolution_minutes} min
                       </p>
                     </div>
                     <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
@@ -520,7 +532,7 @@ export default function PublicStatsApp() {
                           flagBadgeClass("green"),
                         )}
                       >
-                        Green {detail.metrics.tickets.tickets_closed_by_flag.green}
+                        {t("Green")} {detail.metrics.tickets.tickets_closed_by_flag.green}
                       </span>
                       <span
                         className={cn(
@@ -528,7 +540,7 @@ export default function PublicStatsApp() {
                           flagBadgeClass("yellow"),
                         )}
                       >
-                        Yellow {detail.metrics.tickets.tickets_closed_by_flag.yellow}
+                        {t("Yellow")} {detail.metrics.tickets.tickets_closed_by_flag.yellow}
                       </span>
                       <span
                         className={cn(
@@ -536,18 +548,18 @@ export default function PublicStatsApp() {
                           flagBadgeClass("red"),
                         )}
                       >
-                        Red {detail.metrics.tickets.tickets_closed_by_flag.red}
+                        {t("Red")} {detail.metrics.tickets.tickets_closed_by_flag.red}
                       </span>
                       <p className="pt-1 text-xs text-slate-600">
-                        QC pass events: {detail.metrics.tickets.qc_pass_events_total}
+                        {t("QC pass events")}: {detail.metrics.tickets.qc_pass_events_total}
                       </p>
                       <p className="text-xs text-slate-600">
-                        QC fail events: {detail.metrics.tickets.qc_fail_events_total}
+                        {t("QC fail events")}: {detail.metrics.tickets.qc_fail_events_total}
                       </p>
                     </div>
                     <div className="space-y-1 rounded-xl border border-slate-200 bg-slate-50 p-3">
                       <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Status Counts (All Time)
+                        {t("Status Counts (All Time)")}
                       </p>
                       {Object.entries(detail.metrics.tickets.status_counts).map(
                         ([status, total]) => (
@@ -564,10 +576,10 @@ export default function PublicStatsApp() {
                   <article className="rm-panel p-5">
                     <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
                       <Sparkles className="h-4 w-4" />
-                      XP Breakdown
+                      {t("XP Breakdown")}
                     </p>
                     <p className="mt-2 text-xs text-slate-500">
-                      Total XP: {detail.metrics.xp.xp_total}
+                      {t("Total XP")}: {detail.metrics.xp.xp_total}
                     </p>
                     <div className="mt-3 space-y-2">
                       {detail.metrics.xp.entry_type_breakdown.map((item) => (
@@ -577,7 +589,7 @@ export default function PublicStatsApp() {
                         >
                           <p className="font-semibold text-slate-800">{item.entry_type}</p>
                           <p className="mt-1 text-slate-600">
-                            Amount: {item.total_amount} • Entries: {item.total_count}
+                            {t("Amount")}: {item.total_amount} • {t("Entries")}: {item.total_count}
                           </p>
                         </div>
                       ))}
@@ -587,15 +599,15 @@ export default function PublicStatsApp() {
                   <article className="rm-panel p-5">
                     <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
                       <Activity className="h-4 w-4" />
-                      Attendance
+                      {t("Attendance")}
                     </p>
                     <div className="mt-3 space-y-2 text-sm text-slate-700">
-                      <p>Attendance days: {detail.metrics.attendance.attendance_days_total}</p>
+                      <p>{t("Attendance days")}: {detail.metrics.attendance.attendance_days_total}</p>
                       <p>
-                        Completed days: {detail.metrics.attendance.attendance_completed_days}
+                        {t("Completed days")}: {detail.metrics.attendance.attendance_completed_days}
                       </p>
                       <p>
-                        Avg work/day: {detail.metrics.attendance.average_work_minutes_per_day} min
+                        {t("Avg work/day")}: {detail.metrics.attendance.average_work_minutes_per_day} min
                       </p>
                     </div>
                   </article>
@@ -604,7 +616,7 @@ export default function PublicStatsApp() {
                 <section className="rm-panel p-5">
                   <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
                     <Award className="h-4 w-4" />
-                    Recent Done Tickets
+                    {t("Recent Done Tickets")}
                   </p>
                   <div className="mt-3 space-y-2">
                     {detail.recent.done_tickets.length ? (
@@ -614,7 +626,9 @@ export default function PublicStatsApp() {
                           className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
                         >
                           <div className="flex items-center justify-between gap-2">
-                            <p className="font-semibold text-slate-900">Ticket #{ticket.id}</p>
+                            <p className="font-semibold text-slate-900">
+                              {t("Ticket #{{id}}", { id: ticket.id })}
+                            </p>
                             <span
                               className={cn(
                                 "rounded-full border px-2 py-0.5 text-xs font-semibold",
@@ -629,12 +643,12 @@ export default function PublicStatsApp() {
                             </span>
                           </div>
                           <p className="mt-1 text-xs text-slate-600">
-                            Duration: {ticket.total_duration} min • XP: {ticket.xp_amount}
+                            {t("Duration")}: {ticket.total_duration} min • XP: {ticket.xp_amount}
                           </p>
                         </div>
                       ))
                     ) : (
-                      <p className="text-sm text-slate-600">No done tickets yet.</p>
+                      <p className="text-sm text-slate-600">{t("No done tickets yet.")}</p>
                     )}
                   </div>
                 </section>
@@ -642,7 +656,7 @@ export default function PublicStatsApp() {
                 <section className="rm-panel p-5">
                   <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
                     <Sparkles className="h-4 w-4" />
-                    Recent XP Activity
+                    {t("Recent XP Activity")}
                   </p>
                   <div className="mt-3 space-y-2">
                     {detail.recent.xp_transactions.length ? (
@@ -664,13 +678,13 @@ export default function PublicStatsApp() {
                             </p>
                           </div>
                           <p className="mt-1 text-slate-600">
-                            Ref: {item.reference}
+                            {t("Ref")}: {item.reference}
                             {item.description ? ` • ${item.description}` : ""}
                           </p>
                         </div>
                       ))
                     ) : (
-                      <p className="text-sm text-slate-600">No XP transactions yet.</p>
+                      <p className="text-sm text-slate-600">{t("No XP transactions yet.")}</p>
                     )}
                   </div>
                 </section>

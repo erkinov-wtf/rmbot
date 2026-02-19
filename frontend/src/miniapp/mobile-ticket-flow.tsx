@@ -10,6 +10,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { useI18n } from "@/i18n";
 import {
   assignTicket,
   createTicket,
@@ -55,20 +56,24 @@ type PartDraft = {
 
 const TAB_META: Record<
   MiniTab,
-  { label: string; icon: typeof PlusSquare; permission: keyof TicketFlowPermissions }
+  {
+    labelKey: string;
+    icon: typeof PlusSquare;
+    permission: keyof TicketFlowPermissions;
+  }
 > = {
   create: {
-    label: "Create",
+    labelKey: "Create",
     icon: PlusSquare,
     permission: "can_create",
   },
   review: {
-    label: "Review",
+    labelKey: "Review",
     icon: ClipboardCheck,
     permission: "can_open_review_panel",
   },
   qc: {
-    label: "QC",
+    labelKey: "QC",
     icon: CheckCircle2,
     permission: "can_qc",
   },
@@ -154,6 +159,7 @@ function ticketSearchValue(ticket: Ticket, serial: string): string {
 }
 
 export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowProps) {
+  const { t } = useI18n();
   const availableTabs = useMemo(
     () =>
       (Object.keys(TAB_META) as MiniTab[]).filter(
@@ -199,6 +205,15 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
   const [qcSearch, setQcSearch] = useState("");
   const [selectedQcTicketId, setSelectedQcTicketId] = useState<number | null>(null);
   const [isRunningQcAction, setIsRunningQcAction] = useState(false);
+
+  const statusLabel = useCallback(
+    (status: TicketStatus) => t(STATUS_LABEL[status]),
+    [t],
+  );
+  const colorLabel = useCallback(
+    (color: TicketColor) => t(COLOR_LABEL[color]),
+    [t],
+  );
 
   const cacheInventoryItems = useCallback((items: InventoryItem[]) => {
     if (!items.length) {
@@ -249,12 +264,12 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
     } catch (error) {
       setFeedback({
         type: "error",
-        message: toErrorMessage(error, "Could not load review tickets."),
+        message: toErrorMessage(error, t("Could not load review tickets.")),
       });
     } finally {
       setIsLoadingReviewTickets(false);
     }
-  }, [accessToken, ensureInventoryLoaded]);
+  }, [accessToken, ensureInventoryLoaded, t]);
 
   const refreshQcTickets = useCallback(async () => {
     setIsLoadingQcTickets(true);
@@ -266,12 +281,12 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
     } catch (error) {
       setFeedback({
         type: "error",
-        message: toErrorMessage(error, "Could not load QC queue."),
+        message: toErrorMessage(error, t("Could not load QC queue.")),
       });
     } finally {
       setIsLoadingQcTickets(false);
     }
-  }, [accessToken, ensureInventoryLoaded]);
+  }, [accessToken, ensureInventoryLoaded, t]);
 
   const refreshCreateItems = useCallback(async () => {
     setIsLoadingCreateItems(true);
@@ -286,12 +301,12 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
     } catch (error) {
       setFeedback({
         type: "error",
-        message: toErrorMessage(error, "Could not load inventory items."),
+        message: toErrorMessage(error, t("Could not load inventory items.")),
       });
     } finally {
       setIsLoadingCreateItems(false);
     }
-  }, [accessToken, cacheInventoryItems, createSearch]);
+  }, [accessToken, cacheInventoryItems, createSearch, t]);
 
   const refreshParts = useCallback(async () => {
     setIsLoadingParts(true);
@@ -301,12 +316,12 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
     } catch (error) {
       setFeedback({
         type: "error",
-        message: toErrorMessage(error, "Could not load parts."),
+        message: toErrorMessage(error, t("Could not load parts.")),
       });
     } finally {
       setIsLoadingParts(false);
     }
-  }, [accessToken]);
+  }, [accessToken, t]);
 
   const refreshTechnicians = useCallback(async () => {
     setIsLoadingTechnicians(true);
@@ -316,12 +331,12 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
     } catch (error) {
       setFeedback({
         type: "error",
-        message: toErrorMessage(error, "Could not load technician list."),
+        message: toErrorMessage(error, t("Could not load technician list.")),
       });
     } finally {
       setIsLoadingTechnicians(false);
     }
-  }, [accessToken]);
+  }, [accessToken, t]);
 
   useEffect(() => {
     if (!feedback) {
@@ -540,7 +555,7 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
     if (!selectedCreateItem) {
       setFeedback({
         type: "info",
-        message: "Select an inventory item first.",
+        message: t("Select an inventory item first."),
       });
       return;
     }
@@ -561,7 +576,7 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
     if (!selectedPartSpecs.length) {
       setFeedback({
         type: "info",
-        message: "Select at least one part for the ticket.",
+        message: t("Select at least one part for the ticket."),
       });
       return;
     }
@@ -572,7 +587,7 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
     ) {
       setFeedback({
         type: "error",
-        message: "Each selected part needs a valid minutes value (> 0).",
+        message: t("Each selected part needs a valid minutes value (> 0)."),
       });
       return;
     }
@@ -591,7 +606,7 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
       });
       setFeedback({
         type: "success",
-        message: "Ticket created successfully.",
+        message: t("Ticket created successfully."),
       });
       setSelectedCreateItemId(null);
       setPartDrafts({});
@@ -600,7 +615,7 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
     } catch (error) {
       setFeedback({
         type: "error",
-        message: toErrorMessage(error, "Could not create ticket."),
+        message: toErrorMessage(error, t("Could not create ticket.")),
       });
     } finally {
       setIsCreatingTicket(false);
@@ -613,6 +628,7 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
     selectedCreateItem,
     selectedCreateParts,
     ticketTitle,
+    t,
   ]);
 
   const handleReviewApprove = useCallback(async () => {
@@ -624,18 +640,18 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
       await reviewApproveTicket(accessToken, selectedReviewTicket.id);
       setFeedback({
         type: "success",
-        message: `Ticket #${selectedReviewTicket.id} approved.`,
+        message: t("Ticket #{{id}} approved.", { id: selectedReviewTicket.id }),
       });
       await refreshReviewTickets();
     } catch (error) {
       setFeedback({
         type: "error",
-        message: toErrorMessage(error, "Could not approve ticket."),
+        message: toErrorMessage(error, t("Could not approve ticket.")),
       });
     } finally {
       setIsRunningReviewAction(false);
     }
-  }, [accessToken, refreshReviewTickets, selectedReviewTicket]);
+  }, [accessToken, refreshReviewTickets, selectedReviewTicket, t]);
 
   const handleReviewAssign = useCallback(async () => {
     if (!selectedReviewTicket) {
@@ -645,7 +661,7 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
     if (!Number.isFinite(technicianId) || technicianId <= 0) {
       setFeedback({
         type: "info",
-        message: "Select a technician to assign.",
+        message: t("Select a technician to assign."),
       });
       return;
     }
@@ -655,18 +671,18 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
       await assignTicket(accessToken, selectedReviewTicket.id, technicianId);
       setFeedback({
         type: "success",
-        message: `Ticket #${selectedReviewTicket.id} assigned.`,
+        message: t("Ticket #{{id}} assigned.", { id: selectedReviewTicket.id }),
       });
       await refreshReviewTickets();
     } catch (error) {
       setFeedback({
         type: "error",
-        message: toErrorMessage(error, "Could not assign ticket."),
+        message: toErrorMessage(error, t("Could not assign ticket.")),
       });
     } finally {
       setIsRunningReviewAction(false);
     }
-  }, [accessToken, refreshReviewTickets, selectedReviewTicket, selectedTechnicianId]);
+  }, [accessToken, refreshReviewTickets, selectedReviewTicket, selectedTechnicianId, t]);
 
   const handleReviewManualMetrics = useCallback(async () => {
     if (!selectedReviewTicket) {
@@ -676,7 +692,7 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
     if (!Number.isFinite(xpAmount) || xpAmount < 0) {
       setFeedback({
         type: "error",
-        message: "XP amount must be 0 or higher.",
+        message: t("XP amount must be 0 or higher."),
       });
       return;
     }
@@ -689,13 +705,15 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
       });
       setFeedback({
         type: "success",
-        message: `Manual metrics updated for ticket #${selectedReviewTicket.id}.`,
+        message: t("Manual metrics updated for ticket #{{id}}.", {
+          id: selectedReviewTicket.id,
+        }),
       });
       await refreshReviewTickets();
     } catch (error) {
       setFeedback({
         type: "error",
-        message: toErrorMessage(error, "Could not update manual metrics."),
+        message: toErrorMessage(error, t("Could not update manual metrics.")),
       });
     } finally {
       setIsRunningReviewAction(false);
@@ -706,6 +724,7 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
     manualXpAmount,
     refreshReviewTickets,
     selectedReviewTicket,
+    t,
   ]);
 
   const handleQcDecision = useCallback(
@@ -724,20 +743,20 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
           type: "success",
           message:
             decision === "pass"
-              ? `QC passed for ticket #${selectedQcTicket.id}.`
-              : `QC failed for ticket #${selectedQcTicket.id}.`,
+              ? t("QC passed for ticket #{{id}}.", { id: selectedQcTicket.id })
+              : t("QC failed for ticket #{{id}}.", { id: selectedQcTicket.id }),
         });
         await Promise.all([refreshQcTickets(), refreshReviewTickets()]);
       } catch (error) {
         setFeedback({
           type: "error",
-          message: toErrorMessage(error, "Could not process QC action."),
+          message: toErrorMessage(error, t("Could not process QC action.")),
         });
       } finally {
         setIsRunningQcAction(false);
       }
     },
-    [accessToken, refreshQcTickets, refreshReviewTickets, selectedQcTicket],
+    [accessToken, refreshQcTickets, refreshReviewTickets, selectedQcTicket, t],
   );
 
   const tabGridClass =
@@ -756,7 +775,7 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
             value={createSearch}
             onChange={(event) => setCreateSearch(event.target.value)}
             className="rm-input h-11"
-            placeholder="Search by serial or name"
+            placeholder={t("Search by serial or name")}
           />
           <Button
             type="button"
@@ -774,12 +793,12 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
           </Button>
         </div>
         <p className="mt-2 text-xs text-slate-500">
-          Select an item to create a new repair ticket.
+          {t("Select an item to create a new repair ticket.")}
         </p>
 
         <div className="mt-3 max-h-[34svh] space-y-2 overflow-y-auto pr-1">
           {isLoadingCreateItems ? (
-            <p className="text-sm text-slate-600">Loading items...</p>
+            <p className="text-sm text-slate-600">{t("Loading items...")}</p>
           ) : createItems.length ? (
             createItems.map((item) => (
               <button
@@ -806,7 +825,7 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
             ))
           ) : (
             <p className="rounded-lg border border-dashed border-slate-300 px-3 py-4 text-center text-sm text-slate-500">
-              No matching inventory items.
+              {t("No matching inventory items.")}
             </p>
           )}
         </div>
@@ -826,18 +845,18 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
               value={ticketTitle}
               onChange={(event) => setTicketTitle(event.target.value)}
               className="rm-input h-11"
-              placeholder="Ticket title (optional)"
+              placeholder={t("Ticket title (optional)")}
             />
 
             <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-slate-900">Parts</p>
+              <p className="text-sm font-semibold text-slate-900">{t("Parts")}</p>
               <span className="text-xs text-slate-500">
-                Selected: {selectedPartsCount}
+                {t("Selected")}: {selectedPartsCount}
               </span>
             </div>
 
             {isLoadingParts ? (
-              <p className="text-sm text-slate-600">Loading parts...</p>
+              <p className="text-sm text-slate-600">{t("Loading parts...")}</p>
             ) : selectedCreateParts.length ? (
               <div className="max-h-[44svh] space-y-2 overflow-y-auto pr-1">
                 {selectedCreateParts.map((part) => {
@@ -879,7 +898,7 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
                                   colorPickerButtonClass(color, draft.color === color),
                                 )}
                               >
-                                {COLOR_LABEL[color]}
+                                {colorLabel(color)}
                               </button>
                             ))}
                           </div>
@@ -891,7 +910,7 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
                             onChange={(event) =>
                               updatePartDraft(part.id, { minutes: event.target.value })
                             }
-                            placeholder="Minutes"
+                            placeholder={t("Minutes")}
                           />
                           <textarea
                             className="rm-input min-h-[80px] resize-y py-2"
@@ -899,7 +918,7 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
                             onChange={(event) =>
                               updatePartDraft(part.id, { comment: event.target.value })
                             }
-                            placeholder="Comment"
+                            placeholder={t("Comment")}
                           />
                         </div>
                       ) : null}
@@ -909,7 +928,7 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
               </div>
             ) : (
               <p className="rounded-lg border border-dashed border-amber-300 bg-amber-50 px-3 py-3 text-sm text-amber-700">
-                No parts are configured for this item category.
+                {t("No parts are configured for this item category.")}
               </p>
             )}
 
@@ -927,16 +946,16 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
               {isCreatingTicket ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Creating ticket...
+                  {t("Creating ticket...")}
                 </>
               ) : (
-                "Create Ticket"
+                t("Create Ticket")
               )}
             </Button>
           </div>
         ) : (
           <p className="rounded-lg border border-dashed border-slate-300 px-3 py-8 text-center text-sm text-slate-500">
-            Choose an inventory item to start ticket creation.
+            {t("Choose an inventory item to start ticket creation.")}
           </p>
         )}
       </section>
@@ -947,7 +966,7 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
     <div className="space-y-3">
       <section className="rm-panel p-4">
         <div className="flex items-center justify-between">
-          <p className="text-sm font-semibold text-slate-900">Review queue</p>
+          <p className="text-sm font-semibold text-slate-900">{t("Review queue")}</p>
           <Button
             type="button"
             variant="outline"
@@ -961,9 +980,9 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
 
         <div className="mt-2 grid grid-cols-3 gap-2">
           {([
-            { value: "under_review", label: "Under review" },
-            { value: "new", label: "New" },
-            { value: "all", label: "All" },
+            { value: "under_review", label: t("Under review") },
+            { value: "new", label: t("New") },
+            { value: "all", label: t("All") },
           ] as const).map((option) => (
             <button
               key={option.value}
@@ -987,18 +1006,18 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
             className="rm-input h-10"
             value={reviewSearch}
             onChange={(event) => setReviewSearch(event.target.value)}
-            placeholder="Search ticket id, serial, title"
+            placeholder={t("Search ticket id, serial, title")}
           />
         </div>
 
         <div className="mt-3 max-h-[32svh] space-y-2 overflow-y-auto pr-1">
           {isLoadingReviewTickets ? (
-            <p className="text-sm text-slate-600">Loading tickets...</p>
+            <p className="text-sm text-slate-600">{t("Loading tickets...")}</p>
           ) : reviewTicketsFiltered.length ? (
             reviewTicketsFiltered.map((ticket) => {
               const serial =
                 inventoryCache[ticket.inventory_item]?.serial_number ??
-                `Item #${ticket.inventory_item}`;
+                t("Item #{{id}}", { id: ticket.inventory_item });
               return (
                 <button
                   key={ticket.id}
@@ -1029,14 +1048,14 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
                       selectedReviewTicketId === ticket.id ? "text-slate-200" : "text-slate-600",
                     )}
                   >
-                    {STATUS_LABEL[ticket.status]}
+                    {statusLabel(ticket.status)}
                   </p>
                 </button>
               );
             })
           ) : (
             <p className="rounded-lg border border-dashed border-slate-300 px-3 py-4 text-center text-sm text-slate-500">
-              No tickets found.
+              {t("No tickets found.")}
             </p>
           )}
         </div>
@@ -1048,7 +1067,7 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
             <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
               <div className="flex items-center gap-2">
                 <p className="text-sm font-semibold text-slate-900">
-                  Ticket #{selectedReviewTicket.id}
+                  {t("Ticket #{{id}}", { id: selectedReviewTicket.id })}
                 </p>
                 <span
                   className={cn(
@@ -1056,13 +1075,13 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
                     statusBadgeClass(selectedReviewTicket.status),
                   )}
                 >
-                  {STATUS_LABEL[selectedReviewTicket.status]}
+                  {statusLabel(selectedReviewTicket.status)}
                 </span>
               </div>
               <p className="mt-1 text-xs text-slate-600">
                 {
                   inventoryCache[selectedReviewTicket.inventory_item]?.serial_number ??
-                  `Item #${selectedReviewTicket.inventory_item}`
+                  t("Item #{{id}}", { id: selectedReviewTicket.inventory_item })
                 }
               </p>
               {selectedReviewTicket.title ? (
@@ -1071,7 +1090,7 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
             </div>
 
             <div className="space-y-2 rounded-xl border border-slate-200 bg-white px-3 py-3">
-              <p className="text-sm font-semibold text-slate-900">Part specs</p>
+              <p className="text-sm font-semibold text-slate-900">{t("Part specs")}</p>
               {selectedReviewTicket.ticket_parts.length ? (
                 selectedReviewTicket.ticket_parts.map((part) => (
                   <div
@@ -1086,17 +1105,19 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
                           colorPillClass(part.color),
                         )}
                       >
-                        {COLOR_LABEL[part.color]}
+                        {colorLabel(part.color)}
                       </span>
                     </div>
-                    <p className="mt-1 text-xs text-slate-600">Minutes: {part.minutes}</p>
                     <p className="mt-1 text-xs text-slate-600">
-                      Comment: {part.comment || "-"}
+                      {t("Minutes")}: {part.minutes}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-600">
+                      {t("Comment")}: {part.comment || "-"}
                     </p>
                   </div>
                 ))
               ) : (
-                <p className="text-xs text-slate-500">No part specs.</p>
+                <p className="text-xs text-slate-500">{t("No part specs.")}</p>
               )}
             </div>
 
@@ -1110,24 +1131,28 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
                   !["under_review", "new"].includes(selectedReviewTicket.status)
                 }
               >
-                Approve Review
+                {t("Approve Review")}
               </Button>
             ) : (
               <p className="rounded-lg border border-dashed border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                You do not have permission to approve review.
+                {t("You do not have permission to approve review.")}
               </p>
             )}
 
             {permissions.can_assign ? (
               <div className="space-y-2 rounded-xl border border-slate-200 bg-white px-3 py-3">
-                <p className="text-sm font-semibold text-slate-900">Assign technician</p>
+                <p className="text-sm font-semibold text-slate-900">
+                  {t("Assign technician")}
+                </p>
                 <select
                   className="rm-input h-11"
                   value={selectedTechnicianId}
                   onChange={(event) => setSelectedTechnicianId(event.target.value)}
                 >
                   <option value="">
-                    {isLoadingTechnicians ? "Loading technicians..." : "Select technician"}
+                    {isLoadingTechnicians
+                      ? t("Loading technicians...")
+                      : t("Select technician")}
                   </option>
                   {technicianOptions.map((technician) => (
                     <option
@@ -1146,14 +1171,14 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
                   onClick={() => void handleReviewAssign()}
                   disabled={isRunningReviewAction || !selectedTechnicianId}
                 >
-                  Assign Technician
+                  {t("Assign Technician")}
                 </Button>
               </div>
             ) : null}
 
             {permissions.can_manual_metrics ? (
               <div className="space-y-2 rounded-xl border border-slate-200 bg-white px-3 py-3">
-                <p className="text-sm font-semibold text-slate-900">Manual metrics</p>
+                <p className="text-sm font-semibold text-slate-900">{t("Manual metrics")}</p>
                 <div className="grid grid-cols-3 gap-2">
                   {(["green", "yellow", "red"] as TicketColor[]).map((color) => (
                     <button
@@ -1167,7 +1192,7 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
                           : "border-slate-300 bg-slate-50 text-slate-700",
                       )}
                     >
-                      {COLOR_LABEL[color]}
+                      {colorLabel(color)}
                     </button>
                   ))}
                 </div>
@@ -1177,7 +1202,7 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
                   min={0}
                   value={manualXpAmount}
                   onChange={(event) => setManualXpAmount(event.target.value)}
-                  placeholder="XP amount"
+                  placeholder={t("XP amount")}
                 />
                 <Button
                   type="button"
@@ -1186,14 +1211,14 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
                   onClick={() => void handleReviewManualMetrics()}
                   disabled={isRunningReviewAction}
                 >
-                  Save Manual Metrics
+                  {t("Save Manual Metrics")}
                 </Button>
               </div>
             ) : null}
           </div>
         ) : (
           <p className="rounded-lg border border-dashed border-slate-300 px-3 py-8 text-center text-sm text-slate-500">
-            Select a review ticket to continue.
+            {t("Select a review ticket to continue.")}
           </p>
         )}
       </section>
@@ -1204,7 +1229,7 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
     <div className="space-y-3">
       <section className="rm-panel p-4">
         <div className="flex items-center justify-between">
-          <p className="text-sm font-semibold text-slate-900">QC queue</p>
+          <p className="text-sm font-semibold text-slate-900">{t("QC queue")}</p>
           <Button
             type="button"
             variant="outline"
@@ -1222,18 +1247,18 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
             className="rm-input h-10"
             value={qcSearch}
             onChange={(event) => setQcSearch(event.target.value)}
-            placeholder="Search ticket id, serial, title"
+            placeholder={t("Search ticket id, serial, title")}
           />
         </div>
 
         <div className="mt-3 max-h-[32svh] space-y-2 overflow-y-auto pr-1">
           {isLoadingQcTickets ? (
-            <p className="text-sm text-slate-600">Loading QC queue...</p>
+            <p className="text-sm text-slate-600">{t("Loading QC queue...")}</p>
           ) : qcTicketsFiltered.length ? (
             qcTicketsFiltered.map((ticket) => {
               const serial =
                 inventoryCache[ticket.inventory_item]?.serial_number ??
-                `Item #${ticket.inventory_item}`;
+                t("Item #{{id}}", { id: ticket.inventory_item });
               return (
                 <button
                   key={ticket.id}
@@ -1264,14 +1289,14 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
                       selectedQcTicketId === ticket.id ? "text-slate-200" : "text-slate-600",
                     )}
                   >
-                    {STATUS_LABEL[ticket.status]}
+                    {statusLabel(ticket.status)}
                   </p>
                 </button>
               );
             })
           ) : (
             <p className="rounded-lg border border-dashed border-slate-300 px-3 py-4 text-center text-sm text-slate-500">
-              No tickets in QC queue.
+              {t("No tickets in QC queue.")}
             </p>
           )}
         </div>
@@ -1283,7 +1308,7 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
             <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
               <div className="flex items-center gap-2">
                 <p className="text-sm font-semibold text-slate-900">
-                  Ticket #{selectedQcTicket.id}
+                  {t("Ticket #{{id}}", { id: selectedQcTicket.id })}
                 </p>
                 <span
                   className={cn(
@@ -1291,19 +1316,19 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
                     statusBadgeClass(selectedQcTicket.status),
                   )}
                 >
-                  {STATUS_LABEL[selectedQcTicket.status]}
+                  {statusLabel(selectedQcTicket.status)}
                 </span>
               </div>
               <p className="mt-1 text-xs text-slate-600">
                 {
                   inventoryCache[selectedQcTicket.inventory_item]?.serial_number ??
-                  `Item #${selectedQcTicket.inventory_item}`
+                  t("Item #{{id}}", { id: selectedQcTicket.inventory_item })
                 }
               </p>
             </div>
 
             <div className="space-y-2 rounded-xl border border-slate-200 bg-white px-3 py-3">
-              <p className="text-sm font-semibold text-slate-900">Part specs</p>
+              <p className="text-sm font-semibold text-slate-900">{t("Part specs")}</p>
               {selectedQcTicket.ticket_parts.length ? (
                 selectedQcTicket.ticket_parts.map((part) => (
                   <div
@@ -1318,17 +1343,19 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
                           colorPillClass(part.color),
                         )}
                       >
-                        {COLOR_LABEL[part.color]}
+                        {colorLabel(part.color)}
                       </span>
                     </div>
-                    <p className="mt-1 text-xs text-slate-600">Minutes: {part.minutes}</p>
                     <p className="mt-1 text-xs text-slate-600">
-                      Comment: {part.comment || "-"}
+                      {t("Minutes")}: {part.minutes}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-600">
+                      {t("Comment")}: {part.comment || "-"}
                     </p>
                   </div>
                 ))
               ) : (
-                <p className="text-xs text-slate-500">No part specs.</p>
+                <p className="text-xs text-slate-500">{t("No part specs.")}</p>
               )}
             </div>
 
@@ -1342,7 +1369,7 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
                     isRunningQcAction || selectedQcTicket.status !== "waiting_qc"
                   }
                 >
-                  QC Pass
+                  {t("QC Pass")}
                 </Button>
                 <Button
                   type="button"
@@ -1353,18 +1380,18 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
                     isRunningQcAction || selectedQcTicket.status !== "waiting_qc"
                   }
                 >
-                  QC Fail
+                  {t("QC Fail")}
                 </Button>
               </div>
             ) : (
               <p className="rounded-lg border border-dashed border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                You do not have permission to run QC actions.
+                {t("You do not have permission to run QC actions.")}
               </p>
             )}
           </div>
         ) : (
           <p className="rounded-lg border border-dashed border-slate-300 px-3 py-8 text-center text-sm text-slate-500">
-            Select a QC ticket to continue.
+            {t("Select a QC ticket to continue.")}
           </p>
         )}
       </section>
@@ -1374,9 +1401,9 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
   return (
     <section className="space-y-3 pb-24">
       <section className="rm-panel p-4">
-        <p className="text-sm font-semibold text-slate-900">Ticket Workspace</p>
+        <p className="text-sm font-semibold text-slate-900">{t("Ticket Workspace")}</p>
         <p className="mt-1 text-xs text-slate-600">
-          Mobile flow for ticket create, review, and QC actions.
+          {t("Mobile flow for ticket create, review, and QC actions.")}
         </p>
       </section>
 
@@ -1400,10 +1427,10 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
           <div className="rounded-xl border border-dashed border-amber-300 bg-amber-50 px-3 py-3">
             <p className="inline-flex items-center gap-2 text-sm font-semibold text-amber-800">
               <ShieldAlert className="h-4 w-4" />
-              No ticket permissions
+              {t("No ticket permissions")}
             </p>
             <p className="mt-2 text-xs text-amber-700">
-              Your account does not have create/review/qc access.
+              {t("Your account does not have create/review/qc access.")}
             </p>
           </div>
         </section>
@@ -1439,7 +1466,7 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
                 >
                   <span className="inline-flex items-center gap-1.5">
                     <Icon className="h-4 w-4" />
-                    {TAB_META[tab].label}
+                    {t(TAB_META[tab].labelKey)}
                   </span>
                 </button>
               );

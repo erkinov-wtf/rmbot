@@ -4,6 +4,9 @@ import { Component, type ErrorInfo, type ReactNode } from "react";
 type ErrorBoundaryProps = {
   title: string;
   children: ReactNode;
+  failedPrefix?: string;
+  reloadHint?: string;
+  unknownErrorHint?: string;
 };
 
 type ErrorBoundaryState = {
@@ -33,7 +36,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
         : String(error);
     this.setState({
       hasError: true,
-      errorMessage: message || "Unknown rendering error.",
+      errorMessage: message || this.props.unknownErrorHint || "Unknown rendering error.",
     });
   }
 
@@ -43,10 +46,11 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
         <section className="rm-panel p-4 sm:p-5">
           <p className="inline-flex items-center gap-2 text-sm font-semibold text-rose-700">
             <AlertTriangle className="h-4 w-4" />
-            Failed To Render {this.props.title}
+            {this.props.failedPrefix || "Failed To Render"} {this.props.title}
           </p>
           <p className="mt-2 text-sm text-slate-600">
-            Reload this page. If the issue continues, contact support.
+            {this.props.reloadHint ||
+              "Reload this page. If the issue continues, contact support."}
           </p>
           {this.state.errorMessage ? (
             <p className="mt-2 break-all rounded-md bg-slate-100 px-3 py-2 font-mono text-xs text-slate-700">

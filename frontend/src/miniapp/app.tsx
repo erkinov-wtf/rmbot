@@ -2,6 +2,8 @@ import { AlertTriangle, LogOut, ShieldCheck, Smartphone } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { LanguageSwitcher } from "@/components/ui/language-switcher";
+import { useI18n } from "@/i18n";
 import { verifyMiniAppTelegramInitData } from "@/lib/api";
 import {
   clearMiniAppAuthSession,
@@ -32,6 +34,7 @@ function toErrorMessage(error: unknown, fallback: string): string {
 }
 
 export default function MiniApp() {
+  const { t } = useI18n();
   const [viewState, setViewState] = useState<ViewState>("loading");
   const [session, setSession] = useState<MiniAppAuthSession | null>(null);
   const [notice, setNotice] = useState("");
@@ -55,8 +58,8 @@ export default function MiniApp() {
       if (!context.initData) {
         setErrorMessage(
           context.isTelegramWebView
-            ? "Telegram initData is missing. Reopen mini app from bot."
-            : "Open this page from Telegram bot mini app button.",
+            ? t("Telegram initData is missing. Reopen mini app from bot.")
+            : t("Open this page from Telegram bot mini app button."),
         );
         return;
       }
@@ -85,13 +88,16 @@ export default function MiniApp() {
         clearMiniAppAuthSession();
         setSession(null);
         setErrorMessage(
-          toErrorMessage(error, "Could not authenticate Telegram mini app session."),
+          toErrorMessage(
+            error,
+            t("Could not authenticate Telegram mini app session."),
+          ),
         );
       } finally {
         setIsAuthenticating(false);
       }
     },
-    [],
+    [t],
   );
 
   useEffect(() => {
@@ -110,8 +116,8 @@ export default function MiniApp() {
       setViewState("ready");
       setErrorMessage(
         context.isTelegramWebView
-          ? "Telegram initData is missing. Reopen mini app from bot."
-          : "Open this page from Telegram bot mini app button.",
+          ? t("Telegram initData is missing. Reopen mini app from bot.")
+          : t("Open this page from Telegram bot mini app button."),
       );
       return;
     }
@@ -119,7 +125,7 @@ export default function MiniApp() {
     void authenticateWithTelegram(context).finally(() => {
       setViewState("ready");
     });
-  }, [authenticateWithTelegram]);
+  }, [authenticateWithTelegram, t]);
 
   useEffect(() => {
     if (!session) {
@@ -128,31 +134,31 @@ export default function MiniApp() {
 
     const remainingMs = session.accessTokenExpiresAt - Date.now();
     if (remainingMs <= 0) {
-      logout("Session expired. Reopen mini app from Telegram.");
+      logout(t("Session expired. Reopen mini app from Telegram."));
       return;
     }
 
     const timer = window.setTimeout(() => {
-      logout("Session expired. Reopen mini app from Telegram.");
+      logout(t("Session expired. Reopen mini app from Telegram."));
     }, remainingMs + 1000);
 
     return () => {
       window.clearTimeout(timer);
     };
-  }, [logout, session]);
+  }, [logout, session, t]);
 
   const displayName = useMemo(() => {
     if (!session?.user) {
-      return "Mini App User";
+      return t("Mini App User");
     }
     const fullName = `${session.user.first_name ?? ""} ${session.user.last_name ?? ""}`.trim();
     return fullName || session.user.username;
-  }, [session]);
+  }, [session, t]);
 
   if (viewState === "loading") {
     return (
       <main className="rm-shell flex items-center justify-center">
-        <p className="text-sm text-slate-600">Preparing mini app...</p>
+        <p className="text-sm text-slate-600">{t("Preparing mini app...")}</p>
       </main>
     );
   }
@@ -164,17 +170,20 @@ export default function MiniApp() {
           <div className="rm-panel p-5">
             <p className="inline-flex items-center gap-2 rounded-full bg-cyan-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-cyan-800">
               <Smartphone className="h-4 w-4" />
-              Telegram Mini App
+              {t("Telegram Mini App")}
             </p>
-            <h1 className="mt-3 text-2xl font-bold text-slate-900">Ticket Flow</h1>
+            <h1 className="mt-3 text-2xl font-bold text-slate-900">{t("Ticket Flow")}</h1>
             <p className="mt-2 text-sm text-slate-600">
-              Authentication is handled through Telegram mini app init data.
+              {t("Authentication is handled through Telegram mini app init data.")}
             </p>
+            <div className="mt-3">
+              <LanguageSwitcher />
+            </div>
           </div>
 
           <section className="rm-panel p-5">
             {isAuthenticating ? (
-              <p className="text-sm text-slate-600">Authenticating with Telegram...</p>
+              <p className="text-sm text-slate-600">{t("Authenticating with Telegram...")}</p>
             ) : null}
 
             {notice ? (
@@ -193,19 +202,25 @@ export default function MiniApp() {
               <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
                 <p className="inline-flex items-center gap-2 font-semibold">
                   <AlertTriangle className="h-4 w-4" />
-                  Access not approved yet
+                  {t("Access not approved yet")}
                 </p>
                 <p className="mt-1 text-xs">
-                  Your Telegram account is not linked to an active user.
+                  {t("Telegram account is not linked to an active user.")}
                 </p>
                 {missingAccess.telegramId ? (
-                  <p className="mt-1 text-xs">Telegram ID: {missingAccess.telegramId}</p>
+                  <p className="mt-1 text-xs">
+                    {t("Telegram ID: {{id}}", { id: missingAccess.telegramId })}
+                  </p>
                 ) : null}
                 {missingAccess.username ? (
-                  <p className="mt-1 text-xs">Username: @{missingAccess.username}</p>
+                  <p className="mt-1 text-xs">
+                    {t("Username: @{{username}}", {
+                      username: missingAccess.username,
+                    })}
+                  </p>
                 ) : null}
                 <p className="mt-1 text-xs">
-                  Ask admin to approve and link your access request.
+                  {t("Ask admin to approve and link your access request.")}
                 </p>
               </div>
             ) : null}
@@ -222,13 +237,13 @@ export default function MiniApp() {
                   void authenticateWithTelegram(authContext);
                 }}
               >
-                Recheck Access
+                {t("Recheck Access")}
               </Button>
             </div>
 
             {!authContext?.isTelegramWebView ? (
               <p className="mt-3 text-xs text-slate-500">
-                Open this page from Telegram bot using the mini app button.
+                {t("Open this page from Telegram bot using the mini app button.")}
               </p>
             ) : null}
           </section>
@@ -245,8 +260,11 @@ export default function MiniApp() {
             <div>
               <p className="inline-flex items-center gap-2 rounded-full bg-cyan-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-cyan-800">
                 <ShieldCheck className="h-4 w-4" />
-                Mini App
+                {t("Mini App")}
               </p>
+              <div className="mt-2">
+                <LanguageSwitcher compact />
+              </div>
               <p className="mt-2 text-sm font-semibold text-slate-900">{displayName}</p>
               <p className="text-xs text-slate-500">
                 @{session.user.username} {session.user.phone ? `• ${session.user.phone}` : ""}
@@ -259,7 +277,7 @@ export default function MiniApp() {
                     </span>
                   ))
                 ) : (
-                  <span className="text-xs text-slate-500">No roles</span>
+                  <span className="text-xs text-slate-500">{t("No roles")}</span>
                 )}
               </div>
             </div>
@@ -268,10 +286,12 @@ export default function MiniApp() {
               type="button"
               variant="outline"
               className="h-10"
-              onClick={() => logout("Session cleared. Reopen mini app from Telegram.")}
+              onClick={() =>
+                logout(t("Session cleared. Reopen mini app from Telegram."))
+              }
             >
               <LogOut className="mr-2 h-4 w-4" />
-              Logout
+              {t("Logout")}
             </Button>
           </div>
         </section>

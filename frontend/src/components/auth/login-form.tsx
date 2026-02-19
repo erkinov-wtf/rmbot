@@ -2,6 +2,8 @@ import { CircleCheck, LockKeyhole, LogIn, UserRound } from "lucide-react";
 import { type FormEvent, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { LanguageSwitcher } from "@/components/ui/language-switcher";
+import { useI18n } from "@/i18n";
 import { loginWithPassword, type LoginTokens } from "@/lib/api";
 
 type LoginFormProps = {
@@ -10,6 +12,7 @@ type LoginFormProps = {
 };
 
 export function LoginForm({ onLoggedIn, noticeMessage }: LoginFormProps) {
+  const { t } = useI18n();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -29,13 +32,13 @@ export function LoginForm({ onLoggedIn, noticeMessage }: LoginFormProps) {
         error.message.toLowerCase().includes("fetch")
       ) {
         setErrorMessage(
-          "Cannot reach backend. Check CORS and backend availability.",
+          t("Cannot reach backend. Check CORS and backend availability."),
         );
       } else {
         setErrorMessage(
           error instanceof Error
             ? error.message
-            : "Login failed with an unknown error.",
+            : t("Login failed with an unknown error."),
         );
       }
     } finally {
@@ -49,26 +52,30 @@ export function LoginForm({ onLoggedIn, noticeMessage }: LoginFormProps) {
         <div className="rm-panel rm-animate-enter p-5 sm:p-6 md:p-8">
           <p className="mb-4 inline-flex items-center gap-2 rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-cyan-800">
             <LogIn className="h-4 w-4" />
-            Secure access
+            {t("Secure access")}
           </p>
+          <div className="mb-3">
+            <LanguageSwitcher />
+          </div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-            Rent Market
+            {t("Rent Market")}
           </h1>
           <p className="mt-3 text-sm leading-6 text-slate-600 sm:text-base">
-            Sign in with your backend account to continue.
+            {t("Sign in with your backend account to continue.")}
           </p>
           <p className="mt-4 text-xs text-slate-500">
-            Session is stored in localStorage and expires automatically when JWT
-            `exp` is reached.
+            {t(
+              "Session is stored in localStorage and expires automatically when JWT `exp` is reached.",
+            )}
           </p>
           <ul className="mt-5 space-y-2 text-sm text-slate-600">
             <li className="inline-flex items-center gap-2">
               <CircleCheck className="h-4 w-4 text-emerald-600" />
-              Fast login and persistent session
+              {t("Fast login and persistent session")}
             </li>
             <li className="inline-flex items-center gap-2">
               <CircleCheck className="h-4 w-4 text-emerald-600" />
-              Automatic logout on token expiry
+              {t("Automatic logout on token expiry")}
             </li>
           </ul>
           {noticeMessage ? (
@@ -80,9 +87,9 @@ export function LoginForm({ onLoggedIn, noticeMessage }: LoginFormProps) {
 
         <form className="rm-panel rm-animate-enter-delayed p-5 sm:p-6 md:p-8" onSubmit={handleSubmit}>
           <div className="mb-5">
-            <h2 className="text-lg font-semibold text-slate-900">Login</h2>
+            <h2 className="text-lg font-semibold text-slate-900">{t("Login")}</h2>
             <p className="mt-1 text-sm text-slate-600">
-              Enter your username and password.
+              {t("Enter your username and password.")}
             </p>
           </div>
 
@@ -91,7 +98,7 @@ export function LoginForm({ onLoggedIn, noticeMessage }: LoginFormProps) {
               htmlFor="username"
               className="text-xs font-semibold uppercase tracking-wide text-slate-600"
             >
-              Username
+              {t("Username")}
             </label>
             <div className="relative">
               <UserRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -106,7 +113,7 @@ export function LoginForm({ onLoggedIn, noticeMessage }: LoginFormProps) {
                 value={username}
                 onChange={(event) => setUsername(event.target.value)}
                 className="rm-input h-12 pl-10 pr-3"
-                placeholder="your.username"
+                placeholder={t("your.username")}
               />
             </div>
           </div>
@@ -116,7 +123,7 @@ export function LoginForm({ onLoggedIn, noticeMessage }: LoginFormProps) {
               htmlFor="password"
               className="text-xs font-semibold uppercase tracking-wide text-slate-600"
             >
-              Password
+              {t("Password")}
             </label>
             <div className="relative">
               <LockKeyhole className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -148,10 +155,10 @@ export function LoginForm({ onLoggedIn, noticeMessage }: LoginFormProps) {
               className="h-12 w-full text-sm font-semibold"
               disabled={isLoading}
             >
-              {isLoading ? "Signing in..." : "Sign In"}
+              {isLoading ? t("Signing in...") : t("Sign In")}
             </Button>
             <p className="text-center text-xs text-slate-500">
-              API endpoint: <code>/api/v1/auth/login/</code>
+              {t("API endpoint")}: <code>/api/v1/auth/login/</code>
             </p>
           </div>
         </form>

@@ -1,6 +1,7 @@
 type TelegramWebAppUser = {
   id?: number;
   username?: string;
+  language_code?: string;
 };
 
 type TelegramWebAppUnsafeData = {
@@ -28,6 +29,7 @@ export type TelegramMiniAppContext = {
   initData: string;
   telegramId: number | null;
   username: string | null;
+  languageCode: string | null;
   isTelegramWebView: boolean;
 };
 
@@ -79,10 +81,16 @@ export function getTelegramMiniAppContext(): TelegramMiniAppContext {
     typeof unsafeUser?.username === "string" && unsafeUser.username.trim()
       ? unsafeUser.username.trim()
       : null;
+  const languageCode =
+    typeof unsafeUser?.language_code === "string" &&
+    unsafeUser.language_code.trim()
+      ? unsafeUser.language_code.trim()
+      : null;
   return {
     initData,
     telegramId,
     username,
+    languageCode,
     isTelegramWebView: Boolean(webApp),
   };
 }

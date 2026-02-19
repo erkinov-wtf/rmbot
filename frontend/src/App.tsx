@@ -21,6 +21,8 @@ import { TicketFlow } from "@/components/ticket/ticket-flow";
 import { XpAdmin } from "@/components/xp/xp-admin";
 import { Button } from "@/components/ui/button";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
+import { LanguageSwitcher } from "@/components/ui/language-switcher";
+import { useI18n } from "@/i18n";
 import {
   getCurrentUser,
   type CurrentUser,
@@ -102,6 +104,7 @@ function sectionRootPath(section: Section): string {
 }
 
 export default function App() {
+  const { t } = useI18n();
   const [isAuthHydrated, setIsAuthHydrated] = useState(false);
   const [session, setSession] = useState<AuthSession | null>(null);
   const [authNotice, setAuthNotice] = useState("");
@@ -130,11 +133,11 @@ export default function App() {
 
   const displayName = useMemo(() => {
     if (!currentUser) {
-      return "Authenticated User";
+      return t("Authenticated User");
     }
     const name = `${currentUser.first_name ?? ""} ${currentUser.last_name ?? ""}`.trim();
     return name || currentUser.username;
-  }, [currentUser]);
+  }, [currentUser, t]);
 
   const canManageInventory = useMemo(
     () => effectiveRoleSlugs.some((slug) => INVENTORY_MANAGE_ROLES.has(slug)),
@@ -216,7 +219,9 @@ export default function App() {
         setProfileState("ok");
       } catch (error) {
         const message =
-          error instanceof Error ? error.message : "Failed to load current user profile.";
+          error instanceof Error
+            ? error.message
+            : t("Failed to load current user profile.");
         setCurrentUser(null);
         setProfileState("error");
         setProfileMessage(message);
@@ -227,11 +232,11 @@ export default function App() {
           normalized.includes("401") ||
           normalized.includes("not authenticated")
         ) {
-          logout("Session expired or invalid. Please log in again.");
+          logout(t("Session expired or invalid. Please log in again."));
         }
       }
     },
-    [logout],
+    [logout, t],
   );
 
   useEffect(() => {
@@ -247,18 +252,18 @@ export default function App() {
 
     const remainingMs = session.accessTokenExpiresAt - Date.now();
     if (remainingMs <= 0) {
-      logout("Session expired. Please log in again.");
+      logout(t("Session expired. Please log in again."));
       return;
     }
 
     const timerId = window.setTimeout(() => {
-      logout("Session expired. Please log in again.");
+      logout(t("Session expired. Please log in again."));
     }, remainingMs + 1000);
 
     return () => {
       window.clearTimeout(timerId);
     };
-  }, [session, logout]);
+  }, [session, logout, t]);
 
   useEffect(() => {
     if (!session) {
@@ -281,7 +286,7 @@ export default function App() {
   if (!isAuthHydrated) {
     return (
       <main className="rm-shell flex items-center justify-center">
-        <p className="text-sm text-slate-600">Preparing authentication...</p>
+        <p className="text-sm text-slate-600">{t("Preparing authentication...")}</p>
       </main>
     );
   }
@@ -301,9 +306,13 @@ export default function App() {
             )}
           >
             <ShieldCheck className="h-4 w-4" />
-            Rent Market
+            {t("Rent Market")}
           </p>
-          <p className="mt-2 text-sm text-slate-700">Operations workspace</p>
+          <p className="mt-2 text-sm text-slate-700">{t("Operations workspace")}</p>
+
+          <div className="mt-3">
+            <LanguageSwitcher />
+          </div>
 
           <div className="mt-4 space-y-2 lg:flex-1">
             <button
@@ -318,7 +327,7 @@ export default function App() {
             >
               <span className="inline-flex items-center gap-2">
                 <Package className="h-4 w-4" />
-                Inventory
+                {t("Inventory")}
               </span>
             </button>
 
@@ -334,7 +343,7 @@ export default function App() {
             >
               <span className="inline-flex items-center gap-2">
                 <CalendarClock className="h-4 w-4" />
-                Attendance
+                {t("Attendance")}
               </span>
             </button>
 
@@ -350,7 +359,7 @@ export default function App() {
             >
               <span className="inline-flex items-center gap-2">
                 <Ticket className="h-4 w-4" />
-                Tickets
+                {t("Tickets")}
               </span>
             </button>
 
@@ -366,7 +375,7 @@ export default function App() {
             >
               <span className="inline-flex items-center gap-2">
                 <Users className="h-4 w-4" />
-                Users
+                {t("Users")}
               </span>
             </button>
 
@@ -382,7 +391,7 @@ export default function App() {
             >
               <span className="inline-flex items-center gap-2">
                 <BarChart3 className="h-4 w-4" />
-                Level Control
+                {t("Level Control")}
               </span>
             </button>
 
@@ -398,7 +407,7 @@ export default function App() {
             >
               <span className="inline-flex items-center gap-2">
                 <Sparkles className="h-4 w-4" />
-                XP Control
+                {t("XP Control")}
               </span>
             </button>
 
@@ -414,7 +423,7 @@ export default function App() {
             >
               <span className="inline-flex items-center gap-2">
                 <Settings2 className="h-4 w-4" />
-                Rules
+                {t("Rules")}
               </span>
             </button>
           </div>
@@ -436,7 +445,7 @@ export default function App() {
                     </span>
                   ))
                 ) : (
-                  <span className="text-xs text-slate-500">No roles</span>
+                  <span className="text-xs text-slate-500">{t("No roles")}</span>
                 )}
               </div>
             </div>
@@ -447,7 +456,7 @@ export default function App() {
               onClick={() => logout()}
             >
               <LogOut className="mr-2 h-4 w-4" />
-              Logout
+              {t("Logout")}
             </Button>
           </div>
         </aside>
@@ -493,7 +502,14 @@ export default function App() {
               canManage={canManageLevelControl}
             />
           ) : section === "rules" ? (
-            <ErrorBoundary title="Rules Panel">
+            <ErrorBoundary
+              title={t("Rules Panel")}
+              failedPrefix={t("Failed To Render")}
+              reloadHint={t(
+                "Reload this page. If the issue continues, contact support.",
+              )}
+              unknownErrorHint={t("Unknown rendering error.")}
+            >
               <RulesAdmin
                 accessToken={session.accessToken}
                 canRead={canReadRules}
