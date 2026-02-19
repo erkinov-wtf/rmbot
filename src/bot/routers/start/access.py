@@ -17,6 +17,7 @@ from aiogram.types import (
 from account.models import TelegramProfile, User
 from account.services import AccountService
 from bot.routers.start.base import AccessRequestForm, StartStateMixin
+from bot.services.error_text import translate_error_reason
 from bot.services.menu import (
     MENU_BUTTON_START_ACCESS_VARIANTS,
     BotMenuService,
@@ -376,7 +377,7 @@ class AccessRequestSupportMixin(StartStateMixin):
                 message=message,
                 state=state,
                 text=_("❌ <b>Could not submit your request.</b>\nReason: %(reason)s")
-                % {"reason": escape(_(str(exc)))},
+                % {"reason": escape(translate_error_reason(reason=exc, _=_))},
                 _=_,
             )
             return

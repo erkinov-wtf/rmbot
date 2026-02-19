@@ -7,6 +7,7 @@ from aiogram.types import CallbackQuery
 
 from account.models import User
 from bot.permissions import TicketBotPermissionSet
+from bot.services.error_text import translate_error_reason
 from bot.services.ticket_admin_common_service import (
     TicketAdminCommonService,
     TicketReviewForm,
@@ -321,7 +322,7 @@ class TicketReviewActionCallbackHandler(
             except ValueError as exc:
                 await query.answer(
                     _("❌ Approve & assign failed: %(reason)s")
-                    % {"reason": _(str(exc))},
+                    % {"reason": translate_error_reason(reason=exc, _=_)},
                     show_alert=True,
                 )
                 return
@@ -461,7 +462,7 @@ class TicketReviewActionCallbackHandler(
                 except ValueError as exc:
                     await query.answer(
                         _("❌ Manual metrics update failed: %(reason)s")
-                        % {"reason": _(str(exc))},
+                        % {"reason": translate_error_reason(reason=exc, _=_)},
                         show_alert=True,
                     )
                     return

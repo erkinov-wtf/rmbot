@@ -5,6 +5,7 @@ from aiogram.types import CallbackQuery, Message
 from rest_framework import serializers as drf_serializers
 
 from account.models import User
+from bot.services.error_text import translate_error_reason
 from bot.services.menu import BotMenuService
 from bot.services.ticket_admin_common_service import (
     TicketAdminCommonService,
@@ -564,7 +565,8 @@ class TicketCreateCallbackHandler(
                 return
             except ValueError as exc:
                 await query.answer(
-                    _("❌ Ticket create failed: %(reason)s") % {"reason": _(str(exc))},
+                    _("❌ Ticket create failed: %(reason)s")
+                    % {"reason": translate_error_reason(reason=exc, _=_)},
                     show_alert=True,
                 )
                 return

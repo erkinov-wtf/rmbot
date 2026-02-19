@@ -3,12 +3,15 @@ from urllib.parse import urlparse
 
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import MenuButtonCommands, MenuButtonWebApp, WebAppInfo
+from django.utils import translation
+from django.utils.translation import gettext_noop
 
+from bot.etc.i18n import normalize_bot_locale
 from bot.config import get_bot_settings
 from bot.runtime import close_bundle, get_bundle
 
 logger = getLogger(__name__)
-NATIVE_MINIAPP_MENU_TEXT = "Open Mini App"
+NATIVE_MINIAPP_MENU_TEXT = gettext_noop("Open Mini App")
 
 
 def _is_valid_https_webapp_url(value: str) -> bool:
@@ -24,11 +27,13 @@ async def configure_native_menu_button(
     settings = settings_obj or get_bot_settings()
     bundle = bundle or await get_bundle()
     miniapp_url = str(settings.miniapp_url or "").strip()
+    with translation.override(normalize_bot_locale(locale=settings.default_locale)):
+        menu_text = translation.gettext(NATIVE_MINIAPP_MENU_TEXT)
     if miniapp_url and _is_valid_https_webapp_url(miniapp_url):
         try:
             await bundle.bot.set_chat_menu_button(
                 menu_button=MenuButtonWebApp(
-                    text=NATIVE_MINIAPP_MENU_TEXT,
+                    text=menu_text,
                     web_app=WebAppInfo(url=miniapp_url),
                 ),
             )

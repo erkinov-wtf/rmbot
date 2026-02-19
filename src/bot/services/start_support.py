@@ -304,7 +304,7 @@ class StartXPService:
             "Weekly level-up coupon": _("Weekly level-up bonus"),
         }
         if description:
-            return description_map.get(description, description)
+            return description_map.get(description, _(description))
 
         entry_type_display = getattr(entry, "get_entry_type_display", None)
         if callable(entry_type_display):

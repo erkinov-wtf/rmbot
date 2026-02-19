@@ -3,6 +3,7 @@ from aiogram.handlers import CallbackQueryHandler
 from aiogram.types import CallbackQuery
 
 from account.models import User
+from bot.services.error_text import translate_error_reason
 from bot.services.technician_queue import TechnicianQueueService
 from bot.services.technician_ticket_actions import TechnicianTicketActionService
 from core.utils.asyncio import run_sync
@@ -87,7 +88,10 @@ class TechnicianQueueControlHandler(
                     ticket_id=ticket_id,
                 )
             except ValueError as exc:
-                await query.answer(_(str(exc)), show_alert=True)
+                await query.answer(
+                    translate_error_reason(reason=exc, _=_),
+                    show_alert=True,
+                )
                 return
 
             heading = (
@@ -155,7 +159,10 @@ class TechnicianTicketActionHandler(
                 action=action,
             )
         except ValueError as exc:
-            await query.answer(_(str(exc)), show_alert=True)
+            await query.answer(
+                translate_error_reason(reason=exc, _=_),
+                show_alert=True,
+            )
             return
 
         text = TechnicianTicketActionService.render_state_message(

@@ -3,24 +3,33 @@ from __future__ import annotations
 import logging
 from collections.abc import Iterable
 from html import escape
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 from aiogram import Bot
 from aiogram.types import InlineKeyboardMarkup
 from asgiref.sync import async_to_sync
 from django.conf import settings
 from django.db import transaction
+from django.utils import translation
+from django.utils.translation import gettext_noop
 
 from account.models import TelegramProfile, User
+from bot.etc.i18n import normalize_bot_locale
 from bot.services.technician_ticket_actions import TechnicianTicketActionService
 from bot.services.ticket_qc_actions import TicketQCActionService
-from core.utils.constants import RoleSlug
+from core.utils.constants import RoleSlug, TicketStatus
 
 if TYPE_CHECKING:
     from account.models import AccessRequest
     from ticket.models import Ticket
 
 logger = logging.getLogger(__name__)
+
+Translator = Callable[[str], str]
+LocalizedMessage = str | Callable[[Translator], str]
+LocalizedReplyMarkup = (
+    InlineKeyboardMarkup | Callable[[Translator], InlineKeyboardMarkup | None] | None
+)
 
 
 class UserNotificationService:
@@ -31,27 +40,28 @@ class UserNotificationService:
         cls, *, access_request: AccessRequest, approved: bool
     ) -> None:
         greeting_name = cls._safe_text(access_request.first_name or "there")
-        if approved:
-            message = "\n".join(
+
+        def message_builder(_: Translator) -> str:
+            if approved:
+                return "\n".join(
+                    [
+                        _("✅ <b>Access Request Approved</b>"),
+                        _("Hi, <b>%(name)s</b>.") % {"name": greeting_name},
+                        _("You can now use <b>Rent Market</b>."),
+                    ]
+                )
+            return "\n".join(
                 [
-                    "✅ <b>Access Request Approved</b>",
-                    f"Hi, <b>{greeting_name}</b>.",
-                    "You can now use <b>Rent Market</b>.",
-                ]
-            )
-        else:
-            message = "\n".join(
-                [
-                    "❌ <b>Access Request Rejected</b>",
-                    f"Hi, <b>{greeting_name}</b>.",
-                    "You can submit a new request using <code>/start</code>.",
+                    _("❌ <b>Access Request Rejected</b>"),
+                    _("Hi, <b>%(name)s</b>.") % {"name": greeting_name},
+                    _("You can submit a new request using <code>/start</code>."),
                 ]
             )
 
         cls._notify_telegram_ids(
             event_key="access_request_decision",
             telegram_ids=[access_request.telegram_id],
-            message=message,
+            message=message_builder,
         )
 
     @classmethod
@@ -61,24 +71,38 @@ class UserNotificationService:
         if not ticket.technician_id:
             return
 
-        master_message = "\n".join(
-            [
-                "📌 <b>Ticket Assigned</b>",
-                f"🎫 <b>Ticket:</b> #{ticket.id}",
-                f"🔢 <b>Serial:</b> <code>{cls._safe_text(cls._serial_number(ticket))}</code>",
-                (
-                    f"👤 <b>Technician:</b> {cls._safe_text(cls._display_name_by_user_id(ticket.technician_id))}"
-                ),
-                (
-                    f"🛠 <b>Assigned by:</b> {cls._safe_text(cls._display_name_by_user_id(actor_user_id))}"
-                ),
-                f"📍 <b>Status:</b> <code>{cls._safe_text(ticket.status)}</code>",
-            ]
-        )
+        def master_message_builder(_: Translator) -> str:
+            return "\n".join(
+                [
+                    _("📌 <b>Ticket Assigned</b>"),
+                    _("🎫 <b>Ticket:</b> #%(ticket_id)s") % {"ticket_id": ticket.id},
+                    _("🔢 <b>Serial:</b> <code>%(value)s</code>")
+                    % {"value": cls._safe_text(cls._serial_number(ticket=ticket, _=_))},
+                    _("👤 <b>Technician:</b> %(value)s")
+                    % {
+                        "value": cls._safe_text(
+                            cls._display_name_by_user_id(ticket.technician_id, _=_)
+                        )
+                    },
+                    _("🛠 <b>Assigned by:</b> %(value)s")
+                    % {
+                        "value": cls._safe_text(
+                            cls._display_name_by_user_id(actor_user_id, _=_)
+                        )
+                    },
+                    _("📍 <b>Status:</b> <code>%(value)s</code>")
+                    % {
+                        "value": cls._safe_text(
+                            cls._ticket_status_label(ticket.status, _=_)
+                        )
+                    },
+                ]
+            )
+
         cls._notify_users(
             event_key="ticket_assigned_master",
             user_ids=[ticket.master_id],
-            message=master_message,
+            message=master_message_builder,
             exclude_user_ids=[actor_user_id],
         )
 
@@ -86,26 +110,36 @@ class UserNotificationService:
             ticket=ticket,
             technician_id=ticket.technician_id,
         )
-        technician_message = "\n".join(
-            [
-                TechnicianTicketActionService.render_state_message(
-                    state=technician_state,
-                    heading="🆕 <b>New ticket assigned to you</b>",
-                ),
-                (
-                    f"🛠 <b>Assigned by:</b> {cls._safe_text(cls._display_name_by_user_id(actor_user_id))}"
-                ),
-            ]
-        )
-        technician_markup = TechnicianTicketActionService.build_action_keyboard(
-            ticket_id=ticket.id,
-            actions=technician_state.actions,
-        )
+
+        def technician_message_builder(_: Translator) -> str:
+            return "\n".join(
+                [
+                    TechnicianTicketActionService.render_state_message(
+                        state=technician_state,
+                        heading=_("🆕 <b>New ticket assigned to you</b>"),
+                        _=_,
+                    ),
+                    _("🛠 <b>Assigned by:</b> %(value)s")
+                    % {
+                        "value": cls._safe_text(
+                            cls._display_name_by_user_id(actor_user_id, _=_)
+                        )
+                    },
+                ]
+            )
+
+        def technician_markup_builder(_: Translator) -> InlineKeyboardMarkup | None:
+            return TechnicianTicketActionService.build_action_keyboard(
+                ticket_id=ticket.id,
+                actions=technician_state.actions,
+                _=_,
+            )
+
         cls._notify_users(
             event_key="ticket_assigned_technician",
             user_ids=[ticket.technician_id],
-            message=technician_message,
-            reply_markup=technician_markup,
+            message=technician_message_builder,
+            reply_markup=technician_markup_builder,
         )
 
     @classmethod
@@ -115,24 +149,38 @@ class UserNotificationService:
         if not ticket.technician_id:
             return
 
-        message = "\n".join(
-            [
-                "▶️ <b>Ticket Work Started</b>",
-                f"🎫 <b>Ticket:</b> #{ticket.id}",
-                f"🔢 <b>Serial:</b> <code>{cls._safe_text(cls._serial_number(ticket))}</code>",
-                (
-                    f"👤 <b>Technician:</b> {cls._safe_text(cls._display_name_by_user_id(ticket.technician_id))}"
-                ),
-                (
-                    f"🛠 <b>Started by:</b> {cls._safe_text(cls._display_name_by_user_id(actor_user_id))}"
-                ),
-                f"📍 <b>Status:</b> <code>{cls._safe_text(ticket.status)}</code>",
-            ]
-        )
+        def message_builder(_: Translator) -> str:
+            return "\n".join(
+                [
+                    _("▶️ <b>Ticket Work Started</b>"),
+                    _("🎫 <b>Ticket:</b> #%(ticket_id)s") % {"ticket_id": ticket.id},
+                    _("🔢 <b>Serial:</b> <code>%(value)s</code>")
+                    % {"value": cls._safe_text(cls._serial_number(ticket=ticket, _=_))},
+                    _("👤 <b>Technician:</b> %(value)s")
+                    % {
+                        "value": cls._safe_text(
+                            cls._display_name_by_user_id(ticket.technician_id, _=_)
+                        )
+                    },
+                    _("🛠 <b>Started by:</b> %(value)s")
+                    % {
+                        "value": cls._safe_text(
+                            cls._display_name_by_user_id(actor_user_id, _=_)
+                        )
+                    },
+                    _("📍 <b>Status:</b> <code>%(value)s</code>")
+                    % {
+                        "value": cls._safe_text(
+                            cls._ticket_status_label(ticket.status, _=_)
+                        )
+                    },
+                ]
+            )
+
         cls._notify_users(
             event_key="ticket_started_technician",
             user_ids=[ticket.technician_id],
-            message=message,
+            message=message_builder,
             exclude_user_ids=[actor_user_id],
         )
 
@@ -143,30 +191,49 @@ class UserNotificationService:
         qc_user_ids = cls._user_ids_for_role_slugs(
             [RoleSlug.QC_INSPECTOR, RoleSlug.SUPER_ADMIN]
         )
-        qc_message = "\n".join(
-            [
-                "🧪 <b>Ticket Waiting For QC</b>",
-                f"🎫 <b>Ticket:</b> #{ticket.id}",
-                f"🔢 <b>Serial:</b> <code>{cls._safe_text(cls._serial_number(ticket))}</code>",
-                (
-                    f"👤 <b>Technician:</b> {cls._safe_text(cls._display_name_by_user_id(ticket.technician_id))}"
-                ),
-                (
-                    f"🛠 <b>Moved by:</b> {cls._safe_text(cls._display_name_by_user_id(actor_user_id))}"
-                ),
-                f"📍 <b>Status:</b> <code>{cls._safe_text(ticket.status)}</code>",
-                "👇 <b>Action:</b> choose a QC decision using buttons below.",
-            ]
-        )
+
+        def qc_message_builder(_: Translator) -> str:
+            return "\n".join(
+                [
+                    _("🧪 <b>Ticket Waiting For QC</b>"),
+                    _("🎫 <b>Ticket:</b> #%(ticket_id)s") % {"ticket_id": ticket.id},
+                    _("🔢 <b>Serial:</b> <code>%(value)s</code>")
+                    % {"value": cls._safe_text(cls._serial_number(ticket=ticket, _=_))},
+                    _("👤 <b>Technician:</b> %(value)s")
+                    % {
+                        "value": cls._safe_text(
+                            cls._display_name_by_user_id(ticket.technician_id, _=_)
+                        )
+                    },
+                    _("🛠 <b>Moved by:</b> %(value)s")
+                    % {
+                        "value": cls._safe_text(
+                            cls._display_name_by_user_id(actor_user_id, _=_)
+                        )
+                    },
+                    _("📍 <b>Status:</b> <code>%(value)s</code>")
+                    % {
+                        "value": cls._safe_text(
+                            cls._ticket_status_label(ticket.status, _=_)
+                        )
+                    },
+                    _("👇 <b>Action:</b> choose a QC decision using buttons below."),
+                ]
+            )
+
+        def qc_markup_builder(_: Translator) -> InlineKeyboardMarkup | None:
+            return TicketQCActionService.build_action_keyboard(
+                ticket_id=ticket.id,
+                ticket_status=ticket.status,
+                _=_,
+            )
+
         cls._notify_users(
             event_key="ticket_waiting_qc_reviewers",
             user_ids=qc_user_ids,
-            message=qc_message,
+            message=qc_message_builder,
             exclude_user_ids=[actor_user_id],
-            reply_markup=TicketQCActionService.build_action_keyboard(
-                ticket_id=ticket.id,
-                ticket_status=ticket.status,
-            ),
+            reply_markup=qc_markup_builder,
         )
 
     @classmethod
@@ -178,29 +245,52 @@ class UserNotificationService:
         base_xp: int,
         first_pass_bonus: int,
     ) -> None:
-        xp_summary = f"⭐ <b>XP awarded:</b> base={base_xp}"
-        if first_pass_bonus > 0:
-            xp_summary += f", first-pass bonus={first_pass_bonus}"
+        def message_builder(_: Translator) -> str:
+            xp_summary = (
+                _("⭐ <b>XP awarded:</b> base=%(base)s")
+                % {"base": cls._safe_text(base_xp)}
+            )
+            if first_pass_bonus > 0:
+                xp_summary = (
+                    _("⭐ <b>XP awarded:</b> base=%(base)s, first-pass bonus=%(bonus)s")
+                    % {
+                        "base": cls._safe_text(base_xp),
+                        "bonus": cls._safe_text(first_pass_bonus),
+                    }
+                )
 
-        message = "\n".join(
-            [
-                "✅ <b>Ticket Passed QC</b>",
-                f"🎫 <b>Ticket:</b> #{ticket.id}",
-                f"🔢 <b>Serial:</b> <code>{cls._safe_text(cls._serial_number(ticket))}</code>",
-                (
-                    f"👤 <b>Technician:</b> {cls._safe_text(cls._display_name_by_user_id(ticket.technician_id))}"
-                ),
-                (
-                    f"🧪 <b>QC by:</b> {cls._safe_text(cls._display_name_by_user_id(actor_user_id))}"
-                ),
-                f"📍 <b>Status:</b> <code>{cls._safe_text(ticket.status)}</code>",
-                f"⭐ <b>{cls._safe_text(xp_summary)}</b>",
-            ]
-        )
+            return "\n".join(
+                [
+                    _("✅ <b>Ticket Passed QC</b>"),
+                    _("🎫 <b>Ticket:</b> #%(ticket_id)s") % {"ticket_id": ticket.id},
+                    _("🔢 <b>Serial:</b> <code>%(value)s</code>")
+                    % {"value": cls._safe_text(cls._serial_number(ticket=ticket, _=_))},
+                    _("👤 <b>Technician:</b> %(value)s")
+                    % {
+                        "value": cls._safe_text(
+                            cls._display_name_by_user_id(ticket.technician_id, _=_)
+                        )
+                    },
+                    _("🧪 <b>QC by:</b> %(value)s")
+                    % {
+                        "value": cls._safe_text(
+                            cls._display_name_by_user_id(actor_user_id, _=_)
+                        )
+                    },
+                    _("📍 <b>Status:</b> <code>%(value)s</code>")
+                    % {
+                        "value": cls._safe_text(
+                            cls._ticket_status_label(ticket.status, _=_)
+                        )
+                    },
+                    xp_summary,
+                ]
+            )
+
         cls._notify_users(
             event_key="ticket_qc_pass",
             user_ids=[ticket.technician_id],
-            message=message,
+            message=message_builder,
             exclude_user_ids=[actor_user_id],
         )
 
@@ -215,26 +305,35 @@ class UserNotificationService:
             ticket=ticket,
             technician_id=ticket.technician_id,
         )
-        technician_message = "\n".join(
-            [
-                TechnicianTicketActionService.render_state_message(
-                    state=technician_state,
-                    heading="❌ <b>Returned from QC</b>",
-                ),
-                (
-                    f"🧪 <b>QC by:</b> {cls._safe_text(cls._display_name_by_user_id(actor_user_id))}"
-                ),
-            ]
-        )
-        technician_markup = TechnicianTicketActionService.build_action_keyboard(
-            ticket_id=ticket.id,
-            actions=technician_state.actions,
-        )
+        def technician_message_builder(_: Translator) -> str:
+            return "\n".join(
+                [
+                    TechnicianTicketActionService.render_state_message(
+                        state=technician_state,
+                        heading=_("❌ <b>Returned from QC</b>"),
+                        _=_,
+                    ),
+                    _("🧪 <b>QC by:</b> %(value)s")
+                    % {
+                        "value": cls._safe_text(
+                            cls._display_name_by_user_id(actor_user_id, _=_)
+                        )
+                    },
+                ]
+            )
+
+        def technician_markup_builder(_: Translator) -> InlineKeyboardMarkup | None:
+            return TechnicianTicketActionService.build_action_keyboard(
+                ticket_id=ticket.id,
+                actions=technician_state.actions,
+                _=_,
+            )
+
         cls._notify_users(
             event_key="ticket_qc_fail_technician",
             user_ids=[ticket.technician_id],
-            message=technician_message,
-            reply_markup=technician_markup,
+            message=technician_message_builder,
+            reply_markup=technician_markup_builder,
         )
 
     @classmethod
@@ -247,20 +346,28 @@ class UserNotificationService:
         comment: str,
     ) -> None:
         signed_amount = f"+{amount}" if amount > 0 else str(amount)
-        message = "\n".join(
-            [
-                "⭐ <b>XP Adjustment Applied</b>",
-                f"📈 <b>Amount:</b> <code>{cls._safe_text(signed_amount)}</code>",
-                (
-                    f"👤 <b>By:</b> {cls._safe_text(cls._display_name_by_user_id(actor_user_id))}"
-                ),
-                f"💬 <b>Comment:</b> {cls._safe_text(comment or '-')}",
-            ]
-        )
+
+        def message_builder(_: Translator) -> str:
+            return "\n".join(
+                [
+                    _("⭐ <b>XP Adjustment Applied</b>"),
+                    _("📈 <b>Amount:</b> <code>%(value)s</code>")
+                    % {"value": cls._safe_text(signed_amount)},
+                    _("👤 <b>By:</b> %(value)s")
+                    % {
+                        "value": cls._safe_text(
+                            cls._display_name_by_user_id(actor_user_id, _=_)
+                        )
+                    },
+                    _("💬 <b>Comment:</b> %(value)s")
+                    % {"value": cls._safe_text(comment or "-")},
+                ]
+            )
+
         cls._notify_users(
             event_key="manual_xp_adjustment",
             user_ids=[target_user_id],
-            message=message,
+            message=message_builder,
         )
 
     @classmethod
@@ -275,29 +382,43 @@ class UserNotificationService:
         warning_active_after: bool,
         note: str,
     ) -> None:
-        warning_label = cls._manual_warning_label(
-            warning_active_before=warning_active_before,
-            warning_active_after=warning_active_after,
-        )
-        level_label = cls._manual_level_label(
-            previous_level=previous_level,
-            new_level=new_level,
-        )
-        message = "\n".join(
-            [
-                "🎚 <b>Level Update Applied</b>",
-                f"📊 <b>Level:</b> <code>L{previous_level} → L{new_level}</code> ({cls._safe_text(level_label)})",
-                f"⚠️ <b>Warning week:</b> {cls._safe_text(warning_label)}",
-                (
-                    f"👤 <b>By:</b> {cls._safe_text(cls._display_name_by_user_id(actor_user_id))}"
-                ),
-                f"💬 <b>Comment:</b> {cls._safe_text(note or '-')}",
-            ]
-        )
+        def message_builder(_: Translator) -> str:
+            warning_label = cls._manual_warning_label(
+                warning_active_before=warning_active_before,
+                warning_active_after=warning_active_after,
+                _=_,
+            )
+            level_label = cls._manual_level_label(
+                previous_level=previous_level,
+                new_level=new_level,
+                _=_,
+            )
+            return "\n".join(
+                [
+                    _("🎚 <b>Level Update Applied</b>"),
+                    _("📊 <b>Level:</b> <code>L%(previous)s → L%(new)s</code> (%(label)s)")
+                    % {
+                        "previous": previous_level,
+                        "new": new_level,
+                        "label": cls._safe_text(level_label),
+                    },
+                    _("⚠️ <b>Warning week:</b> %(value)s")
+                    % {"value": cls._safe_text(warning_label)},
+                    _("👤 <b>By:</b> %(value)s")
+                    % {
+                        "value": cls._safe_text(
+                            cls._display_name_by_user_id(actor_user_id, _=_)
+                        )
+                    },
+                    _("💬 <b>Comment:</b> %(value)s")
+                    % {"value": cls._safe_text(note or "-")},
+                ]
+            )
+
         cls._notify_users(
             event_key="manual_level_update",
             user_ids=[target_user_id],
-            message=message,
+            message=message_builder,
         )
 
     @classmethod
@@ -306,9 +427,9 @@ class UserNotificationService:
         *,
         event_key: str,
         user_ids: Iterable[int | None],
-        message: str,
+        message: LocalizedMessage,
         exclude_user_ids: Iterable[int | None] | None = None,
-        reply_markup: InlineKeyboardMarkup | None = None,
+        reply_markup: LocalizedReplyMarkup = None,
     ) -> None:
         recipient_user_ids = cls._normalize_user_ids(
             user_ids=user_ids, exclude_user_ids=exclude_user_ids
@@ -330,8 +451,8 @@ class UserNotificationService:
         *,
         event_key: str,
         telegram_ids: Iterable[int],
-        message: str,
-        reply_markup: InlineKeyboardMarkup | None = None,
+        message: LocalizedMessage,
+        reply_markup: LocalizedReplyMarkup = None,
     ) -> None:
         recipient_ids = sorted({int(tg_id) for tg_id in telegram_ids if tg_id})
         if not recipient_ids:
@@ -362,14 +483,18 @@ class UserNotificationService:
         event_key: str,
         bot_token: str,
         telegram_ids: list[int],
-        message: str,
-        reply_markup: InlineKeyboardMarkup | None,
+        message: LocalizedMessage,
+        reply_markup: LocalizedReplyMarkup,
     ) -> None:
         try:
+            locale_by_telegram_id = cls._locale_map_for_telegram_ids(
+                telegram_ids=telegram_ids
+            )
             async_to_sync(cls._send_telegram_messages)(
                 event_key=event_key,
                 bot_token=bot_token,
                 telegram_ids=telegram_ids,
+                locale_by_telegram_id=locale_by_telegram_id,
                 message=message,
                 reply_markup=reply_markup,
             )
@@ -382,17 +507,32 @@ class UserNotificationService:
         event_key: str,
         bot_token: str,
         telegram_ids: list[int],
-        message: str,
-        reply_markup: InlineKeyboardMarkup | None,
+        locale_by_telegram_id: dict[int, str],
+        message: LocalizedMessage,
+        reply_markup: LocalizedReplyMarkup,
     ) -> None:
         bot = Bot(token=bot_token)
         try:
             for telegram_id in telegram_ids:
                 try:
+                    locale = locale_by_telegram_id.get(
+                        int(telegram_id),
+                        normalize_bot_locale(locale=None),
+                    )
+                    with translation.override(locale):
+                        translator = translation.gettext
+                        resolved_message = (
+                            message(translator) if callable(message) else message
+                        )
+                        resolved_reply_markup = (
+                            reply_markup(translator)
+                            if callable(reply_markup)
+                            else reply_markup
+                        )
                     await bot.send_message(
                         chat_id=telegram_id,
-                        text=message,
-                        reply_markup=reply_markup,
+                        text=resolved_message,
+                        reply_markup=resolved_reply_markup,
                         parse_mode=getattr(settings, "BOT_PARSE_MODE", "HTML"),
                     )
                 except Exception:
@@ -449,28 +589,48 @@ class UserNotificationService:
             .distinct()
         )
 
-    @staticmethod
-    def _display_name_by_user_id(user_id: int | None) -> str:
+    @classmethod
+    def _display_name_by_user_id(cls, user_id: int | None, _=None) -> str:
+        translator = _ or translation.gettext
         if not user_id:
-            return "Unknown user"
+            return translator(gettext_noop("Unknown user"))
         user = (
             User.objects.filter(pk=user_id)
             .only("id", "first_name", "last_name", "username")
             .first()
         )
         if not user:
-            return f"user#{user_id}"
+            return translator(gettext_noop("user#%(user_id)s")) % {"user_id": user_id}
         full_name = " ".join(
             part for part in [user.first_name, user.last_name] if part
         ).strip()
         if full_name:
             return full_name
-        return user.username or f"user#{user.id}"
+        return user.username or translator(gettext_noop("user#%(user_id)s")) % {
+            "user_id": user.id
+        }
+
+    @classmethod
+    def _serial_number(cls, *, ticket: Ticket, _=None) -> str:
+        translator = _ or translation.gettext
+        inventory_item = getattr(ticket, "inventory_item", None)
+        return getattr(inventory_item, "serial_number", "") or translator(
+            gettext_noop("unknown")
+        )
 
     @staticmethod
-    def _serial_number(ticket: Ticket) -> str:
-        inventory_item = getattr(ticket, "inventory_item", None)
-        return getattr(inventory_item, "serial_number", "") or "unknown"
+    def _ticket_status_label(status: str, _=None) -> str:
+        translator = _ or translation.gettext
+        labels = {
+            TicketStatus.UNDER_REVIEW: gettext_noop("Under review"),
+            TicketStatus.NEW: gettext_noop("New"),
+            TicketStatus.ASSIGNED: gettext_noop("Assigned"),
+            TicketStatus.IN_PROGRESS: gettext_noop("In progress"),
+            TicketStatus.WAITING_QC: gettext_noop("Waiting QC"),
+            TicketStatus.REWORK: gettext_noop("Rework"),
+            TicketStatus.DONE: gettext_noop("Done"),
+        }
+        return translator(labels.get(status, str(status)))
 
     @staticmethod
     def _safe_text(value: object) -> str:
@@ -481,17 +641,43 @@ class UserNotificationService:
         *,
         warning_active_before: bool,
         warning_active_after: bool,
+        _=None,
     ) -> str:
+        translator = _ or translation.gettext
         if not warning_active_before and warning_active_after:
-            return "added"
+            return translator(gettext_noop("added"))
         if warning_active_before and not warning_active_after:
-            return "removed"
-        return "active" if warning_active_after else "not active"
+            return translator(gettext_noop("removed"))
+        return (
+            translator(gettext_noop("active"))
+            if warning_active_after
+            else translator(gettext_noop("not active"))
+        )
 
     @staticmethod
-    def _manual_level_label(*, previous_level: int, new_level: int) -> str:
+    def _manual_level_label(*, previous_level: int, new_level: int, _=None) -> str:
+        translator = _ or translation.gettext
         if new_level > previous_level:
-            return "level up"
+            return translator(gettext_noop("level up"))
         if new_level < previous_level:
-            return "level down"
-        return "unchanged"
+            return translator(gettext_noop("level down"))
+        return translator(gettext_noop("unchanged"))
+
+    @staticmethod
+    def _locale_map_for_telegram_ids(*, telegram_ids: list[int]) -> dict[int, str]:
+        resolved_ids = [int(telegram_id) for telegram_id in telegram_ids if telegram_id]
+        if not resolved_ids:
+            return {}
+
+        rows = TelegramProfile.objects.filter(telegram_id__in=resolved_ids).values_list(
+            "telegram_id",
+            "language_code",
+        )
+        locale_by_telegram_id = {
+            int(telegram_id): normalize_bot_locale(locale=language_code)
+            for telegram_id, language_code in rows
+        }
+        fallback_locale = normalize_bot_locale(locale=None)
+        for telegram_id in resolved_ids:
+            locale_by_telegram_id.setdefault(telegram_id, fallback_locale)
+        return locale_by_telegram_id

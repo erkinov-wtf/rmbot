@@ -1,21 +1,502 @@
-# SOME DESCRIPTIVE TITLE.
-# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
-# This file is distributed under the same license as the PACKAGE package.
-# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
-#
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-02-17 16:28+0000\n"
+"POT-Creation-Date: 2026-02-19 14:14+0500\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language-Team: LANGUAGE <LL@li.org>\n"
-"Language: \n"
+"Language-Team: Uzbek\n"
+"Language: uz\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
+
+msgid ""
+"\n"
+"📌 <b>Selected parts:</b> %(count)s"
+msgstr ""
+"\n"
+"📌 <b>Tanlangan qismlar:</b> %(count)s"
+
+msgid ""
+"\n"
+"📦 <b>Available items</b>"
+msgstr ""
+"\n"
+"📦 <b>Mavjud elementlar</b>"
+
+msgid ""
+"\n"
+"🧱 <b>Toggle parts to include in the ticket</b>"
+msgstr ""
+"\n"
+"🧱 <b>Arizaga qo'shiladigan qismlarni tanlang</b>"
+
+msgid " • <b>Session:</b> %(session)s"
+msgstr " • <b>Seans:</b> %(session)s"
+
+msgid " • <b>XP:</b> +%(current)s/%(target)s"
+msgstr " • <b>XP:</b> +%(current)s/%(target)s"
+
+msgid "..."
+msgstr "..."
+
+msgid "Check your request status"
+msgstr "So'rov holatini tekshirish"
+
+msgid "Draft started."
+msgstr "Qoralama boshlandi."
+
+msgid "Enter your first name."
+msgstr "Ismingizni kiriting."
+
+msgid "Enter your last name."
+msgstr "Familiyangizni kiriting."
+
+msgid "First name"
+msgstr "Ism"
+
+msgid "First name saved."
+msgstr "Ism saqlandi."
+
+msgid "Last name"
+msgstr "Familiya"
+
+msgid "Last name saved."
+msgstr "Familiya saqlandi."
+
+msgid "Phone number saved."
+msgstr "Telefon raqami saqlandi."
+
+msgid "Please review your data and send your phone again."
+msgstr "Ma'lumotlarni tekshirib, telefon raqamingizni qayta yuboring."
+
+msgid "Share your phone number."
+msgstr "Telefon raqamingizni ulashing."
+
+msgid "Show this help menu"
+msgstr "Ushbu yordam menyusini ko'rsatish"
+
+msgid "Start access request"
+msgstr "Kirish so'rovini boshlash"
+
+msgid "Submission failed."
+msgstr "Yuborish muvaffaqiyatsiz tugadi."
+
+msgid "Submitting your request..."
+msgstr "So'rovingiz yuborilmoqda..."
+
+msgid "View your profile and access status"
+msgstr "Profil va kirish holatini ko'rish"
+
+msgid "access active"
+msgstr "kirish faol"
+
+msgid "access not registered"
+msgstr "kirish ro'yxatdan o'tmagan"
+
+msgid "access request under review"
+msgstr "kirish so'rovi ko'rib chiqilmoqda"
+
+msgid "• <b>#%(id)s</b> • <code>%(serial)s</code> • %(status)s"
+msgstr "• <b>#%(id)s</b> • <code>%(serial)s</code> • %(status)s"
+
+msgid "• <b>#%(item_id)s</b> • <code>%(serial)s</code> • %(status)s"
+msgstr "• <b>#%(item_id)s</b> • <code>%(serial)s</code> • %(status)s"
+
+msgid "• <b>%(label)s:</b> %(value)s"
+msgstr "• <b>%(label)s:</b> %(value)s"
+
+msgid "• <b>%(part)s</b> • %(color)s • %(minutes)s min"
+msgstr "• <b>%(part)s</b> • %(color)s • %(minutes)s daq"
+
+msgid "• <b>Admin review approved:</b> %(approved)s"
+msgstr "• <b>Admin tekshiruvi tasdiqlandi:</b> %(approved)s"
+
+msgid "• <b>Completed tickets:</b> %(count)s"
+msgstr "• <b>Yakunlangan arizalar:</b> %(count)s"
+
+msgid "• <b>Flag / XP:</b> %(flag)s / %(xp)s"
+msgstr "• <b>Flag / XP:</b> %(flag)s / %(xp)s"
+
+msgid "• <b>Level:</b> %(value)s"
+msgstr "• <b>Daraja:</b> %(value)s"
+
+msgid "• <b>Manual metrics mode:</b> %(manual)s"
+msgstr "• <b>Qo'lda metrikalar rejimi:</b> %(manual)s"
+
+msgid "• <b>Name:</b> %(value)s"
+msgstr "• <b>Ism:</b> %(value)s"
+
+msgid "• <b>Open tickets:</b> %(count)s"
+msgstr "• <b>Ochiq arizalar:</b> %(count)s"
+
+msgid "• <b>Phone:</b> <code>%(value)s</code>"
+msgstr "• <b>Telefon:</b> <code>%(value)s</code>"
+
+msgid "• <b>Serial:</b> <code>%(serial)s</code>"
+msgstr "• <b>Seriya raqami:</b> <code>%(serial)s</code>"
+
+msgid "• <b>Serial:</b> <code>%(serial)s</code>\n"
+msgstr "• <b>Seriya raqami:</b> <code>%(serial)s</code>\n"
+
+msgid "• <b>Showing:</b> %(start)s-%(end)s / %(total)s"
+msgstr "• <b>Ko'rsatilmoqda:</b> %(start)s-%(end)s / %(total)s"
+
+msgid "• <b>Status:</b> %(status)s"
+msgstr "• <b>Holat:</b> %(status)s"
+
+msgid "• <b>Status:</b> %(status)s\n"
+msgstr "• <b>Holat:</b> %(status)s\n"
+
+msgid "• <b>Submitted:</b> %(value)s"
+msgstr "• <b>Yuborilgan:</b> %(value)s"
+
+msgid "• <b>Technician:</b> %(technician)s"
+msgstr "• <b>Texnik:</b> %(technician)s"
+
+msgid "• <b>Ticket:</b> #%(ticket_id)s\n"
+msgstr "• <b>Ariza:</b> #%(ticket_id)s\n"
+
+msgid "• <b>Title:</b> %(title)s"
+msgstr "• <b>Sarlavha:</b> %(title)s"
+
+msgid "• <b>Total XP:</b> %(value)s"
+msgstr "• <b>Jami XP:</b> %(value)s"
+
+msgid "• <b>Total minutes:</b> %(minutes)s"
+msgstr "• <b>Jami daqiqa:</b> %(minutes)s"
+
+msgid "• <b>Total minutes:</b> %(minutes)s\n"
+msgstr "• <b>Jami daqiqa:</b> %(minutes)s\n"
+
+msgid "• <b>Updates:</b> %(value)s"
+msgstr "• <b>Yangilanishlar:</b> %(value)s"
+
+msgid "• <b>Username:</b> %(value)s"
+msgstr "• <b>Foydalanuvchi nomi:</b> %(value)s"
+
+msgid "• <b>Waiting for quality check:</b> %(count)s"
+msgstr "• <b>Sifat tekshiruvini kutayotganlar:</b> %(count)s"
+
+msgid "• <b>XP:</b> %(xp)s points (%(updates)s updates)"
+msgstr "• <b>XP:</b> %(xp)s ball (%(updates)s yangilanish)"
+
+msgid "• <code>%(time)s</code> — <b>%(amount)s XP</b> — %(description)s"
+msgstr "• <code>%(time)s</code> — <b>%(amount)s XP</b> — %(description)s"
+
+msgid "ℹ️ <b>No form in progress.</b>"
+msgstr "ℹ️ <b>Faol forma yo'q.</b>"
+
+msgid "ℹ️ <b>Your access request is already under review.</b>"
+msgstr "ℹ️ <b>Kirish so'rovingiz allaqachon ko'rib chiqilmoqda.</b>"
+
+msgid "ℹ️ <b>Your request is already under review.</b>"
+msgstr "ℹ️ <b>So'rovingiz allaqachon ko'rib chiqilmoqda.</b>"
+
+msgid ""
+"ℹ️ Ticket intake/review/QC actions are now available in the Telegram Mini App."
+msgstr ""
+"ℹ️ Ariza yaratish/ko'rib chiqish/QC amallari endi Telegram Mini Appda mavjud."
+
+msgid "ℹ️ We will notify you here after review."
+msgstr "ℹ️ Ko'rib chiqilgandan so'ng sizni shu yerda xabardor qilamiz."
+
+msgid "⏱ <b>Draft minutes:</b> %(minutes)s"
+msgstr "⏱ <b>Qoralama daqiqalar:</b> %(minutes)s"
+
+msgid "⏱ <b>Total minutes:</b> %(minutes)s"
+msgstr "⏱ <b>Jami daqiqa:</b> %(minutes)s"
+
+msgid ""
+"⚠️ <b>First name is too short.</b>\n"
+"Please enter at least 2 letters."
+msgstr ""
+"⚠️ <b>Ism juda qisqa.</b>\n"
+"Kamida 2 ta harf kiriting."
+
+msgid ""
+"⚠️ <b>Invalid phone number format.</b>\n"
+"Please send it in international format, for example <code>+998901234567</"
+"code>."
+msgstr ""
+"⚠️ <b>Telefon raqami formati noto'g'ri.</b>\n"
+"Uni xalqaro formatda yuboring, masalan <code>+998901234567</code>."
+
+msgid ""
+"⚠️ <b>Last name is too short.</b>\n"
+"Please enter at least 2 letters."
+msgstr ""
+"⚠️ <b>Familiya juda qisqa.</b>\n"
+"Kamida 2 ta harf kiriting."
+
+msgid "⚠️ <b>Please share a valid phone number.</b>"
+msgstr "⚠️ <b>Iltimos, to'g'ri telefon raqamini yuboring.</b>"
+
+msgid "⚠️ <b>Please share your own phone number, not someone else's.</b>"
+msgstr ""
+"⚠️ <b>Iltimos, boshqaniki emas, o'zingizning telefon raqamingizni yuboring.</"
+"b>"
+
+msgid ""
+"⚠️ <b>Your draft expired.</b>\n"
+"Please send /start and fill the form again."
+msgstr ""
+"⚠️ <b>Qoralama muddati tugadi.</b>\n"
+"Iltimos, /start yuborib formani qayta to'ldiring."
+
+msgid "⚠️ This inventory item's category has no parts configured."
+msgstr "⚠️ Ushbu inventar elementining kategoriyasida sozlangan qismlar yo'q."
+
+msgid "⚡ <b>Available actions:</b>"
+msgstr "⚡ <b>Mavjud amallar:</b>"
+
+msgid "⛔ <b>This action is available only for QC inspectors.</b>"
+msgstr "⛔ <b>Bu amal faqat QC inspektorlari uchun mavjud.</b>"
+
+msgid "⛔ <b>This command is available only for technicians.</b>"
+msgstr "⛔ <b>Bu buyruq faqat texniklar uchun mavjud.</b>"
+
+msgid "⛔ <b>Your roles do not allow ticket intake.</b>"
+msgstr "⛔ <b>Sizning rollaringiz ariza yaratishga ruxsat bermaydi.</b>"
+
+msgid "⛔ <b>Your roles do not allow ticket review actions.</b>"
+msgstr ""
+"⛔ <b>Sizning rollaringiz arizalarni ko'rib chiqish amallariga ruxsat "
+"bermaydi.</b>"
+
+msgid "✅ <b>%(label)s:</b> <code>%(value)s</code>"
+msgstr "✅ <b>%(label)s:</b> <code>%(value)s</code>"
+
+msgid "✅ <b>Configured parts:</b> %(count)s"
+msgstr "✅ <b>Sozlangan qismlar:</b> %(count)s"
+
+msgid "✅ <b>Past Tickets</b>"
+msgstr "✅ <b>Oldingi arizalar</b>"
+
+msgid ""
+"✅ <b>Request submitted successfully.</b>\n"
+"We will review it and message you here."
+msgstr ""
+"✅ <b>So'rov muvaffaqiyatli yuborildi.</b>\n"
+"Uni ko'rib chiqib, sizga shu yerda yozamiz."
+
+msgid "✅ <b>Ticket created successfully.</b>\n"
+msgstr "✅ <b>Ariza muvaffaqiyatli yaratildi.</b>\n"
+
+msgid "✅ <b>You are all set.</b> Your account is already active."
+msgstr "✅ <b>Hammasi tayyor.</b> Hisobingiz allaqachon faol."
+
+msgid ""
+"❌ <b>Could not submit your request.</b>\n"
+"Reason: %(reason)s"
+msgstr ""
+"❌ <b>So'rovingizni yuborib bo'lmadi.</b>\n"
+"Sabab: %(reason)s"
+
+msgid "➡️ <b>Next step:</b> %(value)s"
+msgstr "➡️ <b>Keyingi qadam:</b> %(value)s"
+
+msgid "⬜ <b>%(label)s:</b> <i>%(placeholder)s</i>"
+msgstr "⬜ <b>%(label)s:</b> <i>%(placeholder)s</i>"
+
+msgid "⭐ <b>XP Summary</b>"
+msgstr "⭐ <b>XP xulosasi</b>"
+
+msgid "⭐ <b>XP amount:</b> %(xp)s"
+msgstr "⭐ <b>XP miqdori:</b> %(xp)s"
+
+msgid "🆕 <b>Ticket Intake</b>"
+msgstr "🆕 <b>Ariza yaratish</b>"
+
+msgid "🆘 <b>Help</b>"
+msgstr "🆘 <b>Yordam</b>"
+
+msgid "🎟 <b>Active Tickets</b>"
+msgstr "🎟 <b>Faol arizalar</b>"
+
+msgid "🎨 <b>Draft color:</b> %(color)s"
+msgstr "🎨 <b>Qoralama rang:</b> %(color)s"
+
+msgid "🎨 <b>Flag color:</b> %(color)s"
+msgstr "🎨 <b>Flag rangi:</b> %(color)s"
+
+msgid "🎫 <b>Ticket #%(ticket_id)s</b>"
+msgstr "🎫 <b>Ariza #%(ticket_id)s</b>"
+
+msgid "🎫 Ticket #%(ticket_id)s opened."
+msgstr "🎫 Ariza #%(ticket_id)s ochildi."
+
+msgid "🎯 <b>Potential XP:</b> +%(xp)s"
+msgstr "🎯 <b>Potensial XP:</b> +%(xp)s"
+
+msgid "🎯 <b>Potential XP:</b> pending metrics"
+msgstr "🎯 <b>Potensial XP:</b> metrikalar kutilmoqda"
+
+msgid "🏅 <b>Work Profile</b>"
+msgstr "🏅 <b>Ish profili</b>"
+
+msgid "🏆 <b>Acquired XP:</b> +%(xp)s"
+msgstr "🏆 <b>Olingan XP:</b> +%(xp)s"
+
+msgid "👤 <b>My Profile</b>"
+msgstr "👤 <b>Mening profilim</b>"
+
+msgid "👤 <b>Status:</b> %(value)s"
+msgstr "👤 <b>Holat:</b> %(value)s"
+
+msgid "💡 Use the buttons below for quick actions."
+msgstr "💡 Tezkor amallar uchun quyidagi tugmalardan foydalaning."
+
+msgid "💾 <b>Saved:</b> %(value)s"
+msgstr "💾 <b>Saqlandi:</b> %(value)s"
+
+msgid "📄 <b>Page:</b> %(page)s/%(page_count)s"
+msgstr "📄 <b>Sahifa:</b> %(page)s/%(page_count)s"
+
+msgid "📈 <b>Progress:</b> %(done)s/%(total)s %(bar)s"
+msgstr "📈 <b>Jarayon:</b> %(done)s/%(total)s %(bar)s"
+
+msgid "📈 <b>XP progress:</b> %(current)s/%(target)s"
+msgstr "📈 <b>XP progress:</b> %(current)s/%(target)s"
+
+msgid "📌 <b>Main Commands</b>"
+msgstr "📌 <b>Asosiy buyruqlar</b>"
+
+msgid "📍 <b>Status:</b> %(status)s"
+msgstr "📍 <b>Holat:</b> %(status)s"
+
+msgid "📜 <b>XP Activity</b>"
+msgstr "📜 <b>XP tarixi</b>"
+
+msgid ""
+"📝 <b>Open Access Request</b>\n"
+"Use <code>/start</code> or tap the button below."
+msgstr ""
+"📝 <b>Kirish so'rovini ochish</b>\n"
+"<code>/start</code> dan foydalaning yoki pastdagi tugmani bosing."
+
+msgid "📦 <b>%(label)s:</b> %(count)s"
+msgstr "📦 <b>%(label)s:</b> %(count)s"
+
+msgid "📦 <b>Total QC checks:</b> %(count)s"
+msgstr "📦 <b>Jami QC tekshiruvlari:</b> %(count)s"
+
+msgid "📦 <b>Total tickets:</b> %(count)s"
+msgstr "📦 <b>Jami arizalar:</b> %(count)s"
+
+msgid "📨 <b>Access Request</b>"
+msgstr "📨 <b>Kirish so'rovi</b>"
+
+msgid ""
+"📱 <b>Phone number</b>\n"
+"Use the button below or type your number in international format (for "
+"example: <code>+998901234567</code>)."
+msgstr ""
+"📱 <b>Telefon raqami</b>\n"
+"Quyidagi tugmadan foydalaning yoki raqamni xalqaro formatda kiriting "
+"(masalan: <code>+998901234567</code>)."
+
+msgid "🔢 <b>Serial number:</b> <code>%(serial)s</code>"
+msgstr "🔢 <b>Seriya raqami:</b> <code>%(serial)s</code>"
+
+msgid "🕒 <b>Latest updates</b>"
+msgstr "🕒 <b>So'nggi yangilanishlar</b>"
+
+msgid ""
+"🚫 <b>No access yet.</b>\n"
+"Send <code>/start</code> to request access."
+msgstr ""
+"🚫 <b>Hali kirish yo'q.</b>\n"
+"Kirish so'rash uchun <code>/start</code> yuboring."
+
+msgid ""
+"🚫 <b>No access yet.</b>\n"
+"Send <code>/start</code> to submit access request."
+msgstr ""
+"🚫 <b>Hali kirish yo'q.</b>\n"
+"Kirish so'rovini yuborish uchun <code>/start</code> yuboring."
+
+msgid ""
+"🚫 <b>No access yet</b>\n"
+"Send <code>/start</code> or tap the button below."
+msgstr ""
+"🚫 <b>Hali kirish yo'q</b>\n"
+"<code>/start</code> yuboring yoki pastdagi tugmani bosing."
+
+msgid "🚫 No access yet. Send /start first."
+msgstr "🚫 Hali kirish yo'q. Avval /start yuboring."
+
+msgid "🚫 No access yet. Send /start to request access."
+msgstr "🚫 Hali kirish yo'q. Kirish so'rash uchun /start yuboring."
+
+msgid ""
+"🛑 <b>Draft canceled.</b>\n"
+"You can start a new request anytime."
+msgstr ""
+"🛑 <b>Qoralama bekor qilindi.</b>\n"
+"Istalgan vaqtda yangi so'rovni boshlashingiz mumkin."
+
+msgid "🛠 <b>Manual Metrics Override</b>"
+msgstr "🛠 <b>Metrikalarni qo'lda o'zgartirish</b>"
+
+msgid "🛠 <b>Technician Stats</b>"
+msgstr "🛠 <b>Texnik statistikasi</b>"
+
+msgid "🛠 <b>Technician:</b> %(technician)s"
+msgstr "🛠 <b>Texnik:</b> %(technician)s"
+
+msgid "🛠 <b>Technician</b>"
+msgstr "🛠 <b>Texnik</b>"
+
+msgid "🛠 <b>Work session:</b> %(session)s"
+msgstr "🛠 <b>Ish seansi:</b> %(session)s"
+
+msgid "🟡 <b>Status:</b> under review"
+msgstr "🟡 <b>Holat:</b> ko'rib chiqilmoqda"
+
+msgid "🟢 <b>Access:</b> active"
+msgstr "🟢 <b>Kirish:</b> faol"
+
+msgid "🧩 <b>Step 1/3:</b> Select an inventory item"
+msgstr "🧩 <b>1/3-qadam:</b> Inventar elementini tanlang"
+
+msgid "🧩 <b>Step 2/3:</b> Select parts"
+msgstr "🧩 <b>2/3-qadam:</b> Qismlarni tanlang"
+
+msgid "🧩 <b>Step 3/3:</b> Configure part metrics"
+msgstr "🧩 <b>3/3-qadam:</b> Qism metrikalarini sozlang"
+
+msgid "🧪 <b>My QC Checks</b>"
+msgstr "🧪 <b>Mening QC tekshiruvlarim</b>"
+
+msgid "🧪 <b>QC Ticket Action Panel</b>"
+msgstr "🧪 <b>Ariza uchun QC amallari paneli</b>"
+
+msgid "🧪 <b>Waiting QC Tickets</b>"
+msgstr "🧪 <b>QC kutayotgan arizalar</b>"
+
+msgid "🧰 <b>Tools</b>"
+msgstr "🧰 <b>Vositalar</b>"
+
+msgid "🧱 <b>Part %(index)s/%(total)s:</b> %(name)s"
+msgstr "🧱 <b>Qism %(index)s/%(total)s:</b> %(name)s"
+
+msgid "🧱 <b>Part specs</b>"
+msgstr "🧱 <b>Qism parametrlari</b>"
+
+msgid "🧾 <b>Access request</b>"
+msgstr "🧾 <b>Kirish so'rovi</b>"
+
+msgid "🧾 <b>Identity</b>"
+msgstr "🧾 <b>Shaxsiy ma'lumotlar</b>"
+
+msgid "🧾 <b>Ticket Intake Summary</b>"
+msgstr "🧾 <b>Ariza yaratish yakuni</b>"
+
+msgid "🧾 <b>Ticket Review Queue</b>"
+msgstr "🧾 <b>Arizalarni ko'rib chiqish navbati</b>"
 
 #: bot/middlewares/error.py:8
 msgid "Something went wrong. Please try again later."
@@ -26,8 +507,12 @@ msgid "Unknown command. Use /help."
 msgstr "Noma'lum buyruq. /help dan foydalaning."
 
 #: bot/routers/fallback.py:11
-msgid "⚠️ <b>Unknown command.</b>\nUse <code>/help</code>."
-msgstr "⚠️ <b>Noma'lum buyruq.</b>\n<code>/help</code> dan foydalaning."
+msgid ""
+"⚠️ <b>Unknown command.</b>\n"
+"Use <code>/help</code>."
+msgstr ""
+"⚠️ <b>Noma'lum buyruq.</b>\n"
+"<code>/help</code> dan foydalaning."
 
 #: bot/routers/start.py:69
 msgid "Share phone number"
@@ -1391,6 +1876,441 @@ msgstr "QC holati yangilanishi XP"
 #: core/utils/constants.py:84
 msgid "Manual Adjustment"
 msgstr "Qo'lda tuzatish"
+
+msgid "Daily pause limit is fully reached for today."
+msgstr "Bugun uchun kunlik pauza limiti to'liq tugagan."
+
+msgid "Hi, <b>%(name)s</b>."
+msgstr "Salom, <b>%(name)s</b>."
+
+msgid "No active work session found for this ticket and technician."
+msgstr "Ushbu ariza va texnik uchun faol ish sessiyasi topilmadi."
+
+msgid "Only assigned technician can send ticket to QC."
+msgstr "Arizani QC ga faqat biriktirilgan texnik yubora oladi."
+
+msgid "Only assigned technician can start this ticket."
+msgstr "Ushbu arizani faqat biriktirilgan texnik boshlashi mumkin."
+
+msgid "Open Mini App"
+msgstr "Mini ilovani ochish"
+
+msgid "Phone number is already used by another account."
+msgstr "Telefon raqami boshqa akkaunt tomonidan allaqachon ishlatilgan."
+
+msgid "QC FAIL allowed only from WAITING_QC."
+msgstr "QC FAIL faqat WAITING_QC holatidan ruxsat etiladi."
+
+msgid "QC PASS allowed only from WAITING_QC."
+msgstr "QC PASS faqat WAITING_QC holatidan ruxsat etiladi."
+
+msgid "Target user was not found."
+msgstr "Maqsadli foydalanuvchi topilmadi."
+
+msgid ""
+"Technician already has an active work session. Stop current work session or "
+"move ticket to waiting QC before starting another ticket."
+msgstr ""
+"Texnikda allaqachon faol ish sessiyasi bor. Boshqa arizani boshlashdan oldin "
+"joriy sessiyani to'xtating yoki arizani QC kutish holatiga o'tkazing."
+
+msgid "Ticket can be sent to QC only from IN_PROGRESS."
+msgstr "Ariza QC ga faqat IN_PROGRESS holatidan yuborilishi mumkin."
+
+msgid "Ticket can be started only from ASSIGNED or REWORK."
+msgstr "Arizani faqat ASSIGNED yoki REWORK holatidan boshlash mumkin."
+
+msgid "Ticket cannot be assigned in current status."
+msgstr "Arizani joriy holatda biriktirib bo'lmaydi."
+
+msgid "Ticket has no assigned technician."
+msgstr "Arizaga texnik biriktirilmagan."
+
+msgid "Ticket must have an assigned technician before QC PASS."
+msgstr "QC PASS dan oldin arizaga texnik biriktirilgan bo'lishi kerak."
+
+msgid "Ticket must pass admin review before assignment."
+msgstr "Biriktirishdan oldin ariza admin tekshiruvdan o'tishi kerak."
+
+msgid "Ticket review can be approved only from UNDER_REVIEW or NEW status."
+msgstr ""
+"Ariza tekshiruvini faqat UNDER_REVIEW yoki NEW holatidan tasdiqlash mumkin."
+
+msgid "Unknown error."
+msgstr "Noma'lum xatolik."
+
+msgid "Unknown user"
+msgstr "Noma'lum foydalanuvchi"
+
+msgid "Work session can be paused only from RUNNING state."
+msgstr "Ish sessiyasini faqat RUNNING holatidan pauza qilish mumkin."
+
+msgid "Work session can be resumed only from PAUSED state."
+msgstr "Ish sessiyasini faqat PAUSED holatidan davom ettirish mumkin."
+
+msgid "Work session can be stopped only from RUNNING or PAUSED state."
+msgstr "Ish sessiyasini faqat RUNNING yoki PAUSED holatidan to'xtatish mumkin."
+
+msgid "Work session must be stopped before moving ticket to waiting QC."
+msgstr ""
+"Arizani QC kutish holatiga o'tkazishdan oldin ish sessiyasi to'xtatilishi "
+"kerak."
+
+msgid "You are already registered and linked."
+msgstr "Siz allaqachon ro'yxatdan o'tgansiz va bog'langansiz."
+
+msgid "You can now use <b>Rent Market</b>."
+msgstr "Endi siz <b>Rent Market</b> dan foydalanishingiz mumkin."
+
+msgid "You can submit a new request using <code>/start</code>."
+msgstr "Yangi so'rovni <code>/start</code> orqali yuborishingiz mumkin."
+
+msgid "Your access request was already approved."
+msgstr "Kirish so'rovingiz allaqachon tasdiqlangan."
+
+msgid "active"
+msgstr "faol"
+
+msgid "actor_user_id does not exist."
+msgstr "actor_user_id mavjud emas."
+
+msgid "added"
+msgstr "qo'shildi"
+
+msgid "amount must not be 0."
+msgstr "amount 0 bo'lmasligi kerak."
+
+msgid "comment is required."
+msgstr "comment majburiy."
+
+msgid "level down"
+msgstr "daraja pasaydi"
+
+msgid "level is invalid."
+msgstr "daraja noto'g'ri."
+
+msgid "level up"
+msgstr "daraja oshdi"
+
+msgid "not active"
+msgstr "faol emas"
+
+msgid "removed"
+msgstr "olib tashlandi"
+
+msgid "unchanged"
+msgstr "o'zgarmadi"
+
+msgid "user#%(user_id)s"
+msgstr "foydalanuvchi#%(user_id)s"
+
+msgid "▶️ <b>Ticket Work Started</b>"
+msgstr "▶️ <b>Ariza bo'yicha ish boshlandi</b>"
+
+msgid "⚠️ <b>Warning week:</b> %(value)s"
+msgstr "⚠️ <b>Ogohlantirish haftasi:</b> %(value)s"
+
+msgid "✅ <b>Access Request Approved</b>"
+msgstr "✅ <b>Kirish so'rovi tasdiqlandi</b>"
+
+msgid "✅ <b>Ticket Passed QC</b>"
+msgstr "✅ <b>Ariza QC dan o'tdi</b>"
+
+msgid "❌ <b>Access Request Rejected</b>"
+msgstr "❌ <b>Kirish so'rovi rad etildi</b>"
+
+msgid "❌ <b>Returned from QC</b>"
+msgstr "❌ <b>QC dan qaytarildi</b>"
+
+msgid "⭐ <b>XP Adjustment Applied</b>"
+msgstr "⭐ <b>XP tuzatishi qo'llandi</b>"
+
+msgid "⭐ <b>XP awarded:</b> base=%(base)s"
+msgstr "⭐ <b>Berilgan XP:</b> baza=%(base)s"
+
+msgid "⭐ <b>XP awarded:</b> base=%(base)s, first-pass bonus=%(bonus)s"
+msgstr "⭐ <b>Berilgan XP:</b> baza=%(base)s, birinchi o'tish bonusi=%(bonus)s"
+
+msgid "🆕 <b>New ticket assigned to you</b>"
+msgstr "🆕 <b>Sizga yangi ariza biriktirildi</b>"
+
+msgid "🎚 <b>Level Update Applied</b>"
+msgstr "🎚 <b>Daraja yangilanishi qo'llandi</b>"
+
+msgid "🎫 <b>Ticket:</b> #%(ticket_id)s"
+msgstr "🎫 <b>Ariza:</b> #%(ticket_id)s"
+
+msgid "👇 <b>Action:</b> choose a QC decision using buttons below."
+msgstr "👇 <b>Amal:</b> quyidagi tugmalar orqali QC qarorini tanlang."
+
+msgid "👤 <b>By:</b> %(value)s"
+msgstr "👤 <b>Kim tomonidan:</b> %(value)s"
+
+msgid "👤 <b>Technician:</b> %(value)s"
+msgstr "👤 <b>Texnik:</b> %(value)s"
+
+msgid "💬 <b>Comment:</b> %(value)s"
+msgstr "💬 <b>Izoh:</b> %(value)s"
+
+msgid "📈 <b>Amount:</b> <code>%(value)s</code>"
+msgstr "📈 <b>Miqdor:</b> <code>%(value)s</code>"
+
+msgid "📊 <b>Level:</b> <code>L%(previous)s → L%(new)s</code> (%(label)s)"
+msgstr "📊 <b>Daraja:</b> <code>L%(previous)s → L%(new)s</code> (%(label)s)"
+
+msgid "📌 <b>Ticket Assigned</b>"
+msgstr "📌 <b>Ariza biriktirildi</b>"
+
+msgid "📍 <b>Status:</b> <code>%(value)s</code>"
+msgstr "📍 <b>Holat:</b> <code>%(value)s</code>"
+
+msgid "🔢 <b>Serial:</b> <code>%(value)s</code>"
+msgstr "🔢 <b>Seriya raqami:</b> <code>%(value)s</code>"
+
+msgid "🛠 <b>Assigned by:</b> %(value)s"
+msgstr "🛠 <b>Biriktirgan:</b> %(value)s"
+
+msgid "🛠 <b>Moved by:</b> %(value)s"
+msgstr "🛠 <b>O'tkazgan:</b> %(value)s"
+
+msgid "🛠 <b>Started by:</b> %(value)s"
+msgstr "🛠 <b>Boshlagan:</b> %(value)s"
+
+msgid "🧪 <b>QC by:</b> %(value)s"
+msgstr "🧪 <b>QC qilgan:</b> %(value)s"
+
+msgid "🧪 <b>Ticket Waiting For QC</b>"
+msgstr "🧪 <b>Ariza QC ni kutmoqda</b>"
+
+msgid "ℹ️ No QC checks assigned to you."
+msgstr "Sizga biriktirilgan QC tekshiruvlari yo'q."
+
+msgid "ℹ️ No XP activity yet."
+msgstr "Hali XP faolligi yo'q."
+
+msgid "ℹ️ No active inventory items found on this page."
+msgstr "Bu sahifada faol inventar elementlari topilmadi."
+
+msgid "ℹ️ No active tickets assigned right now."
+msgstr "Hozircha biriktirilgan faol arizalar yo'q."
+
+msgid "ℹ️ No past tickets found yet."
+msgstr "Hali o'tgan arizalar topilmadi."
+
+msgid "ℹ️ No tickets are currently waiting QC."
+msgstr "Hozir QC kutayotgan arizalar yo'q."
+
+msgid "ℹ️ No tickets found for review."
+msgstr "Tekshiruv uchun arizalar topilmadi."
+
+msgid "ℹ️ This inventory item has no parts configured."
+msgstr "Bu inventar elementi uchun detallar sozlanmagan."
+
+msgid ""
+"ℹ️ This old quick panel was removed. Use the bottom keyboard buttons for "
+"Stats, XP, and queue sections."
+msgstr ""
+"Eski tezkor panel olib tashlandi. Statistika, XP va navbat bo'limlari uchun "
+"pastdagi tugmalardan foydalaning."
+
+msgid "⏸ Work session paused."
+msgstr "Ish sessiyasi pauzaga qo'yildi."
+
+msgid "⏹ Work session stopped."
+msgstr "Ish sessiyasi to'xtatildi."
+
+msgid "▶ Work session resumed."
+msgstr "Ish sessiyasi davom ettirildi."
+
+msgid "⚠️ Action is not available for this ticket right now."
+msgstr "Bu amal hozir ushbu ariza uchun mavjud emas."
+
+msgid "⚠️ An active ticket already exists for this inventory item."
+msgstr "Bu inventar elementi uchun faol ariza allaqachon mavjud."
+
+msgid "⚠️ Approve & assign is not available for this ticket status."
+msgstr "Bu amal hozir ushbu ariza uchun mavjud emas."
+
+msgid "⚠️ Configure parts first."
+msgstr "Avval detallarni sozlang."
+
+msgid "⚠️ Could not open this page."
+msgstr "Bu sahifani ochib bo'lmadi."
+
+msgid "⚠️ Invalid XP adjustment."
+msgstr "Noto'g'ri XP tuzatishi."
+
+msgid "⚠️ Invalid XP option."
+msgstr "Noto'g'ri XP varianti."
+
+msgid "⚠️ Invalid color option."
+msgstr "Noto'g'ri rang varianti."
+
+msgid "⚠️ Invalid item selection."
+msgstr "Noto'g'ri element tanlovi."
+
+msgid "⚠️ Invalid minutes adjustment."
+msgstr "Noto'g'ri daqiqa tuzatishi."
+
+msgid "⚠️ Invalid minutes option."
+msgstr "Noto'g'ri daqiqa varianti."
+
+msgid "⚠️ Invalid part selection."
+msgstr "Noto'g'ri detal tanlovi."
+
+msgid "⚠️ Inventory item was not found."
+msgstr "Inventar elementi topilmadi."
+
+msgid "⚠️ No part specs were configured."
+msgstr "Detal parametrlari sozlanmagan."
+
+msgid "⚠️ No technicians are available for assignment."
+msgstr "Biriktirish uchun texniklar mavjud emas."
+
+msgid "⚠️ Part configuration session expired."
+msgstr "Detal sozlash sessiyasi tugadi."
+
+msgid "⚠️ QC action is not available for this ticket status."
+msgstr "Ushbu ariza holati uchun QC amali mavjud emas."
+
+msgid "⚠️ Select at least one part first."
+msgstr "Avval kamida bitta detalni tanlang."
+
+msgid "⚠️ Technician selection is invalid."
+msgstr "Noto'g'ri texnik tanlovi."
+
+msgid "⚠️ Ticket intake session expired. Start again."
+msgstr "Ariza yaratish sessiyasi tugadi. Qayta boshlang."
+
+msgid "⚠️ Ticket is not assigned to this technician."
+msgstr "Ariza ushbu texnikka biriktirilmagan."
+
+msgid "⚠️ Ticket is not assigned to you for QC."
+msgstr "Ariza QC uchun sizga biriktirilmagan."
+
+msgid "⚠️ Ticket is not found or is not assigned to you."
+msgstr "Ariza topilmadi yoki sizga biriktirilmagan."
+
+msgid "⚠️ Ticket was not found."
+msgstr "Ariza topilmadi."
+
+msgid "⚠️ Unknown action."
+msgstr "Noma'lum amal."
+
+msgid "⚠️ Unsupported QC action."
+msgstr "Qo'llab-quvvatlanmaydigan QC amali."
+
+msgid "⚠️ Unsupported action."
+msgstr "Qo'llab-quvvatlanmaydigan amal."
+
+msgid "⚠️ Unsupported queue callback action."
+msgstr "Qo'llab-quvvatlanmaydigan navbat callback amali."
+
+msgid "⚠️ Unsupported ticket view scope."
+msgstr "Arizani ko'rish sohasi qo'llab-quvvatlanmaydi."
+
+msgid "⛔ This action is available only for QC inspectors."
+msgstr "Bu amal faqat QC inspektorlari uchun mavjud."
+
+msgid "⛔ This action is available only for technicians."
+msgstr "Bu amal faqat texniklar uchun mavjud."
+
+msgid "⛔ Your roles do not allow approve-and-assign action."
+msgstr "Rollaringiz tasdiqlash va biriktirish amaliga ruxsat bermaydi."
+
+msgid "⛔ Your roles do not allow manual metrics override."
+msgstr "Rollaringiz qo'lda metrikani o'zgartirishga ruxsat bermaydi."
+
+msgid "⛔ Your roles do not allow ticket intake."
+msgstr "Rollaringiz ariza yaratishga ruxsat bermaydi."
+
+msgid "⛔ Your roles do not allow ticket review actions."
+msgstr "Rollaringiz ariza tekshirish amallariga ruxsat bermaydi."
+
+msgid "✅ All part specs configured."
+msgstr "Barcha detal parametrlari sozlandi."
+
+msgid "✅ Manual metrics updated."
+msgstr "Qo'lda metrikalar yangilandi."
+
+msgid "✅ Part saved."
+msgstr "Detal saqlandi."
+
+msgid "✅ Ticket approved and assigned."
+msgstr "Ariza tasdiqlandi va biriktirildi."
+
+msgid "✅ Ticket intake flow completed."
+msgstr "Ariza yaratish jarayoni yakunlandi."
+
+msgid "✅ Ticket marked as QC passed."
+msgstr "Ariza QC'dan o'tdi deb belgilandi."
+
+msgid "✅ Work session started."
+msgstr "Ish sessiyasi boshlandi."
+
+msgid "❌ Approve & assign failed: %(reason)s"
+msgstr "Tasdiqlash va biriktirish muvaffaqiyatsiz: %(reason)s"
+
+msgid "❌ Manual metrics update failed: %(reason)s"
+msgstr "Qo'lda metrikani yangilash muvaffaqiyatsiz: %(reason)s"
+
+msgid "❌ Ticket create failed: %(reason)s"
+msgstr "Ariza yaratish muvaffaqiyatsiz: %(reason)s"
+
+msgid "❌ Ticket marked as QC failed."
+msgstr "Ariza QC'dan o'tmadi deb belgilandi."
+
+msgid "👇 Select a ticket to review."
+msgstr "Tekshirish uchun arizani tanlang."
+
+msgid "👤 Select technician for ticket #%(ticket_id)s."
+msgstr "Ariza #%(ticket_id)s uchun texnikni tanlang."
+
+msgid "💡 Choose an item using the inline buttons."
+msgstr "Elementni inline tugmalar orqali tanlang."
+
+msgid "💡 Create ticket using the button below."
+msgstr "Quyidagi tugma orqali ariza yarating."
+
+msgid "💡 Use inline buttons only to configure values."
+msgstr "Qiymatlarni sozlash uchun faqat inline tugmalardan foydalaning."
+
+msgid "💡 Use inline buttons only to update values."
+msgstr "Qiymatlarni yangilash uchun faqat inline tugmalardan foydalaning."
+
+msgid "💡 Use inline buttons to open ticket details."
+msgstr "Ariza tafsilotlarini ochish uchun inline tugmalardan foydalaning."
+
+msgid "💡 Use the inline buttons below to open ticket details."
+msgstr ""
+"Ariza tafsilotlarini ochish uchun quyidagi inline tugmalardan foydalaning."
+
+msgid "🔄 Active tickets list refreshed."
+msgstr "Faol arizalar ro'yxati yangilandi."
+
+msgid "🔄 Past tickets list refreshed."
+msgstr "O'tgan arizalar ro'yxati yangilandi."
+
+msgid "🔄 QC checks refreshed."
+msgstr "QC tekshiruvlari ro'yxati yangilandi."
+
+msgid "🔄 Review queue refreshed."
+msgstr "Tekshiruv navbati yangilandi."
+
+msgid "🔄 Ticket details refreshed."
+msgstr "Ariza tafsilotlari yangilandi."
+
+msgid "🔄 Waiting QC list refreshed."
+msgstr "QC kutayotgan arizalar ro'yxati yangilandi."
+
+msgid "🛑 Ticket intake canceled."
+msgstr "Ariza yaratish bekor qilindi."
+
+msgid "🧪 QC check opened."
+msgstr "QC tekshiruvi ochildi."
+
+msgid "🧪 Ticket sent to QC."
+msgstr "Ariza QC ga yuborildi."
 
 #~ msgid "Moderator"
 #~ msgstr "Moderator"

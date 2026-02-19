@@ -678,17 +678,6 @@ export default function PublicStatsApp() {
             ) : null}
           </>
         )}
-
-        <section className="rm-panel p-4">
-          <p className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-            <Medal className="h-4 w-4" />
-            Public Explanation
-          </p>
-          <p className="mt-2 text-xs text-slate-600">
-            Ranking combines tasks, XP, first-pass quality, closed-flag quality, attendance, and
-            rework penalties. Tap any technician row to open their detailed score explanation page.
-          </p>
-        </section>
       </div>
     </main>
   );
