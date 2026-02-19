@@ -1,7 +1,8 @@
 import pytest
+from asgiref.sync import async_to_sync
 from django.utils import timezone
 
-from account.models import AccessRequest
+from account.models import AccessRequest, User
 from bot.services.technician_ticket_actions import TechnicianTicketActionService
 from bot.services.ticket_qc_queue import QCTicketQueueService
 from core.services.notifications import UserNotificationService
@@ -770,6 +771,63 @@ def test_telegram_id_lookup_falls_back_to_access_request_when_profile_missing(
 
     telegram_ids = UserNotificationService._telegram_ids_for_user_ids([technician.id])
     assert telegram_ids == [777000111]
+
+
+def test_send_telegram_messages_resolves_callable_payload_in_sync_context(
+    workflow_context,
+    monkeypatch,
+):
+    sent_payloads: list[dict] = []
+
+    class _DummySession:
+        async def close(self):
+            return None
+
+    class _DummyBot:
+        def __init__(self, token: str):
+            self.token = token
+            self.session = _DummySession()
+
+        async def send_message(
+            self,
+            *,
+            chat_id: int,
+            text: str,
+            reply_markup=None,
+            parse_mode: str | None = None,
+        ):
+            sent_payloads.append(
+                {
+                    "chat_id": chat_id,
+                    "text": text,
+                    "reply_markup": reply_markup,
+                    "parse_mode": parse_mode,
+                }
+            )
+
+    monkeypatch.setattr("core.services.notifications.Bot", _DummyBot)
+
+    def message_builder(_: object) -> str:
+        # ORM read inside callable should remain valid after async-safe resolving.
+        username = (
+            User.objects.filter(pk=workflow_context["ops"].id)
+            .values_list("username", flat=True)
+            .first()
+        )
+        return f"assigned by {username}"
+
+    async_to_sync(UserNotificationService._send_telegram_messages)(
+        event_key="ticket_assigned_technician",
+        bot_token="TEST_BOT_TOKEN",
+        telegram_ids=[789920699],
+        locale_by_telegram_id={789920699: "en"},
+        message=message_builder,
+        reply_markup=None,
+    )
+
+    assert len(sent_payloads) == 1
+    assert sent_payloads[0]["chat_id"] == 789920699
+    assert sent_payloads[0]["text"] == f"assigned by {workflow_context['ops'].username}"
 
 
 def test_qc_queue_contains_only_current_user_assigned_waiting_qc_checks(

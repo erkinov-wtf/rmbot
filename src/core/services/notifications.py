@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Callable
 
 from aiogram import Bot
 from aiogram.types import InlineKeyboardMarkup
-from asgiref.sync import async_to_sync
+from asgiref.sync import async_to_sync, sync_to_async
 from django.conf import settings
 from django.db import transaction
 from django.utils import translation
@@ -553,16 +553,14 @@ class UserNotificationService:
                         int(telegram_id),
                         normalize_bot_locale(locale=None),
                     )
-                    with translation.override(locale):
-                        translator = translation.gettext
-                        resolved_message = (
-                            message(translator) if callable(message) else message
-                        )
-                        resolved_reply_markup = (
-                            reply_markup(translator)
-                            if callable(reply_markup)
-                            else reply_markup
-                        )
+                    resolved_message, resolved_reply_markup = await sync_to_async(
+                        cls._resolve_localized_payload,
+                        thread_sensitive=True,
+                    )(
+                        locale=locale,
+                        message=message,
+                        reply_markup=reply_markup,
+                    )
                     await bot.send_message(
                         chat_id=telegram_id,
                         text=resolved_message,
@@ -577,6 +575,21 @@ class UserNotificationService:
                     )
         finally:
             await bot.session.close()
+
+    @staticmethod
+    def _resolve_localized_payload(
+        *,
+        locale: str,
+        message: LocalizedMessage,
+        reply_markup: LocalizedReplyMarkup,
+    ) -> tuple[str, InlineKeyboardMarkup | None]:
+        with translation.override(locale):
+            translator = translation.gettext
+            resolved_message = message(translator) if callable(message) else message
+            resolved_reply_markup = (
+                reply_markup(translator) if callable(reply_markup) else reply_markup
+            )
+        return str(resolved_message), resolved_reply_markup
 
     @staticmethod
     def _normalize_user_ids(
