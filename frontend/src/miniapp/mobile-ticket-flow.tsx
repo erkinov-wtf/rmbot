@@ -95,6 +95,10 @@ const COLOR_LABEL: Record<TicketColor, string> = {
   red: "Red",
 };
 
+const DEFAULT_RECENT_LIMIT = 10;
+const SEARCH_RESULT_LIMIT = 500;
+const INVENTORY_SEARCH_MIN_CHARS = 2;
+
 function toErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message) {
     return error.message;
@@ -152,10 +156,6 @@ function colorPickerButtonClass(color: TicketColor, isActive: boolean): string {
 
 function distinctNumbers(values: number[]): number[] {
   return [...new Set(values)];
-}
-
-function ticketSearchValue(ticket: Ticket, serial: string): string {
-  return `${ticket.id} ${ticket.title ?? ""} ${ticket.status} ${serial}`.toLowerCase();
 }
 
 export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowProps) {
@@ -258,7 +258,15 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
   const refreshReviewTickets = useCallback(async () => {
     setIsLoadingReviewTickets(true);
     try {
-      const tickets = await listTickets(accessToken);
+      const search = reviewSearch.trim();
+      const normalizedSearch = search.replace(/^#/, "").trim();
+      const hasSearch =
+        normalizedSearch.length >= 2 || /^\d+$/.test(normalizedSearch);
+      const tickets = await listTickets(accessToken, {
+        q: hasSearch ? normalizedSearch : undefined,
+        status: reviewStatusFilter === "all" ? undefined : reviewStatusFilter,
+        per_page: hasSearch ? SEARCH_RESULT_LIMIT : DEFAULT_RECENT_LIMIT,
+      });
       setReviewTickets(tickets);
       void ensureInventoryLoaded(tickets.slice(0, 30).map((ticket) => ticket.inventory_item));
     } catch (error) {
@@ -269,13 +277,20 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
     } finally {
       setIsLoadingReviewTickets(false);
     }
-  }, [accessToken, ensureInventoryLoaded, t]);
+  }, [accessToken, ensureInventoryLoaded, reviewSearch, reviewStatusFilter, t]);
 
   const refreshQcTickets = useCallback(async () => {
     setIsLoadingQcTickets(true);
     try {
-      const tickets = await listTickets(accessToken);
-      const queue = tickets.filter((ticket) => ticket.status === "waiting_qc");
+      const search = qcSearch.trim();
+      const normalizedSearch = search.replace(/^#/, "").trim();
+      const hasSearch =
+        normalizedSearch.length >= 2 || /^\d+$/.test(normalizedSearch);
+      const queue = await listTickets(accessToken, {
+        q: hasSearch ? normalizedSearch : undefined,
+        status: "waiting_qc",
+        per_page: hasSearch ? SEARCH_RESULT_LIMIT : DEFAULT_RECENT_LIMIT,
+      });
       setQcTickets(queue);
       void ensureInventoryLoaded(queue.slice(0, 30).map((ticket) => ticket.inventory_item));
     } catch (error) {
@@ -286,15 +301,18 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
     } finally {
       setIsLoadingQcTickets(false);
     }
-  }, [accessToken, ensureInventoryLoaded, t]);
+  }, [accessToken, ensureInventoryLoaded, qcSearch, t]);
 
   const refreshCreateItems = useCallback(async () => {
     setIsLoadingCreateItems(true);
     try {
       const search = createSearch.trim();
+      const hasSearch = search.length >= INVENTORY_SEARCH_MIN_CHARS;
       const items = await listInventoryItems(accessToken, {
-        q: search.length >= 2 ? search : undefined,
+        q: hasSearch ? search : undefined,
         is_active: true,
+        ordering: "-created_at",
+        per_page: hasSearch ? SEARCH_RESULT_LIMIT : DEFAULT_RECENT_LIMIT,
       });
       setCreateItems(items);
       cacheInventoryItems(items);
@@ -360,7 +378,10 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
     if (!permissions.can_create || activeTab !== "create") {
       return;
     }
-    void refreshCreateItems();
+    const timer = window.setTimeout(() => {
+      void refreshCreateItems();
+    }, 250);
+    return () => window.clearTimeout(timer);
   }, [activeTab, permissions.can_create, refreshCreateItems]);
 
   useEffect(() => {
@@ -374,10 +395,13 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
     if (!permissions.can_open_review_panel || activeTab !== "review") {
       return;
     }
-    void refreshReviewTickets();
+    const timer = window.setTimeout(() => {
+      void refreshReviewTickets();
+    }, 250);
     if (permissions.can_assign && !technicianOptions.length) {
       void refreshTechnicians();
     }
+    return () => window.clearTimeout(timer);
   }, [
     activeTab,
     permissions.can_assign,
@@ -391,7 +415,10 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
     if (!permissions.can_qc || activeTab !== "qc") {
       return;
     }
-    void refreshQcTickets();
+    const timer = window.setTimeout(() => {
+      void refreshQcTickets();
+    }, 250);
+    return () => window.clearTimeout(timer);
   }, [activeTab, permissions.can_qc, refreshQcTickets]);
 
   const selectedCreateItem = useMemo(() => {
@@ -456,21 +483,13 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
   );
 
   const reviewTicketsFiltered = useMemo(() => {
-    const normalized = reviewSearch.trim().toLowerCase();
     return reviewTickets.filter((ticket) => {
-      if (
-        reviewStatusFilter !== "all" &&
-        ticket.status !== reviewStatusFilter
-      ) {
+      if (reviewStatusFilter !== "all" && ticket.status !== reviewStatusFilter) {
         return false;
       }
-      if (!normalized) {
-        return true;
-      }
-      const serial = inventoryCache[ticket.inventory_item]?.serial_number ?? "";
-      return ticketSearchValue(ticket, serial).includes(normalized);
+      return true;
     });
-  }, [inventoryCache, reviewSearch, reviewStatusFilter, reviewTickets]);
+  }, [reviewStatusFilter, reviewTickets]);
 
   useEffect(() => {
     if (!reviewTicketsFiltered.length) {
@@ -504,15 +523,8 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
   }, [selectedReviewTicket]);
 
   const qcTicketsFiltered = useMemo(() => {
-    const normalized = qcSearch.trim().toLowerCase();
-    return qcTickets.filter((ticket) => {
-      if (!normalized) {
-        return true;
-      }
-      const serial = inventoryCache[ticket.inventory_item]?.serial_number ?? "";
-      return ticketSearchValue(ticket, serial).includes(normalized);
-    });
-  }, [inventoryCache, qcSearch, qcTickets]);
+    return qcTickets;
+  }, [qcTickets]);
 
   useEffect(() => {
     if (!qcTicketsFiltered.length) {
@@ -1177,9 +1189,7 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
                       onClick={() => setManualColor(color)}
                       className={cn(
                         "rounded-lg border px-2 py-2 text-xs font-semibold",
-                        manualColor === color
-                          ? "border-slate-900 bg-slate-900 text-white"
-                          : "border-slate-300 bg-slate-50 text-slate-700",
+                        colorPickerButtonClass(color, manualColor === color),
                       )}
                     >
                       {colorLabel(color)}

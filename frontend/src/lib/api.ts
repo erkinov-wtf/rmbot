@@ -673,6 +673,24 @@ export type InventoryItemQuery = {
   inventory?: number;
   category?: number;
   is_active?: boolean;
+  ordering?:
+    | "created_at"
+    | "-created_at"
+    | "updated_at"
+    | "-updated_at"
+    | "serial_number"
+    | "-serial_number"
+    | "status"
+    | "-status";
+  page?: number;
+  per_page?: number;
+};
+
+export type TicketListQuery = {
+  q?: string;
+  status?: TicketStatus;
+  page?: number;
+  per_page?: number;
 };
 
 export type ManagedUserQuery = {
@@ -1141,12 +1159,14 @@ export async function listInventoryItems(
 ): Promise<InventoryItem[]> {
   const payload = await apiRequest<unknown>(
     withQuery("inventory/items/", {
-      per_page: 200,
+      page: query.page,
+      per_page: query.per_page ?? 200,
       q: query.q,
       status: query.status,
       inventory: query.inventory,
       category: query.category,
       is_active: query.is_active,
+      ordering: query.ordering,
     }),
     { accessToken },
   );
@@ -1257,10 +1277,12 @@ export async function deletePart(
 
 export async function listTickets(
   accessToken: string,
-  query: { page?: number; per_page?: number } = {},
+  query: TicketListQuery = {},
 ): Promise<Ticket[]> {
   const payload = await apiRequest<unknown>(
     withQuery("tickets/", {
+      q: query.q,
+      status: query.status,
       page: query.page,
       per_page: query.per_page ?? 200,
     }),
