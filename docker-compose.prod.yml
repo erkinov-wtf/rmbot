@@ -3,7 +3,7 @@ services:
     container_name: db-prod
     image: postgres:18-alpine
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ./pg_data:/var/lib/postgresql
     ports:
       - "127.0.0.1:${DB_PORT:-5432}:5432"
     healthcheck:
@@ -114,8 +114,6 @@ services:
       CELERY_RESULT_BACKEND: redis://redis:6379/0
 
 volumes:
-  postgres_data:
-    name: rent_market_postgres_data
   app_data:
     name: rent_market_app_data
 

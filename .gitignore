@@ -188,3 +188,5 @@ docker-compose.override.yml
 # Frontend source utilities should be versioned.
 !frontend/src/lib/
 !frontend/src/lib/**
+
+/pg_data

@@ -27,6 +27,18 @@ class TicketAnalyticsService:
     BUSINESS_TIMEZONE = ZoneInfo("Asia/Tashkent")
     QC_WINDOW_DAYS = 7
 
+    SCORE_WEIGHTS = {
+        "tickets_done": 120,
+        "xp_total": 1,
+        "first_pass_done": 40,
+        "green_flag_done": 20,
+        "yellow_flag_done": 10,
+        "red_flag_done_penalty": 8,
+        "attendance_day": 6,
+        "rework_done_penalty": 25,
+        "qc_fail_event_penalty": 12,
+    }
+
     @classmethod
     def fleet_summary(cls) -> dict[str, object]:
         now_utc = timezone.now()
@@ -296,6 +308,493 @@ class TicketAnalyticsService:
             },
             "members": members,
         }
+
+    @classmethod
+    def public_technician_leaderboard(cls) -> dict[str, object]:
+        now = timezone.now()
+        technicians = cls._active_technicians()
+        members = cls._public_leaderboard_members(technicians=technicians)
+
+        tickets_done_total = sum(int(item["tickets_done_total"]) for item in members)
+        first_pass_total = sum(
+            int(item["tickets_first_pass_total"]) for item in members
+        )
+        xp_total = sum(int(item["xp_total"]) for item in members)
+        total_score = sum(int(item["score"]) for item in members)
+
+        return {
+            "generated_at": now.isoformat(),
+            "summary": {
+                "technicians_total": len(technicians),
+                "tickets_done_total": tickets_done_total,
+                "tickets_first_pass_total": first_pass_total,
+                "first_pass_rate_percent": (
+                    round((first_pass_total / tickets_done_total) * 100, 2)
+                    if tickets_done_total
+                    else 0.0
+                ),
+                "xp_total": xp_total,
+                "total_score": total_score,
+            },
+            "members": members,
+            "weights": {key: int(value) for key, value in cls.SCORE_WEIGHTS.items()},
+        }
+
+    @classmethod
+    def public_technician_detail(cls, *, user_id: int) -> dict[str, object]:
+        leaderboard = cls.public_technician_leaderboard()
+        members = list(leaderboard.get("members", []))
+        selected_member = next(
+            (item for item in members if int(item.get("user_id", 0)) == int(user_id)),
+            None,
+        )
+        if selected_member is None:
+            raise ValueError("Technician was not found.")
+
+        total_technicians = max(int(leaderboard["summary"]["technicians_total"]), 1)
+        rank = int(selected_member["rank"])
+        score = int(selected_member["score"])
+        average_score = (
+            round(int(leaderboard["summary"]["total_score"]) / total_technicians, 2)
+            if total_technicians
+            else 0.0
+        )
+        better_than_percent = (
+            round(((total_technicians - rank) / (total_technicians - 1)) * 100, 2)
+            if total_technicians > 1
+            else 100.0
+        )
+
+        status_counts_raw = dict(
+            Ticket.domain.filter(technician_id=user_id)
+            .values("status")
+            .annotate(total=Count("id"))
+            .values_list("status", "total")
+        )
+        status_counts = {
+            TicketStatus.UNDER_REVIEW: int(
+                status_counts_raw.get(TicketStatus.UNDER_REVIEW, 0) or 0
+            ),
+            TicketStatus.NEW: int(status_counts_raw.get(TicketStatus.NEW, 0) or 0),
+            TicketStatus.ASSIGNED: int(
+                status_counts_raw.get(TicketStatus.ASSIGNED, 0) or 0
+            ),
+            TicketStatus.IN_PROGRESS: int(
+                status_counts_raw.get(TicketStatus.IN_PROGRESS, 0) or 0
+            ),
+            TicketStatus.WAITING_QC: int(
+                status_counts_raw.get(TicketStatus.WAITING_QC, 0) or 0
+            ),
+            TicketStatus.REWORK: int(
+                status_counts_raw.get(TicketStatus.REWORK, 0) or 0
+            ),
+            TicketStatus.DONE: int(status_counts_raw.get(TicketStatus.DONE, 0) or 0),
+        }
+
+        qc_event_counts_raw = dict(
+            TicketTransition.objects.filter(
+                ticket__technician_id=user_id,
+                action__in=[
+                    TicketTransitionAction.QC_PASS,
+                    TicketTransitionAction.QC_FAIL,
+                ],
+            )
+            .values("action")
+            .annotate(total=Count("id"))
+            .values_list("action", "total")
+        )
+        qc_pass_events_total = int(
+            qc_event_counts_raw.get(TicketTransitionAction.QC_PASS, 0) or 0
+        )
+        qc_fail_events_total = int(
+            qc_event_counts_raw.get(TicketTransitionAction.QC_FAIL, 0) or 0
+        )
+
+        xp_breakdown_rows = list(
+            XPTransaction.objects.filter(user_id=user_id)
+            .values("entry_type")
+            .annotate(
+                total_amount=Sum("amount"),
+                total_count=Count("id"),
+            )
+            .order_by("-total_amount", "-total_count", "entry_type")
+        )
+        xp_by_entry_type = [
+            {
+                "entry_type": str(row["entry_type"]),
+                "total_amount": int(row["total_amount"] or 0),
+                "total_count": int(row["total_count"] or 0),
+            }
+            for row in xp_breakdown_rows
+        ]
+        recent_xp_rows = list(
+            XPTransaction.objects.filter(user_id=user_id)
+            .order_by("-created_at", "-id")
+            .values(
+                "id",
+                "amount",
+                "entry_type",
+                "description",
+                "reference",
+                "payload",
+                "created_at",
+            )[:20]
+        )
+        recent_xp_transactions = [
+            {
+                "id": int(row["id"]),
+                "amount": int(row["amount"] or 0),
+                "entry_type": str(row["entry_type"]),
+                "description": row["description"],
+                "reference": str(row["reference"]),
+                "payload": row["payload"] or {},
+                "created_at": row["created_at"].isoformat(),
+            }
+            for row in recent_xp_rows
+        ]
+
+        attendance_rows = list(
+            AttendanceRecord.domain.filter(
+                user_id=user_id,
+                check_in_at__isnull=False,
+            )
+            .values("work_date", "check_in_at", "check_out_at")
+            .order_by("-work_date")[:366]
+        )
+        attendance_days_total = len(attendance_rows)
+        attendance_completed_days = 0
+        attendance_minutes_total = 0
+        for row in attendance_rows:
+            check_in_at = row.get("check_in_at")
+            check_out_at = row.get("check_out_at")
+            if check_in_at is None or check_out_at is None:
+                continue
+            attendance_completed_days += 1
+            attendance_minutes_total += max(
+                0, int((check_out_at - check_in_at).total_seconds() // 60)
+            )
+        average_attendance_minutes = (
+            round(attendance_minutes_total / attendance_completed_days, 2)
+            if attendance_completed_days
+            else 0.0
+        )
+
+        recent_done_ticket_rows = list(
+            Ticket.domain.filter(technician_id=user_id, status=TicketStatus.DONE)
+            .order_by("-finished_at", "-id")
+            .values(
+                "id",
+                "title",
+                "finished_at",
+                "total_duration",
+                "flag_color",
+                "xp_amount",
+                "is_manual",
+            )[:20]
+        )
+        recent_done_tickets = [
+            {
+                "id": int(row["id"]),
+                "title": row["title"],
+                "finished_at": (
+                    row["finished_at"].isoformat() if row.get("finished_at") else None
+                ),
+                "total_duration": int(row["total_duration"] or 0),
+                "flag_color": str(row["flag_color"]),
+                "xp_amount": int(row["xp_amount"] or 0),
+                "is_manual": bool(row["is_manual"]),
+            }
+            for row in recent_done_ticket_rows
+        ]
+
+        components = selected_member["score_components"]
+        component_labels = {
+            "tickets_done_points": "Closed tickets",
+            "xp_total_points": "XP total",
+            "first_pass_points": "First-pass completions",
+            "quality_points": "Quality flags",
+            "attendance_points": "Attendance consistency",
+            "rework_penalty_points": "Rework / QC fail penalty",
+        }
+        contribution_items = [
+            {
+                "key": str(key),
+                "label": component_labels.get(str(key), str(key)),
+                "points": int(value or 0),
+                "is_positive": int(value or 0) >= 0,
+            }
+            for key, value in components.items()
+        ]
+        contribution_items.sort(
+            key=lambda item: abs(int(item["points"])),
+            reverse=True,
+        )
+        top_positive_factors = [
+            item for item in contribution_items if item["points"] > 0
+        ][:3]
+        top_negative_factors = [
+            item for item in contribution_items if item["points"] < 0
+        ][:3]
+
+        return {
+            "generated_at": leaderboard["generated_at"],
+            "leaderboard_position": {
+                "rank": rank,
+                "total_technicians": total_technicians,
+                "better_than_percent": better_than_percent,
+                "score": score,
+                "average_score": average_score,
+            },
+            "profile": {
+                "user_id": int(selected_member["user_id"]),
+                "name": str(selected_member["name"]),
+                "username": str(selected_member["username"]),
+                "level": int(selected_member["level"]),
+            },
+            "score_breakdown": {
+                "components": {
+                    key: int(value or 0)
+                    for key, value in components.items()
+                },
+                "contribution_items": contribution_items,
+                "reasoning": {
+                    "top_positive_factors": top_positive_factors,
+                    "top_negative_factors": top_negative_factors,
+                },
+            },
+            "metrics": {
+                "tickets": {
+                    "tickets_done_total": int(selected_member["tickets_done_total"]),
+                    "tickets_first_pass_total": int(
+                        selected_member["tickets_first_pass_total"]
+                    ),
+                    "tickets_rework_total": int(
+                        selected_member["tickets_rework_total"]
+                    ),
+                    "first_pass_rate_percent": float(
+                        selected_member["first_pass_rate_percent"]
+                    ),
+                    "tickets_closed_by_flag": {
+                        "green": int(
+                            selected_member["tickets_closed_by_flag"]["green"]
+                        ),
+                        "yellow": int(
+                            selected_member["tickets_closed_by_flag"]["yellow"]
+                        ),
+                        "red": int(selected_member["tickets_closed_by_flag"]["red"]),
+                    },
+                    "average_resolution_minutes": float(
+                        selected_member["average_resolution_minutes"]
+                    ),
+                    "status_counts": status_counts,
+                    "qc_pass_events_total": qc_pass_events_total,
+                    "qc_fail_events_total": qc_fail_events_total,
+                },
+                "xp": {
+                    "xp_total": int(selected_member["xp_total"]),
+                    "entry_type_breakdown": xp_by_entry_type,
+                },
+                "attendance": {
+                    "attendance_days_total": int(
+                        selected_member["attendance_days_total"]
+                    ),
+                    "attendance_completed_days": attendance_completed_days,
+                    "average_work_minutes_per_day": average_attendance_minutes,
+                },
+            },
+            "recent": {
+                "done_tickets": recent_done_tickets,
+                "xp_transactions": recent_xp_transactions,
+            },
+        }
+
+    @classmethod
+    def _active_technicians(cls) -> list[User]:
+        return list(
+            User.objects.filter(
+                deleted_at__isnull=True,
+                is_active=True,
+                roles__slug=RoleSlug.TECHNICIAN,
+                roles__deleted_at__isnull=True,
+            )
+            .distinct()
+            .order_by("id")
+        )
+
+    @classmethod
+    def _public_leaderboard_members(
+        cls,
+        *,
+        technicians: list[User],
+    ) -> list[dict[str, object]]:
+        technician_ids = [int(user.id) for user in technicians]
+        if not technician_ids:
+            return []
+
+        done_ticket_rows = list(
+            Ticket.domain.filter(
+                technician_id__in=technician_ids,
+                status=TicketStatus.DONE,
+            ).values(
+                "id",
+                "technician_id",
+                "flag_color",
+                "total_duration",
+            )
+        )
+        done_ticket_ids = [int(row["id"]) for row in done_ticket_rows]
+        qc_failed_ticket_ids: set[int] = set()
+        if done_ticket_ids:
+            qc_failed_ticket_ids = set(
+                TicketTransition.objects.filter(
+                    ticket_id__in=done_ticket_ids,
+                    action=TicketTransitionAction.QC_FAIL,
+                )
+                .values_list("ticket_id", flat=True)
+                .distinct()
+            )
+
+        done_counts: dict[int, int] = defaultdict(int)
+        first_pass_counts: dict[int, int] = defaultdict(int)
+        rework_done_counts: dict[int, int] = defaultdict(int)
+        duration_sums: dict[int, int] = defaultdict(int)
+        flag_counts: dict[int, dict[str, int]] = defaultdict(
+            lambda: {
+                "green": 0,
+                "yellow": 0,
+                "red": 0,
+            }
+        )
+
+        for row in done_ticket_rows:
+            technician_id = int(row["technician_id"])
+            ticket_id = int(row["id"])
+            done_counts[technician_id] += 1
+            duration_sums[technician_id] += int(row["total_duration"] or 0)
+
+            flag_color = str(row.get("flag_color") or TicketColor.GREEN)
+            if flag_color in ("green", "yellow", "red"):
+                flag_counts[technician_id][flag_color] += 1
+
+            if ticket_id in qc_failed_ticket_ids:
+                rework_done_counts[technician_id] += 1
+            else:
+                first_pass_counts[technician_id] += 1
+
+        qc_fail_event_counts = dict(
+            TicketTransition.objects.filter(
+                ticket__technician_id__in=technician_ids,
+                action=TicketTransitionAction.QC_FAIL,
+            )
+            .values("ticket__technician_id")
+            .annotate(total=Count("id"))
+            .values_list("ticket__technician_id", "total")
+        )
+
+        xp_totals = dict(
+            XPTransaction.objects.filter(user_id__in=technician_ids)
+            .values("user_id")
+            .annotate(total=Sum("amount"))
+            .values_list("user_id", "total")
+        )
+        attendance_totals = dict(
+            AttendanceRecord.domain.filter(
+                user_id__in=technician_ids,
+                check_in_at__isnull=False,
+            )
+            .values("user_id")
+            .annotate(total=Count("id"))
+            .values_list("user_id", "total")
+        )
+
+        members: list[dict[str, object]] = []
+        for user in technicians:
+            user_id = int(user.id)
+            done_total = int(done_counts.get(user_id, 0) or 0)
+            first_pass_total = int(first_pass_counts.get(user_id, 0) or 0)
+            rework_done_total = int(rework_done_counts.get(user_id, 0) or 0)
+            qc_fail_events_total = int(qc_fail_event_counts.get(user_id, 0) or 0)
+            xp_total = int(xp_totals.get(user_id, 0) or 0)
+            attendance_total = int(attendance_totals.get(user_id, 0) or 0)
+            flags = flag_counts[user_id]
+            average_resolution_minutes = (
+                round(duration_sums[user_id] / done_total, 2) if done_total else 0.0
+            )
+            first_pass_rate_percent = (
+                round((first_pass_total / done_total) * 100, 2) if done_total else 0.0
+            )
+
+            tickets_done_points = done_total * cls.SCORE_WEIGHTS["tickets_done"]
+            xp_total_points = xp_total * cls.SCORE_WEIGHTS["xp_total"]
+            first_pass_points = (
+                first_pass_total * cls.SCORE_WEIGHTS["first_pass_done"]
+            )
+            quality_points = (
+                int(flags["green"]) * cls.SCORE_WEIGHTS["green_flag_done"]
+                + int(flags["yellow"]) * cls.SCORE_WEIGHTS["yellow_flag_done"]
+                - int(flags["red"]) * cls.SCORE_WEIGHTS["red_flag_done_penalty"]
+            )
+            attendance_points = (
+                attendance_total * cls.SCORE_WEIGHTS["attendance_day"]
+            )
+            rework_penalty_points = -(
+                rework_done_total * cls.SCORE_WEIGHTS["rework_done_penalty"]
+                + qc_fail_events_total * cls.SCORE_WEIGHTS["qc_fail_event_penalty"]
+            )
+            score = (
+                tickets_done_points
+                + xp_total_points
+                + first_pass_points
+                + quality_points
+                + attendance_points
+                + rework_penalty_points
+            )
+
+            full_name = f"{user.first_name or ''} {user.last_name or ''}".strip()
+            members.append(
+                {
+                    "user_id": user_id,
+                    "name": full_name or user.username,
+                    "username": user.username,
+                    "level": int(user.level),
+                    "score": int(score),
+                    "score_components": {
+                        "tickets_done_points": int(tickets_done_points),
+                        "xp_total_points": int(xp_total_points),
+                        "first_pass_points": int(first_pass_points),
+                        "quality_points": int(quality_points),
+                        "attendance_points": int(attendance_points),
+                        "rework_penalty_points": int(rework_penalty_points),
+                    },
+                    "tickets_done_total": done_total,
+                    "tickets_first_pass_total": first_pass_total,
+                    "tickets_rework_total": rework_done_total,
+                    "first_pass_rate_percent": first_pass_rate_percent,
+                    "tickets_closed_by_flag": {
+                        "green": int(flags["green"]),
+                        "yellow": int(flags["yellow"]),
+                        "red": int(flags["red"]),
+                    },
+                    "xp_total": xp_total,
+                    "attendance_days_total": attendance_total,
+                    "average_resolution_minutes": average_resolution_minutes,
+                    "qc_fail_events_total": qc_fail_events_total,
+                }
+            )
+
+        members.sort(
+            key=lambda item: (
+                int(item["score"]),
+                int(item["tickets_done_total"]),
+                int(item["tickets_first_pass_total"]),
+                int(item["xp_total"]),
+                -int(item["user_id"]),
+            ),
+            reverse=True,
+        )
+        for index, row in enumerate(members, start=1):
+            row["rank"] = index
+        return members
 
     @classmethod
     def _backlog_kpis(

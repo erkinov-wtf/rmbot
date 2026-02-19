@@ -18,6 +18,7 @@ export default defineConfig({
       input: {
         app: path.resolve(__dirname, "index.html"),
         miniapp: path.resolve(__dirname, "miniapp.html"),
+        publicStats: path.resolve(__dirname, "public-stats.html"),
       },
     },
   },

@@ -1,4 +1,5 @@
 from rest_framework import serializers, status
+from rest_framework.permissions import AllowAny
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
@@ -15,6 +16,10 @@ class TeamAnalyticsQuerySerializer(serializers.Serializer):
     days = serializers.IntegerField(
         required=False, min_value=1, max_value=90, default=7
     )
+
+
+class PublicTechnicianDetailQuerySerializer(serializers.Serializer):
+    user_id = serializers.IntegerField(min_value=1)
 
 
 @extend_schema(
@@ -52,4 +57,40 @@ class AnalyticsTeamAPIView(BaseAPIView):
         serializer.is_valid(raise_exception=True)
         days = serializer.validated_data.get("days", 7)
         payload = TicketAnalyticsService.team_summary(days=days)
+        return Response(payload, status=status.HTTP_200_OK)
+
+
+@extend_schema(
+    tags=["Analytics"],
+    summary="Public technician leaderboard",
+    description=(
+        "Public ranking chart for technicians based on cumulative score "
+        "(tickets, quality, XP, attendance, and penalties)."
+    ),
+)
+class PublicTechnicianLeaderboardAPIView(BaseAPIView):
+    permission_classes = (AllowAny,)
+
+    def get(self, request, *args, **kwargs):
+        payload = TicketAnalyticsService.public_technician_leaderboard()
+        return Response(payload, status=status.HTTP_200_OK)
+
+
+@extend_schema(
+    tags=["Analytics"],
+    summary="Public technician detailed stats",
+    description=(
+        "Returns full explanation and metric breakdown for a technician's "
+        "position in the public leaderboard."
+    ),
+    parameters=[PublicTechnicianDetailQuerySerializer],
+)
+class PublicTechnicianDetailAPIView(BaseAPIView):
+    permission_classes = (AllowAny,)
+
+    def get(self, request, user_id: int, *args, **kwargs):
+        try:
+            payload = TicketAnalyticsService.public_technician_detail(user_id=user_id)
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_404_NOT_FOUND)
         return Response(payload, status=status.HTTP_200_OK)

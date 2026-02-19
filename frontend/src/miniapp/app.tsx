@@ -1,7 +1,6 @@
 import { LogOut, PhoneCall, ShieldCheck, Smartphone } from "lucide-react";
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
-import { TicketFlow } from "@/components/ticket/ticket-flow";
 import { Button } from "@/components/ui/button";
 import { loginMiniAppWithPhone } from "@/lib/api";
 import {
@@ -11,6 +10,7 @@ import {
   saveMiniAppAuthSession,
   type MiniAppAuthSession,
 } from "@/miniapp/auth";
+import { MobileTicketFlow } from "@/miniapp/mobile-ticket-flow";
 
 type ViewState = "loading" | "ready";
 
@@ -166,7 +166,7 @@ export default function MiniApp() {
 
   return (
     <main className="rm-shell px-2 py-3 sm:px-3">
-      <div className="mx-auto w-full max-w-4xl space-y-3">
+      <div className="mx-auto w-full max-w-md space-y-3">
         <section className="rm-panel p-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -203,17 +203,9 @@ export default function MiniApp() {
           </div>
         </section>
 
-        <TicketFlow
+        <MobileTicketFlow
           accessToken={session.accessToken}
-          currentUserId={session.user.id}
-          canCreate={session.permissions.can_create}
-          canReview={session.permissions.can_open_review_panel}
-          canWork={false}
-          canQc={session.permissions.can_qc}
-          roleSlugs={session.roleSlugs}
-          showWorkTab={false}
-          restrictTabsByPermission
-          syncRouteWithUrl={false}
+          permissions={session.permissions}
         />
       </div>
     </main>

@@ -476,6 +476,140 @@ export type TechnicianOption = {
   level: number;
 };
 
+export type PublicTechnicianLeaderboardMember = {
+  user_id: number;
+  name: string;
+  username: string;
+  level: number;
+  rank: number;
+  score: number;
+  score_components: {
+    tickets_done_points: number;
+    xp_total_points: number;
+    first_pass_points: number;
+    quality_points: number;
+    attendance_points: number;
+    rework_penalty_points: number;
+  };
+  tickets_done_total: number;
+  tickets_first_pass_total: number;
+  tickets_rework_total: number;
+  first_pass_rate_percent: number;
+  tickets_closed_by_flag: {
+    green: number;
+    yellow: number;
+    red: number;
+  };
+  xp_total: number;
+  attendance_days_total: number;
+  average_resolution_minutes: number;
+  qc_fail_events_total: number;
+};
+
+export type PublicTechnicianLeaderboard = {
+  generated_at: string;
+  summary: {
+    technicians_total: number;
+    tickets_done_total: number;
+    tickets_first_pass_total: number;
+    first_pass_rate_percent: number;
+    xp_total: number;
+    total_score: number;
+  };
+  members: PublicTechnicianLeaderboardMember[];
+  weights: Record<string, number>;
+};
+
+export type PublicTechnicianDetail = {
+  generated_at: string;
+  leaderboard_position: {
+    rank: number;
+    total_technicians: number;
+    better_than_percent: number;
+    score: number;
+    average_score: number;
+  };
+  profile: {
+    user_id: number;
+    name: string;
+    username: string;
+    level: number;
+  };
+  score_breakdown: {
+    components: Record<string, number>;
+    contribution_items: Array<{
+      key: string;
+      label: string;
+      points: number;
+      is_positive: boolean;
+    }>;
+    reasoning: {
+      top_positive_factors: Array<{
+        key: string;
+        label: string;
+        points: number;
+        is_positive: boolean;
+      }>;
+      top_negative_factors: Array<{
+        key: string;
+        label: string;
+        points: number;
+        is_positive: boolean;
+      }>;
+    };
+  };
+  metrics: {
+    tickets: {
+      tickets_done_total: number;
+      tickets_first_pass_total: number;
+      tickets_rework_total: number;
+      first_pass_rate_percent: number;
+      tickets_closed_by_flag: {
+        green: number;
+        yellow: number;
+        red: number;
+      };
+      average_resolution_minutes: number;
+      status_counts: Record<string, number>;
+      qc_pass_events_total: number;
+      qc_fail_events_total: number;
+    };
+    xp: {
+      xp_total: number;
+      entry_type_breakdown: Array<{
+        entry_type: string;
+        total_amount: number;
+        total_count: number;
+      }>;
+    };
+    attendance: {
+      attendance_days_total: number;
+      attendance_completed_days: number;
+      average_work_minutes_per_day: number;
+    };
+  };
+  recent: {
+    done_tickets: Array<{
+      id: number;
+      title: string | null;
+      finished_at: string | null;
+      total_duration: number;
+      flag_color: string;
+      xp_amount: number;
+      is_manual: boolean;
+    }>;
+    xp_transactions: Array<{
+      id: number;
+      amount: number;
+      entry_type: string;
+      description: string | null;
+      reference: string;
+      payload: Record<string, unknown>;
+      created_at: string;
+    }>;
+  };
+};
+
 export type AccessRequestStatus = "pending" | "approved" | "rejected";
 
 export type AccessRequest = {
@@ -1099,6 +1233,20 @@ export async function listTechnicianOptions(
     })
     .filter((row): row is TechnicianOption => row !== null)
     .sort((left, right) => left.name.localeCompare(right.name));
+}
+
+export async function getPublicTechnicianLeaderboard(): Promise<PublicTechnicianLeaderboard> {
+  const payload = await apiRequest<unknown>("analytics/public/leaderboard/");
+  return extractData<PublicTechnicianLeaderboard>(payload);
+}
+
+export async function getPublicTechnicianDetail(
+  userId: number,
+): Promise<PublicTechnicianDetail> {
+  const payload = await apiRequest<unknown>(
+    `analytics/public/technicians/${userId}/`,
+  );
+  return extractData<PublicTechnicianDetail>(payload);
 }
 
 export async function listTicketTransitions(
