@@ -7,6 +7,7 @@ Covers inventory entities (`Inventory`, `InventoryItem`, category, item-owned pa
 - `docs/apps/inventory/models.md`
 - `docs/apps/inventory/managers.md`
 - `docs/apps/inventory/services.md`
+- `docs/apps/inventory/services_import_export.md`
 
 ## Maintenance Rules
 - Update docs when inventory model relations, serial-number validation/suggestion behavior, or inventory-item list filtering behavior changes.
@@ -15,4 +16,5 @@ Covers inventory entities (`Inventory`, `InventoryItem`, category, item-owned pa
 - `apps/inventory/models.py`
 - `apps/inventory/managers.py`
 - `apps/inventory/services.py`
+- `apps/inventory/services_import_export.py`
 - `api/v1/inventory/`

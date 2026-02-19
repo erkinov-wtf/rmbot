@@ -1,5 +1,6 @@
 import {
   ArrowLeft,
+  Download,
   FolderTree,
   Package,
   PencilLine,
@@ -7,9 +8,18 @@ import {
   RefreshCcw,
   Search,
   Trash2,
+  Upload,
   Wrench,
 } from "lucide-react";
-import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  type ChangeEvent,
+  type FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/i18n";
@@ -20,7 +30,9 @@ import {
   deleteCategory,
   deleteInventoryItem,
   deletePart,
+  exportInventoryWorkbookFile,
   getInventoryItem,
+  importInventoryWorkbook,
   listAllCategories,
   listInventoryItems,
   listParts,
@@ -202,6 +214,8 @@ export function InventoryAdmin({
   const [isLoadingParts, setIsLoadingParts] = useState(true);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [isMutating, setIsMutating] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
 
   const [itemFilters, setItemFilters] = useState<ItemFilters>(DEFAULT_ITEM_FILTERS);
   const [appliedFilters, setAppliedFilters] =
@@ -221,6 +235,7 @@ export function InventoryAdmin({
 
   const [partName, setPartName] = useState("");
   const [editingPartId, setEditingPartId] = useState<number | null>(null);
+  const importFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const activeMenu: "categories" | "items" =
     route.name === "categories" ? "categories" : "items";
@@ -494,6 +509,69 @@ export function InventoryAdmin({
     await Promise.all([loadCategories(), loadItems(appliedFilters), loadParts()]);
     if (route.name === "itemDetail") {
       await loadItemDetail(route.itemId);
+    }
+  };
+
+  const handleExport = async () => {
+    setFeedback(null);
+    setIsExporting(true);
+    try {
+      const { blob, fileName } = await exportInventoryWorkbookFile(accessToken);
+      const objectUrl = window.URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = objectUrl;
+      anchor.download = fileName;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      window.URL.revokeObjectURL(objectUrl);
+    } catch (error) {
+      setFeedback({
+        type: "error",
+        message: toErrorMessage(error, t("Failed to export inventory workbook.")),
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleImportFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!selectedFile || !canManage) {
+      return;
+    }
+
+    setFeedback(null);
+    setIsImporting(true);
+    try {
+      const summary = await importInventoryWorkbook(accessToken, selectedFile);
+      await Promise.all([loadCategories(), loadItems(appliedFilters), loadParts()]);
+      if (route.name === "itemDetail") {
+        await loadItemDetail(route.itemId);
+      }
+      setFeedback({
+        type: "success",
+        message: t(
+          "Import completed. Created: categories {{categoriesCreated}}, parts {{partsCreated}}, items {{itemsCreated}}. Updated: categories {{categoriesUpdated}}, parts {{partsUpdated}}, items {{itemsUpdated}}.",
+          {
+            categoriesCreated: summary.categories_created,
+            partsCreated: summary.parts_created,
+            itemsCreated: summary.items_created,
+            categoriesUpdated: summary.categories_updated,
+            partsUpdated: summary.parts_updated,
+            itemsUpdated: summary.items_updated,
+          },
+        ),
+      });
+    } catch (error) {
+      setFeedback({
+        type: "error",
+        message: toErrorMessage(error, t("Failed to import inventory workbook.")),
+      });
+    } finally {
+      setIsImporting(false);
     }
   };
 
@@ -1622,22 +1700,65 @@ export function InventoryAdmin({
           ) : null}
         </div>
 
-        <Button
-          type="button"
-          variant="outline"
-          className="h-10 w-full sm:w-auto"
-          onClick={() => void handleRefresh()}
-          disabled={
-            isMutating ||
-            isLoadingCategories ||
-            isLoadingItems ||
-            isLoadingParts ||
-            isLoadingDetail
-          }
-        >
-          <RefreshCcw className="mr-2 h-4 w-4" />
-          {t("Refresh")}
-        </Button>
+        <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
+          {canManage ? (
+            <>
+              <input
+                ref={importFileInputRef}
+                type="file"
+                accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                className="hidden"
+                onChange={(event) => void handleImportFile(event)}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10"
+                onClick={() => importFileInputRef.current?.click()}
+                disabled={
+                  isImporting ||
+                  isMutating ||
+                  isLoadingCategories ||
+                  isLoadingItems ||
+                  isLoadingParts ||
+                  isLoadingDetail
+                }
+              >
+                <Upload className="mr-2 h-4 w-4" />
+                {isImporting ? t("Importing...") : t("Import")}
+              </Button>
+            </>
+          ) : null}
+
+          <Button
+            type="button"
+            className="h-10"
+            onClick={() => void handleExport()}
+            disabled={isExporting || isImporting || isMutating}
+          >
+            <Download className="mr-2 h-4 w-4" />
+            {isExporting ? t("Exporting...") : t("Export")}
+          </Button>
+
+          <Button
+            type="button"
+            variant="outline"
+            className="h-10"
+            onClick={() => void handleRefresh()}
+            disabled={
+              isExporting ||
+              isImporting ||
+              isMutating ||
+              isLoadingCategories ||
+              isLoadingItems ||
+              isLoadingParts ||
+              isLoadingDetail
+            }
+          >
+            <RefreshCcw className="mr-2 h-4 w-4" />
+            {t("Refresh")}
+          </Button>
+        </div>
       </div>
 
       {feedback ? (

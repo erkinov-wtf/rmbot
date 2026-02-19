@@ -1,7 +1,7 @@
 # Inventory Services (`apps/inventory/services.py`)
 
 ## Scope
-Provides inventory-item serial-number normalization/validation and delegates query behavior to inventory managers, including list-filter orchestration for inventory item APIs.
+Provides inventory-item serial-number normalization/validation, inventory-category deletion guard logic, and delegates query behavior to inventory managers, including list-filter orchestration for inventory item APIs.
 
 ## Execution Flows
 - Normalize serial (`normalize_serial_number`).
@@ -10,6 +10,7 @@ Provides inventory-item serial-number normalization/validation and delegates que
 - Multi-stage suggestion via `InventoryItem.domain.suggest_serial_numbers` (`suggest_serial_numbers`).
 - Default relation helpers for create flows (`get_default_inventory`, `get_default_category`).
 - List filter orchestration (`filter_inventory_items`) combining search/suggestion matching with state/date/ticket filters and ordering.
+- Category deletion workflow (`delete_category`) that blocks deletion when items exist and archives category parts before soft-deleting the source category.
 
 ## Invariants and Contracts
 - Canonical serial normalization is uppercase without whitespace.
@@ -17,11 +18,12 @@ Provides inventory-item serial-number normalization/validation and delegates que
 - Suggestions are capped and deterministic by query strategy.
 
 ## Side Effects
-- No write side effects; read-only service.
+- `delete_category` performs write operations: category-level part soft-delete and source-category soft delete (only when no active items reference the category).
 
 ## Failure Modes
 - Invalid serial format at caller validation layer.
 - Short suggestion query yields empty result.
+- Category deletion fails when one or more active inventory items reference the category.
 
 ## Operational Notes
 - Suggestion strategy: prefix -> contains -> fuzzy.
@@ -32,3 +34,4 @@ Provides inventory-item serial-number normalization/validation and delegates que
 - `apps/inventory/managers.py`
 - `api/v1/inventory/views.py`
 - `api/v1/ticket/serializers/ticket.py`
+- `apps/inventory/services_import_export.py`

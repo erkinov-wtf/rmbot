@@ -1,6 +1,8 @@
 from django.urls import path
 
 from api.v1.inventory.views import (
+    InventoryExportAPIView,
+    InventoryImportAPIView,
     InventoryItemCategoryAllAPIView,
     InventoryItemCategoryViewSet,
     InventoryItemPartViewSet,
@@ -50,6 +52,8 @@ part_detail = InventoryItemPartViewSet.as_view(
 urlpatterns = [
     path("", inventory_list, name="inventory-list"),
     path("<int:pk>/", inventory_detail, name="inventory-detail"),
+    path("export/", InventoryExportAPIView.as_view(), name="inventory-export"),
+    path("import/", InventoryImportAPIView.as_view(), name="inventory-import"),
     path("items/", inventory_item_list, name="inventory-item-list"),
     path("items/<int:pk>/", inventory_item_detail, name="inventory-item-detail"),
     path(
