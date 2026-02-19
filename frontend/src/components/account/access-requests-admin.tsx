@@ -10,13 +10,15 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { PaginationControls } from "@/components/ui/pagination-controls";
 import { useI18n } from "@/i18n";
 import {
   approveAccessRequest,
-  listAccessRequests,
+  listAccessRequestsPage,
   rejectAccessRequest,
   type AccessRequest,
   type AccessRequestStatus,
+  type PaginationMeta,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -34,6 +36,8 @@ type FeedbackState =
   | null;
 
 const fieldClassName = "rm-input";
+const REQUESTS_PER_PAGE_OPTIONS = [10, 20, 50];
+const DEFAULT_REQUESTS_PER_PAGE = 20;
 
 const ROLE_OPTIONS: Array<{ slug: string; label: string }> = [
   { slug: "super_admin", label: "Super Admin" },
@@ -96,6 +100,14 @@ export function AccessRequestsAdmin({
 }: AccessRequestsAdminProps) {
   const { t } = useI18n();
   const [requests, setRequests] = useState<AccessRequest[]>([]);
+  const [requestsPage, setRequestsPage] = useState(1);
+  const [requestsPerPage, setRequestsPerPage] = useState(DEFAULT_REQUESTS_PER_PAGE);
+  const [requestsPagination, setRequestsPagination] = useState<PaginationMeta>({
+    page: 1,
+    per_page: DEFAULT_REQUESTS_PER_PAGE,
+    total_count: 0,
+    page_count: 1,
+  });
   const [statusFilter, setStatusFilter] = useState<AccessRequestStatus>("pending");
   const [search, setSearch] = useState("");
   const [selectedRolesByRequest, setSelectedRolesByRequest] = useState<
@@ -135,18 +147,33 @@ export function AccessRequestsAdmin({
     if (!canManage) {
       setIsLoading(false);
       setRequests([]);
+      setRequestsPagination({
+        page: 1,
+        per_page: requestsPerPage,
+        total_count: 0,
+        page_count: 1,
+      });
       return;
     }
 
     setIsLoading(true);
     setFeedback(null);
     try {
-      const nextRequests = await listAccessRequests(accessToken, {
+      const paginated = await listAccessRequestsPage(accessToken, {
         status: statusFilter,
         ordering: statusFilter === "pending" ? "-created_at" : "-resolved_at",
-        per_page: 200,
+        page: requestsPage,
+        per_page: requestsPerPage,
       });
-      setRequests(nextRequests);
+      if (
+        requestsPage > paginated.pagination.page_count &&
+        paginated.pagination.page_count > 0
+      ) {
+        setRequestsPage(paginated.pagination.page_count);
+        return;
+      }
+      setRequests(paginated.results);
+      setRequestsPagination(paginated.pagination);
     } catch (error) {
       setFeedback({
         type: "error",
@@ -155,7 +182,7 @@ export function AccessRequestsAdmin({
     } finally {
       setIsLoading(false);
     }
-  }, [accessToken, canManage, statusFilter, t]);
+  }, [accessToken, canManage, requestsPage, requestsPerPage, statusFilter, t]);
 
   useEffect(() => {
     void loadRequests();
@@ -289,7 +316,10 @@ export function AccessRequestsAdmin({
                 className={cn(fieldClassName, "mt-1")}
                 value={statusFilter}
                 onChange={(event) =>
-                  setStatusFilter(event.target.value as AccessRequestStatus)
+                  {
+                    setStatusFilter(event.target.value as AccessRequestStatus);
+                    setRequestsPage(1);
+                  }
                 }
                 disabled={isLoading || isMutating}
               >
@@ -451,6 +481,20 @@ export function AccessRequestsAdmin({
                 {t("No access requests found.")}
               </p>
             )}
+
+            <PaginationControls
+              page={requestsPagination.page}
+              pageCount={requestsPagination.page_count}
+              perPage={requestsPagination.per_page}
+              totalCount={requestsPagination.total_count}
+              isLoading={isLoading}
+              onPageChange={(nextPage) => setRequestsPage(nextPage)}
+              onPerPageChange={(nextPerPage) => {
+                setRequestsPerPage(nextPerPage);
+                setRequestsPage(1);
+              }}
+              perPageOptions={REQUESTS_PER_PAGE_OPTIONS}
+            />
           </section>
         </>
       )}

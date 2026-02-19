@@ -12,14 +12,16 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { PaginationControls } from "@/components/ui/pagination-controls";
 import { useI18n } from "@/i18n";
 import {
   attendanceCheckIn,
   attendanceCheckOut,
-  listAttendanceRecords,
+  listAttendanceRecordsPage,
   listUserOptions,
   type AttendancePunctuality,
   type AttendanceRecord,
+  type PaginationMeta,
   type UserOption,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -41,6 +43,8 @@ const fieldClassName = "rm-input";
 const BUSINESS_TIME_ZONE = import.meta.env.VITE_BUSINESS_TIMEZONE ?? "Asia/Tashkent";
 
 const PUNCTUALITY_OPTIONS: AttendancePunctuality[] = ["early", "on_time", "late"];
+const RECORDS_PER_PAGE_OPTIONS = [10, 20, 50];
+const DEFAULT_RECORDS_PER_PAGE = 20;
 
 function toErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message) {
@@ -165,6 +169,14 @@ export function AttendanceAdmin({
 
   const [users, setUsers] = useState<UserOption[]>([]);
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
+  const [recordsPage, setRecordsPage] = useState(1);
+  const [recordsPerPage, setRecordsPerPage] = useState(DEFAULT_RECORDS_PER_PAGE);
+  const [recordsPagination, setRecordsPagination] = useState<PaginationMeta>({
+    page: 1,
+    per_page: DEFAULT_RECORDS_PER_PAGE,
+    total_count: 0,
+    page_count: 1,
+  });
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const [isLoadingRecords, setIsLoadingRecords] = useState(false);
   const [isMutating, setIsMutating] = useState(false);
@@ -237,19 +249,31 @@ export function AttendanceAdmin({
   const loadRecords = useCallback(async () => {
     if (!canManage) {
       setRecords([]);
+      setRecordsPagination({
+        page: 1,
+        per_page: recordsPerPage,
+        total_count: 0,
+        page_count: 1,
+      });
       return;
     }
 
     setIsLoadingRecords(true);
     try {
-      const nextRecords = await listAttendanceRecords(accessToken, {
+      const paginated = await listAttendanceRecordsPage(accessToken, {
         work_date: workDate,
         user_id: typeof filterUserId === "number" ? filterUserId : undefined,
         punctuality: punctuality || undefined,
         ordering: "user_id",
-        per_page: 300,
+        page: recordsPage,
+        per_page: recordsPerPage,
       });
-      setRecords(nextRecords);
+      if (recordsPage > paginated.pagination.page_count && paginated.pagination.page_count > 0) {
+        setRecordsPage(paginated.pagination.page_count);
+        return;
+      }
+      setRecords(paginated.results);
+      setRecordsPagination(paginated.pagination);
     } catch (error) {
       setFeedback({
         type: "error",
@@ -258,7 +282,16 @@ export function AttendanceAdmin({
     } finally {
       setIsLoadingRecords(false);
     }
-  }, [accessToken, canManage, filterUserId, punctuality, t, workDate]);
+  }, [
+    accessToken,
+    canManage,
+    filterUserId,
+    punctuality,
+    recordsPage,
+    recordsPerPage,
+    t,
+    workDate,
+  ]);
 
   useEffect(() => {
     void loadUsers();
@@ -267,6 +300,10 @@ export function AttendanceAdmin({
   useEffect(() => {
     void loadRecords();
   }, [loadRecords]);
+
+  useEffect(() => {
+    setRecordsPage(1);
+  }, [workDate, filterUserId, punctuality]);
 
   useEffect(() => {
     const timerId = window.setInterval(() => {
@@ -602,7 +639,7 @@ export function AttendanceAdmin({
                 {t("Attendance Records")}
               </p>
               <span className="text-xs text-slate-500">
-                {t("Rows: {{count}}", { count: records.length })}
+                {t("Rows: {{count}}", { count: recordsPagination.total_count })}
               </span>
             </div>
 
@@ -717,6 +754,20 @@ export function AttendanceAdmin({
                 {t("No attendance records for this date and filter combination.")}
               </p>
             )}
+
+            <PaginationControls
+              page={recordsPagination.page}
+              pageCount={recordsPagination.page_count}
+              perPage={recordsPagination.per_page}
+              totalCount={recordsPagination.total_count}
+              isLoading={isLoadingRecords}
+              onPageChange={(nextPage) => setRecordsPage(nextPage)}
+              onPerPageChange={(nextPerPage) => {
+                setRecordsPerPage(nextPerPage);
+                setRecordsPage(1);
+              }}
+              perPageOptions={RECORDS_PER_PAGE_OPTIONS}
+            />
           </section>
         </>
       )}

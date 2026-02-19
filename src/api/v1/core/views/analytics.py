@@ -18,6 +18,10 @@ class TeamAnalyticsQuerySerializer(serializers.Serializer):
     )
 
 
+class PublicTechnicianLeaderboardQuerySerializer(serializers.Serializer):
+    days = serializers.IntegerField(required=False, min_value=1, max_value=90)
+
+
 class PublicTechnicianDetailQuerySerializer(serializers.Serializer):
     user_id = serializers.IntegerField(min_value=1)
 
@@ -67,12 +71,17 @@ class AnalyticsTeamAPIView(BaseAPIView):
         "Public ranking chart for technicians based on cumulative score "
         "(tickets, quality, XP, attendance, and penalties)."
     ),
+    parameters=[PublicTechnicianLeaderboardQuerySerializer],
 )
 class PublicTechnicianLeaderboardAPIView(BaseAPIView):
     permission_classes = (AllowAny,)
+    serializer_class = PublicTechnicianLeaderboardQuerySerializer
 
     def get(self, request, *args, **kwargs):
-        payload = TicketAnalyticsService.public_technician_leaderboard()
+        serializer = self.get_serializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+        days = serializer.validated_data.get("days")
+        payload = TicketAnalyticsService.public_technician_leaderboard(days=days)
         return Response(payload, status=status.HTTP_200_OK)
 
 

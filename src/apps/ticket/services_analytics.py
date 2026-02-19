@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import timedelta
+from datetime import date, timedelta
 from zoneinfo import ZoneInfo
 
 from django.db.models import Count, Sum
@@ -310,10 +310,31 @@ class TicketAnalyticsService:
         }
 
     @classmethod
-    def public_technician_leaderboard(cls) -> dict[str, object]:
+    def public_technician_leaderboard(
+        cls,
+        *,
+        days: int | None = None,
+    ) -> dict[str, object]:
         now = timezone.now()
+        window_days = int(days) if days is not None else None
+        start_date = None
+        end_date = None
+        period: dict[str, object] | None = None
+        if window_days is not None:
+            window_days = max(1, window_days)
+            end_date = timezone.localdate()
+            start_date = end_date - timedelta(days=window_days - 1)
+            period = {
+                "days": window_days,
+                "start_date": start_date.isoformat(),
+                "end_date": end_date.isoformat(),
+            }
         technicians = cls._active_technicians()
-        members = cls._public_leaderboard_members(technicians=technicians)
+        members = cls._public_leaderboard_members(
+            technicians=technicians,
+            start_date=start_date,
+            end_date=end_date,
+        )
 
         tickets_done_total = sum(int(item["tickets_done_total"]) for item in members)
         first_pass_total = sum(
@@ -322,7 +343,7 @@ class TicketAnalyticsService:
         xp_total = sum(int(item["xp_total"]) for item in members)
         total_score = sum(int(item["score"]) for item in members)
 
-        return {
+        payload = {
             "generated_at": now.isoformat(),
             "summary": {
                 "technicians_total": len(technicians),
@@ -339,6 +360,9 @@ class TicketAnalyticsService:
             "members": members,
             "weights": {key: int(value) for key, value in cls.SCORE_WEIGHTS.items()},
         }
+        if period is not None:
+            payload["period"] = period
+        return payload
 
     @classmethod
     def public_technician_detail(cls, *, user_id: int) -> dict[str, object]:
@@ -626,16 +650,26 @@ class TicketAnalyticsService:
         cls,
         *,
         technicians: list[User],
+        start_date: date | None = None,
+        end_date: date | None = None,
     ) -> list[dict[str, object]]:
         technician_ids = [int(user.id) for user in technicians]
         if not technician_ids:
             return []
 
+        has_window = start_date is not None and end_date is not None
+
+        done_ticket_qs = Ticket.domain.filter(
+            technician_id__in=technician_ids,
+            status=TicketStatus.DONE,
+        )
+        if has_window:
+            done_ticket_qs = done_ticket_qs.filter(
+                finished_at__date__gte=start_date,
+                finished_at__date__lte=end_date,
+            )
         done_ticket_rows = list(
-            Ticket.domain.filter(
-                technician_id__in=technician_ids,
-                status=TicketStatus.DONE,
-            ).values(
+            done_ticket_qs.values(
                 "id",
                 "technician_id",
                 "flag_color",
@@ -681,27 +715,45 @@ class TicketAnalyticsService:
             else:
                 first_pass_counts[technician_id] += 1
 
-        qc_fail_event_counts = dict(
-            TicketTransition.objects.filter(
-                ticket__technician_id__in=technician_ids,
-                action=TicketTransitionAction.QC_FAIL,
+        qc_fail_event_qs = TicketTransition.objects.filter(
+            ticket__technician_id__in=technician_ids,
+            action=TicketTransitionAction.QC_FAIL,
+        )
+        if has_window:
+            qc_fail_event_qs = qc_fail_event_qs.filter(
+                created_at__date__gte=start_date,
+                created_at__date__lte=end_date,
             )
+        qc_fail_event_counts = dict(
+            qc_fail_event_qs
             .values("ticket__technician_id")
             .annotate(total=Count("id"))
             .values_list("ticket__technician_id", "total")
         )
 
+        xp_qs = XPTransaction.objects.filter(user_id__in=technician_ids)
+        if has_window:
+            xp_qs = xp_qs.filter(
+                created_at__date__gte=start_date,
+                created_at__date__lte=end_date,
+            )
         xp_totals = dict(
-            XPTransaction.objects.filter(user_id__in=technician_ids)
+            xp_qs
             .values("user_id")
             .annotate(total=Sum("amount"))
             .values_list("user_id", "total")
         )
-        attendance_totals = dict(
-            AttendanceRecord.domain.filter(
-                user_id__in=technician_ids,
-                check_in_at__isnull=False,
+        attendance_qs = AttendanceRecord.domain.filter(
+            user_id__in=technician_ids,
+            check_in_at__isnull=False,
+        )
+        if has_window:
+            attendance_qs = attendance_qs.filter(
+                work_date__gte=start_date,
+                work_date__lte=end_date,
             )
+        attendance_totals = dict(
+            attendance_qs
             .values("user_id")
             .annotate(total=Count("id"))
             .values_list("user_id", "total")

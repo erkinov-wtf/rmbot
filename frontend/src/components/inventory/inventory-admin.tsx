@@ -12,6 +12,7 @@ import {
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { PaginationControls } from "@/components/ui/pagination-controls";
 import { useI18n } from "@/i18n";
 import {
   createCategory,
@@ -22,12 +23,13 @@ import {
   deletePart,
   getInventoryItem,
   listAllCategories,
-  listInventoryItems,
+  listInventoryItemsPage,
   listParts,
   type InventoryCategory,
   type InventoryItem,
   type InventoryItemStatus,
   type InventoryPart,
+  type PaginationMeta,
   updateCategory,
   updateInventoryItem,
   updatePart,
@@ -89,6 +91,9 @@ const ITEM_STATUS_OPTIONS: InventoryItemStatus[] = [
   "blocked",
   "write_off",
 ];
+
+const ITEM_PER_PAGE_OPTIONS = [10, 20, 50];
+const DEFAULT_ITEM_PER_PAGE = 20;
 
 const fieldClassName = "rm-input";
 
@@ -196,6 +201,14 @@ export function InventoryAdmin({
   const [categories, setCategories] = useState<InventoryCategory[]>([]);
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [allParts, setAllParts] = useState<InventoryPart[]>([]);
+  const [itemPage, setItemPage] = useState(1);
+  const [itemPerPage, setItemPerPage] = useState(DEFAULT_ITEM_PER_PAGE);
+  const [itemPagination, setItemPagination] = useState<PaginationMeta>({
+    page: 1,
+    per_page: DEFAULT_ITEM_PER_PAGE,
+    total_count: 0,
+    page_count: 1,
+  });
 
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
   const [isLoadingItems, setIsLoadingItems] = useState(true);
@@ -315,11 +328,13 @@ export function InventoryAdmin({
   }, [accessToken, t]);
 
   const loadItems = useCallback(
-    async (filters: ItemFilters) => {
+    async (filters: ItemFilters, page: number, perPage: number) => {
       setIsLoadingItems(true);
       try {
         const trimmedSearch = filters.search.trim();
-        const nextItems = await listInventoryItems(accessToken, {
+        const paginated = await listInventoryItemsPage(accessToken, {
+          page,
+          per_page: perPage,
           q: trimmedSearch.length >= 2 ? trimmedSearch : undefined,
           category: filters.categoryId ? Number(filters.categoryId) : undefined,
           status: filters.status === "all" ? undefined : filters.status,
@@ -328,7 +343,12 @@ export function InventoryAdmin({
               ? undefined
               : filters.activity === "active",
         });
-        setItems(nextItems);
+        if (page > paginated.pagination.page_count && paginated.pagination.page_count > 0) {
+          setItemPage(paginated.pagination.page_count);
+          return;
+        }
+        setItems(paginated.results);
+        setItemPagination(paginated.pagination);
       } catch (error) {
         setFeedback({
           type: "error",
@@ -400,8 +420,8 @@ export function InventoryAdmin({
   }, [loadParts]);
 
   useEffect(() => {
-    void loadItems(appliedFilters);
-  }, [appliedFilters, loadItems]);
+    void loadItems(appliedFilters, itemPage, itemPerPage);
+  }, [appliedFilters, itemPage, itemPerPage, loadItems]);
 
   useEffect(() => {
     if (route.name !== "itemDetail") {
@@ -491,7 +511,11 @@ export function InventoryAdmin({
 
   const handleRefresh = async () => {
     setFeedback(null);
-    await Promise.all([loadCategories(), loadItems(appliedFilters), loadParts()]);
+    await Promise.all([
+      loadCategories(),
+      loadItems(appliedFilters, itemPage, itemPerPage),
+      loadParts(),
+    ]);
     if (route.name === "itemDetail") {
       await loadItemDetail(route.itemId);
     }
@@ -508,12 +532,14 @@ export function InventoryAdmin({
       setFeedback(null);
     }
 
+    setItemPage(1);
     setAppliedFilters(itemFilters);
   };
 
   const handleResetFilters = () => {
     setItemFilters(DEFAULT_ITEM_FILTERS);
     setAppliedFilters(DEFAULT_ITEM_FILTERS);
+    setItemPage(1);
     setFeedback(null);
   };
 
@@ -538,7 +564,10 @@ export function InventoryAdmin({
         }
 
         resetCategoryForm();
-        await Promise.all([loadCategories(), loadItems(appliedFilters)]);
+        await Promise.all([
+          loadCategories(),
+          loadItems(appliedFilters, itemPage, itemPerPage),
+        ]);
       }, editingCategoryId ? t("Category updated.") : t("Category created."));
     } catch {
       // feedback already set
@@ -559,7 +588,11 @@ export function InventoryAdmin({
         if (partCategoryId === String(categoryId)) {
           resetPartForm();
         }
-        await Promise.all([loadCategories(), loadItems(appliedFilters), loadParts()]);
+        await Promise.all([
+          loadCategories(),
+          loadItems(appliedFilters, itemPage, itemPerPage),
+          loadParts(),
+        ]);
       }, t("Category deleted."));
     } catch {
       // feedback already set
@@ -603,7 +636,7 @@ export function InventoryAdmin({
         }));
         setIsCreateItemOpen(false);
 
-        await loadItems(appliedFilters);
+        await loadItems(appliedFilters, itemPage, itemPerPage);
         navigate({ name: "itemDetail", itemId: created.id });
       }, t("Inventory item created."));
     } catch {
@@ -648,7 +681,7 @@ export function InventoryAdmin({
           isActive: updated.is_active,
         });
 
-        await loadItems(appliedFilters);
+        await loadItems(appliedFilters, itemPage, itemPerPage);
       }, t("Inventory item updated."));
     } catch {
       // feedback already set
@@ -672,7 +705,7 @@ export function InventoryAdmin({
         setDetailParts([]);
         resetPartForm();
 
-        await loadItems(appliedFilters);
+        await loadItems(appliedFilters, itemPage, itemPerPage);
         navigate({ name: "items" });
       }, t("Inventory item deleted."));
     } catch {
@@ -1236,7 +1269,7 @@ export function InventoryAdmin({
         <section className="rounded-lg border border-slate-200">
           <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
             <p className="text-sm font-semibold text-slate-900">
-              {t("Results ({{count}})", { count: items.length })}
+              {t("Results ({{count}})", { count: itemPagination.total_count })}
             </p>
             <p className="text-xs text-slate-500">{t("Click any row to open details")}</p>
           </div>
@@ -1357,6 +1390,20 @@ export function InventoryAdmin({
               </div>
             </>
           )}
+
+          <PaginationControls
+            page={itemPagination.page}
+            pageCount={itemPagination.page_count}
+            perPage={itemPagination.per_page}
+            totalCount={itemPagination.total_count}
+            isLoading={isLoadingItems}
+            onPageChange={(nextPage) => setItemPage(nextPage)}
+            onPerPageChange={(nextPerPage) => {
+              setItemPerPage(nextPerPage);
+              setItemPage(1);
+            }}
+            perPageOptions={ITEM_PER_PAGE_OPTIONS}
+          />
         </section>
       </div>
     );

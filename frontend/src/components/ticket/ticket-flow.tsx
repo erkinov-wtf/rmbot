@@ -10,6 +10,7 @@ import {
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { PaginationControls } from "@/components/ui/pagination-controls";
 import { useI18n } from "@/i18n";
 import {
   assignTicket,
@@ -17,12 +18,13 @@ import {
   getTicket,
   getInventoryItem,
   listAllCategories,
-  listInventoryItems,
+  listInventoryItemsPage,
   listParts,
   listTechnicianOptions,
   listTicketWorkSessionHistory,
   listTicketTransitions,
   listTickets,
+  listTicketsPage,
   moveTicketToWaitingQc,
   pauseTicketWorkSession,
   qcFailTicket,
@@ -36,6 +38,7 @@ import {
   type InventoryItem,
   type InventoryItemStatus,
   type InventoryPart,
+  type PaginationMeta,
   type TechnicianOption,
   type Ticket as TicketModel,
   type TicketColor,
@@ -129,6 +132,8 @@ const TICKET_STATUS_OPTIONS: TicketStatus[] = [
 ];
 
 const TICKET_COLOR_OPTIONS: TicketColor[] = ["green", "yellow", "red"];
+const LIST_PER_PAGE_OPTIONS = [10, 20, 50];
+const DEFAULT_LIST_PER_PAGE = 20;
 
 const fieldClassName =
   "rm-input";
@@ -423,6 +428,14 @@ export function TicketFlow({
   const [appliedItemFilters, setAppliedItemFilters] =
     useState<ItemFilterState>(DEFAULT_ITEM_FILTERS);
   const [createItems, setCreateItems] = useState<InventoryItem[]>([]);
+  const [createItemsPage, setCreateItemsPage] = useState(1);
+  const [createItemsPerPage, setCreateItemsPerPage] = useState(DEFAULT_LIST_PER_PAGE);
+  const [createItemsPagination, setCreateItemsPagination] = useState<PaginationMeta>({
+    page: 1,
+    per_page: DEFAULT_LIST_PER_PAGE,
+    total_count: 0,
+    page_count: 1,
+  });
   const [isLoadingCreateItems, setIsLoadingCreateItems] = useState(false);
 
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
@@ -444,6 +457,14 @@ export function TicketFlow({
   const [isLoadingHistoryTicket, setIsLoadingHistoryTicket] = useState(false);
 
   const [reviewTickets, setReviewTickets] = useState<TicketModel[]>([]);
+  const [reviewPage, setReviewPage] = useState(1);
+  const [reviewPerPage, setReviewPerPage] = useState(DEFAULT_LIST_PER_PAGE);
+  const [reviewPagination, setReviewPagination] = useState<PaginationMeta>({
+    page: 1,
+    per_page: DEFAULT_LIST_PER_PAGE,
+    total_count: 0,
+    page_count: 1,
+  });
   const [isLoadingReviewTickets, setIsLoadingReviewTickets] = useState(false);
   const [reviewStatusFilter, setReviewStatusFilter] = useState<"all" | TicketStatus>(
     "under_review",
@@ -462,6 +483,14 @@ export function TicketFlow({
   const [reviewXpAmount, setReviewXpAmount] = useState("");
 
   const [workTickets, setWorkTickets] = useState<TicketModel[]>([]);
+  const [workPage, setWorkPage] = useState(1);
+  const [workPerPage, setWorkPerPage] = useState(DEFAULT_LIST_PER_PAGE);
+  const [workPagination, setWorkPagination] = useState<PaginationMeta>({
+    page: 1,
+    per_page: DEFAULT_LIST_PER_PAGE,
+    total_count: 0,
+    page_count: 1,
+  });
   const [isLoadingWorkTickets, setIsLoadingWorkTickets] = useState(false);
   const [workStatusFilter, setWorkStatusFilter] = useState<
     "all" | "assigned" | "in_progress" | "rework" | "waiting_qc"
@@ -477,6 +506,14 @@ export function TicketFlow({
   const [workItem, setWorkItem] = useState<InventoryItem | null>(null);
 
   const [qcTickets, setQcTickets] = useState<TicketModel[]>([]);
+  const [qcPage, setQcPage] = useState(1);
+  const [qcPerPage, setQcPerPage] = useState(DEFAULT_LIST_PER_PAGE);
+  const [qcPagination, setQcPagination] = useState<PaginationMeta>({
+    page: 1,
+    per_page: DEFAULT_LIST_PER_PAGE,
+    total_count: 0,
+    page_count: 1,
+  });
   const [isLoadingQcTickets, setIsLoadingQcTickets] = useState(false);
   const [qcStatusFilter, setQcStatusFilter] = useState<"waiting_qc" | "all">(
     "waiting_qc",
@@ -673,38 +710,9 @@ export function TicketFlow({
     [selectedItemParts, partSpecForms],
   );
 
-  const reviewTicketsFiltered = useMemo(() => {
-    const normalized = reviewSearch.trim().toLowerCase();
-
-    return reviewTickets.filter((ticket) => {
-      if (reviewStatusFilter !== "all" && ticket.status !== reviewStatusFilter) {
-        return false;
-      }
-
-      if (!normalized) {
-        return true;
-      }
-
-      const item = inventoryCache[ticket.inventory_item];
-      const serial = item?.serial_number ?? "";
-      const name = item?.name ?? "";
-      const title = ticket.title ?? "";
-
-      return (
-        String(ticket.id).includes(normalized) ||
-        serial.toLowerCase().includes(normalized) ||
-        name.toLowerCase().includes(normalized) ||
-        title.toLowerCase().includes(normalized) ||
-        ticket.status.toLowerCase().includes(normalized)
-      );
-    });
-  }, [inventoryCache, reviewSearch, reviewStatusFilter, reviewTickets]);
-
   const selectedReviewTicket = useMemo(
-    () =>
-      reviewTicketsFiltered.find((ticket) => ticket.id === selectedReviewTicketId) ??
-      null,
-    [reviewTicketsFiltered, selectedReviewTicketId],
+    () => reviewTickets.find((ticket) => ticket.id === selectedReviewTicketId) ?? null,
+    [reviewTickets, selectedReviewTicketId],
   );
 
   const isSuperAdmin = useMemo(
@@ -712,8 +720,7 @@ export function TicketFlow({
     [roleSlugs],
   );
 
-  const workTicketsFiltered = useMemo(() => {
-    const normalized = workSearch.trim().toLowerCase();
+  const workVisibleTickets = useMemo(() => {
     const allowedStatuses = new Set<TicketStatus>([
       "assigned",
       "in_progress",
@@ -733,37 +740,17 @@ export function TicketFlow({
           return false;
         }
       }
-      if (workStatusFilter !== "all" && ticket.status !== workStatusFilter) {
-        return false;
-      }
-      if (!normalized) {
-        return true;
-      }
-
-      const item = inventoryCache[ticket.inventory_item];
-      const serial = item?.serial_number ?? "";
-      const name = item?.name ?? "";
-      const title = ticket.title ?? "";
-
-      return (
-        String(ticket.id).includes(normalized) ||
-        serial.toLowerCase().includes(normalized) ||
-        name.toLowerCase().includes(normalized) ||
-        title.toLowerCase().includes(normalized)
-      );
+      return true;
     });
   }, [
     currentUserId,
-    inventoryCache,
     isSuperAdmin,
-    workSearch,
-    workStatusFilter,
     workTickets,
   ]);
 
   const selectedWorkTicket = useMemo(
-    () => workTicketsFiltered.find((ticket) => ticket.id === selectedWorkTicketId) ?? null,
-    [selectedWorkTicketId, workTicketsFiltered],
+    () => workVisibleTickets.find((ticket) => ticket.id === selectedWorkTicketId) ?? null,
+    [selectedWorkTicketId, workVisibleTickets],
   );
 
   const currentWorkSessionStatus = useMemo<WorkSessionStatus | null>(() => {
@@ -773,35 +760,9 @@ export function TicketFlow({
     return workSessionHistory[0].to_status;
   }, [workSessionHistory]);
 
-  const qcTicketsFiltered = useMemo(() => {
-    const normalized = qcSearch.trim().toLowerCase();
-
-    return qcTickets.filter((ticket) => {
-      if (qcStatusFilter === "waiting_qc" && ticket.status !== "waiting_qc") {
-        return false;
-      }
-      if (!normalized) {
-        return true;
-      }
-
-      const item = inventoryCache[ticket.inventory_item];
-      const serial = item?.serial_number ?? "";
-      const name = item?.name ?? "";
-      const title = ticket.title ?? "";
-
-      return (
-        String(ticket.id).includes(normalized) ||
-        serial.toLowerCase().includes(normalized) ||
-        name.toLowerCase().includes(normalized) ||
-        title.toLowerCase().includes(normalized) ||
-        ticket.status.toLowerCase().includes(normalized)
-      );
-    });
-  }, [inventoryCache, qcSearch, qcStatusFilter, qcTickets]);
-
   const selectedQcTicket = useMemo(
-    () => qcTicketsFiltered.find((ticket) => ticket.id === selectedQcTicketId) ?? null,
-    [qcTicketsFiltered, selectedQcTicketId],
+    () => qcTickets.find((ticket) => ticket.id === selectedQcTicketId) ?? null,
+    [qcTickets, selectedQcTicketId],
   );
 
   const navigate = useCallback((nextRoute: TicketRoute) => {
@@ -865,11 +826,13 @@ export function TicketFlow({
   }, [accessToken, t]);
 
   const loadCreateItems = useCallback(
-    async (filters: ItemFilterState) => {
+    async (filters: ItemFilterState, page: number, perPage: number) => {
       setIsLoadingCreateItems(true);
       try {
         const search = filters.search.trim();
-        const nextItems = await listInventoryItems(accessToken, {
+        const paginated = await listInventoryItemsPage(accessToken, {
+          page,
+          per_page: perPage,
           q: search.length >= 2 ? search : undefined,
           category: filters.categoryId ? Number(filters.categoryId) : undefined,
           status: filters.status === "all" ? undefined : filters.status,
@@ -879,8 +842,14 @@ export function TicketFlow({
               : filters.activity === "active",
         });
 
-        setCreateItems(nextItems);
-        cacheInventoryItems(nextItems);
+        if (page > paginated.pagination.page_count && paginated.pagination.page_count > 0) {
+          setCreateItemsPage(paginated.pagination.page_count);
+          return;
+        }
+
+        setCreateItems(paginated.results);
+        setCreateItemsPagination(paginated.pagination);
+        cacheInventoryItems(paginated.results);
       } catch (error) {
         setFeedback({
           type: "error",
@@ -989,8 +958,19 @@ export function TicketFlow({
   const loadReviewTickets = useCallback(async () => {
     setIsLoadingReviewTickets(true);
     try {
-      const nextTickets = await listTickets(accessToken, { per_page: 400 });
-      setReviewTickets(nextTickets);
+      const search = reviewSearch.trim();
+      const paginated = await listTicketsPage(accessToken, {
+        page: reviewPage,
+        per_page: reviewPerPage,
+        q: search.length >= 2 ? search : undefined,
+        status: reviewStatusFilter === "all" ? undefined : reviewStatusFilter,
+      });
+      if (reviewPage > paginated.pagination.page_count && paginated.pagination.page_count > 0) {
+        setReviewPage(paginated.pagination.page_count);
+        return;
+      }
+      setReviewTickets(paginated.results);
+      setReviewPagination(paginated.pagination);
     } catch (error) {
       setFeedback({
         type: "error",
@@ -999,13 +979,24 @@ export function TicketFlow({
     } finally {
       setIsLoadingReviewTickets(false);
     }
-  }, [accessToken, t]);
+  }, [accessToken, reviewPage, reviewPerPage, reviewSearch, reviewStatusFilter, t]);
 
   const loadWorkTickets = useCallback(async () => {
     setIsLoadingWorkTickets(true);
     try {
-      const nextTickets = await listTickets(accessToken, { per_page: 400 });
-      setWorkTickets(nextTickets);
+      const search = workSearch.trim();
+      const paginated = await listTicketsPage(accessToken, {
+        page: workPage,
+        per_page: workPerPage,
+        q: search.length >= 2 ? search : undefined,
+        status: workStatusFilter === "all" ? undefined : workStatusFilter,
+      });
+      if (workPage > paginated.pagination.page_count && paginated.pagination.page_count > 0) {
+        setWorkPage(paginated.pagination.page_count);
+        return;
+      }
+      setWorkTickets(paginated.results);
+      setWorkPagination(paginated.pagination);
     } catch (error) {
       setFeedback({
         type: "error",
@@ -1014,13 +1005,24 @@ export function TicketFlow({
     } finally {
       setIsLoadingWorkTickets(false);
     }
-  }, [accessToken, t]);
+  }, [accessToken, t, workPage, workPerPage, workSearch, workStatusFilter]);
 
   const loadQcTickets = useCallback(async () => {
     setIsLoadingQcTickets(true);
     try {
-      const nextTickets = await listTickets(accessToken, { per_page: 400 });
-      setQcTickets(nextTickets);
+      const search = qcSearch.trim();
+      const paginated = await listTicketsPage(accessToken, {
+        page: qcPage,
+        per_page: qcPerPage,
+        q: search.length >= 2 ? search : undefined,
+        status: qcStatusFilter === "all" ? undefined : qcStatusFilter,
+      });
+      if (qcPage > paginated.pagination.page_count && paginated.pagination.page_count > 0) {
+        setQcPage(paginated.pagination.page_count);
+        return;
+      }
+      setQcTickets(paginated.results);
+      setQcPagination(paginated.pagination);
     } catch (error) {
       setFeedback({
         type: "error",
@@ -1029,7 +1031,7 @@ export function TicketFlow({
     } finally {
       setIsLoadingQcTickets(false);
     }
-  }, [accessToken, t]);
+  }, [accessToken, qcPage, qcPerPage, qcSearch, qcStatusFilter, t]);
 
   const loadTechnicians = useCallback(async () => {
     if (!canReview) {
@@ -1227,11 +1229,23 @@ export function TicketFlow({
   }, [loadCategories]);
 
   useEffect(() => {
+    setReviewPage(1);
+  }, [reviewSearch, reviewStatusFilter]);
+
+  useEffect(() => {
+    setWorkPage(1);
+  }, [workSearch, workStatusFilter]);
+
+  useEffect(() => {
+    setQcPage(1);
+  }, [qcSearch, qcStatusFilter]);
+
+  useEffect(() => {
     if (route.name !== "createList") {
       return;
     }
-    void loadCreateItems(appliedItemFilters);
-  }, [appliedItemFilters, loadCreateItems, route]);
+    void loadCreateItems(appliedItemFilters, createItemsPage, createItemsPerPage);
+  }, [appliedItemFilters, createItemsPage, createItemsPerPage, loadCreateItems, route]);
 
   useEffect(() => {
     if (route.name !== "createItem") {
@@ -1275,18 +1289,18 @@ export function TicketFlow({
       return;
     }
 
-    if (!reviewTicketsFiltered.length) {
+    if (!reviewTickets.length) {
       setSelectedReviewTicketId(null);
       return;
     }
 
     if (
       selectedReviewTicketId === null ||
-      !reviewTicketsFiltered.some((ticket) => ticket.id === selectedReviewTicketId)
+      !reviewTickets.some((ticket) => ticket.id === selectedReviewTicketId)
     ) {
-      setSelectedReviewTicketId(reviewTicketsFiltered[0].id);
+      setSelectedReviewTicketId(reviewTickets[0].id);
     }
-  }, [reviewTicketsFiltered, route, selectedReviewTicketId]);
+  }, [reviewTickets, route, selectedReviewTicketId]);
 
   useEffect(() => {
     if (!selectedReviewTicket) {
@@ -1320,17 +1334,17 @@ export function TicketFlow({
     if (route.name !== "work") {
       return;
     }
-    if (!workTicketsFiltered.length) {
+    if (!workVisibleTickets.length) {
       setSelectedWorkTicketId(null);
       return;
     }
     if (
       selectedWorkTicketId === null ||
-      !workTicketsFiltered.some((ticket) => ticket.id === selectedWorkTicketId)
+      !workVisibleTickets.some((ticket) => ticket.id === selectedWorkTicketId)
     ) {
-      setSelectedWorkTicketId(workTicketsFiltered[0].id);
+      setSelectedWorkTicketId(workVisibleTickets[0].id);
     }
-  }, [route, selectedWorkTicketId, workTicketsFiltered]);
+  }, [route, selectedWorkTicketId, workVisibleTickets]);
 
   useEffect(() => {
     if (!selectedWorkTicket) {
@@ -1362,17 +1376,17 @@ export function TicketFlow({
     if (route.name !== "qc") {
       return;
     }
-    if (!qcTicketsFiltered.length) {
+    if (!qcTickets.length) {
       setSelectedQcTicketId(null);
       return;
     }
     if (
       selectedQcTicketId === null ||
-      !qcTicketsFiltered.some((ticket) => ticket.id === selectedQcTicketId)
+      !qcTickets.some((ticket) => ticket.id === selectedQcTicketId)
     ) {
-      setSelectedQcTicketId(qcTicketsFiltered[0].id);
+      setSelectedQcTicketId(qcTickets[0].id);
     }
-  }, [qcTicketsFiltered, route, selectedQcTicketId]);
+  }, [qcTickets, route, selectedQcTicketId]);
 
   useEffect(() => {
     if (!selectedQcTicket) {
@@ -1388,7 +1402,10 @@ export function TicketFlow({
     setFeedback(null);
 
     if (route.name === "createList") {
-      await Promise.all([loadCategories(), loadCreateItems(appliedItemFilters)]);
+      await Promise.all([
+        loadCategories(),
+        loadCreateItems(appliedItemFilters, createItemsPage, createItemsPerPage),
+      ]);
       return;
     }
 
@@ -1442,12 +1459,14 @@ export function TicketFlow({
       setFeedback(null);
     }
 
+    setCreateItemsPage(1);
     setAppliedItemFilters(itemFilters);
   };
 
   const handleResetItemFilters = () => {
     setItemFilters(DEFAULT_ITEM_FILTERS);
     setAppliedItemFilters(DEFAULT_ITEM_FILTERS);
+    setCreateItemsPage(1);
     setFeedback(null);
   };
 
@@ -1803,7 +1822,7 @@ export function TicketFlow({
         <section className="rounded-lg border border-slate-200">
           <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
             <p className="text-sm font-semibold text-slate-900">
-              {t("Inventory Items ({{count}})", { count: createItems.length })}
+              {t("Inventory Items ({{count}})", { count: createItemsPagination.total_count })}
             </p>
             <p className="text-xs text-slate-500">{t("Select item to continue")}</p>
           </div>
@@ -1890,6 +1909,20 @@ export function TicketFlow({
               </div>
             </>
           )}
+
+          <PaginationControls
+            page={createItemsPagination.page}
+            pageCount={createItemsPagination.page_count}
+            perPage={createItemsPagination.per_page}
+            totalCount={createItemsPagination.total_count}
+            isLoading={isLoadingCreateItems}
+            onPageChange={(nextPage) => setCreateItemsPage(nextPage)}
+            onPerPageChange={(nextPerPage) => {
+              setCreateItemsPerPage(nextPerPage);
+              setCreateItemsPage(1);
+            }}
+            perPageOptions={LIST_PER_PAGE_OPTIONS}
+          />
         </section>
       </div>
     );
@@ -2533,11 +2566,17 @@ export function TicketFlow({
           </div>
         </div>
 
+        {reviewSearch.trim().length === 1 ? (
+          <p className="mt-2 text-xs text-amber-700">
+            {t("Backend search starts at 2 characters.")}
+          </p>
+        ) : null}
+
         {isLoadingReviewTickets ? (
           <p className="mt-3 text-sm text-slate-600">{t("Loading tickets...")}</p>
-        ) : reviewTicketsFiltered.length ? (
+        ) : reviewTickets.length ? (
           <div className="mt-3 space-y-2">
-            {reviewTicketsFiltered.map((ticket) => {
+            {reviewTickets.map((ticket) => {
               const item = inventoryCache[ticket.inventory_item];
               return (
                 <button
@@ -2583,6 +2622,21 @@ export function TicketFlow({
             {t("No tickets in review queue.")}
           </p>
         )}
+
+        <PaginationControls
+          className="mt-3 -mx-4"
+          page={reviewPagination.page}
+          pageCount={reviewPagination.page_count}
+          perPage={reviewPagination.per_page}
+          totalCount={reviewPagination.total_count}
+          isLoading={isLoadingReviewTickets}
+          onPageChange={(nextPage) => setReviewPage(nextPage)}
+          onPerPageChange={(nextPerPage) => {
+            setReviewPerPage(nextPerPage);
+            setReviewPage(1);
+          }}
+          perPageOptions={LIST_PER_PAGE_OPTIONS}
+        />
       </section>
 
       <section className="rounded-lg border border-slate-200 p-4">
@@ -2848,11 +2902,17 @@ export function TicketFlow({
           </div>
         </div>
 
+        {workSearch.trim().length === 1 ? (
+          <p className="mt-2 text-xs text-amber-700">
+            {t("Backend search starts at 2 characters.")}
+          </p>
+        ) : null}
+
         {isLoadingWorkTickets ? (
           <p className="mt-3 text-sm text-slate-600">{t("Loading technician queue...")}</p>
-        ) : workTicketsFiltered.length ? (
+        ) : workVisibleTickets.length ? (
           <div className="mt-3 space-y-2">
-            {workTicketsFiltered.map((ticket) => {
+            {workVisibleTickets.map((ticket) => {
               const item = inventoryCache[ticket.inventory_item];
               return (
                 <button
@@ -2894,6 +2954,21 @@ export function TicketFlow({
             {t("No tickets in technician queue.")}
           </p>
         )}
+
+        <PaginationControls
+          className="mt-3 -mx-4"
+          page={workPagination.page}
+          pageCount={workPagination.page_count}
+          perPage={workPagination.per_page}
+          totalCount={workPagination.total_count}
+          isLoading={isLoadingWorkTickets}
+          onPageChange={(nextPage) => setWorkPage(nextPage)}
+          onPerPageChange={(nextPerPage) => {
+            setWorkPerPage(nextPerPage);
+            setWorkPage(1);
+          }}
+          perPageOptions={LIST_PER_PAGE_OPTIONS}
+        />
       </section>
 
       <section className="rounded-lg border border-slate-200 p-4">
@@ -3032,11 +3107,17 @@ export function TicketFlow({
           </div>
         </div>
 
+        {qcSearch.trim().length === 1 ? (
+          <p className="mt-2 text-xs text-amber-700">
+            {t("Backend search starts at 2 characters.")}
+          </p>
+        ) : null}
+
         {isLoadingQcTickets ? (
           <p className="mt-3 text-sm text-slate-600">{t("Loading QC queue...")}</p>
-        ) : qcTicketsFiltered.length ? (
+        ) : qcTickets.length ? (
           <div className="mt-3 space-y-2">
-            {qcTicketsFiltered.map((ticket) => {
+            {qcTickets.map((ticket) => {
               const item = inventoryCache[ticket.inventory_item];
               return (
                 <button
@@ -3078,6 +3159,21 @@ export function TicketFlow({
             {t("No tickets in QC queue.")}
           </p>
         )}
+
+        <PaginationControls
+          className="mt-3 -mx-4"
+          page={qcPagination.page}
+          pageCount={qcPagination.page_count}
+          perPage={qcPagination.per_page}
+          totalCount={qcPagination.total_count}
+          isLoading={isLoadingQcTickets}
+          onPageChange={(nextPage) => setQcPage(nextPage)}
+          onPerPageChange={(nextPerPage) => {
+            setQcPerPage(nextPerPage);
+            setQcPage(1);
+          }}
+          perPageOptions={LIST_PER_PAGE_OPTIONS}
+        />
       </section>
 
       <section className="rounded-lg border border-slate-200 p-4">

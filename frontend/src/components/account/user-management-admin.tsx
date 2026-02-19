@@ -11,13 +11,15 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { AccessRequestsAdmin } from "@/components/account/access-requests-admin";
 import { Button } from "@/components/ui/button";
+import { PaginationControls } from "@/components/ui/pagination-controls";
 import { useI18n } from "@/i18n";
 import {
-  listManagedUsers,
+  listManagedUsersPage,
   listRoleOptions,
   updateManagedUser,
   type ManagedUser,
   type ManagedUserQuery,
+  type PaginationMeta,
   type RoleOption,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -39,6 +41,8 @@ type UserTab = "users" | "access_requests";
 type ActivityFilter = "all" | "active" | "inactive";
 
 const fieldClassName = "rm-input";
+const USER_PER_PAGE_OPTIONS = [10, 20, 50];
+const DEFAULT_USER_PER_PAGE = 20;
 
 const FALLBACK_ROLE_OPTIONS: RoleOption[] = [
   { slug: "super_admin", name: "Super Admin" },
@@ -119,6 +123,14 @@ export function UserManagementAdmin({
   );
 
   const [users, setUsers] = useState<ManagedUser[]>([]);
+  const [usersPage, setUsersPage] = useState(1);
+  const [usersPerPage, setUsersPerPage] = useState(DEFAULT_USER_PER_PAGE);
+  const [usersPagination, setUsersPagination] = useState<PaginationMeta>({
+    page: 1,
+    per_page: DEFAULT_USER_PER_PAGE,
+    total_count: 0,
+    page_count: 1,
+  });
   const [roleOptions, setRoleOptions] = useState<RoleOption[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
   const [isLoadingRoles, setIsLoadingRoles] = useState(true);
@@ -182,6 +194,12 @@ export function UserManagementAdmin({
     if (!canManage) {
       setIsLoadingUsers(false);
       setUsers([]);
+      setUsersPagination({
+        page: 1,
+        per_page: usersPerPage,
+        total_count: 0,
+        page_count: 1,
+      });
       return;
     }
 
@@ -192,15 +210,21 @@ export function UserManagementAdmin({
         q: appliedSearch || undefined,
         role_slug: appliedRoleFilter || undefined,
         ordering: "-created_at",
-        per_page: 300,
+        page: usersPage,
+        per_page: usersPerPage,
       };
       if (appliedActivity === "active") {
         query.is_active = true;
       } else if (appliedActivity === "inactive") {
         query.is_active = false;
       }
-      const nextUsers = await listManagedUsers(accessToken, query);
-      setUsers(nextUsers);
+      const paginated = await listManagedUsersPage(accessToken, query);
+      if (usersPage > paginated.pagination.page_count && paginated.pagination.page_count > 0) {
+        setUsersPage(paginated.pagination.page_count);
+        return;
+      }
+      setUsers(paginated.results);
+      setUsersPagination(paginated.pagination);
     } catch (error) {
       setFeedback({
         type: "error",
@@ -209,7 +233,16 @@ export function UserManagementAdmin({
     } finally {
       setIsLoadingUsers(false);
     }
-  }, [accessToken, appliedActivity, appliedRoleFilter, appliedSearch, canManage, t]);
+  }, [
+    accessToken,
+    appliedActivity,
+    appliedRoleFilter,
+    appliedSearch,
+    canManage,
+    t,
+    usersPage,
+    usersPerPage,
+  ]);
 
   useEffect(() => {
     const onPopState = () => {
@@ -239,12 +272,14 @@ export function UserManagementAdmin({
   };
 
   const handleApplyFilters = () => {
+    setUsersPage(1);
     setAppliedSearch(searchInput.trim());
     setAppliedRoleFilter(roleFilterInput);
     setAppliedActivity(activityInput);
   };
 
   const handleResetFilters = () => {
+    setUsersPage(1);
     setSearchInput("");
     setRoleFilterInput("");
     setActivityInput("all");
@@ -493,7 +528,7 @@ export function UserManagementAdmin({
               <section className="mt-4 rounded-lg border border-slate-200">
                 <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
                   <p className="text-sm font-semibold text-slate-900">
-                    {t("Users ({{count}})", { count: users.length })}
+                    {t("Users ({{count}})", { count: usersPagination.total_count })}
                   </p>
                 </div>
 
@@ -675,6 +710,20 @@ export function UserManagementAdmin({
                     {t("No users found for selected filters.")}
                   </p>
                 )}
+
+                <PaginationControls
+                  page={usersPagination.page}
+                  pageCount={usersPagination.page_count}
+                  perPage={usersPagination.per_page}
+                  totalCount={usersPagination.total_count}
+                  isLoading={isLoadingUsers}
+                  onPageChange={(nextPage) => setUsersPage(nextPage)}
+                  onPerPageChange={(nextPerPage) => {
+                    setUsersPerPage(nextPerPage);
+                    setUsersPage(1);
+                  }}
+                  perPageOptions={USER_PER_PAGE_OPTIONS}
+                />
               </section>
             </>
           )}

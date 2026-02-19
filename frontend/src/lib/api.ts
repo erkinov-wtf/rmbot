@@ -22,6 +22,18 @@ type PaginatedEnvelope<TData> = {
   per_page: number;
 };
 
+export type PaginationMeta = {
+  page: number;
+  per_page: number;
+  total_count: number;
+  page_count: number;
+};
+
+export type PaginatedResult<TData> = {
+  results: TData[];
+  pagination: PaginationMeta;
+};
+
 export type LoginTokens = {
   access: string;
   refresh: string;
@@ -537,6 +549,11 @@ export type PublicTechnicianLeaderboardMember = {
 
 export type PublicTechnicianLeaderboard = {
   generated_at: string;
+  period?: {
+    days: number;
+    start_date: string;
+    end_date: string;
+  };
   summary: {
     technicians_total: number;
     tickets_done_total: number;
@@ -800,6 +817,72 @@ function extractResults<TData>(payload: unknown): TData[] {
   return [];
 }
 
+function extractPaginatedResults<TData>(
+  payload: unknown,
+  fallback: {
+    page: number;
+    per_page: number;
+  },
+): PaginatedResult<TData> {
+  const unwrapped =
+    payload && typeof payload === "object" && "data" in payload
+      ? (payload as { data?: unknown }).data
+      : payload;
+
+  if (
+    unwrapped &&
+    typeof unwrapped === "object" &&
+    "results" in unwrapped &&
+    Array.isArray(unwrapped.results)
+  ) {
+    const envelope = unwrapped as Partial<PaginatedEnvelope<TData>>;
+    const results = Array.isArray(envelope.results)
+      ? (envelope.results as TData[])
+      : [];
+    const page =
+      typeof envelope.page === "number" && envelope.page > 0
+        ? envelope.page
+        : fallback.page;
+    const perPage =
+      typeof envelope.per_page === "number" && envelope.per_page > 0
+        ? envelope.per_page
+        : fallback.per_page;
+    const totalCount =
+      typeof envelope.total_count === "number" && envelope.total_count >= 0
+        ? envelope.total_count
+        : results.length;
+    const pageCount =
+      typeof envelope.page_count === "number" && envelope.page_count > 0
+        ? envelope.page_count
+        : Math.max(1, Math.ceil(totalCount / Math.max(1, perPage)));
+
+    return {
+      results,
+      pagination: {
+        page,
+        per_page: perPage,
+        total_count: totalCount,
+        page_count: pageCount,
+      },
+    };
+  }
+
+  const results = extractResults<TData>(unwrapped);
+  const page = fallback.page;
+  const perPage = Math.max(1, fallback.per_page);
+  const totalCount = results.length;
+  const pageCount = Math.max(1, Math.ceil(totalCount / perPage));
+  return {
+    results,
+    pagination: {
+      page,
+      per_page: perPage,
+      total_count: totalCount,
+      page_count: pageCount,
+    },
+  };
+}
+
 function buildDisplayName(
   firstName: string | null | undefined,
   lastName: string | null | undefined,
@@ -1020,18 +1103,35 @@ export async function listManagedUsers(
   accessToken: string,
   query: ManagedUserQuery = {},
 ): Promise<ManagedUser[]> {
+  const paginated = await listManagedUsersPage(accessToken, query);
+  return paginated.results;
+}
+
+export async function listManagedUsersPage(
+  accessToken: string,
+  query: ManagedUserQuery = {},
+): Promise<PaginatedResult<ManagedUser>> {
+  const page = query.page ?? 1;
+  const perPage = query.per_page ?? 50;
   const payload = await apiRequest<unknown>(
     withQuery("users/management/", {
       q: query.q,
       role_slug: query.role_slug,
       is_active: query.is_active,
       ordering: query.ordering ?? "-created_at",
-      page: query.page,
-      per_page: query.per_page ?? 300,
+      page,
+      per_page: perPage,
     }),
     { accessToken },
   );
-  return extractResults<ManagedUserRaw>(payload).map(mapManagedUser);
+  const paginated = extractPaginatedResults<ManagedUserRaw>(payload, {
+    page,
+    per_page: perPage,
+  });
+  return {
+    ...paginated,
+    results: paginated.results.map(mapManagedUser),
+  };
 }
 
 export async function updateManagedUser(
@@ -1157,10 +1257,20 @@ export async function listInventoryItems(
   accessToken: string,
   query: InventoryItemQuery = {},
 ): Promise<InventoryItem[]> {
+  const paginated = await listInventoryItemsPage(accessToken, query);
+  return paginated.results;
+}
+
+export async function listInventoryItemsPage(
+  accessToken: string,
+  query: InventoryItemQuery = {},
+): Promise<PaginatedResult<InventoryItem>> {
+  const page = query.page ?? 1;
+  const perPage = query.per_page ?? 50;
   const payload = await apiRequest<unknown>(
     withQuery("inventory/items/", {
-      page: query.page,
-      per_page: query.per_page ?? 200,
+      page,
+      per_page: perPage,
       q: query.q,
       status: query.status,
       inventory: query.inventory,
@@ -1170,7 +1280,10 @@ export async function listInventoryItems(
     }),
     { accessToken },
   );
-  return extractResults<InventoryItem>(payload);
+  return extractPaginatedResults<InventoryItem>(payload, {
+    page,
+    per_page: perPage,
+  });
 }
 
 export async function createInventoryItem(
@@ -1279,16 +1392,29 @@ export async function listTickets(
   accessToken: string,
   query: TicketListQuery = {},
 ): Promise<Ticket[]> {
+  const paginated = await listTicketsPage(accessToken, query);
+  return paginated.results;
+}
+
+export async function listTicketsPage(
+  accessToken: string,
+  query: TicketListQuery = {},
+): Promise<PaginatedResult<Ticket>> {
+  const page = query.page ?? 1;
+  const perPage = query.per_page ?? 50;
   const payload = await apiRequest<unknown>(
     withQuery("tickets/", {
       q: query.q,
       status: query.status,
-      page: query.page,
-      per_page: query.per_page ?? 200,
+      page,
+      per_page: perPage,
     }),
     { accessToken },
   );
-  return extractResults<Ticket>(payload);
+  return extractPaginatedResults<Ticket>(payload, {
+    page,
+    per_page: perPage,
+  });
 }
 
 export async function getTicket(
@@ -1359,8 +1485,14 @@ export async function listTechnicianOptions(
     .sort((left, right) => left.name.localeCompare(right.name));
 }
 
-export async function getPublicTechnicianLeaderboard(): Promise<PublicTechnicianLeaderboard> {
-  const payload = await apiRequest<unknown>("analytics/public/leaderboard/");
+export async function getPublicTechnicianLeaderboard(
+  query: { days?: number } = {},
+): Promise<PublicTechnicianLeaderboard> {
+  const payload = await apiRequest<unknown>(
+    withQuery("analytics/public/leaderboard/", {
+      days: query.days,
+    }),
+  );
   return extractData<PublicTechnicianLeaderboard>(payload);
 }
 
@@ -1526,16 +1658,34 @@ export async function listAccessRequests(
     per_page?: number;
   } = {},
 ): Promise<AccessRequest[]> {
+  const paginated = await listAccessRequestsPage(accessToken, query);
+  return paginated.results;
+}
+
+export async function listAccessRequestsPage(
+  accessToken: string,
+  query: {
+    status?: AccessRequestStatus;
+    ordering?: "-created_at" | "created_at" | "-resolved_at" | "resolved_at";
+    page?: number;
+    per_page?: number;
+  } = {},
+): Promise<PaginatedResult<AccessRequest>> {
+  const page = query.page ?? 1;
+  const perPage = query.per_page ?? 50;
   const payload = await apiRequest<unknown>(
     withQuery("users/access-requests/", {
       status: query.status,
       ordering: query.ordering,
-      page: query.page,
-      per_page: query.per_page ?? 200,
+      page,
+      per_page: perPage,
     }),
     { accessToken },
   );
-  return extractResults<AccessRequest>(payload);
+  return extractPaginatedResults<AccessRequest>(payload, {
+    page,
+    per_page: perPage,
+  });
 }
 
 export async function approveAccessRequest(
@@ -1566,6 +1716,16 @@ export async function listAttendanceRecords(
   accessToken: string,
   query: AttendanceRecordQuery = {},
 ): Promise<AttendanceRecord[]> {
+  const paginated = await listAttendanceRecordsPage(accessToken, query);
+  return paginated.results;
+}
+
+export async function listAttendanceRecordsPage(
+  accessToken: string,
+  query: AttendanceRecordQuery = {},
+): Promise<PaginatedResult<AttendanceRecord>> {
+  const page = query.page ?? 1;
+  const perPage = query.per_page ?? 50;
   const payload = await apiRequest<unknown>(
     withQuery("attendance/records/", {
       work_date: query.work_date,
@@ -1573,12 +1733,15 @@ export async function listAttendanceRecords(
       technician_id: query.user_id,
       punctuality: query.punctuality,
       ordering: query.ordering ?? "user_id",
-      page: query.page,
-      per_page: query.per_page ?? 300,
+      page,
+      per_page: perPage,
     }),
     { accessToken },
   );
-  return extractResults<AttendanceRecord>(payload);
+  return extractPaginatedResults<AttendanceRecord>(payload, {
+    page,
+    per_page: perPage,
+  });
 }
 
 export async function attendanceCheckIn(
@@ -1651,15 +1814,32 @@ export async function listRulesConfigHistory(
     ordering?: "version" | "-version" | "created_at" | "-created_at";
   } = {},
 ): Promise<RulesConfigVersion[]> {
+  const paginated = await listRulesConfigHistoryPage(accessToken, query);
+  return paginated.results;
+}
+
+export async function listRulesConfigHistoryPage(
+  accessToken: string,
+  query: {
+    page?: number;
+    per_page?: number;
+    ordering?: "version" | "-version" | "created_at" | "-created_at";
+  } = {},
+): Promise<PaginatedResult<RulesConfigVersion>> {
+  const page = query.page ?? 1;
+  const perPage = query.per_page ?? 50;
   const payload = await apiRequest<unknown>(
     withQuery("rules/config/history/", {
-      page: query.page,
-      per_page: query.per_page ?? 100,
+      page,
+      per_page: perPage,
       ordering: query.ordering ?? "-version",
     }),
     { accessToken },
   );
-  return extractResults<RulesConfigVersion>(payload);
+  return extractPaginatedResults<RulesConfigVersion>(payload, {
+    page,
+    per_page: perPage,
+  });
 }
 
 export async function rollbackRulesConfigState(

@@ -5,11 +5,9 @@ import {
   BarChart3,
   Flag,
   Loader2,
-  RefreshCcw,
   ShieldCheck,
   Sparkles,
   Target,
-  Trophy,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -26,6 +24,9 @@ import {
 import { cn } from "@/lib/utils";
 
 type ViewState = "leaderboard" | "detail";
+
+const LEADERBOARD_WINDOW_DAYS = 7;
+const AUTO_REFRESH_INTERVAL_MS = 10_000;
 
 function toErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message) {
@@ -151,6 +152,54 @@ function translateStatusLabel(
   return status;
 }
 
+function translateXpEntryTypeLabel(
+  entryType: string,
+  t: (key: string, params?: Record<string, string | number>) => string,
+): string {
+  const normalized = entryType.trim().toLowerCase().replace(/[\s-]+/g, "_");
+  if (normalized === "attendance_punctuality") {
+    return t("Attendance Punctuality");
+  }
+  if (normalized === "ticket_base_xp") {
+    return t("Ticket Base XP");
+  }
+  if (normalized === "ticket_qc_first_pass_bonus") {
+    return t("Ticket QC First Pass Bonus");
+  }
+  if (normalized === "ticket_qc_status_update") {
+    return t("Ticket QC Status Update");
+  }
+  if (normalized === "manual_adjustment") {
+    return t("Manual Adjustment");
+  }
+  return entryType;
+}
+
+function formatShortDate(value: string): string {
+  const normalized = /^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T00:00:00` : value;
+  const parsed = new Date(normalized);
+  if (Number.isNaN(parsed.valueOf())) {
+    return value;
+  }
+  return parsed.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function formatDateTimeShort(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.valueOf())) {
+    return value;
+  }
+  return parsed.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export default function PublicStatsApp() {
   const { t } = useI18n();
   const [leaderboard, setLeaderboard] = useState<PublicTechnicianLeaderboard | null>(null);
@@ -166,35 +215,50 @@ export default function PublicStatsApp() {
 
   const viewState: ViewState = selectedUserId ? "detail" : "leaderboard";
 
-  const loadLeaderboard = useCallback(async () => {
-    setIsLoadingLeaderboard(true);
-    setLeaderboardError("");
+  const loadLeaderboard = useCallback(async (options: { silent?: boolean } = {}) => {
+    const { silent = false } = options;
+    if (!silent) {
+      setIsLoadingLeaderboard(true);
+      setLeaderboardError("");
+    }
     try {
-      const data = await getPublicTechnicianLeaderboard();
+      const data = await getPublicTechnicianLeaderboard({
+        days: LEADERBOARD_WINDOW_DAYS,
+      });
       setLeaderboard(data);
+      setLeaderboardError("");
     } catch (error) {
-      setLeaderboard(null);
       setLeaderboardError(
         toErrorMessage(error, t("Could not load public technician leaderboard.")),
       );
     } finally {
-      setIsLoadingLeaderboard(false);
+      if (!silent) {
+        setIsLoadingLeaderboard(false);
+      }
     }
   }, [t]);
 
-  const loadDetail = useCallback(async (userId: number) => {
-    setIsLoadingDetail(true);
-    setDetailError("");
-    try {
-      const data = await getPublicTechnicianDetail(userId);
-      setDetail(data);
-    } catch (error) {
-      setDetail(null);
-      setDetailError(toErrorMessage(error, t("Could not load technician detail.")));
-    } finally {
-      setIsLoadingDetail(false);
-    }
-  }, [t]);
+  const loadDetail = useCallback(
+    async (userId: number, options: { silent?: boolean } = {}) => {
+      const { silent = false } = options;
+      if (!silent) {
+        setIsLoadingDetail(true);
+        setDetailError("");
+      }
+      try {
+        const data = await getPublicTechnicianDetail(userId);
+        setDetail(data);
+        setDetailError("");
+      } catch (error) {
+        setDetailError(toErrorMessage(error, t("Could not load technician detail.")));
+      } finally {
+        if (!silent) {
+          setIsLoadingDetail(false);
+        }
+      }
+    },
+    [t],
+  );
 
   useEffect(() => {
     void loadLeaderboard();
@@ -217,6 +281,20 @@ export default function PublicStatsApp() {
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
 
+  useEffect(() => {
+    const timerId = window.setInterval(() => {
+      if (selectedUserId) {
+        void loadDetail(selectedUserId, { silent: true });
+      } else {
+        void loadLeaderboard({ silent: true });
+      }
+    }, AUTO_REFRESH_INTERVAL_MS);
+
+    return () => {
+      window.clearInterval(timerId);
+    };
+  }, [loadDetail, loadLeaderboard, selectedUserId]);
+
   const openDetail = useCallback((userId: number) => {
     const params = new URLSearchParams(window.location.search);
     params.set("tech", String(userId));
@@ -238,6 +316,32 @@ export default function PublicStatsApp() {
     () => Math.max(0, ...(leaderboard?.members.map((member) => member.score) ?? [0])),
     [leaderboard?.members],
   );
+
+  const leaderboardPeriod = useMemo(() => {
+    if (!leaderboard) {
+      return null;
+    }
+
+    const windowDays = leaderboard.period?.days ?? LEADERBOARD_WINDOW_DAYS;
+    const endDateRaw = leaderboard.period?.end_date ?? leaderboard.generated_at;
+    const startDateRaw = leaderboard.period?.start_date
+      ?? (() => {
+        const end = new Date(endDateRaw);
+        if (Number.isNaN(end.valueOf())) {
+          return "";
+        }
+        const start = new Date(end);
+        start.setDate(start.getDate() - (windowDays - 1));
+        return start.toISOString();
+      })();
+
+    return {
+      days: windowDays,
+      startLabel: formatShortDate(startDateRaw),
+      endLabel: formatShortDate(endDateRaw),
+      updatedAtLabel: formatDateTimeShort(leaderboard.generated_at),
+    };
+  }, [leaderboard]);
 
   const renderLeaderboardRow = (member: PublicTechnicianLeaderboardMember) => {
     const width = scoreBarWidth(member.score, topScore);
@@ -322,43 +426,14 @@ export default function PublicStatsApp() {
     <main className="rm-shell px-3 py-4 sm:px-5">
       <div className="mx-auto w-full max-w-5xl space-y-4">
         <section className="rm-panel p-5">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="inline-flex items-center gap-2 rounded-full bg-cyan-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-cyan-800">
-                <Trophy className="h-4 w-4" />
-                {t("Public Stats")}
-              </p>
-              <h1 className="mt-2 text-2xl font-bold text-slate-900">
-                {t("Technician Top Chart")}
-              </h1>
-              <p className="mt-2 max-w-2xl text-sm text-slate-600">
-                {t(
-                  "Ranking is based on a combined system score from closed tasks, XP, first-pass quality, flag quality, attendance, and rework penalties.",
-                )}
-              </p>
-            </div>
-            <div className="flex flex-col gap-2 sm:items-end">
-              <LanguageSwitcher
-                compact
-                className="border-slate-300 bg-white/95 shadow-sm"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                className="h-10"
-                onClick={() => {
-                  if (viewState === "detail" && selectedUserId) {
-                    void loadDetail(selectedUserId);
-                  } else {
-                    void loadLeaderboard();
-                  }
-                }}
-                disabled={isLoadingLeaderboard || isLoadingDetail}
-              >
-                <RefreshCcw className="mr-2 h-4 w-4" />
-                {t("Refresh")}
-              </Button>
-            </div>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h1 className="text-2xl font-bold text-slate-900">
+              {t("Technician Top Chart")}
+            </h1>
+            <LanguageSwitcher
+              compact
+              className="border-slate-300 bg-white/95 shadow-sm"
+            />
           </div>
         </section>
 
@@ -379,6 +454,25 @@ export default function PublicStatsApp() {
               </section>
             ) : leaderboard ? (
               <>
+                <section className="rm-panel p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    {t("Period")}
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-slate-900">
+                    {t("Last {{days}} days", {
+                      days: leaderboardPeriod?.days ?? LEADERBOARD_WINDOW_DAYS,
+                    })}
+                    : {leaderboardPeriod?.startLabel ?? "-"} -{" "}
+                    {leaderboardPeriod?.endLabel ?? "-"}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {t("Auto-refresh every 10 seconds")} •{" "}
+                    {t("Updated at {{time}}", {
+                      time: leaderboardPeriod?.updatedAtLabel ?? "-",
+                    })}
+                  </p>
+                </section>
+
                 <section className="grid gap-3 sm:grid-cols-3">
                   <article className="rm-panel p-4">
                     <p className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -642,7 +736,9 @@ export default function PublicStatsApp() {
                           key={item.entry_type}
                           className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs"
                         >
-                          <p className="font-semibold text-slate-800">{item.entry_type}</p>
+                          <p className="font-semibold text-slate-800">
+                            {translateXpEntryTypeLabel(item.entry_type, t)}
+                          </p>
                           <p className="mt-1 text-slate-600">
                             {t("Amount")}: {item.total_amount} • {t("Entries")}: {item.total_count}
                           </p>
@@ -721,7 +817,9 @@ export default function PublicStatsApp() {
                           className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs"
                         >
                           <div className="flex items-center justify-between gap-2">
-                            <p className="font-semibold text-slate-900">{item.entry_type}</p>
+                            <p className="font-semibold text-slate-900">
+                              {translateXpEntryTypeLabel(item.entry_type, t)}
+                            </p>
                             <p
                               className={cn(
                                 "font-semibold",

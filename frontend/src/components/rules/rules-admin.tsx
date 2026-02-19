@@ -8,12 +8,14 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { PaginationControls } from "@/components/ui/pagination-controls";
 import { useI18n } from "@/i18n";
 import {
   getRulesConfigState,
-  listRulesConfigHistory,
+  listRulesConfigHistoryPage,
   rollbackRulesConfigState,
   updateRulesConfigState,
+  type PaginationMeta,
   type RulesConfig,
   type RulesConfigState,
   type RulesConfigVersion,
@@ -39,6 +41,8 @@ const fieldLabelClassName =
   "flex min-h-[2.25rem] items-end text-xs font-semibold uppercase tracking-wide text-slate-600";
 
 const LEVEL_KEYS = ["1", "2", "3", "4", "5"] as const;
+const HISTORY_PER_PAGE_OPTIONS = [10, 20, 50];
+const DEFAULT_HISTORY_PER_PAGE = 20;
 
 function toErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message) {
@@ -227,6 +231,14 @@ export function RulesAdmin({
   const [rulesState, setRulesState] = useState<RulesConfigState | null>(null);
   const [draftConfig, setDraftConfig] = useState<RulesConfig>(defaultRulesConfig);
   const [history, setHistory] = useState<RulesConfigVersion[]>([]);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyPerPage, setHistoryPerPage] = useState(DEFAULT_HISTORY_PER_PAGE);
+  const [historyPagination, setHistoryPagination] = useState<PaginationMeta>({
+    page: 1,
+    per_page: DEFAULT_HISTORY_PER_PAGE,
+    total_count: 0,
+    page_count: 1,
+  });
 
   const [saveReason, setSaveReason] = useState("");
   const [rollbackReason, setRollbackReason] = useState("");
@@ -290,15 +302,30 @@ export function RulesAdmin({
   const loadRulesHistory = useCallback(async () => {
     if (!canRead) {
       setHistory([]);
+      setHistoryPagination({
+        page: 1,
+        per_page: historyPerPage,
+        total_count: 0,
+        page_count: 1,
+      });
       return;
     }
     setIsLoadingHistory(true);
     try {
-      const rows = await listRulesConfigHistory(accessToken, {
-        per_page: 100,
+      const paginated = await listRulesConfigHistoryPage(accessToken, {
+        page: historyPage,
+        per_page: historyPerPage,
         ordering: "-version",
       });
-      setHistory(rows);
+      if (
+        historyPage > paginated.pagination.page_count &&
+        paginated.pagination.page_count > 0
+      ) {
+        setHistoryPage(paginated.pagination.page_count);
+        return;
+      }
+      setHistory(paginated.results);
+      setHistoryPagination(paginated.pagination);
     } catch (error) {
       setFeedback({
         type: "error",
@@ -307,7 +334,7 @@ export function RulesAdmin({
     } finally {
       setIsLoadingHistory(false);
     }
-  }, [accessToken, canRead, t]);
+  }, [accessToken, canRead, historyPage, historyPerPage, t]);
 
   useEffect(() => {
     void Promise.all([loadRulesState(), loadRulesHistory()]);
@@ -847,7 +874,7 @@ export function RulesAdmin({
                 <p className="text-xs text-slate-500">{t("Loading...")}</p>
               ) : (
                 <p className="text-xs text-slate-500">
-                  {t("{{count}} versions loaded", { count: history.length })}
+                  {t("{{count}} versions loaded", { count: historyPagination.total_count })}
                 </p>
               )}
             </div>
@@ -887,6 +914,21 @@ export function RulesAdmin({
                 })
               )}
             </div>
+
+            <PaginationControls
+              className="mt-3 -mx-4"
+              page={historyPagination.page}
+              pageCount={historyPagination.page_count}
+              perPage={historyPagination.per_page}
+              totalCount={historyPagination.total_count}
+              isLoading={isLoadingHistory}
+              onPageChange={(nextPage) => setHistoryPage(nextPage)}
+              onPerPageChange={(nextPerPage) => {
+                setHistoryPerPage(nextPerPage);
+                setHistoryPage(1);
+              }}
+              perPageOptions={HISTORY_PER_PAGE_OPTIONS}
+            />
           </div>
 
           <div className="rm-subpanel p-4 sm:p-5">
