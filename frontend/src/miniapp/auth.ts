@@ -1,6 +1,6 @@
 import type {
+  MiniAppAuthSuccess,
   CurrentUser,
-  MiniAppPhoneLogin,
   TicketFlowPermissions,
 } from "@/lib/api";
 
@@ -55,7 +55,7 @@ function readAccessTokenClaims(accessToken: string): {
 }
 
 export function createMiniAppAuthSession(
-  loginResult: MiniAppPhoneLogin,
+  loginResult: MiniAppAuthSuccess,
 ): MiniAppAuthSession {
   const claims = readAccessTokenClaims(loginResult.access);
   if (!claims.expMs) {

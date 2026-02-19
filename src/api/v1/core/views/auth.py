@@ -106,6 +106,31 @@ def _ticket_permissions_payload(*, user) -> dict[str, bool]:
     }
 
 
+def _empty_ticket_permissions_payload() -> dict[str, bool]:
+    return {
+        "can_create": False,
+        "can_review": False,
+        "can_assign": False,
+        "can_manual_metrics": False,
+        "can_qc": False,
+        "can_work": False,
+        "can_open_review_panel": False,
+        "can_approve_and_assign": False,
+    }
+
+
+def _build_miniapp_login_payload(*, user, refresh: RefreshToken) -> dict[str, object]:
+    role_slugs, role_titles = _build_role_claims(user)
+    return {
+        "access": str(refresh.access_token),
+        "refresh": str(refresh),
+        "role_slugs": role_slugs,
+        "roles": role_titles,
+        "permissions": _ticket_permissions_payload(user=user),
+        "user": UserSerializer(user).data,
+    }
+
+
 class LoginTokenObtainPairSerializer(TokenObtainPairSerializer):
     @classmethod
     def get_token(cls, user):
@@ -151,12 +176,27 @@ class TokenVerifyAPIView(TokenVerifyView, BaseAPIView):
 
 class TMAInitDataSerializer(serializers.Serializer):
     init_data = serializers.CharField()
+    phone = serializers.CharField(
+        max_length=20,
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+    )
 
     def validate_init_data(self, value):
         if not value:
             raise serializers.ValidationError("init_data is required")
-
         return value
+
+    def validate_phone(self, value: str | None) -> str | None:
+        if value is None:
+            return None
+        compact = value.strip().replace(" ", "").replace("-", "")
+        if not compact:
+            return None
+        if not PHONE_PATTERN.fullmatch(compact):
+            raise serializers.ValidationError("phone format is invalid")
+        return compact if compact.startswith("+") else f"+{compact}"
 
 
 class MiniAppPhoneLoginSerializer(serializers.Serializer):
@@ -200,6 +240,7 @@ class TMAInitDataVerifyAPIView(BaseAPIView):
         serializer.is_valid(raise_exception=True)
 
         init_data = serializer.validated_data["init_data"]
+        phone = serializer.validated_data.get("phone")
         max_age_seconds = max(
             int(getattr(settings, "TMA_INIT_DATA_MAX_AGE_SECONDS", 300)), 1
         )
@@ -253,7 +294,7 @@ class TMAInitDataVerifyAPIView(BaseAPIView):
         is_premium = user_payload.get("is_premium", False)
         is_bot = user_payload.get("is_bot", False)
 
-        profile = AccountService.upsert_telegram_profile(
+        profile, user = AccountService.resolve_bot_actor(
             _TelegramFromUser(
                 id=telegram_id,
                 username=username,
@@ -265,7 +306,21 @@ class TMAInitDataVerifyAPIView(BaseAPIView):
             )
         )
 
-        user = profile.user
+        # Fallback for legacy records where profile link was not created yet.
+        if not user and phone:
+            phone_user = (
+                User.all_objects.prefetch_related("roles")
+                .filter(
+                    phone=phone,
+                    is_active=True,
+                    deleted_at__isnull=True,
+                )
+                .first()
+            )
+            if phone_user is not None:
+                AccountService.link_profile_to_user(profile, phone_user)
+                user = phone_user
+
         if not user:
             return Response(
                 {
@@ -274,6 +329,9 @@ class TMAInitDataVerifyAPIView(BaseAPIView):
                     "needs_access_request": True,
                     "telegram_id": telegram_id,
                     "username": username,
+                    "role_slugs": [],
+                    "roles": [],
+                    "permissions": _empty_ticket_permissions_payload(),
                 },
                 status=status.HTTP_200_OK,
             )
@@ -286,14 +344,11 @@ class TMAInitDataVerifyAPIView(BaseAPIView):
 
         refresh = RefreshToken.for_user(user)
         attach_user_role_claims(refresh, user)
-        user_data = UserSerializer(user).data
         return Response(
             {
                 "valid": True,
                 "user_exists": True,
-                "access": str(refresh.access_token),
-                "refresh": str(refresh),
-                "user": user_data,
+                **_build_miniapp_login_payload(user=user, refresh=refresh),
             },
             status=status.HTTP_200_OK,
         )
@@ -338,19 +393,9 @@ class MiniAppPhoneLoginAPIView(BaseAPIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        # TODO: Replace temporary phone-based mini app auth with official Telegram initData verification.
         refresh = RefreshToken.for_user(user)
         attach_user_role_claims(refresh, user)
-        role_slugs, role_titles = _build_role_claims(user)
-
         return Response(
-            {
-                "access": str(refresh.access_token),
-                "refresh": str(refresh),
-                "role_slugs": role_slugs,
-                "roles": role_titles,
-                "permissions": _ticket_permissions_payload(user=user),
-                "user": UserSerializer(user).data,
-            },
+            _build_miniapp_login_payload(user=user, refresh=refresh),
             status=status.HTTP_200_OK,
         )

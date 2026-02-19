@@ -80,6 +80,13 @@ def test_returns_tokens_when_user_linked(
     assert payload["user_exists"] is True
     assert "access" in payload
     assert "refresh" in payload
+    assert sorted(payload["role_slugs"]) == [RoleSlug.MASTER]
+    assert payload["permissions"]["can_create"] is True
+    assert payload["permissions"]["can_review"] is True
+    assert payload["permissions"]["can_assign"] is True
+    assert payload["permissions"]["can_manual_metrics"] is True
+    assert payload["permissions"]["can_open_review_panel"] is True
+    assert payload["permissions"]["can_approve_and_assign"] is True
     assert payload["user"]["id"] == user.id
     claims = AccessToken(payload["access"])
     assert claims["role_slugs"] == [RoleSlug.MASTER]
@@ -95,6 +102,60 @@ def test_requires_access_when_no_linked_user(api_client, tma_settings, tg_user_p
     assert payload["valid"] is True
     assert payload["user_exists"] is False
     assert payload["needs_access_request"] is True
+    assert payload["role_slugs"] == []
+    assert payload["roles"] == []
+    assert payload["permissions"]["can_create"] is False
+    assert payload["permissions"]["can_review"] is False
+    assert payload["permissions"]["can_assign"] is False
+
+
+def test_links_active_user_by_phone_when_profile_link_missing(
+    api_client, user_factory, tg_user_payload, tma_settings
+):
+    user = user_factory(
+        username="phone_linked_user",
+        first_name="Phone",
+        phone="+998901112233",
+    )
+    init_data = build_init_data("TEST_BOT_TOKEN", tg_user_payload)
+
+    resp = api_client.post(
+        VERIFY_URL,
+        {"init_data": init_data, "phone": "998901112233"},
+        format="json",
+    )
+
+    assert resp.status_code == 200
+    payload = resp.data["data"]
+    assert payload["valid"] is True
+    assert payload["user_exists"] is True
+    assert payload["user"]["id"] == user.id
+
+
+def test_linked_user_without_roles_has_zero_permissions(
+    api_client, user_factory, tma_settings, tg_user_payload
+):
+    user = user_factory(
+        username="no_roles_user",
+        first_name="NoRoles",
+    )
+    TelegramProfile.objects.create(
+        user=user,
+        telegram_id=tg_user_payload["id"],
+        username=tg_user_payload["username"],
+    )
+    init_data = build_init_data("TEST_BOT_TOKEN", tg_user_payload)
+    resp = api_client.post(VERIFY_URL, {"init_data": init_data}, format="json")
+
+    assert resp.status_code == 200
+    payload = resp.data["data"]
+    assert payload["user_exists"] is True
+    assert payload["role_slugs"] == []
+    assert payload["roles"] == []
+    assert payload["permissions"]["can_create"] is False
+    assert payload["permissions"]["can_review"] is False
+    assert payload["permissions"]["can_assign"] is False
+    assert payload["permissions"]["can_open_review_panel"] is False
 
 
 def test_rejects_invalid_hash(api_client, tma_settings, tg_user_payload):

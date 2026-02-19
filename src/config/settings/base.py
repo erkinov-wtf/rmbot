@@ -235,6 +235,7 @@ BOT_WEBHOOK_SECRET = config("BOT_WEBHOOK_SECRET", default="")
 BOT_PARSE_MODE = config("BOT_PARSE_MODE", default="HTML")
 BOT_DEFAULT_LOCALE = config("BOT_DEFAULT_LOCALE", default="uz")
 BOT_FALLBACK_LOCALE = config("BOT_FALLBACK_LOCALE", default="uz")
+BOT_MINIAPP_URL = config("BOT_MINIAPP_URL", default="")
 TMA_INIT_DATA_MAX_AGE_SECONDS = config(
     "TMA_INIT_DATA_MAX_AGE_SECONDS", default=300, cast=int
 )

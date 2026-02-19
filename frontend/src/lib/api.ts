@@ -79,6 +79,32 @@ export type MiniAppPhoneLogin = Omit<MiniAppPhoneLoginRaw, "user"> & {
   user: CurrentUser;
 };
 
+export type MiniAppAuthSuccess = MiniAppPhoneLogin;
+
+type MiniAppTmaVerifyRaw = Partial<MiniAppPhoneLoginRaw> & {
+  valid?: boolean;
+  user_exists?: boolean;
+  needs_access_request?: boolean;
+  telegram_id?: number | null;
+  username?: string | null;
+};
+
+export type MiniAppTmaVerifyResult =
+  | ({
+      valid: true;
+      user_exists: true;
+    } & MiniAppAuthSuccess)
+  | {
+      valid: true;
+      user_exists: false;
+      needs_access_request: boolean;
+      telegram_id: number | null;
+      username: string | null;
+      role_slugs: string[];
+      roles: string[];
+      permissions: TicketFlowPermissions;
+    };
+
 type UserOptionRaw = {
   id: number;
   first_name: string;
@@ -790,6 +816,25 @@ function mapManagedUser(user: ManagedUserRaw): ManagedUser {
   };
 }
 
+function normalizeTicketFlowPermissions(
+  value: unknown,
+): TicketFlowPermissions {
+  const source = value && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : {};
+  const bool = (key: keyof TicketFlowPermissions): boolean => source[key] === true;
+  return {
+    can_create: bool("can_create"),
+    can_review: bool("can_review"),
+    can_assign: bool("can_assign"),
+    can_manual_metrics: bool("can_manual_metrics"),
+    can_qc: bool("can_qc"),
+    can_work: bool("can_work"),
+    can_open_review_panel: bool("can_open_review_panel"),
+    can_approve_and_assign: bool("can_approve_and_assign"),
+  };
+}
+
 async function apiRequest<TResponse>(
   path: string,
   options: InventoryRequestOptions = {},
@@ -843,20 +888,74 @@ export async function loginWithPassword(
   return tokens;
 }
 
+function parseMiniAppAuthSuccess(
+  raw: MiniAppPhoneLoginRaw,
+): MiniAppAuthSuccess {
+  if (!raw?.access || !raw?.refresh) {
+    throw new Error("Mini app login response is missing access/refresh tokens.");
+  }
+  return {
+    ...raw,
+    permissions: normalizeTicketFlowPermissions(raw.permissions),
+    user: mapCurrentUser(raw.user),
+  };
+}
+
 export async function loginMiniAppWithPhone(phone: string): Promise<MiniAppPhoneLogin> {
   const payload = await apiRequest<unknown>("auth/miniapp/phone-login/", {
     method: "POST",
     body: { phone },
   });
   const result = extractData<MiniAppPhoneLoginRaw>(payload);
+  return parseMiniAppAuthSuccess(result);
+}
 
-  if (!result?.access || !result?.refresh) {
-    throw new Error("Mini app login response is missing access/refresh tokens.");
+export async function verifyMiniAppTelegramInitData(
+  initData: string,
+): Promise<MiniAppTmaVerifyResult> {
+  const payload = await apiRequest<unknown>("auth/tma/verify/", {
+    method: "POST",
+    body: {
+      init_data: initData,
+    },
+  });
+  const result = extractData<MiniAppTmaVerifyRaw>(payload);
+  const valid = result.valid === true;
+  const userExists = result.user_exists === true;
+
+  if (!valid) {
+    throw new Error("Telegram mini app validation failed.");
+  }
+
+  if (!userExists) {
+    return {
+      valid: true,
+      user_exists: false,
+      needs_access_request: result.needs_access_request !== false,
+      telegram_id:
+        typeof result.telegram_id === "number" ? result.telegram_id : null,
+      username: typeof result.username === "string" ? result.username : null,
+      role_slugs: [],
+      roles: [],
+      permissions: normalizeTicketFlowPermissions(result.permissions),
+    };
+  }
+
+  if (!result.access || !result.refresh || !result.user) {
+    throw new Error("Telegram mini app response is missing token or user payload.");
   }
 
   return {
-    ...result,
-    user: mapCurrentUser(result.user),
+    valid: true,
+    user_exists: true,
+    ...parseMiniAppAuthSuccess({
+      access: result.access,
+      refresh: result.refresh,
+      role_slugs: Array.isArray(result.role_slugs) ? result.role_slugs : [],
+      roles: Array.isArray(result.roles) ? result.roles : [],
+      permissions: normalizeTicketFlowPermissions(result.permissions),
+      user: result.user,
+    }),
   };
 }
 

@@ -10,6 +10,7 @@ class BotSettings:
     webhook_base_url: str
     webhook_path: str
     webhook_secret: str
+    miniapp_url: str
     parse_mode: str
     default_locale: str
     fallback_locale: str
@@ -32,6 +33,7 @@ def get_bot_settings() -> BotSettings:
         webhook_base_url=settings.BOT_WEBHOOK_BASE_URL,
         webhook_path=settings.BOT_WEBHOOK_PATH,
         webhook_secret=settings.BOT_WEBHOOK_SECRET,
+        miniapp_url=settings.BOT_MINIAPP_URL,
         parse_mode=settings.BOT_PARSE_MODE,
         default_locale=settings.BOT_DEFAULT_LOCALE,
         fallback_locale=settings.BOT_FALLBACK_LOCALE,
