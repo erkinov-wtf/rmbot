@@ -99,6 +99,58 @@ function flagBadgeClass(color: "green" | "yellow" | "red"): string {
   return "border-rose-200 bg-rose-50 text-rose-700";
 }
 
+function translateFlagColorLabel(
+  color: string,
+  t: (key: string, params?: Record<string, string | number>) => string,
+): string {
+  const normalized = color.trim().toLowerCase();
+  if (normalized === "green") {
+    return t("Green");
+  }
+  if (normalized === "yellow") {
+    return t("Yellow");
+  }
+  if (normalized === "red") {
+    return t("Red");
+  }
+  return color;
+}
+
+function translateStatusLabel(
+  status: string,
+  t: (key: string, params?: Record<string, string | number>) => string,
+): string {
+  const normalized = status.trim().toLowerCase().replace(/[\s-]+/g, "_");
+  if (normalized === "new") {
+    return t("New");
+  }
+  if (normalized === "in_progress") {
+    return t("In progress");
+  }
+  if (normalized === "under_review") {
+    return t("Under review");
+  }
+  if (normalized === "waiting_qc") {
+    return t("Waiting QC");
+  }
+  if (normalized === "assigned") {
+    return t("Assigned");
+  }
+  if (normalized === "done") {
+    return t("Done");
+  }
+  if (normalized === "pending") {
+    return t("Pending");
+  }
+  if (normalized === "approved") {
+    return t("Approved");
+  }
+  if (normalized === "rejected") {
+    return t("Rejected");
+  }
+  return status;
+}
+
 export default function PublicStatsApp() {
   const { t } = useI18n();
   const [leaderboard, setLeaderboard] = useState<PublicTechnicianLeaderboard | null>(null);
@@ -276,9 +328,6 @@ export default function PublicStatsApp() {
                 <Trophy className="h-4 w-4" />
                 {t("Public Stats")}
               </p>
-              <div className="mt-2">
-                <LanguageSwitcher />
-              </div>
               <h1 className="mt-2 text-2xl font-bold text-slate-900">
                 {t("Technician Top Chart")}
               </h1>
@@ -522,7 +571,7 @@ export default function PublicStatsApp() {
                       <p>{t("First pass")}: {detail.metrics.tickets.tickets_first_pass_total}</p>
                       <p>{t("Rework")}: {detail.metrics.tickets.tickets_rework_total}</p>
                       <p>
-                        {t("Avg duration")}: {detail.metrics.tickets.average_resolution_minutes} min
+                        {t("Avg duration")}: {detail.metrics.tickets.average_resolution_minutes} {t("min")}
                       </p>
                     </div>
                     <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
@@ -564,7 +613,7 @@ export default function PublicStatsApp() {
                       {Object.entries(detail.metrics.tickets.status_counts).map(
                         ([status, total]) => (
                           <p key={status} className="text-xs text-slate-700">
-                            {status}: {total}
+                            {translateStatusLabel(status, t)}: {total}
                           </p>
                         ),
                       )}
@@ -607,7 +656,7 @@ export default function PublicStatsApp() {
                         {t("Completed days")}: {detail.metrics.attendance.attendance_completed_days}
                       </p>
                       <p>
-                        {t("Avg work/day")}: {detail.metrics.attendance.average_work_minutes_per_day} min
+                        {t("Avg work/day")}: {detail.metrics.attendance.average_work_minutes_per_day} {t("min")}
                       </p>
                     </div>
                   </article>
@@ -639,11 +688,11 @@ export default function PublicStatsApp() {
                                     : flagBadgeClass("red"),
                               )}
                             >
-                              {ticket.flag_color}
+                              {translateFlagColorLabel(ticket.flag_color, t)}
                             </span>
                           </div>
                           <p className="mt-1 text-xs text-slate-600">
-                            {t("Duration")}: {ticket.total_duration} min • XP: {ticket.xp_amount}
+                            {t("Duration")}: {ticket.total_duration} {t("min")} • XP: {ticket.xp_amount}
                           </p>
                         </div>
                       ))
@@ -692,6 +741,12 @@ export default function PublicStatsApp() {
             ) : null}
           </>
         )}
+      </div>
+      <div className="fixed bottom-4 left-4 z-50">
+        <LanguageSwitcher
+          compact
+          className="border-slate-300 bg-white/95 shadow-lg backdrop-blur"
+        />
       </div>
     </main>
   );

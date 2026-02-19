@@ -12,6 +12,7 @@ import {
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { useI18n } from "@/i18n";
 import {
   createCategory,
   createInventoryItem,
@@ -81,12 +82,12 @@ const DEFAULT_ITEM_FORM: ItemFormState = {
   isActive: true,
 };
 
-const ITEM_STATUS_OPTIONS: Array<{ value: InventoryItemStatus; label: string }> = [
-  { value: "ready", label: "Ready" },
-  { value: "in_service", label: "In Service" },
-  { value: "rented", label: "Rented" },
-  { value: "blocked", label: "Blocked" },
-  { value: "write_off", label: "Write Off" },
+const ITEM_STATUS_OPTIONS: InventoryItemStatus[] = [
+  "ready",
+  "in_service",
+  "rented",
+  "blocked",
+  "write_off",
 ];
 
 const fieldClassName = "rm-input";
@@ -120,6 +121,25 @@ function statusBadgeClass(status: InventoryItemStatus): string {
     return "border-amber-200 bg-amber-50 text-amber-700";
   }
   return "border-rose-200 bg-rose-50 text-rose-700";
+}
+
+function statusLabel(
+  status: InventoryItemStatus,
+  t: (key: string, params?: Record<string, string | number>) => string,
+): string {
+  if (status === "ready") {
+    return t("Ready");
+  }
+  if (status === "in_service") {
+    return t("In Service");
+  }
+  if (status === "rented") {
+    return t("Rented");
+  }
+  if (status === "blocked") {
+    return t("Blocked");
+  }
+  return t("Write Off");
 }
 
 function parseInventoryRoute(pathname: string): InventoryRoute {
@@ -166,6 +186,7 @@ export function InventoryAdmin({
   canManage,
   roleSlugs,
 }: InventoryAdminProps) {
+  const { t } = useI18n();
   const [route, setRoute] = useState<InventoryRoute>(() =>
     parseInventoryRoute(window.location.pathname),
   );
@@ -211,8 +232,8 @@ export function InventoryAdmin({
 
   const statusLabelByValue = useMemo(
     () =>
-      new Map(ITEM_STATUS_OPTIONS.map((option) => [option.value, option.label])),
-    [],
+      new Map(ITEM_STATUS_OPTIONS.map((option) => [option, statusLabel(option, t)])),
+    [t],
   );
 
   const categoryParts = useMemo(() => {
@@ -271,12 +292,12 @@ export function InventoryAdmin({
     } catch (error) {
       setFeedback({
         type: "error",
-        message: toErrorMessage(error, "Failed to load categories."),
+        message: toErrorMessage(error, t("Failed to load categories.")),
       });
     } finally {
       setIsLoadingCategories(false);
     }
-  }, [accessToken]);
+  }, [accessToken, t]);
 
   const loadParts = useCallback(async () => {
     setIsLoadingParts(true);
@@ -286,12 +307,12 @@ export function InventoryAdmin({
     } catch (error) {
       setFeedback({
         type: "error",
-        message: toErrorMessage(error, "Failed to load category parts."),
+        message: toErrorMessage(error, t("Failed to load category parts.")),
       });
     } finally {
       setIsLoadingParts(false);
     }
-  }, [accessToken]);
+  }, [accessToken, t]);
 
   const loadItems = useCallback(
     async (filters: ItemFilters) => {
@@ -311,13 +332,13 @@ export function InventoryAdmin({
       } catch (error) {
         setFeedback({
           type: "error",
-          message: toErrorMessage(error, "Failed to load inventory items."),
+          message: toErrorMessage(error, t("Failed to load inventory items.")),
         });
       } finally {
         setIsLoadingItems(false);
       }
     },
-    [accessToken],
+    [accessToken, t],
   );
 
   const loadItemDetail = useCallback(
@@ -349,13 +370,13 @@ export function InventoryAdmin({
         setDetailParts([]);
         setFeedback({
           type: "error",
-          message: toErrorMessage(error, "Failed to load inventory item details."),
+          message: toErrorMessage(error, t("Failed to load inventory item details.")),
         });
       } finally {
         setIsLoadingDetail(false);
       }
     },
-    [accessToken, allParts],
+    [accessToken, allParts, t],
   );
 
   useEffect(() => {
@@ -458,14 +479,14 @@ export function InventoryAdmin({
       } catch (error) {
         setFeedback({
           type: "error",
-          message: toErrorMessage(error, "Action failed."),
+          message: toErrorMessage(error, t("Action failed.")),
         });
         throw error;
       } finally {
         setIsMutating(false);
       }
     },
-    [],
+    [t],
   );
 
   const handleRefresh = async () => {
@@ -481,8 +502,7 @@ export function InventoryAdmin({
     if (trimmedSearch.length === 1) {
       setFeedback({
         type: "info",
-        message:
-          "Search query starts applying from 2 characters. Showing wider result set.",
+        message: t("Search query starts applying from 2 characters. Showing wider result set."),
       });
     } else {
       setFeedback(null);
@@ -505,7 +525,7 @@ export function InventoryAdmin({
 
     const trimmedName = categoryName.trim();
     if (!trimmedName) {
-      setFeedback({ type: "error", message: "Category name is required." });
+      setFeedback({ type: "error", message: t("Category name is required.") });
       return;
     }
 
@@ -519,14 +539,14 @@ export function InventoryAdmin({
 
         resetCategoryForm();
         await Promise.all([loadCategories(), loadItems(appliedFilters)]);
-      }, editingCategoryId ? "Category updated." : "Category created.");
+      }, editingCategoryId ? t("Category updated.") : t("Category created."));
     } catch {
       // feedback already set
     }
   };
 
   const handleCategoryDelete = async (categoryId: number) => {
-    if (!canManage || !window.confirm("Delete this category?")) {
+    if (!canManage || !window.confirm(t("Delete this category?"))) {
       return;
     }
 
@@ -540,7 +560,7 @@ export function InventoryAdmin({
           resetPartForm();
         }
         await Promise.all([loadCategories(), loadItems(appliedFilters), loadParts()]);
-      }, "Category deleted.");
+      }, t("Category deleted."));
     } catch {
       // feedback already set
     }
@@ -554,13 +574,13 @@ export function InventoryAdmin({
 
     const serialNumber = createItemForm.serialNumber.trim();
     if (!serialNumber) {
-      setFeedback({ type: "error", message: "Serial number is required." });
+      setFeedback({ type: "error", message: t("Serial number is required.") });
       return;
     }
 
     const categoryId = Number(createItemForm.categoryId);
     if (!categoryId) {
-      setFeedback({ type: "error", message: "Select a category." });
+      setFeedback({ type: "error", message: t("Select a category.") });
       return;
     }
 
@@ -585,7 +605,7 @@ export function InventoryAdmin({
 
         await loadItems(appliedFilters);
         navigate({ name: "itemDetail", itemId: created.id });
-      }, "Inventory item created.");
+      }, t("Inventory item created."));
     } catch {
       // feedback already set
     }
@@ -599,13 +619,13 @@ export function InventoryAdmin({
 
     const serialNumber = detailItemForm.serialNumber.trim();
     if (!serialNumber) {
-      setFeedback({ type: "error", message: "Serial number is required." });
+      setFeedback({ type: "error", message: t("Serial number is required.") });
       return;
     }
 
     const categoryId = Number(detailItemForm.categoryId);
     if (!categoryId) {
-      setFeedback({ type: "error", message: "Select a category." });
+      setFeedback({ type: "error", message: t("Select a category.") });
       return;
     }
 
@@ -629,14 +649,18 @@ export function InventoryAdmin({
         });
 
         await loadItems(appliedFilters);
-      }, "Inventory item updated.");
+      }, t("Inventory item updated."));
     } catch {
       // feedback already set
     }
   };
 
   const handleDetailItemDelete = async () => {
-    if (!canManage || !detailItem || !window.confirm("Delete this inventory item?")) {
+    if (
+      !canManage ||
+      !detailItem ||
+      !window.confirm(t("Delete this inventory item?"))
+    ) {
       return;
     }
 
@@ -650,7 +674,7 @@ export function InventoryAdmin({
 
         await loadItems(appliedFilters);
         navigate({ name: "items" });
-      }, "Inventory item deleted.");
+      }, t("Inventory item deleted."));
     } catch {
       // feedback already set
     }
@@ -664,13 +688,13 @@ export function InventoryAdmin({
 
     const selectedPartCategoryId = Number(partCategoryId);
     if (!selectedPartCategoryId) {
-      setFeedback({ type: "error", message: "Select a category for part management." });
+      setFeedback({ type: "error", message: t("Select a category for part management.") });
       return;
     }
 
     const trimmedPartName = partName.trim();
     if (!trimmedPartName) {
-      setFeedback({ type: "error", message: "Part name is required." });
+      setFeedback({ type: "error", message: t("Part name is required.") });
       return;
     }
 
@@ -690,14 +714,14 @@ export function InventoryAdmin({
 
         await loadParts();
         resetPartForm();
-      }, editingPartId ? "Part updated." : "Part created.");
+      }, editingPartId ? t("Part updated.") : t("Part created."));
     } catch {
       // feedback already set
     }
   };
 
   const handlePartDelete = async (partId: number) => {
-    if (!canManage || !window.confirm("Delete this part?")) {
+    if (!canManage || !window.confirm(t("Delete this part?"))) {
       return;
     }
 
@@ -708,7 +732,7 @@ export function InventoryAdmin({
         if (editingPartId === partId) {
           resetPartForm();
         }
-      }, "Part deleted.");
+      }, t("Part deleted."));
     } catch {
       // feedback already set
     }
@@ -718,24 +742,24 @@ export function InventoryAdmin({
     <div className="mt-4 grid gap-4 xl:grid-cols-[340px_1fr_1fr]">
       <form onSubmit={handleCategorySubmit} className="rounded-lg border border-slate-200 p-4">
         <p className="text-sm font-semibold text-slate-900">
-          {editingCategoryId ? "Edit Category" : "Create Category"}
+          {editingCategoryId ? t("Edit Category") : t("Create Category")}
         </p>
 
         <label className="mt-3 block text-xs font-semibold uppercase tracking-wide text-slate-600">
-          Category Name
+          {t("Category Name")}
         </label>
         <input
           className={cn(fieldClassName, "mt-1")}
           value={categoryName}
           onChange={(event) => setCategoryName(event.target.value)}
           disabled={!canManage || isMutating}
-          placeholder="Enter category name"
+          placeholder={t("Enter category name")}
         />
 
         {canManage ? (
           <div className="mt-3 flex gap-2">
             <Button type="submit" className="h-10" disabled={isMutating}>
-              {editingCategoryId ? "Update" : "Create"}
+              {editingCategoryId ? t("Update") : t("Create")}
             </Button>
             {editingCategoryId ? (
               <Button
@@ -745,7 +769,7 @@ export function InventoryAdmin({
                 onClick={resetCategoryForm}
                 disabled={isMutating}
               >
-                Cancel
+                {t("Cancel")}
               </Button>
             ) : null}
           </div>
@@ -754,11 +778,11 @@ export function InventoryAdmin({
 
       <div className="rounded-lg border border-slate-200 p-4">
         <p className="text-sm font-semibold text-slate-900">
-          Categories ({categories.length})
+          {t("Categories ({{count}})", { count: categories.length })}
         </p>
 
         {isLoadingCategories ? (
-          <p className="mt-4 text-sm text-slate-600">Loading categories...</p>
+          <p className="mt-4 text-sm text-slate-600">{t("Loading categories...")}</p>
         ) : categories.length ? (
           <div className="mt-3 space-y-2">
             {categories.map((category) => (
@@ -784,7 +808,7 @@ export function InventoryAdmin({
                       disabled={isMutating}
                     >
                       <PencilLine className="mr-1 h-3.5 w-3.5" />
-                      Edit
+                      {t("Edit")}
                     </Button>
                     <Button
                       type="button"
@@ -794,7 +818,7 @@ export function InventoryAdmin({
                       disabled={isMutating}
                     >
                       <Trash2 className="mr-1 h-3.5 w-3.5" />
-                      Delete
+                      {t("Delete")}
                     </Button>
                   </div>
                 ) : null}
@@ -803,7 +827,7 @@ export function InventoryAdmin({
           </div>
         ) : (
           <p className="mt-3 rounded-md border border-dashed border-slate-300 px-3 py-5 text-center text-sm text-slate-500">
-            No categories yet.
+            {t("No categories yet.")}
           </p>
         )}
       </div>
@@ -811,14 +835,14 @@ export function InventoryAdmin({
       <section className="rounded-lg border border-slate-200 p-4">
         <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
           <Package className="h-4 w-4" />
-          Category Parts
+          {t("Category Parts")}
         </p>
         <p className="mt-1 text-xs text-slate-600">
-          Parts are shared by all inventory items inside the selected category.
+          {t("Parts are shared by all inventory items inside the selected category.")}
         </p>
 
         <label className="mt-3 block text-xs font-semibold uppercase tracking-wide text-slate-600">
-          Category
+          {t("Category")}
         </label>
         <select
           className={cn(fieldClassName, "mt-1")}
@@ -829,7 +853,7 @@ export function InventoryAdmin({
           }}
           disabled={!categories.length || isMutating}
         >
-          <option value="">Select category</option>
+          <option value="">{t("Select category")}</option>
           {categories.map((category) => (
             <option key={category.id} value={category.id}>
               {category.name}
@@ -842,14 +866,14 @@ export function InventoryAdmin({
           className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3"
         >
           <p className="text-sm font-semibold text-slate-800">
-            {editingPartId ? "Edit Part" : "Add Part"}
+            {editingPartId ? t("Edit Part") : t("Add Part")}
           </p>
           <div className="mt-2 flex flex-col gap-2 sm:flex-row">
             <input
               className={fieldClassName}
               value={partName}
               onChange={(event) => setPartName(event.target.value)}
-              placeholder="Part name"
+              placeholder={t("Part name")}
               disabled={!canManage || isMutating || !partCategoryId}
             />
             {canManage ? (
@@ -859,7 +883,7 @@ export function InventoryAdmin({
                   className="h-10"
                   disabled={isMutating || !partCategoryId}
                 >
-                  {editingPartId ? "Update" : "Add"}
+                  {editingPartId ? t("Update") : t("Add")}
                 </Button>
                 {editingPartId ? (
                   <Button
@@ -869,7 +893,7 @@ export function InventoryAdmin({
                     onClick={resetPartForm}
                     disabled={isMutating}
                   >
-                    Cancel
+                    {t("Cancel")}
                   </Button>
                 ) : null}
               </div>
@@ -879,7 +903,7 @@ export function InventoryAdmin({
 
         <div className="mt-3 space-y-2">
           {isLoadingParts ? (
-            <p className="text-sm text-slate-600">Loading parts...</p>
+            <p className="text-sm text-slate-600">{t("Loading parts...")}</p>
           ) : categoryParts.length ? (
             categoryParts.map((part) => (
               <div
@@ -905,7 +929,7 @@ export function InventoryAdmin({
                       disabled={isMutating}
                     >
                       <PencilLine className="mr-1 h-3.5 w-3.5" />
-                      Edit
+                      {t("Edit")}
                     </Button>
                     <Button
                       type="button"
@@ -915,7 +939,7 @@ export function InventoryAdmin({
                       disabled={isMutating}
                     >
                       <Trash2 className="mr-1 h-3.5 w-3.5" />
-                      Delete
+                      {t("Delete")}
                     </Button>
                   </div>
                 ) : null}
@@ -923,7 +947,7 @@ export function InventoryAdmin({
             ))
           ) : (
             <p className="rounded-md border border-dashed border-slate-300 px-3 py-5 text-center text-sm text-slate-500">
-              No parts for this category.
+              {t("No parts for this category.")}
             </p>
           )}
         </div>
@@ -939,10 +963,11 @@ export function InventoryAdmin({
         <section className="rounded-lg border border-slate-200 p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-sm font-semibold text-slate-900">Inventory Items</p>
+              <p className="text-sm font-semibold text-slate-900">{t("Inventory Items")}</p>
               <p className="text-sm text-slate-600">
-                Full-screen list view with top filters. Open any item for details and
-                inherited category parts.
+                {t(
+                  "Full-screen list view with top filters. Open any item for details and inherited category parts.",
+                )}
               </p>
             </div>
 
@@ -955,7 +980,7 @@ export function InventoryAdmin({
                 disabled={isMutating || isLoadingCategories}
               >
                 <Plus className="mr-2 h-4 w-4" />
-                {isCreateItemOpen ? "Close Create" : "Create Item"}
+                {isCreateItemOpen ? t("Close Create") : t("Create Item")}
               </Button>
             ) : null}
           </div>
@@ -965,11 +990,11 @@ export function InventoryAdmin({
               onSubmit={handleCreateItemSubmit}
               className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-3"
             >
-              <p className="text-sm font-semibold text-slate-800">Create Inventory Item</p>
+              <p className="text-sm font-semibold text-slate-800">{t("Create Inventory Item")}</p>
               <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                    Serial Number
+                    {t("Serial Number")}
                   </label>
                   <input
                     className={cn(fieldClassName, "mt-1")}
@@ -981,13 +1006,13 @@ export function InventoryAdmin({
                       }))
                     }
                     disabled={isMutating}
-                    placeholder="Enter serial number"
+                    placeholder={t("Enter serial number")}
                   />
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                    Name
+                    {t("Name")}
                   </label>
                   <input
                     className={cn(fieldClassName, "mt-1")}
@@ -999,13 +1024,13 @@ export function InventoryAdmin({
                       }))
                     }
                     disabled={isMutating}
-                    placeholder="Display name"
+                    placeholder={t("Display name")}
                   />
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                    Category
+                    {t("Category")}
                   </label>
                   <select
                     className={cn(fieldClassName, "mt-1")}
@@ -1018,7 +1043,7 @@ export function InventoryAdmin({
                     }
                     disabled={isMutating || !categories.length}
                   >
-                    <option value="">Select category</option>
+                    <option value="">{t("Select category")}</option>
                     {categories.map((category) => (
                       <option key={category.id} value={category.id}>
                         {category.name}
@@ -1029,7 +1054,7 @@ export function InventoryAdmin({
 
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                    Status
+                    {t("Status")}
                   </label>
                   <select
                     className={cn(fieldClassName, "mt-1")}
@@ -1043,8 +1068,8 @@ export function InventoryAdmin({
                     disabled={isMutating}
                   >
                     {ITEM_STATUS_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
+                      <option key={option} value={option}>
+                        {statusLabel(option, t)}
                       </option>
                     ))}
                   </select>
@@ -1052,7 +1077,7 @@ export function InventoryAdmin({
 
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                    Active
+                    {t("Active")}
                   </label>
                   <label className="mt-1 inline-flex h-10 w-full items-center rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700">
                     <input
@@ -1066,7 +1091,7 @@ export function InventoryAdmin({
                       }
                       disabled={isMutating}
                     />
-                    <span className="ml-2">Active item</span>
+                    <span className="ml-2">{t("Active item")}</span>
                   </label>
                 </div>
               </div>
@@ -1077,7 +1102,7 @@ export function InventoryAdmin({
                   className="h-10"
                   disabled={isMutating || !categories.length}
                 >
-                  Create Item
+                  {t("Create Item")}
                 </Button>
                 <Button
                   type="button"
@@ -1086,7 +1111,7 @@ export function InventoryAdmin({
                   onClick={() => setIsCreateItemOpen(false)}
                   disabled={isMutating}
                 >
-                  Cancel
+                  {t("Cancel")}
                 </Button>
               </div>
             </form>
@@ -1095,7 +1120,7 @@ export function InventoryAdmin({
           <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-[2fr_1fr_1fr_1fr_auto]">
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                Search
+                {t("Search")}
               </label>
               <div className="relative mt-1">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -1108,14 +1133,14 @@ export function InventoryAdmin({
                       search: event.target.value,
                     }))
                   }
-                  placeholder="Serial number search"
+                  placeholder={t("Serial number search")}
                 />
               </div>
             </div>
 
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                Category
+                {t("Category")}
               </label>
               <select
                 className={cn(fieldClassName, "mt-1")}
@@ -1128,7 +1153,7 @@ export function InventoryAdmin({
                 }
                 disabled={isLoadingCategories}
               >
-                <option value="">All categories</option>
+                <option value="">{t("All categories")}</option>
                 {categories.map((category) => (
                   <option key={category.id} value={category.id}>
                     {category.name}
@@ -1139,7 +1164,7 @@ export function InventoryAdmin({
 
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                Status
+                {t("Status")}
               </label>
               <select
                 className={cn(fieldClassName, "mt-1")}
@@ -1151,10 +1176,10 @@ export function InventoryAdmin({
                   }))
                 }
               >
-                <option value="all">All statuses</option>
+                <option value="all">{t("All statuses")}</option>
                 {ITEM_STATUS_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
+                  <option key={option} value={option}>
+                    {statusLabel(option, t)}
                   </option>
                 ))}
               </select>
@@ -1162,7 +1187,7 @@ export function InventoryAdmin({
 
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                Active
+                {t("Active")}
               </label>
               <select
                 className={cn(fieldClassName, "mt-1")}
@@ -1174,9 +1199,9 @@ export function InventoryAdmin({
                   }))
                 }
               >
-                <option value="all">All</option>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
+                <option value="all">{t("All")}</option>
+                <option value="active">{t("Active")}</option>
+                <option value="inactive">{t("Inactive")}</option>
               </select>
             </div>
 
@@ -1187,7 +1212,7 @@ export function InventoryAdmin({
                 onClick={handleApplyFilters}
                 disabled={isLoadingItems || !hasPendingFilterChanges}
               >
-                Apply
+                {t("Apply")}
               </Button>
               <Button
                 type="button"
@@ -1196,14 +1221,14 @@ export function InventoryAdmin({
                 onClick={handleResetFilters}
                 disabled={isLoadingItems}
               >
-                Reset
+                {t("Reset")}
               </Button>
             </div>
           </div>
 
           {oneCharSearch ? (
             <p className="mt-2 text-xs text-amber-700">
-              Backend search starts at 2 characters.
+              {t("Backend search starts at 2 characters.")}
             </p>
           ) : null}
         </section>
@@ -1211,16 +1236,16 @@ export function InventoryAdmin({
         <section className="rounded-lg border border-slate-200">
           <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
             <p className="text-sm font-semibold text-slate-900">
-              Results ({items.length})
+              {t("Results ({{count}})", { count: items.length })}
             </p>
-            <p className="text-xs text-slate-500">Click any row to open details</p>
+            <p className="text-xs text-slate-500">{t("Click any row to open details")}</p>
           </div>
 
           {isLoadingItems ? (
-            <p className="px-4 py-6 text-sm text-slate-600">Loading inventory items...</p>
+            <p className="px-4 py-6 text-sm text-slate-600">{t("Loading inventory items...")}</p>
           ) : items.length === 0 ? (
             <p className="px-4 py-8 text-center text-sm text-slate-500">
-              No inventory items found for selected filters.
+              {t("No inventory items found for selected filters.")}
             </p>
           ) : (
             <>
@@ -1235,7 +1260,7 @@ export function InventoryAdmin({
                     <p className="text-sm font-semibold text-slate-900">{item.serial_number}</p>
                     <p className="text-sm text-slate-700">{item.name || "-"}</p>
                     <p className="mt-1 text-xs text-slate-500">
-                      Category: {categoryNameById.get(item.category) ?? `#${item.category}`}
+                      {t("Category")}: {categoryNameById.get(item.category) ?? `#${item.category}`}
                     </p>
                     <div className="mt-2 flex flex-wrap gap-2">
                       <span
@@ -1247,7 +1272,7 @@ export function InventoryAdmin({
                         {statusLabelByValue.get(item.status) ?? item.status}
                       </span>
                       <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5 text-xs text-slate-600">
-                        {item.is_active ? "Active" : "Inactive"}
+                        {item.is_active ? t("Active") : t("Inactive")}
                       </span>
                     </div>
                   </button>
@@ -1259,25 +1284,25 @@ export function InventoryAdmin({
                   <thead className="bg-slate-50">
                     <tr>
                       <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Serial
+                        {t("Serial")}
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Name
+                        {t("Name")}
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Category
+                        {t("Category")}
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Status
+                        {t("Status")}
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Active
+                        {t("Active")}
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Updated
+                        {t("Updated")}
                       </th>
                       <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Action
+                        {t("Action")}
                       </th>
                     </tr>
                   </thead>
@@ -1306,7 +1331,7 @@ export function InventoryAdmin({
                           </span>
                         </td>
                         <td className="px-4 py-3 text-sm text-slate-700">
-                          {item.is_active ? "Yes" : "No"}
+                          {item.is_active ? t("Yes") : t("No")}
                         </td>
                         <td className="px-4 py-3 text-sm text-slate-500">
                           {formatDate(item.updated_at)}
@@ -1322,7 +1347,7 @@ export function InventoryAdmin({
                               navigate({ name: "itemDetail", itemId: item.id });
                             }}
                           >
-                            Open
+                            {t("Open")}
                           </Button>
                         </td>
                       </tr>
@@ -1341,7 +1366,7 @@ export function InventoryAdmin({
     if (isLoadingDetail) {
       return (
         <div className="mt-4 rounded-lg border border-slate-200 p-4">
-          <p className="text-sm text-slate-600">Loading item details...</p>
+          <p className="text-sm text-slate-600">{t("Loading item details...")}</p>
         </div>
       );
     }
@@ -1350,7 +1375,7 @@ export function InventoryAdmin({
       return (
         <div className="mt-4 rounded-lg border border-dashed border-slate-300 p-6 text-center">
           <p className="text-sm text-slate-600">
-            Item not found or unavailable. Go back to the list and try again.
+            {t("Item not found or unavailable. Go back to the list and try again.")}
           </p>
           <Button
             type="button"
@@ -1358,7 +1383,7 @@ export function InventoryAdmin({
             className="mt-3 h-10"
             onClick={() => navigate({ name: "items" })}
           >
-            Back to Items
+            {t("Back to Items")}
           </Button>
         </div>
       );
@@ -1373,7 +1398,7 @@ export function InventoryAdmin({
             className="inline-flex items-center gap-1 text-sm font-medium text-slate-600 transition hover:text-slate-900"
           >
             <ArrowLeft className="h-4 w-4" />
-            Back to items
+            {t("Back to items")}
           </button>
 
           <span
@@ -1388,9 +1413,10 @@ export function InventoryAdmin({
 
         <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
           <p className="text-lg font-semibold text-slate-900">{detailItem.serial_number}</p>
-          <p className="mt-1 text-sm text-slate-600">{detailItem.name || "Unnamed item"}</p>
+          <p className="mt-1 text-sm text-slate-600">{detailItem.name || t("Unnamed item")}</p>
           <p className="mt-2 text-xs text-slate-500">
-            Created: {formatDate(detailItem.created_at)} | Updated: {formatDate(detailItem.updated_at)}
+            {t("Created")}: {formatDate(detailItem.created_at)} | {t("Updated")}:{" "}
+            {formatDate(detailItem.updated_at)}
           </p>
         </div>
 
@@ -1401,13 +1427,13 @@ export function InventoryAdmin({
           >
             <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
               <Wrench className="h-4 w-4" />
-              Item Details
+              {t("Item Details")}
             </p>
 
             <div className="mt-3 grid gap-3 md:grid-cols-2">
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                  Serial Number
+                  {t("Serial Number")}
                 </label>
                 <input
                   className={cn(fieldClassName, "mt-1")}
@@ -1428,7 +1454,7 @@ export function InventoryAdmin({
 
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                  Name
+                  {t("Name")}
                 </label>
                 <input
                   className={cn(fieldClassName, "mt-1")}
@@ -1449,7 +1475,7 @@ export function InventoryAdmin({
 
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                  Category
+                  {t("Category")}
                 </label>
                 <select
                   className={cn(fieldClassName, "mt-1")}
@@ -1466,7 +1492,7 @@ export function InventoryAdmin({
                   }
                   disabled={!canManage || isMutating || !categories.length}
                 >
-                  <option value="">Select category</option>
+                  <option value="">{t("Select category")}</option>
                   {categories.map((category) => (
                     <option key={category.id} value={category.id}>
                       {category.name}
@@ -1477,7 +1503,7 @@ export function InventoryAdmin({
 
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                  Status
+                  {t("Status")}
                 </label>
                 <select
                   className={cn(fieldClassName, "mt-1")}
@@ -1495,8 +1521,8 @@ export function InventoryAdmin({
                   disabled={!canManage || isMutating}
                 >
                   {ITEM_STATUS_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
+                    <option key={option} value={option}>
+                      {statusLabel(option, t)}
                     </option>
                   ))}
                 </select>
@@ -1520,14 +1546,14 @@ export function InventoryAdmin({
                   }
                   disabled={!canManage || isMutating}
                 />
-                Active item
+                {t("Active item")}
               </label>
             </div>
 
             {canManage ? (
               <div className="mt-4 flex flex-wrap gap-2">
                 <Button type="submit" className="h-10" disabled={isMutating}>
-                  Save Changes
+                  {t("Save Changes")}
                 </Button>
                 <Button
                   type="button"
@@ -1537,7 +1563,7 @@ export function InventoryAdmin({
                   disabled={isMutating}
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
-                  Delete Item
+                  {t("Delete Item")}
                 </Button>
               </div>
             ) : null}
@@ -1546,11 +1572,12 @@ export function InventoryAdmin({
           <section className="rounded-lg border border-slate-200 p-4">
             <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
               <Package className="h-4 w-4" />
-              Inherited Category Parts ({detailParts.length})
+              {t("Inherited Category Parts ({{count}})", { count: detailParts.length })}
             </p>
             <p className="mt-1 text-xs text-slate-600">
-              These parts come from the selected category and are shared across all
-              items in that category. Manage them in the Categories tab.
+              {t(
+                "These parts come from the selected category and are shared across all items in that category. Manage them in the Categories tab.",
+              )}
             </p>
 
             <div className="mt-3 space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3">
@@ -1568,7 +1595,7 @@ export function InventoryAdmin({
                 ))
               ) : (
                 <p className="rounded-md border border-dashed border-slate-300 px-3 py-5 text-center text-sm text-slate-500">
-                  No parts for this category.
+                  {t("No parts for this category.")}
                 </p>
               )}
             </div>
@@ -1582,13 +1609,15 @@ export function InventoryAdmin({
     <section className="rm-panel rm-animate-enter-delayed p-4 sm:p-5">
       <div className="flex flex-col gap-3 border-b border-slate-200/70 pb-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">Inventory Management</h2>
+          <h2 className="text-lg font-semibold text-slate-900">{t("Inventory Management")}</h2>
           <p className="mt-1 text-sm text-slate-600">
-            Categories and inventory are split into dedicated screens for large data.
+            {t("Categories and inventory are split into dedicated screens for large data.")}
           </p>
           {!canManage ? (
             <p className="mt-2 text-xs text-amber-700">
-              Roles ({roleSlugs.join(", ") || "none"}) can view inventory data but cannot modify it.
+              {t("Roles ({{roles}}) can view inventory data but cannot modify it.", {
+                roles: roleSlugs.join(", ") || t("none"),
+              })}
             </p>
           ) : null}
         </div>
@@ -1607,7 +1636,7 @@ export function InventoryAdmin({
           }
         >
           <RefreshCcw className="mr-2 h-4 w-4" />
-          Refresh
+          {t("Refresh")}
         </Button>
       </div>
 
@@ -1639,7 +1668,7 @@ export function InventoryAdmin({
         >
           <span className="inline-flex items-center gap-2">
             <FolderTree className="h-4 w-4" />
-            Categories
+            {t("Categories")}
           </span>
         </button>
 
@@ -1655,7 +1684,7 @@ export function InventoryAdmin({
         >
           <span className="inline-flex items-center gap-2">
             <Package className="h-4 w-4" />
-            Inventory Items
+            {t("Inventory Items")}
           </span>
         </button>
       </div>

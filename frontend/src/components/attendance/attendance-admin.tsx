@@ -12,6 +12,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { useI18n } from "@/i18n";
 import {
   attendanceCheckIn,
   attendanceCheckOut,
@@ -39,11 +40,7 @@ type FeedbackState =
 const fieldClassName = "rm-input";
 const BUSINESS_TIME_ZONE = import.meta.env.VITE_BUSINESS_TIMEZONE ?? "Asia/Tashkent";
 
-const PUNCTUALITY_OPTIONS: Array<{ value: AttendancePunctuality; label: string }> = [
-  { value: "early", label: "Early" },
-  { value: "on_time", label: "On Time" },
-  { value: "late", label: "Late" },
-];
+const PUNCTUALITY_OPTIONS: AttendancePunctuality[] = ["early", "on_time", "late"];
 
 function toErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message) {
@@ -127,11 +124,23 @@ function punctualityBadgeClass(value: AttendancePunctuality | null | undefined):
   return "border-slate-200 bg-slate-50 text-slate-600";
 }
 
-function punctualityLabel(value: AttendancePunctuality | null | undefined): string {
+function punctualityLabel(
+  value: AttendancePunctuality | null | undefined,
+  t: (key: string, params?: Record<string, string | number>) => string,
+): string {
   if (!value) {
-    return "Not set";
+    return t("Not set");
   }
-  return PUNCTUALITY_OPTIONS.find((option) => option.value === value)?.label ?? value;
+  if (value === "early") {
+    return t("Early");
+  }
+  if (value === "on_time") {
+    return t("On Time");
+  }
+  if (value === "late") {
+    return t("Late");
+  }
+  return value;
 }
 
 export function AttendanceAdmin({
@@ -139,6 +148,7 @@ export function AttendanceAdmin({
   canManage,
   roleSlugs,
 }: AttendanceAdminProps) {
+  const { t } = useI18n();
   const [clockMs, setClockMs] = useState(() => Date.now());
   const businessTodayDate = useMemo(
     () => businessDateInTimeZone(new Date(clockMs)),
@@ -217,12 +227,12 @@ export function AttendanceAdmin({
     } catch (error) {
       setFeedback({
         type: "error",
-        message: toErrorMessage(error, "Failed to load users."),
+        message: toErrorMessage(error, t("Failed to load users.")),
       });
     } finally {
       setIsLoadingUsers(false);
     }
-  }, [accessToken, canManage]);
+  }, [accessToken, canManage, t]);
 
   const loadRecords = useCallback(async () => {
     if (!canManage) {
@@ -243,12 +253,12 @@ export function AttendanceAdmin({
     } catch (error) {
       setFeedback({
         type: "error",
-        message: toErrorMessage(error, "Failed to load attendance records."),
+        message: toErrorMessage(error, t("Failed to load attendance records.")),
       });
     } finally {
       setIsLoadingRecords(false);
     }
-  }, [accessToken, canManage, filterUserId, punctuality, workDate]);
+  }, [accessToken, canManage, filterUserId, punctuality, t, workDate]);
 
   useEffect(() => {
     void loadUsers();
@@ -272,7 +282,13 @@ export function AttendanceAdmin({
       if (!isActionDateToday) {
         setFeedback({
           type: "error",
-          message: `Attendance actions are allowed only for today (${businessTodayDate}, ${BUSINESS_TIME_ZONE}).`,
+          message: t(
+            "Attendance actions are allowed only for today ({{date}}, {{timezone}}).",
+            {
+              date: businessTodayDate,
+              timezone: BUSINESS_TIME_ZONE,
+            },
+          ),
         });
         return;
       }
@@ -286,13 +302,13 @@ export function AttendanceAdmin({
           const signed = payload.xp_awarded >= 0 ? `+${payload.xp_awarded}` : `${payload.xp_awarded}`;
           setFeedback({
             type: "success",
-            message: `Check-in saved. XP awarded: ${signed}.`,
+            message: t("Check-in saved. XP awarded: {{xp}}.", { xp: signed }),
           });
         } else {
           await attendanceCheckOut(accessToken, userId);
           setFeedback({
             type: "success",
-            message: "Check-out saved.",
+            message: t("Check-out saved."),
           });
         }
 
@@ -306,14 +322,16 @@ export function AttendanceAdmin({
           type: "error",
           message: toErrorMessage(
             error,
-            action === "checkin" ? "Failed to mark check-in." : "Failed to mark check-out.",
+            action === "checkin"
+              ? t("Failed to mark check-in.")
+              : t("Failed to mark check-out."),
           ),
         });
       } finally {
         setIsMutating(false);
       }
     },
-    [accessToken, businessTodayDate, isActionDateToday, loadRecords, workDate],
+    [accessToken, businessTodayDate, isActionDateToday, loadRecords, t, workDate],
   );
 
   return (
@@ -322,13 +340,15 @@ export function AttendanceAdmin({
         className="flex flex-col gap-3 border-b border-slate-200/70 pb-4 sm:flex-row sm:items-start sm:justify-between"
       >
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">Attendance</h2>
+          <h2 className="text-lg font-semibold text-slate-900">{t("Attendance")}</h2>
           <p className="mt-1 text-sm text-slate-600">
-            Review attendance by day and mark check-in/check-out for any user.
+            {t("Review attendance by day and mark check-in/check-out for any user.")}
           </p>
           {!canManage ? (
             <p className="mt-2 text-xs text-amber-700">
-              Roles ({roleSlugs.join(", ") || "none"}) cannot manage attendance.
+              {t("Roles ({{roles}}) cannot manage attendance.", {
+                roles: roleSlugs.join(", ") || t("none"),
+              })}
             </p>
           ) : null}
         </div>
@@ -343,7 +363,7 @@ export function AttendanceAdmin({
           disabled={!canManage || isLoadingUsers || isLoadingRecords || isMutating}
         >
           <RefreshCcw className="mr-2 h-4 w-4" />
-          Refresh
+          {t("Refresh")}
         </Button>
       </div>
 
@@ -364,7 +384,7 @@ export function AttendanceAdmin({
         <p
           className="mt-4 rounded-md border border-dashed border-slate-300 px-3 py-6 text-center text-sm text-slate-600"
         >
-          Attendance management is available only for admin roles.
+          {t("Attendance management is available only for admin roles.")}
         </p>
       ) : (
         <>
@@ -372,7 +392,7 @@ export function AttendanceAdmin({
             <div className="grid gap-3 lg:grid-cols-[1fr_1fr_auto]">
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                  Work Date
+                  {t("Work Date")}
                 </label>
                 <div className="mt-1 flex flex-wrap items-center gap-2">
                   <Button
@@ -410,7 +430,7 @@ export function AttendanceAdmin({
                     onClick={() => setWorkDate(businessTodayDate)}
                     disabled={isLoadingRecords || isMutating}
                   >
-                    Today
+                    {t("Today")}
                   </Button>
                 </div>
                 <p className="mt-1 text-xs text-slate-500">{formatDateLabel(workDate)}</p>
@@ -418,7 +438,7 @@ export function AttendanceAdmin({
 
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                  Filter User
+                  {t("Filter User")}
                 </label>
                 <select
                   className={cn(fieldClassName, "mt-1")}
@@ -434,7 +454,7 @@ export function AttendanceAdmin({
                   }}
                   disabled={isLoadingUsers || isLoadingRecords || isMutating}
                 >
-                  <option value="">All users</option>
+                  <option value="">{t("All users")}</option>
                   {users.map((user) => (
                     <option key={user.id} value={user.id}>
                       {user.display_name} (@{user.username})
@@ -445,7 +465,7 @@ export function AttendanceAdmin({
 
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                  Punctuality
+                  {t("Punctuality")}
                 </label>
                 <select
                   className={cn(fieldClassName, "mt-1 min-w-[160px]")}
@@ -455,10 +475,10 @@ export function AttendanceAdmin({
                   }
                   disabled={isLoadingRecords || isMutating}
                 >
-                  <option value="">All</option>
+                  <option value="">{t("All")}</option>
                   {PUNCTUALITY_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
+                    <option key={option} value={option}>
+                      {punctualityLabel(option, t)}
                     </option>
                   ))}
                 </select>
@@ -467,20 +487,27 @@ export function AttendanceAdmin({
           </section>
 
           <section className="rm-subpanel mt-4 p-3 sm:p-4">
-            <p className="text-sm font-semibold text-slate-900">Mark Attendance (today)</p>
+            <p className="text-sm font-semibold text-slate-900">
+              {t("Mark Attendance (today)")}
+            </p>
             <p className="mt-1 text-xs text-slate-500">
-              Check-in/check-out endpoints apply to the current business day ({BUSINESS_TIME_ZONE}).
+              {t(
+                "Check-in/check-out endpoints apply to the current business day ({{timezone}}).",
+                {
+                  timezone: BUSINESS_TIME_ZONE,
+                },
+              )}
             </p>
             {!isActionDateToday ? (
               <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                Selected date is not today
+                {t("Selected date is not today")}
               </p>
             ) : null}
 
             <div className="mt-3 grid gap-3 lg:grid-cols-[1fr_1fr_auto_auto]">
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                  Search User
+                  {t("Search User")}
                 </label>
                 <div className="relative mt-1">
                   <Search
@@ -490,7 +517,7 @@ export function AttendanceAdmin({
                     className={cn(fieldClassName, "pl-9")}
                     value={userSearch}
                     onChange={(event) => setUserSearch(event.target.value)}
-                    placeholder="Name, username, phone"
+                    placeholder={t("Name, username, phone")}
                     disabled={isLoadingUsers || isMutating}
                   />
                 </div>
@@ -498,7 +525,7 @@ export function AttendanceAdmin({
 
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                  Action User
+                  {t("Action User")}
                 </label>
                 <select
                   className={cn(fieldClassName, "mt-1")}
@@ -515,7 +542,7 @@ export function AttendanceAdmin({
                   disabled={isLoadingUsers || isMutating || selectableUsers.length === 0}
                 >
                   {selectableUsers.length === 0 ? (
-                    <option value="">No users found</option>
+                    <option value="">{t("No users found")}</option>
                   ) : null}
                   {selectableUsers.map((user) => (
                     <option key={user.id} value={user.id}>
@@ -542,7 +569,7 @@ export function AttendanceAdmin({
                 }}
               >
                 <LogIn className="mr-2 h-4 w-4" />
-                Mark Check-In
+                {t("Mark Check-In")}
               </Button>
 
               <Button
@@ -563,7 +590,7 @@ export function AttendanceAdmin({
                 }}
               >
                 <LogOut className="mr-2 h-4 w-4" />
-                Mark Check-Out
+                {t("Mark Check-Out")}
               </Button>
             </div>
           </section>
@@ -572,34 +599,36 @@ export function AttendanceAdmin({
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 px-4 py-3">
               <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
                 <CalendarDays className="h-4 w-4" />
-                Attendance Records
+                {t("Attendance Records")}
               </p>
               <span className="text-xs text-slate-500">
-                {records.length} row{records.length === 1 ? "" : "s"}
+                {t("Rows: {{count}}", { count: records.length })}
               </span>
             </div>
 
             {isLoadingRecords ? (
-              <p className="px-4 py-6 text-sm text-slate-600">Loading attendance records...</p>
+              <p className="px-4 py-6 text-sm text-slate-600">
+                {t("Loading attendance records...")}
+              </p>
             ) : records.length ? (
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-slate-200">
                   <thead className="bg-slate-50">
                     <tr>
                       <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
-                        User
+                        {t("User")}
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
-                        Check-In
+                        {t("Check-In")}
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
-                        Check-Out
+                        {t("Check-Out")}
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
-                        Punctuality
+                        {t("Punctuality")}
                       </th>
                       <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-600">
-                        Actions
+                        {t("Actions")}
                       </th>
                     </tr>
                   </thead>
@@ -646,7 +675,7 @@ export function AttendanceAdmin({
                                 punctualityBadgeClass(record.punctuality_status ?? null),
                               )}
                             >
-                              {punctualityLabel(record.punctuality_status ?? null)}
+                              {punctualityLabel(record.punctuality_status ?? null, t)}
                             </span>
                           </td>
 
@@ -661,7 +690,7 @@ export function AttendanceAdmin({
                                   void runAttendanceAction("checkin", record.user);
                                 }}
                               >
-                                In
+                                {t("In")}
                               </Button>
                               <Button
                                 type="button"
@@ -673,7 +702,7 @@ export function AttendanceAdmin({
                                   void runAttendanceAction("checkout", record.user);
                                 }}
                               >
-                                Out
+                                {t("Out")}
                               </Button>
                             </div>
                           </td>
@@ -685,7 +714,7 @@ export function AttendanceAdmin({
               </div>
             ) : (
               <p className="px-4 py-6 text-sm text-slate-600">
-                No attendance records for this date and filter combination.
+                {t("No attendance records for this date and filter combination.")}
               </p>
             )}
           </section>

@@ -14,6 +14,8 @@ class BotSettings:
     parse_mode: str
     default_locale: str
     fallback_locale: str
+    fsm_storage: str
+    fsm_redis_url: str
 
     @property
     def webhook_url(self) -> str:
@@ -37,4 +39,6 @@ def get_bot_settings() -> BotSettings:
         parse_mode=settings.BOT_PARSE_MODE,
         default_locale=settings.BOT_DEFAULT_LOCALE,
         fallback_locale=settings.BOT_FALLBACK_LOCALE,
+        fsm_storage=settings.BOT_FSM_STORAGE,
+        fsm_redis_url=settings.BOT_FSM_REDIS_URL,
     )

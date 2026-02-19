@@ -10,6 +10,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { useI18n } from "@/i18n";
 import {
   approveAccessRequest,
   listAccessRequests,
@@ -42,11 +43,7 @@ const ROLE_OPTIONS: Array<{ slug: string; label: string }> = [
   { slug: "qc_inspector", label: "QC Inspector" },
 ];
 
-const STATUS_OPTIONS: Array<{ value: AccessRequestStatus; label: string }> = [
-  { value: "pending", label: "Pending" },
-  { value: "approved", label: "Approved" },
-  { value: "rejected", label: "Rejected" },
-];
+const STATUS_OPTIONS: AccessRequestStatus[] = ["pending", "approved", "rejected"];
 
 function toErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message) {
@@ -76,8 +73,20 @@ function statusBadgeClass(status: AccessRequestStatus): string {
   return "border-rose-200 bg-rose-50 text-rose-700";
 }
 
-function statusLabel(status: AccessRequestStatus): string {
-  return STATUS_OPTIONS.find((item) => item.value === status)?.label ?? status;
+function statusLabel(
+  status: AccessRequestStatus,
+  t: (key: string, params?: Record<string, string | number>) => string,
+): string {
+  if (status === "pending") {
+    return t("Pending");
+  }
+  if (status === "approved") {
+    return t("Approved");
+  }
+  if (status === "rejected") {
+    return t("Rejected");
+  }
+  return status;
 }
 
 export function AccessRequestsAdmin({
@@ -85,6 +94,7 @@ export function AccessRequestsAdmin({
   canManage,
   roleSlugs,
 }: AccessRequestsAdminProps) {
+  const { t } = useI18n();
   const [requests, setRequests] = useState<AccessRequest[]>([]);
   const [statusFilter, setStatusFilter] = useState<AccessRequestStatus>("pending");
   const [search, setSearch] = useState("");
@@ -140,12 +150,12 @@ export function AccessRequestsAdmin({
     } catch (error) {
       setFeedback({
         type: "error",
-        message: toErrorMessage(error, "Failed to load access requests."),
+        message: toErrorMessage(error, t("Failed to load access requests.")),
       });
     } finally {
       setIsLoading(false);
     }
-  }, [accessToken, canManage, statusFilter]);
+  }, [accessToken, canManage, statusFilter, t]);
 
   useEffect(() => {
     void loadRequests();
@@ -162,13 +172,13 @@ export function AccessRequestsAdmin({
       } catch (error) {
         setFeedback({
           type: "error",
-          message: toErrorMessage(error, "Action failed."),
+          message: toErrorMessage(error, t("Action failed.")),
         });
       } finally {
         setIsMutating(false);
       }
     },
-    [loadRequests],
+    [loadRequests, t],
   );
 
   const toggleRole = (requestId: number, roleSlug: string) => {
@@ -200,7 +210,7 @@ export function AccessRequestsAdmin({
         delete next[request.id];
         return next;
       });
-    }, "Access request approved.");
+    }, t("Access request approved."));
   };
 
   const handleReject = async (request: AccessRequest) => {
@@ -208,7 +218,7 @@ export function AccessRequestsAdmin({
       return;
     }
 
-    if (!window.confirm("Reject this access request?")) {
+    if (!window.confirm(t("Reject this access request?"))) {
       return;
     }
 
@@ -219,20 +229,22 @@ export function AccessRequestsAdmin({
         delete next[request.id];
         return next;
       });
-    }, "Access request rejected.");
+    }, t("Access request rejected."));
   };
 
   return (
     <section className="rm-panel rm-animate-enter-delayed p-4 sm:p-5">
       <div className="flex flex-col gap-3 border-b border-slate-200/70 pb-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">Access Requests</h2>
+          <h2 className="text-lg font-semibold text-slate-900">{t("Access Requests")}</h2>
           <p className="mt-1 text-sm text-slate-600">
-            Approve or reject bot onboarding requests and assign user roles.
+            {t("Approve or reject bot onboarding requests and assign user roles.")}
           </p>
           {!canManage ? (
             <p className="mt-2 text-xs text-amber-700">
-              Roles ({roleSlugs.join(", ") || "none"}) cannot manage access requests.
+              {t("Roles ({{roles}}) cannot manage access requests.", {
+                roles: roleSlugs.join(", ") || t("none"),
+              })}
             </p>
           ) : null}
         </div>
@@ -245,7 +257,7 @@ export function AccessRequestsAdmin({
           disabled={isLoading || isMutating || !canManage}
         >
           <RefreshCcw className="mr-2 h-4 w-4" />
-          Refresh
+          {t("Refresh")}
         </Button>
       </div>
 
@@ -264,14 +276,14 @@ export function AccessRequestsAdmin({
 
       {!canManage ? (
         <p className="mt-4 rounded-md border border-dashed border-slate-300 px-3 py-6 text-center text-sm text-slate-600">
-          Access request management is available only for Super Admin and Ops Manager.
+          {t("Access request management is available only for Super Admin and Ops Manager.")}
         </p>
       ) : (
         <>
           <div className="mt-4 grid gap-3 sm:grid-cols-[200px_1fr]">
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                Status
+                {t("Status")}
               </label>
               <select
                 className={cn(fieldClassName, "mt-1")}
@@ -282,8 +294,8 @@ export function AccessRequestsAdmin({
                 disabled={isLoading || isMutating}
               >
                 {STATUS_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
+                  <option key={option} value={option}>
+                    {statusLabel(option, t)}
                   </option>
                 ))}
               </select>
@@ -291,7 +303,7 @@ export function AccessRequestsAdmin({
 
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                Search
+                {t("Search")}
               </label>
               <div className="relative mt-1">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -299,7 +311,7 @@ export function AccessRequestsAdmin({
                   className={cn(fieldClassName, "pl-9")}
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Name, username, phone, telegram id"
+                  placeholder={t("Name, username, phone, telegram id")}
                   disabled={isLoading}
                 />
               </div>
@@ -309,15 +321,15 @@ export function AccessRequestsAdmin({
           <section className="mt-4 rounded-lg border border-slate-200">
             <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
               <p className="text-sm font-semibold text-slate-900">
-                Requests ({filteredRequests.length})
+                {t("Requests ({{count}})", { count: filteredRequests.length })}
               </p>
               <span className="text-xs text-slate-500">
-                Filter: {statusLabel(statusFilter)}
+                {t("Filter")}: {statusLabel(statusFilter, t)}
               </span>
             </div>
 
             {isLoading ? (
-              <p className="px-4 py-6 text-sm text-slate-600">Loading access requests...</p>
+              <p className="px-4 py-6 text-sm text-slate-600">{t("Loading access requests...")}</p>
             ) : filteredRequests.length ? (
               <div className="space-y-3 p-3">
                 {filteredRequests.map((request) => (
@@ -329,7 +341,7 @@ export function AccessRequestsAdmin({
                       <div>
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="text-sm font-semibold text-slate-900">
-                            {request.first_name || "Unknown"} {request.last_name || ""}
+                            {request.first_name || t("Unknown")} {request.last_name || ""}
                           </p>
                           <span
                             className={cn(
@@ -337,7 +349,7 @@ export function AccessRequestsAdmin({
                               statusBadgeClass(request.status),
                             )}
                           >
-                            {statusLabel(request.status)}
+                            {statusLabel(request.status, t)}
                           </span>
                         </div>
 
@@ -354,25 +366,25 @@ export function AccessRequestsAdmin({
                             @{request.username || "-"}
                           </span>
                           <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5">
-                            {request.phone || "No phone"}
+                            {request.phone || t("No phone")}
                           </span>
                         </div>
 
                         {request.note ? (
                           <p className="mt-2 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700">
-                            Note: {request.note}
+                            {t("Note")}: {request.note}
                           </p>
                         ) : null}
 
                         <p className="mt-2 text-xs text-slate-500">
-                          Created: {formatDate(request.created_at)} | Resolved: {formatDate(request.resolved_at)}
+                          {t("Created")}: {formatDate(request.created_at)} | {t("Resolved")}: {formatDate(request.resolved_at)}
                         </p>
                       </div>
 
                       {request.status === "pending" ? (
                         <div className="w-full max-w-md space-y-2 rounded-md border border-slate-200 bg-white p-3">
                           <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                            Assign Roles On Approval (Optional)
+                            {t("Assign Roles On Approval (Optional)")}
                           </p>
 
                           <div className="grid gap-1 sm:grid-cols-2">
@@ -393,7 +405,7 @@ export function AccessRequestsAdmin({
                                     onChange={() => toggleRole(request.id, role.slug)}
                                     disabled={isMutating}
                                   />
-                                  {role.label}
+                                  {t(role.label)}
                                 </label>
                               );
                             })}
@@ -408,7 +420,7 @@ export function AccessRequestsAdmin({
                               disabled={isMutating}
                             >
                               <UserCheck className="mr-1 h-3.5 w-3.5" />
-                              Approve
+                              {t("Approve")}
                             </Button>
 
                             <Button
@@ -420,14 +432,14 @@ export function AccessRequestsAdmin({
                               disabled={isMutating}
                             >
                               <UserX className="mr-1 h-3.5 w-3.5" />
-                              Reject
+                              {t("Reject")}
                             </Button>
                           </div>
                         </div>
                       ) : (
                         <div className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600">
                           <CheckCircle2 className="h-3.5 w-3.5" />
-                          Resolved
+                          {t("Resolved")}
                         </div>
                       )}
                     </div>
@@ -436,7 +448,7 @@ export function AccessRequestsAdmin({
               </div>
             ) : (
               <p className="px-4 py-8 text-center text-sm text-slate-500">
-                No access requests found.
+                {t("No access requests found.")}
               </p>
             )}
           </section>

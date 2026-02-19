@@ -11,6 +11,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { AccessRequestsAdmin } from "@/components/account/access-requests-admin";
 import { Button } from "@/components/ui/button";
+import { useI18n } from "@/i18n";
 import {
   listManagedUsers,
   listRoleOptions,
@@ -112,6 +113,7 @@ export function UserManagementAdmin({
   canManage,
   roleSlugs,
 }: UserManagementAdminProps) {
+  const { t } = useI18n();
   const [activeTab, setActiveTab] = useState<UserTab>(() =>
     parseTabFromPath(window.location.pathname),
   );
@@ -202,12 +204,12 @@ export function UserManagementAdmin({
     } catch (error) {
       setFeedback({
         type: "error",
-        message: toErrorMessage(error, "Failed to load users."),
+        message: toErrorMessage(error, t("Failed to load users.")),
       });
     } finally {
       setIsLoadingUsers(false);
     }
-  }, [accessToken, appliedActivity, appliedRoleFilter, appliedSearch, canManage]);
+  }, [accessToken, appliedActivity, appliedRoleFilter, appliedSearch, canManage, t]);
 
   useEffect(() => {
     const onPopState = () => {
@@ -287,12 +289,12 @@ export function UserManagementAdmin({
       setUsers((prev) =>
         prev.map((user) => (user.id === updated.id ? updated : user)),
       );
-      setFeedback({ type: "success", message: "User updated successfully." });
+      setFeedback({ type: "success", message: t("User updated successfully.") });
       cancelEdit();
     } catch (error) {
       setFeedback({
         type: "error",
-        message: toErrorMessage(error, "Failed to update user."),
+        message: toErrorMessage(error, t("Failed to update user.")),
       });
     } finally {
       setIsMutating(false);
@@ -304,14 +306,17 @@ export function UserManagementAdmin({
       <section className="rm-panel rm-animate-enter-delayed p-4 sm:p-5">
         <div className="flex flex-col gap-3 border-b border-slate-200/70 pb-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-slate-900">User Management</h2>
+            <h2 className="text-lg font-semibold text-slate-900">{t("User Management")}</h2>
             <p className="mt-1 text-sm text-slate-600">
-              See who uses the system, manage user roles and account status, and process
-              onboarding requests.
+              {t(
+                "See who uses the system, manage user roles and account status, and process onboarding requests.",
+              )}
             </p>
             {!canManage ? (
               <p className="mt-2 text-xs text-amber-700">
-                Roles ({roleSlugs.join(", ") || "none"}) cannot manage users.
+                {t("Roles ({{roles}}) cannot manage users.", {
+                  roles: roleSlugs.join(", ") || t("none"),
+                })}
               </p>
             ) : null}
           </div>
@@ -327,7 +332,7 @@ export function UserManagementAdmin({
               disabled={isLoadingUsers || isMutating || !canManage}
             >
               <RefreshCcw className="mr-2 h-4 w-4" />
-              Refresh
+              {t("Refresh")}
             </Button>
           ) : null}
         </div>
@@ -343,7 +348,7 @@ export function UserManagementAdmin({
           >
             <span className="inline-flex items-center gap-2">
               <UserRoundCog className="h-4 w-4" />
-              Users
+              {t("Users")}
             </span>
           </button>
 
@@ -359,7 +364,7 @@ export function UserManagementAdmin({
           >
             <span className="inline-flex items-center gap-2">
               <Users className="h-4 w-4" />
-              Access Requests
+              {t("Access Requests")}
             </span>
           </button>
         </div>
@@ -388,21 +393,25 @@ export function UserManagementAdmin({
 
           {!canManage ? (
             <p className="rounded-md border border-dashed border-slate-300 px-3 py-8 text-center text-sm text-slate-600">
-              User management is available only for Super Admin and Ops Manager.
+              {t(
+                "User management is available only for Super Admin and Ops Manager.",
+              )}
             </p>
           ) : (
             <>
               <div className="grid gap-3 sm:grid-cols-3">
                 <div className="rm-subpanel p-3">
-                  <p className="text-xs uppercase tracking-wide text-slate-500">Total users</p>
+                  <p className="text-xs uppercase tracking-wide text-slate-500">
+                    {t("Total users")}
+                  </p>
                   <p className="mt-1 text-xl font-semibold text-slate-900">{counts.total}</p>
                 </div>
                 <div className="rm-subpanel p-3">
-                  <p className="text-xs uppercase tracking-wide text-slate-500">Active</p>
+                  <p className="text-xs uppercase tracking-wide text-slate-500">{t("Active")}</p>
                   <p className="mt-1 text-xl font-semibold text-emerald-700">{counts.active}</p>
                 </div>
                 <div className="rm-subpanel p-3">
-                  <p className="text-xs uppercase tracking-wide text-slate-500">Inactive</p>
+                  <p className="text-xs uppercase tracking-wide text-slate-500">{t("Inactive")}</p>
                   <p className="mt-1 text-xl font-semibold text-rose-700">{counts.inactive}</p>
                 </div>
               </div>
@@ -410,7 +419,7 @@ export function UserManagementAdmin({
               <div className="mt-4 grid gap-3 md:grid-cols-[1.4fr_1fr_1fr_auto_auto]">
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                    Search
+                    {t("Search")}
                   </label>
                   <div className="relative mt-1">
                     <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -418,7 +427,7 @@ export function UserManagementAdmin({
                       className={cn(fieldClassName, "pl-9")}
                       value={searchInput}
                       onChange={(event) => setSearchInput(event.target.value)}
-                      placeholder="Name, username or phone"
+                      placeholder={t("Name, username or phone")}
                       disabled={isMutating}
                     />
                   </div>
@@ -426,7 +435,7 @@ export function UserManagementAdmin({
 
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                    Role
+                    {t("Role")}
                   </label>
                   <select
                     className={cn(fieldClassName, "mt-1")}
@@ -434,10 +443,10 @@ export function UserManagementAdmin({
                     onChange={(event) => setRoleFilterInput(event.target.value)}
                     disabled={isLoadingRoles || isMutating}
                   >
-                    <option value="">All roles</option>
+                    <option value="">{t("All roles")}</option>
                     {roleOptionsWithFallback.map((role) => (
                       <option key={role.slug} value={role.slug}>
-                        {role.name}
+                        {t(role.name)}
                       </option>
                     ))}
                   </select>
@@ -445,7 +454,7 @@ export function UserManagementAdmin({
 
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                    Activity
+                    {t("Activity")}
                   </label>
                   <select
                     className={cn(fieldClassName, "mt-1")}
@@ -455,9 +464,9 @@ export function UserManagementAdmin({
                     }
                     disabled={isMutating}
                   >
-                    <option value="all">All users</option>
-                    <option value="active">Active only</option>
-                    <option value="inactive">Inactive only</option>
+                    <option value="all">{t("All users")}</option>
+                    <option value="active">{t("Active only")}</option>
+                    <option value="inactive">{t("Inactive only")}</option>
                   </select>
                 </div>
 
@@ -467,7 +476,7 @@ export function UserManagementAdmin({
                   onClick={handleApplyFilters}
                   disabled={isLoadingUsers || isMutating}
                 >
-                  Apply
+                  {t("Apply")}
                 </Button>
 
                 <Button
@@ -477,19 +486,19 @@ export function UserManagementAdmin({
                   onClick={handleResetFilters}
                   disabled={isLoadingUsers || isMutating}
                 >
-                  Reset
+                  {t("Reset")}
                 </Button>
               </div>
 
               <section className="mt-4 rounded-lg border border-slate-200">
                 <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
                   <p className="text-sm font-semibold text-slate-900">
-                    Users ({users.length})
+                    {t("Users ({{count}})", { count: users.length })}
                   </p>
                 </div>
 
                 {isLoadingUsers ? (
-                  <p className="px-4 py-8 text-sm text-slate-600">Loading users...</p>
+                  <p className="px-4 py-8 text-sm text-slate-600">{t("Loading users...")}</p>
                 ) : users.length ? (
                   <div className="space-y-3 p-3">
                     {users.map((user) => {
@@ -516,24 +525,24 @@ export function UserManagementAdmin({
                                     statusBadgeClass(user.is_active),
                                   )}
                                 >
-                                  {user.is_active ? "Active" : "Inactive"}
+                                  {user.is_active ? t("Active") : t("Inactive")}
                                 </span>
                                 {user.is_superuser ? (
                                   <span className="inline-flex items-center gap-1 rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700">
                                     <Shield className="h-3.5 w-3.5" />
-                                    Superuser
+                                    {t("Superuser")}
                                   </span>
                                 ) : null}
                               </div>
 
                               <div className="grid gap-x-4 gap-y-1 text-xs text-slate-600 sm:grid-cols-2">
-                                <p>Username: @{user.username}</p>
-                                <p>Phone: {user.phone || "-"}</p>
-                                <p>Level: L{user.level}</p>
-                                <p>Last login: {formatDateTime(user.last_login)}</p>
-                                <p>Created: {formatDateTime(user.created_at)}</p>
+                                <p>{t("Username")}: @{user.username}</p>
+                                <p>{t("Phone")}: {user.phone || "-"}</p>
+                                <p>{t("Level")}: L{user.level}</p>
+                                <p>{t("Last login")}: {formatDateTime(user.last_login)}</p>
+                                <p>{t("Created")}: {formatDateTime(user.created_at)}</p>
                                 <p>
-                                  Telegram:{" "}
+                                  {t("Telegram")}:{" "}
                                   {user.telegram?.telegram_id
                                     ? `tg:${user.telegram.telegram_id}`
                                     : "-"}
@@ -549,7 +558,7 @@ export function UserManagementAdmin({
                                       rolePillClass(roleSlug),
                                     )}
                                   >
-                                    {roleNameBySlug.get(roleSlug) ?? roleSlug}
+                                    {t(roleNameBySlug.get(roleSlug) ?? roleSlug)}
                                   </span>
                                 ))}
                               </div>
@@ -563,7 +572,7 @@ export function UserManagementAdmin({
                                 onClick={() => startEdit(user)}
                                 disabled={isMutating || rolesReadOnly}
                               >
-                                Manage
+                                {t("Manage")}
                               </Button>
                             </div>
                           </div>
@@ -571,12 +580,12 @@ export function UserManagementAdmin({
                           {isEditing ? (
                             <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3">
                               <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                                Edit user
+                                {t("Edit user")}
                               </p>
                               <div className="mt-2 grid gap-3 md:grid-cols-2">
                                 <div>
                                   <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-600">
-                                    Roles
+                                    {t("Roles")}
                                   </p>
                                   <div className="grid gap-1 sm:grid-cols-2">
                                     {roleOptionsWithFallback.map((role) => {
@@ -592,7 +601,7 @@ export function UserManagementAdmin({
                                             onChange={() => toggleEditRole(role.slug)}
                                             disabled={isMutating}
                                           />
-                                          {role.name}
+                                          {t(role.name)}
                                         </label>
                                       );
                                     })}
@@ -602,7 +611,7 @@ export function UserManagementAdmin({
                                 <div className="space-y-2">
                                   <div>
                                     <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                                      Level
+                                      {t("Level")}
                                     </label>
                                     <select
                                       className={cn(fieldClassName, "mt-1")}
@@ -629,7 +638,7 @@ export function UserManagementAdmin({
                                       }
                                       disabled={isMutating}
                                     />
-                                    Active account
+                                    {t("Active account")}
                                   </label>
                                 </div>
                               </div>
@@ -642,7 +651,7 @@ export function UserManagementAdmin({
                                   disabled={isMutating}
                                 >
                                   <UserCheck2 className="mr-1 h-4 w-4" />
-                                  Save
+                                  {t("Save")}
                                 </Button>
                                 <Button
                                   type="button"
@@ -652,7 +661,7 @@ export function UserManagementAdmin({
                                   disabled={isMutating}
                                 >
                                   <UserX2 className="mr-1 h-4 w-4" />
-                                  Cancel
+                                  {t("Cancel")}
                                 </Button>
                               </div>
                             </div>
@@ -663,7 +672,7 @@ export function UserManagementAdmin({
                   </div>
                 ) : (
                   <p className="px-4 py-8 text-center text-sm text-slate-500">
-                    No users found for selected filters.
+                    {t("No users found for selected filters.")}
                   </p>
                 )}
               </section>

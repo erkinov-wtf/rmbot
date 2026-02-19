@@ -10,6 +10,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { useI18n } from "@/i18n";
 import {
   getLevelControlOverview,
   getLevelControlUserHistory,
@@ -65,37 +66,53 @@ function toErrorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
-function warningWeekChangeLabel(result: ManualLevelSetResult): string {
+function warningWeekChangeLabel(
+  result: ManualLevelSetResult,
+  t: (key: string, params?: Record<string, string | number>) => string,
+): string {
   if (!result.warning_active_before && result.warning_active_after) {
-    return "Warning week added";
+    return t("Warning week added");
   }
   if (result.warning_active_before && !result.warning_active_after) {
-    return "Warning week removed";
+    return t("Warning week removed");
   }
   return result.warning_active_after
-    ? "Warning week unchanged (active)"
-    : "Warning week unchanged (not active)";
+    ? t("Warning week unchanged (active)")
+    : t("Warning week unchanged (not active)");
 }
 
-function levelChangeLabel(result: ManualLevelSetResult): string {
+function levelChangeLabel(
+  result: ManualLevelSetResult,
+  t: (key: string, params?: Record<string, string | number>) => string,
+): string {
   if (result.new_level > result.previous_level) {
-    return `Levelling up: L${result.previous_level} -> L${result.new_level}`;
+    return t("Levelling up: L{{from}} -> L{{to}}", {
+      from: result.previous_level,
+      to: result.new_level,
+    });
   }
   if (result.new_level < result.previous_level) {
-    return `Levelling down: L${result.previous_level} -> L${result.new_level}`;
+    return t("Levelling down: L{{from}} -> L{{to}}", {
+      from: result.previous_level,
+      to: result.new_level,
+    });
   }
-  return `Level unchanged: L${result.new_level}`;
+  return t("Level unchanged: L{{level}}", { level: result.new_level });
 }
 
 function manualLevelSuccessMessage(
   result: ManualLevelSetResult,
   note: string,
+  t: (key: string, params?: Record<string, string | number>) => string,
 ): string {
   const normalizedNote = note.trim();
   return (
-    `${result.display_name}: ${warningWeekChangeLabel(result)}. ` +
-    `${levelChangeLabel(result)}. ` +
-    `Comment: ${normalizedNote || "-"}`
+    t("{{name}}: {{warning}}. {{level}}. Comment: {{comment}}", {
+      name: result.display_name,
+      warning: warningWeekChangeLabel(result, t),
+      level: levelChangeLabel(result, t),
+      comment: normalizedNote || "-",
+    })
   );
 }
 
@@ -103,6 +120,7 @@ export function LevelControlAdmin({
   accessToken,
   canManage,
 }: LevelControlAdminProps) {
+  const { t } = useI18n();
   const [dateFromInput, setDateFromInput] = useState(defaultRange().dateFrom);
   const [dateToInput, setDateToInput] = useState(defaultRange().dateTo);
   const [appliedRange, setAppliedRange] = useState(defaultRange());
@@ -150,12 +168,12 @@ export function LevelControlAdmin({
     } catch (error) {
       setFeedback({
         type: "error",
-        message: toErrorMessage(error, "Failed to load level overview."),
+        message: toErrorMessage(error, t("Failed to load level overview.")),
       });
     } finally {
       setIsLoadingOverview(false);
     }
-  }, [accessToken, appliedRange.dateFrom, appliedRange.dateTo, canManage]);
+  }, [accessToken, appliedRange.dateFrom, appliedRange.dateTo, canManage, t]);
 
   const loadUserHistory = useCallback(
     async (userId: number | null) => {
@@ -174,13 +192,13 @@ export function LevelControlAdmin({
       } catch (error) {
         setFeedback({
           type: "error",
-          message: toErrorMessage(error, "Failed to load user history."),
+          message: toErrorMessage(error, t("Failed to load user history.")),
         });
       } finally {
         setIsLoadingHistory(false);
       }
     },
-    [accessToken, appliedRange.dateFrom, appliedRange.dateTo, canManage],
+    [accessToken, appliedRange.dateFrom, appliedRange.dateTo, canManage, t],
   );
 
   useEffect(() => {
@@ -203,14 +221,14 @@ export function LevelControlAdmin({
     if (!dateFromInput || !dateToInput) {
       setFeedback({
         type: "error",
-        message: "Both from and to dates are required.",
+        message: t("Both from and to dates are required."),
       });
       return;
     }
     if (dateFromInput > dateToInput) {
       setFeedback({
         type: "error",
-        message: "From date must be less than or equal to To date.",
+        message: t("From date must be less than or equal to To date."),
       });
       return;
     }
@@ -221,7 +239,7 @@ export function LevelControlAdmin({
     if (!selectedRow) {
       setFeedback({
         type: "error",
-        message: "Select a technician first.",
+        message: t("Select a technician first."),
       });
       return;
     }
@@ -230,7 +248,7 @@ export function LevelControlAdmin({
     if (!Number.isInteger(parsedLevel) || parsedLevel < 1 || parsedLevel > 5) {
       setFeedback({
         type: "error",
-        message: "Level must be between L1 and L5.",
+        message: t("Level must be between L1 and L5."),
       });
       return;
     }
@@ -246,7 +264,7 @@ export function LevelControlAdmin({
       });
       setFeedback({
         type: "success",
-        message: manualLevelSuccessMessage(result, normalizedNote),
+        message: manualLevelSuccessMessage(result, normalizedNote, t),
       });
       setLevelNote("");
       setClearWarningInput(false);
@@ -254,7 +272,7 @@ export function LevelControlAdmin({
     } catch (error) {
       setFeedback({
         type: "error",
-        message: toErrorMessage(error, "Failed to update user level."),
+        message: toErrorMessage(error, t("Failed to update user level.")),
       });
     } finally {
       setIsSettingLevel(false);
@@ -270,9 +288,16 @@ export function LevelControlAdmin({
       });
       setFeedback({
         type: "success",
-        message:
-          `Weekly evaluation completed for ${summary.week_start}..${summary.week_end}. ` +
-          `created=${summary.evaluations_created}, warnings=${summary.warnings_created}, resets=${summary.levels_reset_to_l1}.`,
+        message: t(
+          "Weekly evaluation completed for {{from}}..{{to}}. created={{created}}, warnings={{warnings}}, resets={{resets}}.",
+          {
+            from: summary.week_start,
+            to: summary.week_end,
+            created: summary.evaluations_created,
+            warnings: summary.warnings_created,
+            resets: summary.levels_reset_to_l1,
+          },
+        ),
       });
       await loadOverview();
       if (selectedUserId) {
@@ -281,7 +306,7 @@ export function LevelControlAdmin({
     } catch (error) {
       setFeedback({
         type: "error",
-        message: toErrorMessage(error, "Failed to run weekly level evaluation."),
+        message: toErrorMessage(error, t("Failed to run weekly level evaluation.")),
       });
     } finally {
       setIsRunningEvaluation(false);
@@ -293,10 +318,11 @@ export function LevelControlAdmin({
       <div className="flex flex-col gap-3 border-b border-slate-200/70 pb-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-slate-900">Level Control</h2>
+            <h2 className="text-lg font-semibold text-slate-900">{t("Level Control")}</h2>
             <p className="mt-1 text-sm text-slate-600">
-              Weekly XP target tracking, warning-week suggestions, manual level edits,
-              and full per-user progression history.
+              {t(
+                "Weekly XP target tracking, warning-week suggestions, manual level edits, and full per-user progression history.",
+              )}
             </p>
           </div>
 
@@ -310,7 +336,7 @@ export function LevelControlAdmin({
             disabled={isLoadingOverview || !canManage}
           >
             <RefreshCcw className="mr-2 h-4 w-4" />
-            Refresh
+            {t("Refresh")}
           </Button>
         </div>
       </div>
@@ -330,14 +356,14 @@ export function LevelControlAdmin({
 
       {!canManage ? (
         <p className="mt-4 rounded-md border border-dashed border-slate-300 px-3 py-8 text-center text-sm text-slate-600">
-          Level control is available only for Super Admin and Ops Manager.
+          {t("Level control is available only for Super Admin and Ops Manager.")}
         </p>
       ) : (
         <>
           <div className="mt-4 grid gap-3 lg:grid-cols-[1.2fr_1fr_auto]">
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                From date
+                {t("From date")}
               </label>
               <input
                 type="date"
@@ -349,7 +375,7 @@ export function LevelControlAdmin({
             </div>
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                To date
+                {t("To date")}
               </label>
               <input
                 type="date"
@@ -361,7 +387,7 @@ export function LevelControlAdmin({
             </div>
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                Current weekly target
+                {t("Current weekly target")}
               </label>
               <p className="mt-1 inline-flex h-10 w-full items-center rounded-xl border border-slate-300/80 bg-slate-50 px-3 text-sm text-slate-700">
                 {overview ? `${overview.weekly_target_xp} XP` : "-"}
@@ -374,44 +400,44 @@ export function LevelControlAdmin({
                 onClick={handleApplyRange}
                 disabled={isLoadingOverview}
               >
-                Apply
+                {t("Apply")}
               </Button>
             </div>
           </div>
 
           <div className="mt-4 grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
             <div className="rm-subpanel p-3">
-              <p className="text-xs uppercase tracking-wide text-slate-500">Technicians</p>
+              <p className="text-xs uppercase tracking-wide text-slate-500">{t("Technicians")}</p>
               <p className="mt-1 text-xl font-semibold text-slate-900">
                 {overview?.summary.technicians_total ?? 0}
               </p>
             </div>
             <div className="rm-subpanel p-3">
-              <p className="text-xs uppercase tracking-wide text-slate-500">Met target</p>
+              <p className="text-xs uppercase tracking-wide text-slate-500">{t("Met target")}</p>
               <p className="mt-1 text-xl font-semibold text-emerald-700">
                 {overview?.summary.met_target ?? 0}
               </p>
             </div>
             <div className="rm-subpanel p-3">
-              <p className="text-xs uppercase tracking-wide text-slate-500">Below target</p>
+              <p className="text-xs uppercase tracking-wide text-slate-500">{t("Below target")}</p>
               <p className="mt-1 text-xl font-semibold text-amber-700">
                 {overview?.summary.below_target ?? 0}
               </p>
             </div>
             <div className="rm-subpanel p-3">
-              <p className="text-xs uppercase tracking-wide text-slate-500">Warning active</p>
+              <p className="text-xs uppercase tracking-wide text-slate-500">{t("Warning active")}</p>
               <p className="mt-1 text-xl font-semibold text-rose-700">
                 {overview?.summary.warning_active ?? 0}
               </p>
             </div>
             <div className="rm-subpanel p-3">
-              <p className="text-xs uppercase tracking-wide text-slate-500">Suggest warning</p>
+              <p className="text-xs uppercase tracking-wide text-slate-500">{t("Suggest warning")}</p>
               <p className="mt-1 text-xl font-semibold text-orange-700">
                 {overview?.summary.suggested_warning ?? 0}
               </p>
             </div>
             <div className="rm-subpanel p-3">
-              <p className="text-xs uppercase tracking-wide text-slate-500">Suggest reset</p>
+              <p className="text-xs uppercase tracking-wide text-slate-500">{t("Suggest reset")}</p>
               <p className="mt-1 text-xl font-semibold text-rose-700">
                 {overview?.summary.suggested_reset_to_l1 ?? 0}
               </p>
@@ -422,7 +448,7 @@ export function LevelControlAdmin({
             <section className="rounded-xl border border-slate-200 bg-white/70 p-3">
               <div className="mb-3 flex items-center justify-between">
                 <p className="text-sm font-semibold text-slate-900">
-                  Technician Weekly XP
+                  {t("Technician Weekly XP")}
                 </p>
                 <p className="text-xs text-slate-500">
                   {overview?.date_from} to {overview?.date_to}
@@ -431,7 +457,7 @@ export function LevelControlAdmin({
               {isLoadingOverview ? (
                 <p className="flex items-center gap-2 px-1 py-5 text-sm text-slate-600">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Loading level overview...
+                  {t("Loading level overview...")}
                 </p>
               ) : overview?.rows.length ? (
                 <div className="space-y-2">
@@ -469,12 +495,12 @@ export function LevelControlAdmin({
                           {row.warning_active ? (
                             <span className="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-rose-700">
                               <ShieldAlert className="h-3.5 w-3.5" />
-                              Warning
+                              {t("Warning")}
                             </span>
                           ) : (
                             <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-emerald-700">
                               <ShieldCheck className="h-3.5 w-3.5" />
-                              Normal
+                              {t("Normal")}
                             </span>
                           )}
                         </div>
@@ -483,8 +509,10 @@ export function LevelControlAdmin({
                       {(row.suggested_warning || row.suggested_reset_to_l1) ? (
                         <p className="mt-2 text-xs text-slate-700">
                           {row.suggested_reset_to_l1
-                            ? "Suggested action: second miss while in warning period, reset to L1."
-                            : "Suggested action: move to warning week."}
+                            ? t(
+                              "Suggested action: second miss while in warning period, reset to L1.",
+                            )
+                            : t("Suggested action: move to warning week.")}
                         </p>
                       ) : null}
 
@@ -496,7 +524,7 @@ export function LevelControlAdmin({
                           onClick={() => setSelectedUserId(row.user_id)}
                         >
                           <UserRound className="mr-1 h-4 w-4" />
-                          Open details
+                          {t("Open details")}
                         </Button>
                       </div>
                     </article>
@@ -504,14 +532,14 @@ export function LevelControlAdmin({
                 </div>
               ) : (
                 <p className="px-1 py-6 text-sm text-slate-600">
-                  No technicians found for this range.
+                  {t("No technicians found for this range.")}
                 </p>
               )}
             </section>
 
             <section className="rounded-xl border border-slate-200 bg-white/70 p-3">
               <div className="mb-3 flex items-center justify-between">
-                <p className="text-sm font-semibold text-slate-900">Selected User</p>
+                <p className="text-sm font-semibold text-slate-900">{t("Selected User")}</p>
                 <div className="flex items-center gap-2">
                   <input
                     type="date"
@@ -530,7 +558,7 @@ export function LevelControlAdmin({
                     disabled={isRunningEvaluation}
                   >
                     <CalendarClock className="mr-1 h-4 w-4" />
-                    Evaluate
+                    {t("Evaluate")}
                   </Button>
                 </div>
               </div>
@@ -544,20 +572,25 @@ export function LevelControlAdmin({
                     <p className="text-xs text-slate-500">@{selectedRow.username}</p>
                     <div className="mt-2 flex flex-wrap gap-2 text-xs">
                       <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5">
-                        Current L{selectedRow.current_level}
+                        {t("Current L{{level}}", { level: selectedRow.current_level })}
                       </span>
                       <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5">
-                        Suggested L{selectedRow.suggested_level_by_xp}
+                        {t("Suggested L{{level}}", {
+                          level: selectedRow.suggested_level_by_xp,
+                        })}
                       </span>
                       <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5">
-                        XP {selectedRow.range_xp}/{selectedRow.range_target_xp}
+                        {t("XP {{xp}}/{{target}}", {
+                          xp: selectedRow.range_xp,
+                          target: selectedRow.range_target_xp,
+                        })}
                       </span>
                     </div>
                   </div>
 
                   <div className="rounded-lg border border-slate-200 bg-white p-3">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      Manual level update
+                      {t("Manual level update")}
                     </p>
                     <div className="mt-2 grid gap-2 sm:grid-cols-2">
                       <select
@@ -579,14 +612,14 @@ export function LevelControlAdmin({
                           onChange={(event) => setClearWarningInput(event.target.checked)}
                           disabled={isSettingLevel}
                         />
-                        Clear warning
+                        {t("Clear warning")}
                       </label>
                     </div>
                     <textarea
                       className={cn(fieldClassName, "mt-2 min-h-[88px] resize-y py-2")}
                       value={levelNote}
                       onChange={(event) => setLevelNote(event.target.value)}
-                      placeholder="Optional note"
+                      placeholder={t("Optional note")}
                       disabled={isSettingLevel}
                     />
                     <div className="mt-2 flex justify-end">
@@ -599,7 +632,7 @@ export function LevelControlAdmin({
                         disabled={isSettingLevel}
                       >
                         <Sparkles className="mr-1 h-4 w-4" />
-                        Save level
+                        {t("Save level")}
                       </Button>
                     </div>
                   </div>
@@ -607,87 +640,94 @@ export function LevelControlAdmin({
                   {isLoadingHistory ? (
                     <p className="flex items-center gap-2 text-sm text-slate-600">
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      Loading full user history...
+                      {t("Loading full user history...")}
                     </p>
                   ) : selectedUserHistory ? (
                     <div className="space-y-3">
                       <div className="rounded-lg border border-slate-200 bg-white p-3">
                         <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                          XP history ({selectedUserHistory.xp_history.length})
+                          {t("XP history ({{count}})", {
+                            count: selectedUserHistory.xp_history.length,
+                          })}
                         </p>
                         <div className="mt-2 max-h-44 space-y-1 overflow-auto text-xs">
                           {selectedUserHistory.xp_history.length ? (
                             selectedUserHistory.xp_history.map((row) => (
                               <div key={row.id} className="rounded border border-slate-200 bg-slate-50 px-2 py-1">
                                 <p className="font-medium text-slate-800">
-                                  {row.amount > 0 ? `+${row.amount}` : row.amount} XP · {row.entry_type}
+                                  {row.amount > 0 ? `+${row.amount}` : row.amount} XP | {row.entry_type}
                                 </p>
                                 <p className="text-slate-500">{new Date(row.created_at).toLocaleString()}</p>
                               </div>
                             ))
                           ) : (
-                            <p className="text-slate-500">No XP rows in selected period.</p>
+                            <p className="text-slate-500">{t("No XP rows in selected period.")}</p>
                           )}
                         </div>
                       </div>
 
                       <div className="rounded-lg border border-slate-200 bg-white p-3">
                         <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                          Level history ({selectedUserHistory.level_history.length})
+                          {t("Level history ({{count}})", {
+                            count: selectedUserHistory.level_history.length,
+                          })}
                         </p>
                         <div className="mt-2 max-h-44 space-y-1 overflow-auto text-xs">
                           {selectedUserHistory.level_history.length ? (
                             selectedUserHistory.level_history.map((row) => (
                               <div key={row.id} className="rounded border border-slate-200 bg-slate-50 px-2 py-1">
                                 <p className="font-medium text-slate-800">
-                                  {row.source} · {row.status} · L{row.previous_level} → L{row.new_level}
+                                  {row.source} | {row.status} | L{row.previous_level} {"->"} L{row.new_level}
                                 </p>
                                 <p className="text-slate-500">
-                                  {new Date(row.created_at).toLocaleString()} · by {row.actor_username || "system"}
+                                  {new Date(row.created_at).toLocaleString()} | {t("by")}{" "}
+                                  {row.actor_username || t("system")}
                                 </p>
                                 {row.warning_active_after ? (
-                                  <p className="text-rose-700">Warning active after this event</p>
+                                  <p className="text-rose-700">{t("Warning active after this event")}</p>
                                 ) : null}
                                 {row.note ? (
-                                  <p className="text-slate-600">Comment: {row.note}</p>
+                                  <p className="text-slate-600">{t("Comment")}: {row.note}</p>
                                 ) : null}
                               </div>
                             ))
                           ) : (
-                            <p className="text-slate-500">No level history rows in selected period.</p>
+                            <p className="text-slate-500">{t("No level history rows in selected period.")}</p>
                           )}
                         </div>
                       </div>
 
                       <div className="rounded-lg border border-slate-200 bg-white p-3">
                         <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                          Weekly evaluations ({selectedUserHistory.weekly_evaluations.length})
+                          {t("Weekly evaluations ({{count}})", {
+                            count: selectedUserHistory.weekly_evaluations.length,
+                          })}
                         </p>
                         <div className="mt-2 max-h-44 space-y-1 overflow-auto text-xs">
                           {selectedUserHistory.weekly_evaluations.length ? (
                             selectedUserHistory.weekly_evaluations.map((row) => (
                               <div key={row.id} className="rounded border border-slate-200 bg-slate-50 px-2 py-1">
                                 <p className="font-medium text-slate-800">
-                                  {row.week_start}..{row.week_end} · {row.target_status || "n/a"}
+                                  {row.week_start}..{row.week_end} | {row.target_status || "n/a"}
                                 </p>
                                 <p className="text-slate-500">
-                                  XP {row.weekly_xp}/{row.weekly_target_xp} · L{row.previous_level} → L{row.new_level}
+                                  XP {row.weekly_xp}/{row.weekly_target_xp} | L{row.previous_level} {"->"} L{row.new_level}
                                 </p>
                               </div>
                             ))
                           ) : (
-                            <p className="text-slate-500">No weekly evaluations in selected period.</p>
+                            <p className="text-slate-500">{t("No weekly evaluations in selected period.")}</p>
                           )}
                         </div>
                       </div>
                     </div>
                   ) : (
-                    <p className="text-sm text-slate-500">Select a technician to load history.</p>
+                    <p className="text-sm text-slate-500">{t("Select a technician to load history.")}</p>
                   )}
                 </div>
               ) : (
                 <p className="text-sm text-slate-500">
-                  No user selected. Pick a technician from the list.
+                  {t("No user selected. Pick a technician from the list.")}
                 </p>
               )}
             </section>

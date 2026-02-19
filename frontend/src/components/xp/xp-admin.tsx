@@ -2,6 +2,7 @@ import { MinusCircle, PlusCircle, RefreshCcw, Search, Sparkles, UserRound } from
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { useI18n } from "@/i18n";
 import { adjustUserXp, listUserOptions, type UserOption } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -34,6 +35,7 @@ export function XpAdmin({
   canManage,
   roleSlugs,
 }: XpAdminProps) {
+  const { t } = useI18n();
   const [users, setUsers] = useState<UserOption[]>([]);
   const [searchInput, setSearchInput] = useState("");
   const [activeQuery, setActiveQuery] = useState("");
@@ -71,16 +73,16 @@ export function XpAdmin({
           }
           return nextUsers[0]?.id ?? null;
         });
-      } catch (error) {
-        setFeedback({
-          type: "error",
-          message: toErrorMessage(error, "Failed to load users."),
-        });
-      } finally {
-        setIsLoadingUsers(false);
-      }
-    },
-    [accessToken, canManage],
+    } catch (error) {
+      setFeedback({
+        type: "error",
+        message: toErrorMessage(error, t("Failed to load users.")),
+      });
+    } finally {
+      setIsLoadingUsers(false);
+    }
+  },
+    [accessToken, canManage, t],
   );
 
   useEffect(() => {
@@ -98,7 +100,7 @@ export function XpAdmin({
     if (!canManage) {
       setFeedback({
         type: "error",
-        message: "Only admin roles can adjust XP.",
+        message: t("Only admin roles can adjust XP."),
       });
       return;
     }
@@ -106,7 +108,7 @@ export function XpAdmin({
     if (!selectedUser) {
       setFeedback({
         type: "error",
-        message: "Select a user first.",
+        message: t("Select a user first."),
       });
       return;
     }
@@ -115,7 +117,7 @@ export function XpAdmin({
     if (!Number.isInteger(parsedAmount) || parsedAmount <= 0) {
       setFeedback({
         type: "error",
-        message: "Amount must be an integer greater than 0.",
+        message: t("Amount must be an integer greater than 0."),
       });
       return;
     }
@@ -124,7 +126,7 @@ export function XpAdmin({
     if (!normalizedComment) {
       setFeedback({
         type: "error",
-        message: "Comment is required.",
+        message: t("Comment is required."),
       });
       return;
     }
@@ -141,14 +143,17 @@ export function XpAdmin({
       const signedLabel = signedAmount > 0 ? `+${signedAmount}` : `${signedAmount}`;
       setFeedback({
         type: "success",
-        message: `XP updated (${signedLabel}) for ${selectedUser.display_name}.`,
+        message: t("XP updated ({{amount}}) for {{name}}.", {
+          amount: signedLabel,
+          name: selectedUser.display_name,
+        }),
       });
       setAmountInput("");
       setComment("");
     } catch (error) {
       setFeedback({
         type: "error",
-        message: toErrorMessage(error, "Failed to adjust XP."),
+        message: toErrorMessage(error, t("Failed to adjust XP.")),
       });
     } finally {
       setIsSubmitting(false);
@@ -161,13 +166,15 @@ export function XpAdmin({
         className="flex flex-col gap-3 border-b border-slate-200/70 pb-4 sm:flex-row sm:items-start sm:justify-between"
       >
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">XP Control</h2>
+          <h2 className="text-lg font-semibold text-slate-900">{t("XP Control")}</h2>
           <p className="mt-1 text-sm text-slate-600">
-            Admin-only XP adjustments with required comment and Telegram notification.
+            {t("Admin-only XP adjustments with required comment and Telegram notification.")}
           </p>
           {!canManage ? (
             <p className="mt-2 text-xs text-amber-700">
-              Roles ({roleSlugs.join(", ") || "none"}) cannot manage XP.
+              {t("Roles ({{roles}}) cannot manage XP.", {
+                roles: roleSlugs.join(", ") || t("none"),
+              })}
             </p>
           ) : null}
         </div>
@@ -182,7 +189,7 @@ export function XpAdmin({
           disabled={isLoadingUsers || isSubmitting || !canManage}
         >
           <RefreshCcw className="mr-2 h-4 w-4" />
-          Refresh users
+          {t("Refresh users")}
         </Button>
       </div>
 
@@ -203,7 +210,7 @@ export function XpAdmin({
         <p
           className="mt-4 rounded-md border border-dashed border-slate-300 px-3 py-6 text-center text-sm text-slate-600"
         >
-          XP management is available only for Super Admin and Ops Manager.
+          {t("XP management is available only for Super Admin and Ops Manager.")}
         </p>
       ) : (
         <>
@@ -213,7 +220,7 @@ export function XpAdmin({
           >
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                Find user
+                {t("Find user")}
               </label>
               <div className="relative mt-1">
                 <Search
@@ -223,7 +230,7 @@ export function XpAdmin({
                   className={cn(fieldClassName, "pl-9")}
                   value={searchInput}
                   onChange={(event) => setSearchInput(event.target.value)}
-                  placeholder="Name, username, phone"
+                  placeholder={t("Name, username, phone")}
                   disabled={isLoadingUsers || isSubmitting}
                 />
               </div>
@@ -235,14 +242,14 @@ export function XpAdmin({
               disabled={isLoadingUsers || isSubmitting}
             >
               <Search className="mr-2 h-4 w-4" />
-              Search
+              {t("Search")}
             </Button>
           </form>
 
           <div className="mt-4 space-y-4">
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                Target user
+                {t("Target user")}
               </label>
               <select
                 className={cn(fieldClassName, "mt-1")}
@@ -259,7 +266,7 @@ export function XpAdmin({
                 disabled={isLoadingUsers || isSubmitting || users.length === 0}
               >
                 {users.length === 0 ? (
-                  <option value="">No users found</option>
+                  <option value="">{t("No users found")}</option>
                 ) : null}
                 {users.map((user) => (
                   <option key={user.id} value={user.id}>
@@ -277,7 +284,7 @@ export function XpAdmin({
                 </p>
                 <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-600">
                   <span>@{selectedUser.username}</span>
-                  <span>Level {selectedUser.level}</span>
+                  <span>{t("Level")} {selectedUser.level}</span>
                   {selectedUser.phone ? <span>{selectedUser.phone}</span> : null}
                 </div>
                 <div className="mt-2 flex flex-wrap gap-2">
@@ -288,7 +295,7 @@ export function XpAdmin({
                       </span>
                     ))
                   ) : (
-                    <span className="text-xs text-slate-500">No roles</span>
+                    <span className="text-xs text-slate-500">{t("No roles")}</span>
                   )}
                 </div>
               </div>
@@ -299,7 +306,7 @@ export function XpAdmin({
             <div className="grid gap-3 sm:grid-cols-[220px_1fr]">
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                  Action
+                  {t("Action")}
                 </label>
                 <div className="mt-1 grid grid-cols-2 gap-2">
                   <button
@@ -310,12 +317,12 @@ export function XpAdmin({
                     )}
                     onClick={() => setMode("add")}
                     disabled={isSubmitting}
-                  >
-                    <span className="inline-flex items-center gap-1">
-                      <PlusCircle className="h-4 w-4" />
-                      Add
-                    </span>
-                  </button>
+                    >
+                      <span className="inline-flex items-center gap-1">
+                        <PlusCircle className="h-4 w-4" />
+                        {t("Add")}
+                      </span>
+                    </button>
                   <button
                     type="button"
                     className={cn(
@@ -324,18 +331,18 @@ export function XpAdmin({
                     )}
                     onClick={() => setMode("remove")}
                     disabled={isSubmitting}
-                  >
-                    <span className="inline-flex items-center gap-1">
-                      <MinusCircle className="h-4 w-4" />
-                      Remove
-                    </span>
-                  </button>
+                    >
+                      <span className="inline-flex items-center gap-1">
+                        <MinusCircle className="h-4 w-4" />
+                        {t("Remove")}
+                      </span>
+                    </button>
+                  </div>
                 </div>
-              </div>
 
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                  Amount
+                  {t("Amount")}
                 </label>
                 <input
                   className={cn(fieldClassName, "mt-1")}
@@ -345,7 +352,7 @@ export function XpAdmin({
                   inputMode="numeric"
                   value={amountInput}
                   onChange={(event) => setAmountInput(event.target.value)}
-                  placeholder="Enter positive integer"
+                  placeholder={t("Enter positive integer")}
                   disabled={isSubmitting}
                 />
               </div>
@@ -353,13 +360,13 @@ export function XpAdmin({
 
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                Comment (required)
+                {t("Comment (required)")}
               </label>
               <textarea
                 className={cn(fieldClassName, "mt-1 min-h-[108px] resize-y py-2")}
                 value={comment}
                 onChange={(event) => setComment(event.target.value)}
-                placeholder="Reason for this XP change. This message is sent to Telegram."
+                placeholder={t("Reason for this XP change. This message is sent to Telegram.")}
                 disabled={isSubmitting}
               />
             </div>
@@ -371,7 +378,7 @@ export function XpAdmin({
                 disabled={isSubmitting || isLoadingUsers || users.length === 0}
               >
                 <Sparkles className="mr-2 h-4 w-4" />
-                {isSubmitting ? "Saving..." : "Apply XP change"}
+                {isSubmitting ? t("Saving...") : t("Apply XP change")}
               </Button>
             </div>
           </form>

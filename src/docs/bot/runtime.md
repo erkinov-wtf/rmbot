@@ -6,7 +6,7 @@ Documents aiogram runtime assembly, lifecycle entrypoints, webhook intake path, 
 ## Runtime Composition
 - `create_bot_bundle` in `bot/etc/loader.py` assembles:
   - `Bot` (parse mode from settings)
-  - `Dispatcher` (in-memory FSM storage)
+  - `Dispatcher` (FSM storage from bot settings: Redis or memory)
   - DI `Container` (settings/logger)
 - `bot/runtime.py` keeps a process-global lazy `BotBundle` behind an async lock.
 - Root router includes class-based onboarding/fallback handlers, ticket-admin handlers (`/ticket_create`, `/ticket_review`), and technician ticket handlers (`/queue` + callback actions).
@@ -52,7 +52,8 @@ Documents aiogram runtime assembly, lifecycle entrypoints, webhook intake path, 
 - Malformed webhook payloads are rejected before dispatcher execution.
 
 ## Operational Notes
-- FSM storage is in-memory and not restart-safe.
+- Recommended FSM storage for webhook/multi-worker setups is Redis (`BOT_FSM_STORAGE=redis`).
+- Memory FSM storage is supported for local development/tests (`BOT_FSM_STORAGE=memory`), but is not restart-safe.
 - Webhook mode is preferred for multi-worker deployments.
 - Polling can be started even when mode is not `polling` (warning-oriented behavior).
 - Bot translations are stored in Django locale catalogs (`locales/<lang>/LC_MESSAGES/django.po`) and compiled to `.mo` via `python manage.py compilemessages`.

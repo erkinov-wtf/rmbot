@@ -9,6 +9,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { useI18n } from "@/i18n";
 import {
   getRulesConfigState,
   listRulesConfigHistory,
@@ -221,6 +222,7 @@ export function RulesAdmin({
   canWrite,
   roleSlugs,
 }: RulesAdminProps) {
+  const { t } = useI18n();
   const [rulesState, setRulesState] = useState<RulesConfigState | null>(null);
   const [draftConfig, setDraftConfig] = useState<RulesConfig>(defaultRulesConfig);
   const [history, setHistory] = useState<RulesConfigVersion[]>([]);
@@ -291,12 +293,12 @@ export function RulesAdmin({
     } catch (error) {
       setFeedback({
         type: "error",
-        message: toErrorMessage(error, "Failed to load active rules config."),
+        message: toErrorMessage(error, t("Failed to load active rules config.")),
       });
     } finally {
       setIsLoadingState(false);
     }
-  }, [accessToken, canRead]);
+  }, [accessToken, canRead, t]);
 
   const loadRulesHistory = useCallback(async () => {
     if (!canRead) {
@@ -313,12 +315,12 @@ export function RulesAdmin({
     } catch (error) {
       setFeedback({
         type: "error",
-        message: toErrorMessage(error, "Failed to load rules config history."),
+        message: toErrorMessage(error, t("Failed to load rules config history.")),
       });
     } finally {
       setIsLoadingHistory(false);
     }
-  }, [accessToken, canRead]);
+  }, [accessToken, canRead, t]);
 
   useEffect(() => {
     void Promise.all([loadRulesState(), loadRulesHistory()]);
@@ -424,7 +426,7 @@ export function RulesAdmin({
     if (!canWrite) {
       setFeedback({
         type: "error",
-        message: "Only Super Admin can update rules config.",
+        message: t("Only Super Admin can update rules config."),
       });
       return;
     }
@@ -437,14 +439,16 @@ export function RulesAdmin({
       });
       setFeedback({
         type: "success",
-        message: `Rules config updated. Active version is now v${state.active_version}.`,
+        message: t("Rules config updated. Active version is now v{{version}}.", {
+          version: state.active_version,
+        }),
       });
       setSaveReason("");
       await Promise.all([loadRulesState(), loadRulesHistory()]);
     } catch (error) {
       setFeedback({
         type: "error",
-        message: toErrorMessage(error, "Failed to update rules config."),
+        message: toErrorMessage(error, t("Failed to update rules config.")),
       });
     } finally {
       setIsSaving(false);
@@ -455,7 +459,7 @@ export function RulesAdmin({
     if (!canWrite) {
       setFeedback({
         type: "error",
-        message: "Only Super Admin can rollback rules config.",
+        message: t("Only Super Admin can rollback rules config."),
       });
       return;
     }
@@ -463,7 +467,7 @@ export function RulesAdmin({
     if (!Number.isInteger(targetVersion) || targetVersion < 1) {
       setFeedback({
         type: "error",
-        message: "Select a valid target version for rollback.",
+        message: t("Select a valid target version for rollback."),
       });
       return;
     }
@@ -477,14 +481,16 @@ export function RulesAdmin({
       });
       setFeedback({
         type: "success",
-        message: `Rollback completed. Active version is now v${state.active_version}.`,
+        message: t("Rollback completed. Active version is now v{{version}}.", {
+          version: state.active_version,
+        }),
       });
       setRollbackReason("");
       await Promise.all([loadRulesState(), loadRulesHistory()]);
     } catch (error) {
       setFeedback({
         type: "error",
-        message: toErrorMessage(error, "Failed to rollback rules config."),
+        message: toErrorMessage(error, t("Failed to rollback rules config.")),
       });
     } finally {
       setIsRollingBack(false);
@@ -495,17 +501,19 @@ export function RulesAdmin({
     <section className="rm-panel rm-animate-enter-delayed p-4 sm:p-5">
       <div className="flex flex-col gap-3 border-b border-slate-200/70 pb-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">Rules Config</h2>
+          <h2 className="text-lg font-semibold text-slate-900">{t("Rules Config")}</h2>
           <p className="mt-1 text-sm text-slate-600">
-            Manage business values from DB-backed rules versions without code changes.
+            {t("Manage business values from DB-backed rules versions without code changes.")}
           </p>
           {!canRead ? (
             <p className="mt-2 text-xs text-amber-700">
-              Roles ({roleSlugs.join(", ") || "none"}) cannot view rules config.
+              {t("Roles ({{roles}}) cannot view rules config.", {
+                roles: roleSlugs.join(", ") || t("none"),
+              })}
             </p>
           ) : !canWrite ? (
             <p className="mt-2 text-xs text-amber-700">
-              Read-only mode. Only Super Admin can update or rollback.
+              {t("Read-only mode. Only Super Admin can update or rollback.")}
             </p>
           ) : null}
         </div>
@@ -527,7 +535,7 @@ export function RulesAdmin({
           }}
         >
           <RefreshCcw className="mr-2 h-4 w-4" />
-          Refresh
+          {t("Refresh")}
         </Button>
       </div>
 
@@ -546,48 +554,50 @@ export function RulesAdmin({
 
       {!canRead ? (
         <p className="mt-4 rounded-md border border-dashed border-slate-300 px-3 py-6 text-center text-sm text-slate-600">
-          Rules config is available only for Super Admin and Ops Manager.
+          {t("Rules config is available only for Super Admin and Ops Manager.")}
         </p>
       ) : (
         <div className="mt-4 space-y-4">
           <div className="rm-subpanel p-3">
             <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
               <Settings2 className="h-4 w-4" />
-              Active Rules State
+              {t("Active Rules State")}
             </p>
             {rulesState ? (
               <div className="mt-2 grid gap-2 text-xs text-slate-600 sm:grid-cols-2 xl:grid-cols-4">
                 <p>
-                  <span className="font-semibold text-slate-800">Version:</span>{" "}
+                  <span className="font-semibold text-slate-800">{t("Version")}:</span>{" "}
                   v{rulesState.active_version}
                 </p>
                 <p>
-                  <span className="font-semibold text-slate-800">Updated:</span>{" "}
+                  <span className="font-semibold text-slate-800">{t("Updated")}:</span>{" "}
                   {formatDateTime(rulesState.updated_at)}
                 </p>
                 <p>
-                  <span className="font-semibold text-slate-800">Cache key:</span>{" "}
+                  <span className="font-semibold text-slate-800">{t("Cache key")}:</span>{" "}
                   <code>{rulesState.cache_key}</code>
                 </p>
                 <p>
-                  <span className="font-semibold text-slate-800">Checksum:</span>{" "}
+                  <span className="font-semibold text-slate-800">{t("Checksum")}:</span>{" "}
                   <code>{activeChecksumPreview}</code>
                 </p>
               </div>
             ) : (
               <p className="mt-2 text-sm text-slate-500">
-                {isLoadingState ? "Loading active rules config..." : "No rules state loaded."}
+                {isLoadingState
+                  ? t("Loading active rules config...")
+                  : t("No rules state loaded.")}
               </p>
             )}
           </div>
 
           <div className="grid gap-4 xl:grid-cols-2">
             <div className="rm-subpanel p-3">
-              <p className="rm-card-title">Ticket XP</p>
+              <p className="rm-card-title">{t("Ticket XP")}</p>
               <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                    Base divisor
+                    {t("Base divisor")}
                   </label>
                   <input
                     className={cn(fieldClassName, "mt-1")}
@@ -602,7 +612,7 @@ export function RulesAdmin({
 
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                    First-pass bonus
+                    {t("First-pass bonus")}
                   </label>
                   <input
                     className={cn(fieldClassName, "mt-1")}
@@ -617,7 +627,7 @@ export function RulesAdmin({
 
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                    QC status XP
+                    {t("QC status XP")}
                   </label>
                   <input
                     className={cn(fieldClassName, "mt-1")}
@@ -632,7 +642,7 @@ export function RulesAdmin({
 
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                    Green max minutes
+                    {t("Green max minutes")}
                   </label>
                   <input
                     className={cn(fieldClassName, "mt-1")}
@@ -647,7 +657,7 @@ export function RulesAdmin({
 
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                    Yellow max minutes
+                    {t("Yellow max minutes")}
                   </label>
                   <input
                     className={cn(fieldClassName, "mt-1")}
@@ -663,11 +673,11 @@ export function RulesAdmin({
             </div>
 
             <div className="rm-subpanel p-3">
-              <p className="rm-card-title">Work Session</p>
+              <p className="rm-card-title">{t("Work Session")}</p>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                    Daily pause limit (minutes)
+                    {t("Daily pause limit (minutes)")}
                   </label>
                   <input
                     className={cn(fieldClassName, "mt-1")}
@@ -682,7 +692,7 @@ export function RulesAdmin({
 
                 <div>
                   <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                    Timezone
+                    {t("Timezone")}
                   </label>
                   <input
                     className={cn(fieldClassName, "mt-1")}
@@ -698,11 +708,11 @@ export function RulesAdmin({
           </div>
 
           <div className="rm-subpanel p-3">
-            <p className="rm-card-title">Attendance</p>
+            <p className="rm-card-title">{t("Attendance")}</p>
             <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                  On-time XP
+                  {t("On-time XP")}
                 </label>
                 <input
                   className={cn(fieldClassName, "mt-1")}
@@ -716,7 +726,7 @@ export function RulesAdmin({
               </div>
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                  Grace XP
+                  {t("Grace XP")}
                 </label>
                 <input
                   className={cn(fieldClassName, "mt-1")}
@@ -730,7 +740,7 @@ export function RulesAdmin({
               </div>
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                  Late XP
+                  {t("Late XP")}
                 </label>
                 <input
                   className={cn(fieldClassName, "mt-1")}
@@ -744,7 +754,7 @@ export function RulesAdmin({
               </div>
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                  On-time cutoff (HH:MM)
+                  {t("On-time cutoff (HH:MM)")}
                 </label>
                 <input
                   className={cn(fieldClassName, "mt-1")}
@@ -757,7 +767,7 @@ export function RulesAdmin({
               </div>
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                  Grace cutoff (HH:MM)
+                  {t("Grace cutoff (HH:MM)")}
                 </label>
                 <input
                   className={cn(fieldClassName, "mt-1")}
@@ -770,7 +780,7 @@ export function RulesAdmin({
               </div>
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                  Timezone
+                  {t("Timezone")}
                 </label>
                 <input
                   className={cn(fieldClassName, "mt-1")}
@@ -785,11 +795,11 @@ export function RulesAdmin({
           </div>
 
           <div className="rm-subpanel p-3">
-            <p className="rm-card-title">Progression</p>
+            <p className="rm-card-title">{t("Progression")}</p>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                  Weekly target XP
+                  {t("Weekly target XP")}
                 </label>
                 <input
                   className={cn(fieldClassName, "mt-1")}
@@ -804,7 +814,7 @@ export function RulesAdmin({
 
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                  Weekly coupon amount
+                  {t("Weekly coupon amount")}
                 </label>
                 <input
                   className={cn(fieldClassName, "mt-1")}
@@ -822,7 +832,7 @@ export function RulesAdmin({
               {LEVEL_KEYS.map((levelKey) => (
                 <div key={levelKey}>
                   <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                    L{levelKey} threshold
+                    {t("L{{level}} threshold", { level: levelKey })}
                   </label>
                   <input
                     className={cn(fieldClassName, "mt-1")}
@@ -843,20 +853,20 @@ export function RulesAdmin({
             </div>
 
             <p className="mt-2 text-xs text-slate-500">
-              Level thresholds are normalized by backend validation. L1 always stays 0.
+              {t("Level thresholds are normalized by backend validation. L1 always stays 0.")}
             </p>
           </div>
 
           <div className="rm-subpanel p-3">
-            <p className="rm-card-title">Publish New Version</p>
+            <p className="rm-card-title">{t("Publish New Version")}</p>
             <label className="mt-3 block text-xs font-semibold uppercase tracking-wide text-slate-600">
-              Change reason (optional)
+              {t("Change reason (optional)")}
             </label>
             <textarea
               className={cn(fieldClassName, "mt-1 min-h-[96px] resize-y py-2")}
               value={saveReason}
               onChange={(event) => setSaveReason(event.target.value)}
-              placeholder="What changed and why?"
+              placeholder={t("What changed and why?")}
               disabled={!canWrite || isSaving || isRollingBack}
             />
             <div className="mt-3 flex flex-wrap gap-2">
@@ -868,7 +878,7 @@ export function RulesAdmin({
                 }}
               >
                 {canWrite ? <ShieldCheck className="mr-2 h-4 w-4" /> : <ShieldAlert className="mr-2 h-4 w-4" />}
-                {isSaving ? "Saving..." : "Save rules config"}
+                {isSaving ? t("Saving...") : t("Save rules config")}
               </Button>
             </div>
           </div>
@@ -877,18 +887,20 @@ export function RulesAdmin({
             <div className="flex items-center justify-between gap-3">
               <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
                 <History className="h-4 w-4" />
-                Version History
+                {t("Version History")}
               </p>
               {isLoadingHistory ? (
-                <p className="text-xs text-slate-500">Loading...</p>
+                <p className="text-xs text-slate-500">{t("Loading...")}</p>
               ) : (
-                <p className="text-xs text-slate-500">{history.length} versions loaded</p>
+                <p className="text-xs text-slate-500">
+                  {t("{{count}} versions loaded", { count: history.length })}
+                </p>
               )}
             </div>
 
             <div className="mt-3 grid gap-2">
               {history.length === 0 ? (
-                <p className="text-sm text-slate-500">No history entries found.</p>
+                <p className="text-sm text-slate-500">{t("No history entries found.")}</p>
               ) : (
                 history.map((version) => {
                   const changePaths = diffChangePaths(version);
@@ -898,16 +910,16 @@ export function RulesAdmin({
                       className="rounded-lg border border-slate-200/80 bg-white/70 px-3 py-2"
                     >
                       <p className="text-sm font-semibold text-slate-900">
-                        v{version.version} · {version.action}
+                        v{version.version} | {version.action}
                       </p>
                       <p className="mt-1 text-xs text-slate-600">
-                        {formatDateTime(version.created_at)} ·{" "}
-                        {version.created_by_username || "system"} ·{" "}
-                        {changePaths.length} change{changePaths.length === 1 ? "" : "s"}
+                        {formatDateTime(version.created_at)} |{" "}
+                        {version.created_by_username || t("system")} |{" "}
+                        {t("{{count}} change(s)", { count: changePaths.length })}
                       </p>
                       {version.reason ? (
                         <p className="mt-1 text-xs text-slate-600">
-                          Reason: {version.reason}
+                          {t("Reason")}: {version.reason}
                         </p>
                       ) : null}
                       {changePaths.length ? (
@@ -926,18 +938,18 @@ export function RulesAdmin({
           <div className="rm-subpanel p-3">
             <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
               <RotateCcw className="h-4 w-4" />
-              Rollback to Previous Version
+              {t("Rollback to Previous Version")}
             </p>
             {rollbackOptions.length === 0 ? (
               <p className="mt-2 text-sm text-slate-500">
-                No rollback target is available.
+                {t("No rollback target is available.")}
               </p>
             ) : (
               <>
                 <div className="mt-3 grid gap-3 sm:grid-cols-[260px_1fr]">
                   <div>
                     <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      Target version
+                      {t("Target version")}
                     </label>
                     <select
                       className={cn(fieldClassName, "mt-1")}
@@ -947,7 +959,7 @@ export function RulesAdmin({
                     >
                       {rollbackOptions.map((row) => (
                         <option key={row.id} value={row.version}>
-                          v{row.version} · {row.action}
+                          v{row.version} | {row.action}
                         </option>
                       ))}
                     </select>
@@ -955,13 +967,13 @@ export function RulesAdmin({
 
                   <div>
                     <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      Rollback reason (optional)
+                      {t("Rollback reason (optional)")}
                     </label>
                     <input
                       className={cn(fieldClassName, "mt-1")}
                       value={rollbackReason}
                       onChange={(event) => setRollbackReason(event.target.value)}
-                      placeholder="Reason for rollback"
+                      placeholder={t("Reason for rollback")}
                       disabled={!canWrite || isRollingBack || isSaving}
                     />
                   </div>
@@ -977,7 +989,7 @@ export function RulesAdmin({
                     }}
                   >
                     <RotateCcw className="mr-2 h-4 w-4" />
-                    {isRollingBack ? "Rolling back..." : "Rollback config"}
+                    {isRollingBack ? t("Rolling back...") : t("Rollback config")}
                   </Button>
                 </div>
               </>

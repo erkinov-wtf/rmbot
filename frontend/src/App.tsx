@@ -292,29 +292,36 @@ export default function App() {
   }
 
   if (!session) {
-    return <LoginForm onLoggedIn={handleLoggedIn} noticeMessage={authNotice} />;
+    return (
+      <>
+        <LoginForm onLoggedIn={handleLoggedIn} noticeMessage={authNotice} />
+        <div className="fixed bottom-4 left-4 z-50">
+          <LanguageSwitcher
+            compact
+            className="border-slate-300 bg-white/95 shadow-lg backdrop-blur"
+          />
+        </div>
+      </>
+    );
   }
 
   return (
-    <main className="rm-shell">
-      <div className="mx-auto grid w-full max-w-[1480px] gap-4 lg:grid-cols-[248px_1fr]">
-        <aside className="rm-panel rm-animate-enter sticky top-4 h-fit p-4 lg:flex lg:h-[calc(100svh-2rem)] lg:flex-col">
-          <p
-            className={cn(
-              "inline-flex items-center gap-2 rounded-full bg-cyan-50 px-3 py-1",
-              "text-xs font-semibold uppercase tracking-wide text-cyan-800",
-            )}
-          >
-            <ShieldCheck className="h-4 w-4" />
-            {t("Rent Market")}
-          </p>
-          <p className="mt-2 text-sm text-slate-700">{t("Operations workspace")}</p>
+    <>
+      <main className="rm-shell">
+        <div className="mx-auto grid w-full max-w-[1480px] gap-4 lg:grid-cols-[248px_1fr]">
+          <aside className="rm-panel rm-animate-enter sticky top-4 h-fit p-4 lg:flex lg:h-[calc(100svh-2rem)] lg:flex-col">
+            <p
+              className={cn(
+                "inline-flex items-center gap-2 rounded-full bg-cyan-50 px-3 py-1",
+                "text-xs font-semibold uppercase tracking-wide text-cyan-800",
+              )}
+            >
+              <ShieldCheck className="h-4 w-4" />
+              {t("Rent Market")}
+            </p>
+            <p className="mt-2 text-sm text-slate-700">{t("Operations workspace")}</p>
 
-          <div className="mt-3">
-            <LanguageSwitcher />
-          </div>
-
-          <div className="mt-4 space-y-2 lg:flex-1">
+            <div className="mt-4 space-y-2 lg:flex-1">
             <button
               type="button"
               className={cn(
@@ -426,106 +433,113 @@ export default function App() {
                 {t("Rules")}
               </span>
             </button>
-          </div>
-
-          <div className="mt-4 space-y-3 border-t border-slate-200/80 pt-3 lg:mt-auto">
-            <div className="rm-subpanel p-3">
-              <p className="text-sm font-semibold text-slate-900">{displayName}</p>
-              {currentUser ? (
-                <p className="text-xs text-slate-500">@{currentUser.username}</p>
-              ) : null}
-              <div className="mt-2 flex flex-wrap gap-2">
-                {effectiveRoleTitles.length ? (
-                  effectiveRoleTitles.map((roleTitle) => (
-                    <span
-                      key={roleTitle}
-                      className="rm-role-pill"
-                    >
-                      {roleTitle}
-                    </span>
-                  ))
-                ) : (
-                  <span className="text-xs text-slate-500">{t("No roles")}</span>
-                )}
-              </div>
             </div>
 
-            <Button
-              variant="outline"
-              className="h-10 w-full"
-              onClick={() => logout()}
-            >
-              <LogOut className="mr-2 h-4 w-4" />
-              {t("Logout")}
-            </Button>
-          </div>
-        </aside>
+            <div className="mt-4 space-y-3 border-t border-slate-200/80 pt-3 lg:mt-auto">
+              <div className="rm-subpanel p-3">
+                <p className="text-sm font-semibold text-slate-900">{displayName}</p>
+                {currentUser ? (
+                  <p className="text-xs text-slate-500">@{currentUser.username}</p>
+                ) : null}
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {effectiveRoleTitles.length ? (
+                    effectiveRoleTitles.map((roleTitle) => (
+                      <span
+                        key={roleTitle}
+                        className="rm-role-pill"
+                      >
+                        {roleTitle}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-xs text-slate-500">{t("No roles")}</span>
+                  )}
+                </div>
+              </div>
 
-        <section className="space-y-4">
-          {profileState === "error" ? (
-            <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
-              {profileMessage}
-            </p>
-          ) : null}
+              <Button
+                variant="outline"
+                className="h-10 w-full"
+                onClick={() => logout()}
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                {t("Logout")}
+              </Button>
+            </div>
+          </aside>
 
-          {section === "inventory" ? (
-            <InventoryAdmin
-              accessToken={session.accessToken}
-              canManage={canManageInventory}
-              roleSlugs={effectiveRoleSlugs}
-            />
-          ) : section === "attendance" ? (
-            <AttendanceAdmin
-              accessToken={session.accessToken}
-              canManage={canManageAttendance}
-              roleSlugs={effectiveRoleSlugs}
-            />
-          ) : section === "tickets" ? (
-            <TicketFlow
-              accessToken={session.accessToken}
-              currentUserId={currentUser?.id ?? null}
-              canCreate={canCreateTicket}
-              canReview={canReviewTicket}
-              canWork={canWorkTicket}
-              canQc={canQcTicket}
-              roleSlugs={effectiveRoleSlugs}
-            />
-          ) : section === "users" ? (
-            <UserManagementAdmin
-              accessToken={session.accessToken}
-              canManage={canManageUsers}
-              roleSlugs={effectiveRoleSlugs}
-            />
-          ) : section === "level_control" ? (
-            <LevelControlAdmin
-              accessToken={session.accessToken}
-              canManage={canManageLevelControl}
-            />
-          ) : section === "rules" ? (
-            <ErrorBoundary
-              title={t("Rules Panel")}
-              failedPrefix={t("Failed To Render")}
-              reloadHint={t(
-                "Reload this page. If the issue continues, contact support.",
-              )}
-              unknownErrorHint={t("Unknown rendering error.")}
-            >
-              <RulesAdmin
+          <section className="space-y-4">
+            {profileState === "error" ? (
+              <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                {profileMessage}
+              </p>
+            ) : null}
+
+            {section === "inventory" ? (
+              <InventoryAdmin
                 accessToken={session.accessToken}
-                canRead={canReadRules}
-                canWrite={canWriteRules}
+                canManage={canManageInventory}
                 roleSlugs={effectiveRoleSlugs}
               />
-            </ErrorBoundary>
-          ) : (
-            <XpAdmin
-              accessToken={session.accessToken}
-              canManage={canManageXp}
-              roleSlugs={effectiveRoleSlugs}
-            />
-          )}
-        </section>
+            ) : section === "attendance" ? (
+              <AttendanceAdmin
+                accessToken={session.accessToken}
+                canManage={canManageAttendance}
+                roleSlugs={effectiveRoleSlugs}
+              />
+            ) : section === "tickets" ? (
+              <TicketFlow
+                accessToken={session.accessToken}
+                currentUserId={currentUser?.id ?? null}
+                canCreate={canCreateTicket}
+                canReview={canReviewTicket}
+                canWork={canWorkTicket}
+                canQc={canQcTicket}
+                roleSlugs={effectiveRoleSlugs}
+              />
+            ) : section === "users" ? (
+              <UserManagementAdmin
+                accessToken={session.accessToken}
+                canManage={canManageUsers}
+                roleSlugs={effectiveRoleSlugs}
+              />
+            ) : section === "level_control" ? (
+              <LevelControlAdmin
+                accessToken={session.accessToken}
+                canManage={canManageLevelControl}
+              />
+            ) : section === "rules" ? (
+              <ErrorBoundary
+                title={t("Rules Panel")}
+                failedPrefix={t("Failed To Render")}
+                reloadHint={t(
+                  "Reload this page. If the issue continues, contact support.",
+                )}
+                unknownErrorHint={t("Unknown rendering error.")}
+              >
+                <RulesAdmin
+                  accessToken={session.accessToken}
+                  canRead={canReadRules}
+                  canWrite={canWriteRules}
+                  roleSlugs={effectiveRoleSlugs}
+                />
+              </ErrorBoundary>
+            ) : (
+              <XpAdmin
+                accessToken={session.accessToken}
+                canManage={canManageXp}
+                roleSlugs={effectiveRoleSlugs}
+              />
+            )}
+          </section>
+        </div>
+      </main>
+      <div className="fixed bottom-4 left-4 z-50">
+        <LanguageSwitcher
+          compact
+          className="border-slate-300 bg-white/95 shadow-lg backdrop-blur"
+        />
       </div>
-    </main>
+    </>
   );
 }

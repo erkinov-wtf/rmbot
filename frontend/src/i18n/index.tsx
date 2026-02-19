@@ -90,18 +90,32 @@ export function resolveInitialLanguage(): AppLanguage {
 type I18nProviderProps = {
   children: ReactNode;
   initialLanguage?: AppLanguage;
+  persistLanguagePreference?: boolean;
 };
 
-export function I18nProvider({ children, initialLanguage }: I18nProviderProps) {
-  const [language, setLanguageState] = useState<AppLanguage>(
-    initialLanguage ?? resolveInitialLanguage(),
-  );
+export function I18nProvider({
+  children,
+  initialLanguage,
+  persistLanguagePreference = true,
+}: I18nProviderProps) {
+  const [language, setLanguageState] = useState<AppLanguage>(() => {
+    if (initialLanguage) {
+      return normalizeLanguage(initialLanguage);
+    }
+    if (persistLanguagePreference) {
+      return resolveInitialLanguage();
+    }
+    return detectFallbackLanguage();
+  });
 
   const setLanguage = useCallback((nextLanguage: AppLanguage) => {
     const normalized = normalizeLanguage(nextLanguage);
     setLanguageState(normalized);
+    if (!persistLanguagePreference) {
+      return;
+    }
     localStorage.setItem(LANGUAGE_STORAGE_KEY, normalized);
-  }, []);
+  }, [persistLanguagePreference]);
 
   const t = useCallback(
     (key: string, params?: TranslationParams) =>

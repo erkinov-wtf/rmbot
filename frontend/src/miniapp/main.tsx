@@ -7,7 +7,7 @@ import "@/index.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <I18nProvider>
+    <I18nProvider persistLanguagePreference={false}>
       <MiniApp />
     </I18nProvider>
   </StrictMode>,

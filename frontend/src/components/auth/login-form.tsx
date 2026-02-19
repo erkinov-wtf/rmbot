@@ -2,7 +2,6 @@ import { CircleCheck, LockKeyhole, LogIn, UserRound } from "lucide-react";
 import { type FormEvent, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { LanguageSwitcher } from "@/components/ui/language-switcher";
 import { useI18n } from "@/i18n";
 import { loginWithPassword, type LoginTokens } from "@/lib/api";
 
@@ -54,9 +53,6 @@ export function LoginForm({ onLoggedIn, noticeMessage }: LoginFormProps) {
             <LogIn className="h-4 w-4" />
             {t("Secure access")}
           </p>
-          <div className="mb-3">
-            <LanguageSwitcher />
-          </div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
             {t("Rent Market")}
           </h1>

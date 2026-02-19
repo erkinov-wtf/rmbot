@@ -2,7 +2,6 @@ import { AlertTriangle, LogOut, ShieldCheck, Smartphone } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { LanguageSwitcher } from "@/components/ui/language-switcher";
 import { useI18n } from "@/i18n";
 import { verifyMiniAppTelegramInitData } from "@/lib/api";
 import {
@@ -176,9 +175,6 @@ export default function MiniApp() {
             <p className="mt-2 text-sm text-slate-600">
               {t("Authentication is handled through Telegram mini app init data.")}
             </p>
-            <div className="mt-3">
-              <LanguageSwitcher />
-            </div>
           </div>
 
           <section className="rm-panel p-5">
@@ -262,9 +258,6 @@ export default function MiniApp() {
                 <ShieldCheck className="h-4 w-4" />
                 {t("Mini App")}
               </p>
-              <div className="mt-2">
-                <LanguageSwitcher compact />
-              </div>
               <p className="mt-2 text-sm font-semibold text-slate-900">{displayName}</p>
               <p className="text-xs text-slate-500">
                 @{session.user.username} {session.user.phone ? `• ${session.user.phone}` : ""}

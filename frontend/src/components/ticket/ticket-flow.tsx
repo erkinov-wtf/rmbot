@@ -10,6 +10,7 @@ import {
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { useI18n } from "@/i18n";
 import {
   assignTicket,
   createTicket,
@@ -109,29 +110,25 @@ const DEFAULT_ITEM_FILTERS: ItemFilterState = {
   activity: "all",
 };
 
-const ITEM_STATUS_OPTIONS: Array<{ value: InventoryItemStatus; label: string }> = [
-  { value: "ready", label: "Ready" },
-  { value: "in_service", label: "In Service" },
-  { value: "rented", label: "Rented" },
-  { value: "blocked", label: "Blocked" },
-  { value: "write_off", label: "Write Off" },
+const ITEM_STATUS_OPTIONS: InventoryItemStatus[] = [
+  "ready",
+  "in_service",
+  "rented",
+  "blocked",
+  "write_off",
 ];
 
-const TICKET_STATUS_OPTIONS: Array<{ value: TicketStatus; label: string }> = [
-  { value: "under_review", label: "Under Review" },
-  { value: "new", label: "New" },
-  { value: "assigned", label: "Assigned" },
-  { value: "in_progress", label: "In Progress" },
-  { value: "waiting_qc", label: "Waiting QC" },
-  { value: "rework", label: "Rework" },
-  { value: "done", label: "Done" },
+const TICKET_STATUS_OPTIONS: TicketStatus[] = [
+  "under_review",
+  "new",
+  "assigned",
+  "in_progress",
+  "waiting_qc",
+  "rework",
+  "done",
 ];
 
-const TICKET_COLOR_OPTIONS: Array<{ value: TicketColor; label: string }> = [
-  { value: "green", label: "Green" },
-  { value: "yellow", label: "Yellow" },
-  { value: "red", label: "Red" },
-];
+const TICKET_COLOR_OPTIONS: TicketColor[] = ["green", "yellow", "red"];
 
 const fieldClassName =
   "rm-input";
@@ -339,6 +336,63 @@ function ticketColorBadgeClass(color: TicketColor): string {
   return "border-rose-200 bg-rose-50 text-rose-700";
 }
 
+function inventoryStatusLabel(
+  status: InventoryItemStatus,
+  t: (key: string, params?: Record<string, string | number>) => string,
+): string {
+  if (status === "ready") {
+    return t("Ready");
+  }
+  if (status === "in_service") {
+    return t("In Service");
+  }
+  if (status === "rented") {
+    return t("Rented");
+  }
+  if (status === "blocked") {
+    return t("Blocked");
+  }
+  return t("Write Off");
+}
+
+function ticketStatusLabel(
+  status: TicketStatus,
+  t: (key: string, params?: Record<string, string | number>) => string,
+): string {
+  if (status === "under_review") {
+    return t("Under review");
+  }
+  if (status === "new") {
+    return t("New");
+  }
+  if (status === "assigned") {
+    return t("Assigned");
+  }
+  if (status === "in_progress") {
+    return t("In progress");
+  }
+  if (status === "waiting_qc") {
+    return t("Waiting QC");
+  }
+  if (status === "rework") {
+    return t("Rework");
+  }
+  return t("Done");
+}
+
+function ticketColorLabel(
+  color: TicketColor,
+  t: (key: string, params?: Record<string, string | number>) => string,
+): string {
+  if (color === "green") {
+    return t("Green");
+  }
+  if (color === "yellow") {
+    return t("Yellow");
+  }
+  return t("Red");
+}
+
 export function TicketFlow({
   accessToken,
   currentUserId,
@@ -352,6 +406,7 @@ export function TicketFlow({
   restrictTabsByPermission = false,
   syncRouteWithUrl = true,
 }: TicketFlowProps) {
+  const { t } = useI18n();
   const [route, setRoute] = useState<TicketRoute>(() =>
     syncRouteWithUrl
       ? parseTicketRoute(window.location.pathname, routeBase)
@@ -471,18 +526,18 @@ export function TicketFlow({
   );
 
   const inventoryStatusLabelByValue = useMemo(
-    () => new Map(ITEM_STATUS_OPTIONS.map((option) => [option.value, option.label])),
-    [],
+    () => new Map(ITEM_STATUS_OPTIONS.map((option) => [option, inventoryStatusLabel(option, t)])),
+    [t],
   );
 
   const ticketStatusLabelByValue = useMemo(
-    () => new Map(TICKET_STATUS_OPTIONS.map((option) => [option.value, option.label])),
-    [],
+    () => new Map(TICKET_STATUS_OPTIONS.map((option) => [option, ticketStatusLabel(option, t)])),
+    [t],
   );
 
   const ticketColorLabelByValue = useMemo(
-    () => new Map(TICKET_COLOR_OPTIONS.map((option) => [option.value, option.label])),
-    [],
+    () => new Map(TICKET_COLOR_OPTIONS.map((option) => [option, ticketColorLabel(option, t)])),
+    [t],
   );
 
   const technicianLabelById = useMemo(
@@ -507,7 +562,9 @@ export function TicketFlow({
     if (historyTicket?.master) {
       map.set(
         historyTicket.master,
-        historyTicket.master_name?.trim() || map.get(historyTicket.master) || `User #${historyTicket.master}`,
+        historyTicket.master_name?.trim() ||
+          map.get(historyTicket.master) ||
+          t("User #{{id}}", { id: historyTicket.master }),
       );
     }
     if (historyTicket?.technician) {
@@ -515,7 +572,7 @@ export function TicketFlow({
         historyTicket.technician,
         historyTicket.technician_name?.trim() ||
           map.get(historyTicket.technician) ||
-          `User #${historyTicket.technician}`,
+          t("User #{{id}}", { id: historyTicket.technician }),
       );
     }
     if (historyTicket?.approved_by) {
@@ -523,11 +580,11 @@ export function TicketFlow({
         historyTicket.approved_by,
         historyTicket.approved_by_name?.trim() ||
           map.get(historyTicket.approved_by) ||
-          `User #${historyTicket.approved_by}`,
+          t("User #{{id}}", { id: historyTicket.approved_by }),
       );
     }
     return map;
-  }, [historyTicket, technicianLabelById]);
+  }, [historyTicket, t, technicianLabelById]);
 
   const resolveHistoryActorLabel = useCallback(
     (
@@ -546,12 +603,12 @@ export function TicketFlow({
       }
 
       if (actorId !== null) {
-        return historyUserLabelById.get(actorId) ?? `User #${actorId}`;
+        return historyUserLabelById.get(actorId) ?? t("User #{{id}}", { id: actorId });
       }
 
-      return "System";
+      return t("System");
     },
-    [historyUserLabelById],
+    [historyUserLabelById, t],
   );
 
   const historyTimeline = useMemo<AuditTimelineEvent[]>(() => {
@@ -782,14 +839,14 @@ export function TicketFlow({
       } catch (error) {
         setFeedback({
           type: "error",
-          message: toErrorMessage(error, "Action failed."),
+          message: toErrorMessage(error, t("Action failed.")),
         });
         throw error;
       } finally {
         setIsMutating(false);
       }
     },
-    [],
+    [t],
   );
 
   const loadCategories = useCallback(async () => {
@@ -800,12 +857,12 @@ export function TicketFlow({
     } catch (error) {
       setFeedback({
         type: "error",
-        message: toErrorMessage(error, "Failed to load categories."),
+        message: toErrorMessage(error, t("Failed to load categories.")),
       });
     } finally {
       setIsLoadingCategories(false);
     }
-  }, [accessToken]);
+  }, [accessToken, t]);
 
   const loadCreateItems = useCallback(
     async (filters: ItemFilterState) => {
@@ -827,13 +884,13 @@ export function TicketFlow({
       } catch (error) {
         setFeedback({
           type: "error",
-          message: toErrorMessage(error, "Failed to load inventory items."),
+          message: toErrorMessage(error, t("Failed to load inventory items.")),
         });
       } finally {
         setIsLoadingCreateItems(false);
       }
     },
-    [accessToken, cacheInventoryItems],
+    [accessToken, cacheInventoryItems, t],
   );
 
   const loadCreateItemPage = useCallback(
@@ -878,13 +935,13 @@ export function TicketFlow({
         setPartSpecForms({});
         setFeedback({
           type: "error",
-          message: toErrorMessage(error, "Failed to load ticket creation context."),
+          message: toErrorMessage(error, t("Failed to load ticket creation context.")),
         });
       } finally {
         setIsLoadingCreateItemPage(false);
       }
     },
-    [accessToken, cacheInventoryItems],
+    [accessToken, cacheInventoryItems, t],
   );
 
   const loadHistoryTicketPage = useCallback(
@@ -920,13 +977,13 @@ export function TicketFlow({
         setHistoryWorkSessionHistory([]);
         setFeedback({
           type: "error",
-          message: toErrorMessage(error, "Failed to load ticket full details."),
+          message: toErrorMessage(error, t("Failed to load ticket full details.")),
         });
       } finally {
         setIsLoadingHistoryTicket(false);
       }
     },
-    [accessToken, cacheInventoryItems, inventoryCache],
+    [accessToken, cacheInventoryItems, inventoryCache, t],
   );
 
   const loadReviewTickets = useCallback(async () => {
@@ -937,12 +994,12 @@ export function TicketFlow({
     } catch (error) {
       setFeedback({
         type: "error",
-        message: toErrorMessage(error, "Failed to load tickets for review."),
+        message: toErrorMessage(error, t("Failed to load tickets for review.")),
       });
     } finally {
       setIsLoadingReviewTickets(false);
     }
-  }, [accessToken]);
+  }, [accessToken, t]);
 
   const loadWorkTickets = useCallback(async () => {
     setIsLoadingWorkTickets(true);
@@ -952,12 +1009,12 @@ export function TicketFlow({
     } catch (error) {
       setFeedback({
         type: "error",
-        message: toErrorMessage(error, "Failed to load technician tickets."),
+        message: toErrorMessage(error, t("Failed to load technician tickets.")),
       });
     } finally {
       setIsLoadingWorkTickets(false);
     }
-  }, [accessToken]);
+  }, [accessToken, t]);
 
   const loadQcTickets = useCallback(async () => {
     setIsLoadingQcTickets(true);
@@ -967,12 +1024,12 @@ export function TicketFlow({
     } catch (error) {
       setFeedback({
         type: "error",
-        message: toErrorMessage(error, "Failed to load QC tickets."),
+        message: toErrorMessage(error, t("Failed to load QC tickets.")),
       });
     } finally {
       setIsLoadingQcTickets(false);
     }
-  }, [accessToken]);
+  }, [accessToken, t]);
 
   const loadTechnicians = useCallback(async () => {
     if (!canReview) {
@@ -988,12 +1045,12 @@ export function TicketFlow({
     } catch (error) {
       setFeedback({
         type: "error",
-        message: toErrorMessage(error, "Failed to load technicians."),
+        message: toErrorMessage(error, t("Failed to load technicians.")),
       });
     } finally {
       setIsLoadingTechnicians(false);
     }
-  }, [accessToken, canReview]);
+  }, [accessToken, canReview, t]);
 
   const loadReviewTransitions = useCallback(
     async (ticketId: number) => {
@@ -1006,13 +1063,13 @@ export function TicketFlow({
       } catch (error) {
         setFeedback({
           type: "error",
-          message: toErrorMessage(error, "Failed to load ticket transitions."),
+          message: toErrorMessage(error, t("Failed to load ticket transitions.")),
         });
       } finally {
         setIsLoadingReviewTransitions(false);
       }
     },
-    [accessToken],
+    [accessToken, t],
   );
 
   const loadWorkTransitions = useCallback(
@@ -1026,13 +1083,13 @@ export function TicketFlow({
       } catch (error) {
         setFeedback({
           type: "error",
-          message: toErrorMessage(error, "Failed to load ticket transitions."),
+          message: toErrorMessage(error, t("Failed to load ticket transitions.")),
         });
       } finally {
         setIsLoadingWorkTransitions(false);
       }
     },
-    [accessToken],
+    [accessToken, t],
   );
 
   const loadQcTransitions = useCallback(
@@ -1046,13 +1103,13 @@ export function TicketFlow({
       } catch (error) {
         setFeedback({
           type: "error",
-          message: toErrorMessage(error, "Failed to load ticket transitions."),
+          message: toErrorMessage(error, t("Failed to load ticket transitions.")),
         });
       } finally {
         setIsLoadingQcTransitions(false);
       }
     },
-    [accessToken],
+    [accessToken, t],
   );
 
   const loadWorkSessionHistory = useCallback(
@@ -1066,13 +1123,13 @@ export function TicketFlow({
       } catch (error) {
         setFeedback({
           type: "error",
-          message: toErrorMessage(error, "Failed to load work session history."),
+          message: toErrorMessage(error, t("Failed to load work session history.")),
         });
       } finally {
         setIsLoadingWorkSessionHistory(false);
       }
     },
-    [accessToken],
+    [accessToken, t],
   );
 
   const loadReviewItem = useCallback(
@@ -1379,8 +1436,7 @@ export function TicketFlow({
     if (trimmed.length === 1) {
       setFeedback({
         type: "info",
-        message:
-          "Search query starts applying from 2 characters. Showing wider result set.",
+        message: t("Search query starts applying from 2 characters. Showing wider result set."),
       });
     } else {
       setFeedback(null);
@@ -1404,7 +1460,7 @@ export function TicketFlow({
     if (!selectedItemParts.length) {
       setFeedback({
         type: "error",
-        message: "Selected inventory item has no parts. Add parts before ticket intake.",
+        message: t("Selected inventory item has no parts. Add parts before ticket intake."),
       });
       return;
     }
@@ -1417,7 +1473,7 @@ export function TicketFlow({
     if (!selectedParts.length) {
       setFeedback({
         type: "error",
-        message: "Select at least one part to continue.",
+        message: t("Select at least one part to continue."),
       });
       return;
     }
@@ -1434,7 +1490,7 @@ export function TicketFlow({
       if (!form) {
         setFeedback({
           type: "error",
-          message: "Part form state is missing. Refresh and try again.",
+          message: t("Part form state is missing. Refresh and try again."),
         });
         return;
       }
@@ -1443,7 +1499,9 @@ export function TicketFlow({
       if (!Number.isInteger(parsedMinutes) || parsedMinutes < 1) {
         setFeedback({
           type: "error",
-          message: `Minutes must be at least 1 for part \"${part.name}\".`,
+          message: t("Minutes must be at least 1 for part {{part}}.", {
+            part: part.name,
+          }),
         });
         return;
       }
@@ -1465,7 +1523,7 @@ export function TicketFlow({
         });
 
         await loadCreateItemPage(selectedItem.id);
-      }, "Ticket created and sent to UNDER_REVIEW.");
+      }, t("Ticket created and sent to UNDER_REVIEW."));
     } catch {
       // feedback already set
     }
@@ -1480,7 +1538,7 @@ export function TicketFlow({
     if (!Number.isInteger(parsedXp) || parsedXp < 0) {
       setFeedback({
         type: "error",
-        message: "XP must be an integer greater than or equal to 0.",
+        message: t("XP must be an integer greater than or equal to 0."),
       });
       return;
     }
@@ -1501,7 +1559,7 @@ export function TicketFlow({
         );
 
         await loadReviewTickets();
-      }, "Ticket review updated by admin.");
+      }, t("Ticket review updated by admin."));
     } catch {
       // feedback already set
     }
@@ -1516,7 +1574,7 @@ export function TicketFlow({
     if (!Number.isInteger(parsedTechnicianId) || parsedTechnicianId < 1) {
       setFeedback({
         type: "error",
-        message: "Select a technician before approving the ticket.",
+        message: t("Select a technician before approving the ticket."),
       });
       return;
     }
@@ -1542,7 +1600,7 @@ export function TicketFlow({
           loadReviewTransitions(assigned.id),
           loadReviewItem(assigned.inventory_item),
         ]);
-      }, "Ticket approved and assigned.");
+      }, t("Ticket approved and assigned."));
     } catch {
       // feedback already set
     }
@@ -1556,11 +1614,11 @@ export function TicketFlow({
     }
 
     const successMessageMap: Record<typeof action, string> = {
-      start: "Work started.",
-      pause: "Work session paused.",
-      resume: "Work session resumed.",
-      stop: "Work session stopped.",
-      to_waiting_qc: "Ticket moved to waiting QC.",
+      start: t("Work started."),
+      pause: t("Work session paused."),
+      resume: t("Work session resumed."),
+      stop: t("Work session stopped."),
+      to_waiting_qc: t("Ticket moved to waiting QC."),
     };
 
     try {
@@ -1607,7 +1665,7 @@ export function TicketFlow({
           loadWorkTickets(),
           loadReviewTickets(),
         ]);
-      }, decision === "pass" ? "QC passed." : "QC failed. Sent to rework.");
+      }, decision === "pass" ? t("QC passed.") : t("QC failed. Sent to rework."));
     } catch {
       // feedback already set
     }
@@ -1619,16 +1677,17 @@ export function TicketFlow({
     return (
       <div className="mt-4 space-y-4">
         <section className="rounded-lg border border-slate-200 p-4">
-          <p className="text-sm font-semibold text-slate-900">Create Ticket</p>
+          <p className="text-sm font-semibold text-slate-900">{t("Create Ticket")}</p>
           <p className="mt-1 text-sm text-slate-600">
-            Pick an inventory item first. The next page shows ticket history for that
-            item and the new-ticket intake form.
+            {t(
+              "Pick an inventory item first. The next page shows ticket history for that item and the new-ticket intake form.",
+            )}
           </p>
 
           <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-[2fr_1fr_1fr_1fr_auto]">
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                Search
+                {t("Search")}
               </label>
               <div className="relative mt-1">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -1641,14 +1700,14 @@ export function TicketFlow({
                       search: event.target.value,
                     }))
                   }
-                  placeholder="Serial number search"
+                  placeholder={t("Serial number search")}
                 />
               </div>
             </div>
 
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                Category
+                {t("Category")}
               </label>
               <select
                 className={cn(fieldClassName, "mt-1")}
@@ -1661,7 +1720,7 @@ export function TicketFlow({
                 }
                 disabled={isLoadingCategories}
               >
-                <option value="">All categories</option>
+                <option value="">{t("All categories")}</option>
                 {categories.map((category) => (
                   <option key={category.id} value={category.id}>
                     {category.name}
@@ -1672,7 +1731,7 @@ export function TicketFlow({
 
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                Status
+                {t("Status")}
               </label>
               <select
                 className={cn(fieldClassName, "mt-1")}
@@ -1684,10 +1743,10 @@ export function TicketFlow({
                   }))
                 }
               >
-                <option value="all">All statuses</option>
+                <option value="all">{t("All statuses")}</option>
                 {ITEM_STATUS_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
+                  <option key={option} value={option}>
+                    {inventoryStatusLabel(option, t)}
                   </option>
                 ))}
               </select>
@@ -1695,7 +1754,7 @@ export function TicketFlow({
 
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                Active
+                {t("Active")}
               </label>
               <select
                 className={cn(fieldClassName, "mt-1")}
@@ -1707,9 +1766,9 @@ export function TicketFlow({
                   }))
                 }
               >
-                <option value="all">All</option>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
+                <option value="all">{t("All")}</option>
+                <option value="active">{t("Active")}</option>
+                <option value="inactive">{t("Inactive")}</option>
               </select>
             </div>
 
@@ -1720,7 +1779,7 @@ export function TicketFlow({
                 onClick={handleApplyItemFilters}
                 disabled={isLoadingCreateItems || !hasPendingItemFilterChanges}
               >
-                Apply
+                {t("Apply")}
               </Button>
               <Button
                 type="button"
@@ -1729,14 +1788,14 @@ export function TicketFlow({
                 onClick={handleResetItemFilters}
                 disabled={isLoadingCreateItems}
               >
-                Reset
+                {t("Reset")}
               </Button>
             </div>
           </div>
 
           {oneCharSearch ? (
             <p className="mt-2 text-xs text-amber-700">
-              Backend search starts at 2 characters.
+              {t("Backend search starts at 2 characters.")}
             </p>
           ) : null}
         </section>
@@ -1744,16 +1803,16 @@ export function TicketFlow({
         <section className="rounded-lg border border-slate-200">
           <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
             <p className="text-sm font-semibold text-slate-900">
-              Inventory Items ({createItems.length})
+              {t("Inventory Items ({{count}})", { count: createItems.length })}
             </p>
-            <p className="text-xs text-slate-500">Select item to continue</p>
+            <p className="text-xs text-slate-500">{t("Select item to continue")}</p>
           </div>
 
           {isLoadingCreateItems ? (
-            <p className="px-4 py-6 text-sm text-slate-600">Loading items...</p>
+            <p className="px-4 py-6 text-sm text-slate-600">{t("Loading items...")}</p>
           ) : !createItems.length ? (
             <p className="px-4 py-8 text-center text-sm text-slate-500">
-              No items found.
+              {t("No items found.")}
             </p>
           ) : (
             <>
@@ -1768,7 +1827,7 @@ export function TicketFlow({
                     <p className="text-sm font-semibold text-slate-900">{item.serial_number}</p>
                     <p className="text-sm text-slate-700">{item.name || "-"}</p>
                     <p className="mt-1 text-xs text-slate-500">
-                      Category: {categoryNameById.get(item.category) ?? `#${item.category}`}
+                      {t("Category")}: {categoryNameById.get(item.category) ?? `#${item.category}`}
                     </p>
                   </button>
                 ))}
@@ -1779,19 +1838,19 @@ export function TicketFlow({
                   <thead className="bg-slate-50">
                     <tr>
                       <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Serial
+                        {t("Serial")}
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Name
+                        {t("Name")}
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Category
+                        {t("Category")}
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Status
+                        {t("Status")}
                       </th>
                       <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Action
+                        {t("Action")}
                       </th>
                     </tr>
                   </thead>
@@ -1821,7 +1880,7 @@ export function TicketFlow({
                             size="sm"
                             onClick={() => navigate({ name: "createItem", itemId: item.id })}
                           >
-                            Select
+                            {t("Select")}
                           </Button>
                         </td>
                       </tr>
@@ -1840,7 +1899,7 @@ export function TicketFlow({
     if (isLoadingCreateItemPage) {
       return (
         <section className="mt-4 rounded-lg border border-slate-200 p-4">
-          <p className="text-sm text-slate-600">Loading ticket intake page...</p>
+          <p className="text-sm text-slate-600">{t("Loading ticket intake page...")}</p>
         </section>
       );
     }
@@ -1848,14 +1907,14 @@ export function TicketFlow({
     if (!selectedItem) {
       return (
         <section className="mt-4 rounded-lg border border-dashed border-slate-300 p-6 text-center">
-          <p className="text-sm text-slate-600">Inventory item not found.</p>
+          <p className="text-sm text-slate-600">{t("Inventory item not found.")}</p>
           <Button
             type="button"
             variant="outline"
             className="mt-3 h-10"
             onClick={() => navigate({ name: "createList" })}
           >
-            Back to Item List
+            {t("Back to Item List")}
           </Button>
         </section>
       );
@@ -1869,15 +1928,15 @@ export function TicketFlow({
           className="inline-flex items-center gap-1 text-sm font-medium text-slate-600 transition hover:text-slate-900"
         >
           <ArrowLeft className="h-4 w-4" />
-          Back to item selection
+          {t("Back to item selection")}
         </button>
 
         <section className="rounded-lg border border-slate-200 bg-slate-50 p-4">
           <p className="text-lg font-semibold text-slate-900">{selectedItem.serial_number}</p>
-          <p className="mt-1 text-sm text-slate-700">{selectedItem.name || "Unnamed item"}</p>
+          <p className="mt-1 text-sm text-slate-700">{selectedItem.name || t("Unnamed item")}</p>
           <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-600">
             <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5">
-              Category: {categoryNameById.get(selectedItem.category) ?? `#${selectedItem.category}`}
+              {t("Category")}: {categoryNameById.get(selectedItem.category) ?? `#${selectedItem.category}`}
             </span>
             <span
               className={cn(
@@ -1894,7 +1953,9 @@ export function TicketFlow({
           <section className="rounded-lg border border-slate-200 p-4">
             <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
               <History className="h-4 w-4" />
-              Previous Ticket History ({selectedItemTicketHistory.length})
+              {t("Previous Ticket History ({{count}})", {
+                count: selectedItemTicketHistory.length,
+              })}
             </p>
 
             {selectedItemTicketHistory.length ? (
@@ -1909,7 +1970,9 @@ export function TicketFlow({
                     className="w-full rounded-md border border-slate-200 bg-white p-3 text-left transition hover:border-slate-300 hover:bg-slate-50"
                   >
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-sm font-semibold text-slate-900">Ticket #{ticket.id}</p>
+                      <p className="text-sm font-semibold text-slate-900">
+                        {t("Ticket #{{id}}", { id: ticket.id })}
+                      </p>
                       <span
                         className={cn(
                           "rounded-full border px-2 py-0.5 text-xs font-medium",
@@ -1920,20 +1983,21 @@ export function TicketFlow({
                       </span>
                     </div>
                     <p className="mt-1 text-xs text-slate-600">
-                      Created: {formatDate(ticket.created_at)}
+                      {t("Created")}: {formatDate(ticket.created_at)}
                     </p>
                     <p className="mt-1 text-xs text-slate-600">
-                      Total Minutes: {ticket.total_duration} | Flag: {ticketColorLabelByValue.get(ticket.flag_color) ?? ticket.flag_color}
+                      {t("Total Minutes")}: {ticket.total_duration} | {t("Flag")}:{" "}
+                      {ticketColorLabelByValue.get(ticket.flag_color) ?? ticket.flag_color}
                     </p>
                     <p className="mt-2 text-xs font-semibold text-slate-800">
-                      Open full ticket details
+                      {t("Open full ticket details")}
                     </p>
                   </button>
                 ))}
               </div>
             ) : (
               <p className="mt-3 rounded-md border border-dashed border-slate-300 px-3 py-5 text-center text-sm text-slate-500">
-                No previous tickets for this item.
+                {t("No previous tickets for this item.")}
               </p>
             )}
           </section>
@@ -1941,21 +2005,21 @@ export function TicketFlow({
           <section className="rounded-lg border border-slate-200 p-4">
             <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
               <FilePlus2 className="h-4 w-4" />
-              New Ticket Intake
+              {t("New Ticket Intake")}
             </p>
-            <p className="mt-1 text-xs text-slate-600">Select at least one part.</p>
+            <p className="mt-1 text-xs text-slate-600">{t("Select at least one part.")}</p>
 
             <form onSubmit={handleCreateTicket} className="mt-3 space-y-3">
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                  Title (optional)
+                  {t("Title (optional)")}
                 </label>
                 <input
                   className={cn(fieldClassName, "mt-1")}
                   value={ticketTitle}
                   onChange={(event) => setTicketTitle(event.target.value)}
                   disabled={!canCreate || isMutating}
-                  placeholder="Ticket title"
+                  placeholder={t("Ticket title")}
                 />
               </div>
 
@@ -1990,13 +2054,15 @@ export function TicketFlow({
                             />
                             {part.name}
                           </label>
-                          <p className="text-xs text-slate-500">Part ID: {part.id}</p>
+                          <p className="text-xs text-slate-500">
+                            {t("Part ID")}: {part.id}
+                          </p>
                         </div>
 
                         <div className="mt-3 grid gap-2 md:grid-cols-3">
                           <div>
                             <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                              Color
+                              {t("Color")}
                             </label>
                             <select
                               className={cn(fieldClassName, "mt-1")}
@@ -2013,8 +2079,8 @@ export function TicketFlow({
                               disabled={!canCreate || isMutating || !form.selected}
                             >
                               {TICKET_COLOR_OPTIONS.map((option) => (
-                                <option key={option.value} value={option.value}>
-                                  {option.label}
+                                <option key={option} value={option}>
+                                  {ticketColorLabel(option, t)}
                                 </option>
                               ))}
                             </select>
@@ -2022,7 +2088,7 @@ export function TicketFlow({
 
                           <div>
                             <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                              Minutes
+                              {t("Minutes")}
                             </label>
                             <input
                               type="number"
@@ -2039,13 +2105,13 @@ export function TicketFlow({
                                 }))
                               }
                               disabled={!canCreate || isMutating || !form.selected}
-                              placeholder="e.g. 20"
+                              placeholder={t("e.g. 20")}
                             />
                           </div>
 
                           <div>
                             <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                              Comment (optional)
+                              {t("Comment (optional)")}
                             </label>
                             <input
                               className={cn(fieldClassName, "mt-1")}
@@ -2060,7 +2126,7 @@ export function TicketFlow({
                                 }))
                               }
                               disabled={!canCreate || isMutating || !form.selected}
-                              placeholder="Part note"
+                              placeholder={t("Part note")}
                             />
                           </div>
                         </div>
@@ -2070,18 +2136,19 @@ export function TicketFlow({
                 </div>
               ) : (
                 <p className="rounded-md border border-dashed border-slate-300 px-3 py-4 text-sm text-slate-600">
-                  This item has no parts. Add parts in inventory management before ticket
-                  intake.
+                  {t(
+                    "This item has no parts. Add parts in inventory management before ticket intake.",
+                  )}
                 </p>
               )}
 
               <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
-                Selected parts: {selectedPartsCount}/{selectedItemParts.length || 0}
+                {t("Selected parts")}: {selectedPartsCount}/{selectedItemParts.length || 0}
               </div>
 
               {!canCreate ? (
                 <p className="text-xs text-amber-700">
-                  Your roles do not allow ticket creation.
+                  {t("Your roles do not allow ticket creation.")}
                 </p>
               ) : null}
 
@@ -2096,7 +2163,7 @@ export function TicketFlow({
                     selectedPartsCount < 1
                   }
                 >
-                  Create Ticket
+                  {t("Create Ticket")}
                 </Button>
                 {canReview ? (
                   <Button
@@ -2105,7 +2172,7 @@ export function TicketFlow({
                     className="h-10"
                     onClick={() => navigate({ name: "review" })}
                   >
-                    Open Review Queue
+                    {t("Open Review Queue")}
                   </Button>
                 ) : null}
               </div>
@@ -2120,7 +2187,7 @@ export function TicketFlow({
     if (isLoadingHistoryTicket) {
       return (
         <section className="mt-4 rounded-lg border border-slate-200 p-4">
-          <p className="text-sm text-slate-600">Loading full ticket details...</p>
+          <p className="text-sm text-slate-600">{t("Loading full ticket details...")}</p>
         </section>
       );
     }
@@ -2128,14 +2195,14 @@ export function TicketFlow({
     if (!historyTicket) {
       return (
         <section className="mt-4 rounded-lg border border-dashed border-slate-300 p-6 text-center">
-          <p className="text-sm text-slate-600">Ticket details were not found.</p>
+          <p className="text-sm text-slate-600">{t("Ticket details were not found.")}</p>
           <Button
             type="button"
             variant="outline"
             className="mt-3 h-10"
             onClick={() => navigate({ name: "createList" })}
           >
-            Back to Ticket Create
+            {t("Back to Ticket Create")}
           </Button>
         </section>
       );
@@ -2143,7 +2210,9 @@ export function TicketFlow({
 
     const ticketStatusLabel =
       ticketStatusLabelByValue.get(historyTicket.status) ?? historyTicket.status;
-    const itemSerial = historyItem?.serial_number ?? `Item #${historyTicket.inventory_item}`;
+    const itemSerial = historyItem?.serial_number ?? t("Item #{{id}}", {
+      id: historyTicket.inventory_item,
+    });
     const masterLabel = resolveHistoryActorLabel(
       historyTicket.master,
       historyTicket.master_name,
@@ -2153,13 +2222,13 @@ export function TicketFlow({
           historyTicket.technician,
           historyTicket.technician_name,
         )
-      : "Not assigned";
+      : t("Not assigned");
     const approvedByLabel = historyTicket.approved_by
       ? resolveHistoryActorLabel(
           historyTicket.approved_by,
           historyTicket.approved_by_name,
         )
-      : "Not approved yet";
+      : t("Not approved yet");
     const pauseCount = historyWorkSessionHistory.filter(
       (entry) => entry.action === "paused",
     ).length;
@@ -2180,13 +2249,13 @@ export function TicketFlow({
           className="inline-flex items-center gap-1 text-sm font-medium text-slate-600 transition hover:text-slate-900"
         >
           <ArrowLeft className="h-4 w-4" />
-          Back to item ticket history
+          {t("Back to item ticket history")}
         </button>
 
         <section className="rounded-lg border border-slate-200 bg-slate-50 p-4">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-xl font-semibold text-slate-900">
-              Ticket #{historyTicket.id}
+              {t("Ticket #{{id}}", { id: historyTicket.id })}
             </p>
             <span
               className={cn(
@@ -2197,13 +2266,16 @@ export function TicketFlow({
               {ticketStatusLabel}
             </span>
           </div>
-          <p className="mt-1 text-sm text-slate-700">{historyTicket.title || "No title"}</p>
+          <p className="mt-1 text-sm text-slate-700">{historyTicket.title || t("No title")}</p>
           <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-600">
             <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5">
-              Item: {itemSerial}
+              {t("Item")}: {itemSerial}
             </span>
             <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5">
-              Opened {formatDate(historyTicket.created_at)} by {masterLabel}
+              {t("Opened {{at}} by {{name}}", {
+                at: formatDate(historyTicket.created_at),
+                name: masterLabel,
+              })}
             </span>
           </div>
         </section>
@@ -2211,7 +2283,7 @@ export function TicketFlow({
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Workflow Events
+              {t("Workflow Events")}
             </p>
             <p className="mt-1 text-lg font-semibold text-slate-900">
               {historyTransitions.length}
@@ -2219,7 +2291,7 @@ export function TicketFlow({
           </div>
           <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Work Session Events
+              {t("Work Session Events")}
             </p>
             <p className="mt-1 text-lg font-semibold text-slate-900">
               {historyWorkSessionHistory.length}
@@ -2227,7 +2299,7 @@ export function TicketFlow({
           </div>
           <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Pauses / Resumes
+              {t("Pauses / Resumes")}
             </p>
             <p className="mt-1 text-lg font-semibold text-slate-900">
               {pauseCount} / {resumeCount}
@@ -2235,7 +2307,7 @@ export function TicketFlow({
           </div>
           <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Stops
+              {t("Stops")}
             </p>
             <p className="mt-1 text-lg font-semibold text-slate-900">{stopCount}</p>
           </div>
@@ -2244,67 +2316,67 @@ export function TicketFlow({
         <div className="grid gap-4 xl:grid-cols-[1fr_1.2fr]">
           <div className="space-y-4">
             <section className="rounded-lg border border-slate-200 p-4">
-              <p className="text-sm font-semibold text-slate-900">Ticket Snapshot</p>
+              <p className="text-sm font-semibold text-slate-900">{t("Ticket Snapshot")}</p>
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
                 <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
-                  <p className="text-xs text-slate-500">Master</p>
+                  <p className="text-xs text-slate-500">{t("Master")}</p>
                   <p className="text-sm font-medium text-slate-900">{masterLabel}</p>
                 </div>
                 <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
-                  <p className="text-xs text-slate-500">Technician</p>
+                  <p className="text-xs text-slate-500">{t("Technician")}</p>
                   <p className="text-sm font-medium text-slate-900">{technicianLabel}</p>
                 </div>
                 <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
-                  <p className="text-xs text-slate-500">Approved By</p>
+                  <p className="text-xs text-slate-500">{t("Approved By")}</p>
                   <p className="text-sm font-medium text-slate-900">{approvedByLabel}</p>
                 </div>
                 <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
-                  <p className="text-xs text-slate-500">Flag / XP</p>
+                  <p className="text-xs text-slate-500">{t("Flag / XP")}</p>
                   <p className="text-sm font-medium text-slate-900">
                     {formatTokenLabel(historyTicket.flag_color)} / {historyTicket.xp_amount}
                   </p>
                 </div>
                 <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
-                  <p className="text-xs text-slate-500">Created</p>
+                  <p className="text-xs text-slate-500">{t("Created")}</p>
                   <p className="text-sm font-medium text-slate-900">
                     {formatDate(historyTicket.created_at)}
                   </p>
                 </div>
                 <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
-                  <p className="text-xs text-slate-500">Assigned</p>
+                  <p className="text-xs text-slate-500">{t("Assigned")}</p>
                   <p className="text-sm font-medium text-slate-900">
                     {formatDate(historyTicket.assigned_at)}
                   </p>
                 </div>
                 <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
-                  <p className="text-xs text-slate-500">Started</p>
+                  <p className="text-xs text-slate-500">{t("Started")}</p>
                   <p className="text-sm font-medium text-slate-900">
                     {formatDate(historyTicket.started_at)}
                   </p>
                 </div>
                 <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
-                  <p className="text-xs text-slate-500">Finished</p>
+                  <p className="text-xs text-slate-500">{t("Finished")}</p>
                   <p className="text-sm font-medium text-slate-900">
                     {formatDate(historyTicket.finished_at)}
                   </p>
                 </div>
                 <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
-                  <p className="text-xs text-slate-500">Total Minutes</p>
+                  <p className="text-xs text-slate-500">{t("Total Minutes")}</p>
                   <p className="text-sm font-medium text-slate-900">
                     {historyTicket.total_duration}
                   </p>
                 </div>
                 <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
-                  <p className="text-xs text-slate-500">Manual Metrics</p>
+                  <p className="text-xs text-slate-500">{t("Manual Metrics")}</p>
                   <p className="text-sm font-medium text-slate-900">
-                    {historyTicket.is_manual ? "Yes" : "No"}
+                    {historyTicket.is_manual ? t("Yes") : t("No")}
                   </p>
                 </div>
               </div>
             </section>
 
             <section className="rounded-lg border border-slate-200 p-4">
-              <p className="text-sm font-semibold text-slate-900">Selected Part Specs</p>
+              <p className="text-sm font-semibold text-slate-900">{t("Selected Part Specs")}</p>
               {historyTicket.ticket_parts.length ? (
                 <div className="mt-3 space-y-2">
                   {historyTicket.ticket_parts.map((part) => (
@@ -2323,16 +2395,16 @@ export function TicketFlow({
                           {ticketColorLabelByValue.get(part.color) ?? part.color}
                         </span>
                       </div>
-                      <p className="mt-1 text-xs text-slate-600">Minutes: {part.minutes}</p>
+                      <p className="mt-1 text-xs text-slate-600">{t("Minutes")}: {part.minutes}</p>
                       <p className="mt-1 text-xs text-slate-600">
-                        Comment: {part.comment || "-"}
+                        {t("Comment")}: {part.comment || "-"}
                       </p>
                     </div>
                   ))}
                 </div>
               ) : (
                 <p className="mt-3 rounded-md border border-dashed border-slate-300 px-3 py-4 text-sm text-slate-500">
-                  No part specs found on this ticket.
+                  {t("No part specs found on this ticket.")}
                 </p>
               )}
             </section>
@@ -2341,10 +2413,10 @@ export function TicketFlow({
           <section className="rounded-lg border border-slate-200 p-4">
             <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
               <History className="h-4 w-4" />
-              Full Activity Timeline
+              {t("Full Activity Timeline")}
             </p>
             <p className="mt-1 text-xs text-slate-600">
-              Workflow changes and work-session events sorted by time.
+              {t("Workflow changes and work-session events sorted by time.")}
             </p>
 
             {historyTimeline.length ? (
@@ -2365,7 +2437,7 @@ export function TicketFlow({
                               : "border-amber-200 bg-amber-100 text-amber-700",
                           )}
                         >
-                          {event.source === "workflow" ? "Workflow" : "Work Session"}
+                          {event.source === "workflow" ? t("Workflow") : t("Work Session")}
                         </span>
                         <p className="text-sm font-semibold text-slate-900">
                           {formatTokenLabel(event.action)}
@@ -2373,17 +2445,17 @@ export function TicketFlow({
                       </div>
 
                       <p className="mt-1 text-xs text-slate-600">
-                        Actor: {event.actorLabel}
+                        {t("Actor")}: {event.actorLabel}
                       </p>
                       <p className="mt-1 text-xs text-slate-600">
-                        Status: {formatTokenLabel(event.fromStatus)} {"->"}{" "}
+                        {t("Status")}: {formatTokenLabel(event.fromStatus)} {"->"}{" "}
                         {formatTokenLabel(event.toStatus)}
                       </p>
                       <p className="mt-1 text-xs text-slate-600">
-                        At: {formatDate(event.at)}
+                        {t("At")}: {formatDate(event.at)}
                       </p>
                       {event.note ? (
-                        <p className="mt-1 text-xs text-slate-600">Note: {event.note}</p>
+                        <p className="mt-1 text-xs text-slate-600">{t("Note")}: {event.note}</p>
                       ) : null}
 
                       {metadataEntries.length ? (
@@ -2407,7 +2479,7 @@ export function TicketFlow({
               </div>
             ) : (
               <p className="mt-3 rounded-md border border-dashed border-slate-300 px-3 py-4 text-sm text-slate-500">
-                No ticket events found.
+                {t("No ticket events found.")}
               </p>
             )}
           </section>
@@ -2421,13 +2493,13 @@ export function TicketFlow({
       <section className="rounded-lg border border-slate-200 p-4">
         <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
           <ClipboardCheck className="h-4 w-4" />
-          Review Queue
+          {t("Review Queue")}
         </p>
 
         <div className="mt-3 space-y-2">
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-              Search
+              {t("Search")}
             </label>
             <div className="relative mt-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -2435,14 +2507,14 @@ export function TicketFlow({
                 className={cn(fieldClassName, "pl-9")}
                 value={reviewSearch}
                 onChange={(event) => setReviewSearch(event.target.value)}
-                placeholder="Ticket id, serial, title"
+                placeholder={t("Ticket id, serial, title")}
               />
             </div>
           </div>
 
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-              Status
+              {t("Status")}
             </label>
             <select
               className={cn(fieldClassName, "mt-1")}
@@ -2451,10 +2523,10 @@ export function TicketFlow({
                 setReviewStatusFilter(event.target.value as "all" | TicketStatus)
               }
             >
-              <option value="all">All statuses</option>
+              <option value="all">{t("All statuses")}</option>
               {TICKET_STATUS_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
+                <option key={option} value={option}>
+                  {ticketStatusLabel(option, t)}
                 </option>
               ))}
             </select>
@@ -2462,7 +2534,7 @@ export function TicketFlow({
         </div>
 
         {isLoadingReviewTickets ? (
-          <p className="mt-3 text-sm text-slate-600">Loading tickets...</p>
+          <p className="mt-3 text-sm text-slate-600">{t("Loading tickets...")}</p>
         ) : reviewTicketsFiltered.length ? (
           <div className="mt-3 space-y-2">
             {reviewTicketsFiltered.map((ticket) => {
@@ -2479,16 +2551,8 @@ export function TicketFlow({
                       : "border-slate-200 bg-slate-50 hover:border-slate-300",
                   )}
                 >
-                  <p className="text-sm font-semibold">Ticket #{ticket.id}</p>
-                  <p
-                    className={cn(
-                      "mt-1 text-xs",
-                      selectedReviewTicketId === ticket.id
-                        ? "text-slate-200"
-                        : "text-slate-600",
-                    )}
-                  >
-                    {item?.serial_number ?? `Item #${ticket.inventory_item}`}
+                  <p className="text-sm font-semibold">
+                    {t("Ticket #{{id}}", { id: ticket.id })}
                   </p>
                   <p
                     className={cn(
@@ -2498,7 +2562,17 @@ export function TicketFlow({
                         : "text-slate-600",
                     )}
                   >
-                    {ticket.title || "No title"}
+                    {item?.serial_number ?? t("Item #{{id}}", { id: ticket.inventory_item })}
+                  </p>
+                  <p
+                    className={cn(
+                      "mt-1 text-xs",
+                      selectedReviewTicketId === ticket.id
+                        ? "text-slate-200"
+                        : "text-slate-600",
+                    )}
+                  >
+                    {ticket.title || t("No title")}
                   </p>
                 </button>
               );
@@ -2506,7 +2580,7 @@ export function TicketFlow({
           </div>
         ) : (
           <p className="mt-3 rounded-md border border-dashed border-slate-300 px-3 py-5 text-center text-sm text-slate-500">
-            No tickets in review queue.
+            {t("No tickets in review queue.")}
           </p>
         )}
       </section>
@@ -2517,7 +2591,7 @@ export function TicketFlow({
             <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
               <div className="flex flex-wrap items-center gap-2">
                 <p className="text-lg font-semibold text-slate-900">
-                  Ticket #{selectedReviewTicket.id}
+                  {t("Ticket #{{id}}", { id: selectedReviewTicket.id })}
                 </p>
                 <span
                   className={cn(
@@ -2531,22 +2605,24 @@ export function TicketFlow({
               </div>
 
               <p className="mt-1 text-sm text-slate-700">
-                {selectedReviewTicket.title || "No title"}
+                {selectedReviewTicket.title || t("No title")}
               </p>
               <p className="mt-1 text-xs text-slate-600">
-                Item: {reviewItem?.serial_number ?? `#${selectedReviewTicket.inventory_item}`}
+                {t("Item")}:{" "}
+                {reviewItem?.serial_number ??
+                  t("Item #{{id}}", { id: selectedReviewTicket.inventory_item })}
               </p>
               <p className="mt-1 text-xs text-slate-600">
-                Created: {formatDate(selectedReviewTicket.created_at)}
+                {t("Created")}: {formatDate(selectedReviewTicket.created_at)}
               </p>
               <p className="mt-1 text-xs text-slate-600">
-                Auto/Current Minutes: {selectedReviewTicket.total_duration}
+                {t("Auto/Current Minutes")}: {selectedReviewTicket.total_duration}
               </p>
             </div>
 
             <div className="grid gap-4 xl:grid-cols-2">
               <div className="rounded-md border border-slate-200 p-3">
-                <p className="text-sm font-semibold text-slate-900">Part Specs</p>
+                <p className="text-sm font-semibold text-slate-900">{t("Part Specs")}</p>
 
                 {selectedReviewTicket.ticket_parts.length ? (
                   <div className="mt-2 space-y-2">
@@ -2566,34 +2642,34 @@ export function TicketFlow({
                             {ticketColorLabelByValue.get(part.color) ?? part.color}
                           </span>
                         </div>
-                        <p className="mt-1 text-xs text-slate-600">Minutes: {part.minutes}</p>
+                        <p className="mt-1 text-xs text-slate-600">{t("Minutes")}: {part.minutes}</p>
                         <p className="mt-1 text-xs text-slate-600">
-                          Comment: {part.comment || "-"}
+                          {t("Comment")}: {part.comment || "-"}
                         </p>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="mt-2 text-sm text-slate-600">No part specs.</p>
+                  <p className="mt-2 text-sm text-slate-600">{t("No part specs.")}</p>
                 )}
               </div>
 
               <div className="rounded-md border border-slate-200 p-3">
-                <p className="text-sm font-semibold text-slate-900">Review Actions</p>
+                <p className="text-sm font-semibold text-slate-900">{t("Review Actions")}</p>
                 <p className="mt-1 text-xs text-slate-600">
-                  Approve review and assign a technician in one action.
+                  {t("Approve review and assign a technician in one action.")}
                 </p>
                 <p className="mt-1 text-xs text-slate-600">
-                  Current technician:{" "}
+                  {t("Current technician")}:{" "}
                   {selectedReviewTicket.technician
                     ? technicianLabelById.get(selectedReviewTicket.technician) ??
-                      `User #${selectedReviewTicket.technician}`
-                    : "Not assigned"}
+                      t("User #{{id}}", { id: selectedReviewTicket.technician })
+                    : t("Not assigned")}
                 </p>
 
                 <div className="mt-3">
                   <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                    Technician
+                    {t("Technician")}
                   </label>
                   <select
                     className={cn(fieldClassName, "mt-1")}
@@ -2602,7 +2678,7 @@ export function TicketFlow({
                     disabled={!canReview || isMutating || isLoadingTechnicians}
                   >
                     <option value="">
-                      {isLoadingTechnicians ? "Loading technicians..." : "Select technician"}
+                      {isLoadingTechnicians ? t("Loading technicians...") : t("Select technician")}
                     </option>
                     {technicianOptions.map((technician) => (
                       <option key={technician.user_id} value={technician.user_id}>
@@ -2616,7 +2692,7 @@ export function TicketFlow({
 
                 {!canReview ? (
                   <p className="mt-2 text-xs text-amber-700">
-                    Your roles do not allow ticket review.
+                    {t("Your roles do not allow ticket review.")}
                   </p>
                 ) : null}
 
@@ -2632,18 +2708,18 @@ export function TicketFlow({
                       !selectedTechnicianId
                     }
                   >
-                    Approve & Assign
+                    {t("Approve & Assign")}
                   </Button>
                 </div>
 
                 <div className="mt-4 border-t border-slate-200 pt-3">
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                    Manual Metrics (Optional)
+                    {t("Manual Metrics (Optional)")}
                   </p>
                   <div className="mt-2 grid gap-2 sm:grid-cols-2">
                     <div>
                       <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                        Flag Color
+                        {t("Flag Color")}
                       </label>
                       <select
                         className={cn(fieldClassName, "mt-1")}
@@ -2654,8 +2730,8 @@ export function TicketFlow({
                         disabled={!canReview || isMutating}
                       >
                         {TICKET_COLOR_OPTIONS.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
+                          <option key={option} value={option}>
+                            {ticketColorLabel(option, t)}
                           </option>
                         ))}
                       </select>
@@ -2663,7 +2739,7 @@ export function TicketFlow({
 
                     <div>
                       <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                        XP Amount
+                        {t("XP Amount")}
                       </label>
                       <input
                         type="number"
@@ -2683,7 +2759,7 @@ export function TicketFlow({
                       onClick={() => void handleManualMetricsSave()}
                       disabled={!canReview || isMutating}
                     >
-                      Save Manual Metrics
+                      {t("Save Manual Metrics")}
                     </Button>
                   </div>
                 </div>
@@ -2691,10 +2767,10 @@ export function TicketFlow({
             </div>
 
             <div className="rounded-md border border-slate-200 p-3">
-              <p className="text-sm font-semibold text-slate-900">Ticket Transitions</p>
+              <p className="text-sm font-semibold text-slate-900">{t("Ticket Transitions")}</p>
 
               {isLoadingReviewTransitions ? (
-                <p className="mt-2 text-sm text-slate-600">Loading transitions...</p>
+                <p className="mt-2 text-sm text-slate-600">{t("Loading transitions...")}</p>
               ) : reviewTransitions.length ? (
                 <div className="mt-2 space-y-2">
                   {reviewTransitions.map((transition) => (
@@ -2715,13 +2791,13 @@ export function TicketFlow({
                   ))}
                 </div>
               ) : (
-                <p className="mt-2 text-sm text-slate-600">No transitions yet.</p>
+                <p className="mt-2 text-sm text-slate-600">{t("No transitions yet.")}</p>
               )}
             </div>
           </div>
         ) : (
           <p className="rounded-md border border-dashed border-slate-300 px-3 py-8 text-center text-sm text-slate-500">
-            Select a ticket from the queue.
+            {t("Select a ticket from the queue.")}
           </p>
         )}
       </section>
@@ -2733,12 +2809,12 @@ export function TicketFlow({
       <section className="rounded-lg border border-slate-200 p-4">
         <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
           <ClipboardCheck className="h-4 w-4" />
-          Technician Queue
+          {t("Technician Queue")}
         </p>
         <div className="mt-3 space-y-2">
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-              Search
+              {t("Search")}
             </label>
             <div className="relative mt-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -2746,13 +2822,13 @@ export function TicketFlow({
                 className={cn(fieldClassName, "pl-9")}
                 value={workSearch}
                 onChange={(event) => setWorkSearch(event.target.value)}
-                placeholder="Ticket id, serial, title"
+                placeholder={t("Ticket id, serial, title")}
               />
             </div>
           </div>
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-              Status
+              {t("Status")}
             </label>
             <select
               className={cn(fieldClassName, "mt-1")}
@@ -2763,17 +2839,17 @@ export function TicketFlow({
                 )
               }
             >
-              <option value="all">All work statuses</option>
-              <option value="assigned">Assigned</option>
-              <option value="in_progress">In Progress</option>
-              <option value="rework">Rework</option>
-              <option value="waiting_qc">Waiting QC</option>
+              <option value="all">{t("All work statuses")}</option>
+              <option value="assigned">{t("Assigned")}</option>
+              <option value="in_progress">{t("In progress")}</option>
+              <option value="rework">{t("Rework")}</option>
+              <option value="waiting_qc">{t("Waiting QC")}</option>
             </select>
           </div>
         </div>
 
         {isLoadingWorkTickets ? (
-          <p className="mt-3 text-sm text-slate-600">Loading technician queue...</p>
+          <p className="mt-3 text-sm text-slate-600">{t("Loading technician queue...")}</p>
         ) : workTicketsFiltered.length ? (
           <div className="mt-3 space-y-2">
             {workTicketsFiltered.map((ticket) => {
@@ -2790,14 +2866,16 @@ export function TicketFlow({
                       : "border-slate-200 bg-slate-50 hover:border-slate-300",
                   )}
                 >
-                  <p className="text-sm font-semibold">Ticket #{ticket.id}</p>
+                  <p className="text-sm font-semibold">
+                    {t("Ticket #{{id}}", { id: ticket.id })}
+                  </p>
                   <p
                     className={cn(
                       "mt-1 text-xs",
                       selectedWorkTicketId === ticket.id ? "text-slate-200" : "text-slate-600",
                     )}
                   >
-                    {item?.serial_number ?? `Item #${ticket.inventory_item}`}
+                    {item?.serial_number ?? t("Item #{{id}}", { id: ticket.inventory_item })}
                   </p>
                   <p
                     className={cn(
@@ -2813,7 +2891,7 @@ export function TicketFlow({
           </div>
         ) : (
           <p className="mt-3 rounded-md border border-dashed border-slate-300 px-3 py-5 text-center text-sm text-slate-500">
-            No tickets in technician queue.
+            {t("No tickets in technician queue.")}
           </p>
         )}
       </section>
@@ -2824,7 +2902,7 @@ export function TicketFlow({
             <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
               <div className="flex flex-wrap items-center gap-2">
                 <p className="text-lg font-semibold text-slate-900">
-                  Ticket #{selectedWorkTicket.id}
+                  {t("Ticket #{{id}}", { id: selectedWorkTicket.id })}
                 </p>
                 <span
                   className={cn(
@@ -2837,16 +2915,18 @@ export function TicketFlow({
                 </span>
               </div>
               <p className="mt-1 text-xs text-slate-600">
-                Item: {workItem?.serial_number ?? `#${selectedWorkTicket.inventory_item}`}
+                {t("Item")}:{" "}
+                {workItem?.serial_number ??
+                  t("Item #{{id}}", { id: selectedWorkTicket.inventory_item })}
               </p>
               <p className="mt-1 text-xs text-slate-600">
-                Session status: {currentWorkSessionStatus ?? "none"}
+                {t("Session status")}: {currentWorkSessionStatus ?? t("none")}
               </p>
             </div>
 
             {!canWork ? (
               <p className="rounded-md border border-dashed border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                Your roles do not allow work-session actions.
+                {t("Your roles do not allow work-session actions.")}
               </p>
             ) : null}
 
@@ -2863,7 +2943,7 @@ export function TicketFlow({
                   !["running", "paused"].includes(currentWorkSessionStatus ?? "")
                 }
               >
-                Stop
+                {t("Stop")}
               </Button>
               <Button
                 type="button"
@@ -2876,14 +2956,14 @@ export function TicketFlow({
                   currentWorkSessionStatus !== "stopped"
                 }
               >
-                Move To QC
+                {t("Move To QC")}
               </Button>
             </div>
 
             <div className="rounded-md border border-slate-200 p-3">
-              <p className="text-sm font-semibold text-slate-900">Work Session History</p>
+              <p className="text-sm font-semibold text-slate-900">{t("Work Session History")}</p>
               {isLoadingWorkSessionHistory ? (
-                <p className="mt-2 text-sm text-slate-600">Loading history...</p>
+                <p className="mt-2 text-sm text-slate-600">{t("Loading history...")}</p>
               ) : workSessionHistory.length ? (
                 <div className="mt-2 space-y-2">
                   {workSessionHistory.map((entry) => (
@@ -2902,13 +2982,13 @@ export function TicketFlow({
                   ))}
                 </div>
               ) : (
-                <p className="mt-2 text-sm text-slate-600">No work session events yet.</p>
+                <p className="mt-2 text-sm text-slate-600">{t("No work session events yet.")}</p>
               )}
             </div>
           </div>
         ) : (
           <p className="rounded-md border border-dashed border-slate-300 px-3 py-8 text-center text-sm text-slate-500">
-            Select a ticket from technician queue.
+            {t("Select a ticket from technician queue.")}
           </p>
         )}
       </section>
@@ -2920,12 +3000,12 @@ export function TicketFlow({
       <section className="rounded-lg border border-slate-200 p-4">
         <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
           <ClipboardCheck className="h-4 w-4" />
-          QC Queue
+          {t("QC Queue")}
         </p>
         <div className="mt-3 space-y-2">
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-              Search
+              {t("Search")}
             </label>
             <div className="relative mt-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -2933,27 +3013,27 @@ export function TicketFlow({
                 className={cn(fieldClassName, "pl-9")}
                 value={qcSearch}
                 onChange={(event) => setQcSearch(event.target.value)}
-                placeholder="Ticket id, serial, title"
+                placeholder={t("Ticket id, serial, title")}
               />
             </div>
           </div>
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-              Status
+              {t("Status")}
             </label>
             <select
               className={cn(fieldClassName, "mt-1")}
               value={qcStatusFilter}
               onChange={(event) => setQcStatusFilter(event.target.value as "waiting_qc" | "all")}
             >
-              <option value="waiting_qc">Waiting QC</option>
-              <option value="all">All statuses</option>
+              <option value="waiting_qc">{t("Waiting QC")}</option>
+              <option value="all">{t("All statuses")}</option>
             </select>
           </div>
         </div>
 
         {isLoadingQcTickets ? (
-          <p className="mt-3 text-sm text-slate-600">Loading QC queue...</p>
+          <p className="mt-3 text-sm text-slate-600">{t("Loading QC queue...")}</p>
         ) : qcTicketsFiltered.length ? (
           <div className="mt-3 space-y-2">
             {qcTicketsFiltered.map((ticket) => {
@@ -2970,14 +3050,16 @@ export function TicketFlow({
                       : "border-slate-200 bg-slate-50 hover:border-slate-300",
                   )}
                 >
-                  <p className="text-sm font-semibold">Ticket #{ticket.id}</p>
+                  <p className="text-sm font-semibold">
+                    {t("Ticket #{{id}}", { id: ticket.id })}
+                  </p>
                   <p
                     className={cn(
                       "mt-1 text-xs",
                       selectedQcTicketId === ticket.id ? "text-slate-200" : "text-slate-600",
                     )}
                   >
-                    {item?.serial_number ?? `Item #${ticket.inventory_item}`}
+                    {item?.serial_number ?? t("Item #{{id}}", { id: ticket.inventory_item })}
                   </p>
                   <p
                     className={cn(
@@ -2993,7 +3075,7 @@ export function TicketFlow({
           </div>
         ) : (
           <p className="mt-3 rounded-md border border-dashed border-slate-300 px-3 py-5 text-center text-sm text-slate-500">
-            No tickets in QC queue.
+            {t("No tickets in QC queue.")}
           </p>
         )}
       </section>
@@ -3004,7 +3086,7 @@ export function TicketFlow({
             <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
               <div className="flex flex-wrap items-center gap-2">
                 <p className="text-lg font-semibold text-slate-900">
-                  Ticket #{selectedQcTicket.id}
+                  {t("Ticket #{{id}}", { id: selectedQcTicket.id })}
                 </p>
                 <span
                   className={cn(
@@ -3016,18 +3098,20 @@ export function TicketFlow({
                 </span>
               </div>
               <p className="mt-1 text-xs text-slate-600">
-                Item: {qcItem?.serial_number ?? `#${selectedQcTicket.inventory_item}`}
+                {t("Item")}:{" "}
+                {qcItem?.serial_number ??
+                  t("Item #{{id}}", { id: selectedQcTicket.inventory_item })}
               </p>
             </div>
 
             {!canQc ? (
               <p className="rounded-md border border-dashed border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                You can view QC queue, but your roles cannot run QC pass/fail actions.
+                {t("You can view QC queue, but your roles cannot run QC pass/fail actions.")}
               </p>
             ) : null}
 
             <div className="rounded-md border border-slate-200 p-3">
-              <p className="text-sm font-semibold text-slate-900">Part Specs</p>
+              <p className="text-sm font-semibold text-slate-900">{t("Part Specs")}</p>
               {selectedQcTicket.ticket_parts.length ? (
                 <div className="mt-2 space-y-2">
                   {selectedQcTicket.ticket_parts.map((part) => (
@@ -3046,15 +3130,15 @@ export function TicketFlow({
                           {ticketColorLabelByValue.get(part.color) ?? part.color}
                         </span>
                       </div>
-                      <p className="mt-1 text-xs text-slate-600">Minutes: {part.minutes}</p>
+                      <p className="mt-1 text-xs text-slate-600">{t("Minutes")}: {part.minutes}</p>
                       <p className="mt-1 text-xs text-slate-600">
-                        Comment: {part.comment || "-"}
+                        {t("Comment")}: {part.comment || "-"}
                       </p>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="mt-2 text-sm text-slate-600">No part specs.</p>
+                <p className="mt-2 text-sm text-slate-600">{t("No part specs.")}</p>
               )}
             </div>
 
@@ -3064,7 +3148,7 @@ export function TicketFlow({
                 onClick={() => void handleQcDecision("pass")}
                 disabled={!canQc || isMutating || selectedQcTicket.status !== "waiting_qc"}
               >
-                QC Pass
+                {t("QC Pass")}
               </Button>
               <Button
                 type="button"
@@ -3073,14 +3157,14 @@ export function TicketFlow({
                 onClick={() => void handleQcDecision("fail")}
                 disabled={!canQc || isMutating || selectedQcTicket.status !== "waiting_qc"}
               >
-                QC Fail
+                {t("QC Fail")}
               </Button>
             </div>
 
             <div className="rounded-md border border-slate-200 p-3">
-              <p className="text-sm font-semibold text-slate-900">Ticket Transitions</p>
+              <p className="text-sm font-semibold text-slate-900">{t("Ticket Transitions")}</p>
               {isLoadingQcTransitions ? (
-                <p className="mt-2 text-sm text-slate-600">Loading transitions...</p>
+                <p className="mt-2 text-sm text-slate-600">{t("Loading transitions...")}</p>
               ) : qcTransitions.length ? (
                 <div className="mt-2 space-y-2">
                   {qcTransitions.map((transition) => (
@@ -3101,13 +3185,13 @@ export function TicketFlow({
                   ))}
                 </div>
               ) : (
-                <p className="mt-2 text-sm text-slate-600">No transitions yet.</p>
+                <p className="mt-2 text-sm text-slate-600">{t("No transitions yet.")}</p>
               )}
             </div>
           </div>
         ) : (
           <p className="rounded-md border border-dashed border-slate-300 px-3 py-8 text-center text-sm text-slate-500">
-            Select a ticket from QC queue.
+            {t("Select a ticket from QC queue.")}
           </p>
         )}
       </section>
@@ -3118,28 +3202,36 @@ export function TicketFlow({
     <section className="rm-panel rm-animate-enter-delayed p-4 sm:p-5">
       <div className="flex flex-col gap-3 border-b border-slate-200/70 pb-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">Ticket Flow</h2>
+          <h2 className="text-lg font-semibold text-slate-900">{t("Ticket Flow")}</h2>
           <p className="mt-1 text-sm text-slate-600">
-            Full lifecycle: intake, admin review/assignment, technician execution, and QC.
+            {t("Full lifecycle: intake, admin review/assignment, technician execution, and QC.")}
           </p>
           {!canCreate ? (
             <p className="mt-2 text-xs text-amber-700">
-              Roles ({roleSlugs.join(", ") || "none"}) cannot create tickets.
+              {t("Roles ({{roles}}) cannot create tickets.", {
+                roles: roleSlugs.join(", ") || t("none"),
+              })}
             </p>
           ) : null}
           {!canReview ? (
             <p className="mt-1 text-xs text-amber-700">
-              Roles ({roleSlugs.join(", ") || "none"}) cannot perform admin review.
+              {t("Roles ({{roles}}) cannot perform admin review.", {
+                roles: roleSlugs.join(", ") || t("none"),
+              })}
             </p>
           ) : null}
           {showWorkTab && !canWork ? (
             <p className="mt-1 text-xs text-amber-700">
-              Roles ({roleSlugs.join(", ") || "none"}) cannot run technician workflow.
+              {t("Roles ({{roles}}) cannot run technician workflow.", {
+                roles: roleSlugs.join(", ") || t("none"),
+              })}
             </p>
           ) : null}
           {!canQc ? (
             <p className="mt-1 text-xs text-amber-700">
-              Roles ({roleSlugs.join(", ") || "none"}) cannot run QC pass/fail.
+              {t("Roles ({{roles}}) cannot run QC pass/fail.", {
+                roles: roleSlugs.join(", ") || t("none"),
+              })}
             </p>
           ) : null}
         </div>
@@ -3166,7 +3258,7 @@ export function TicketFlow({
           }
         >
           <RefreshCcw className="mr-2 h-4 w-4" />
-          Refresh
+          {t("Refresh")}
         </Button>
       </div>
 
@@ -3187,7 +3279,7 @@ export function TicketFlow({
 
       {!visibleMenus.length ? (
         <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-700">
-          Your current role does not have access to ticket flows in this app.
+          {t("Your current role does not have access to ticket flows in this app.")}
         </p>
       ) : null}
 
@@ -3205,7 +3297,7 @@ export function TicketFlow({
           >
             <span className="inline-flex items-center gap-2">
               <Ticket className="h-4 w-4" />
-              Create Ticket
+              {t("Create Ticket")}
             </span>
           </button>
         ) : null}
@@ -3223,7 +3315,7 @@ export function TicketFlow({
           >
             <span className="inline-flex items-center gap-2">
               <ClipboardCheck className="h-4 w-4" />
-              Review Tickets
+              {t("Review Tickets")}
             </span>
           </button>
         ) : null}
@@ -3241,7 +3333,7 @@ export function TicketFlow({
           >
             <span className="inline-flex items-center gap-2">
               <ClipboardCheck className="h-4 w-4" />
-              Technician Work
+              {t("Technician Work")}
             </span>
           </button>
         ) : null}
@@ -3259,7 +3351,7 @@ export function TicketFlow({
           >
             <span className="inline-flex items-center gap-2">
               <ClipboardCheck className="h-4 w-4" />
-              QC Queue
+              {t("QC Queue")}
             </span>
           </button>
         ) : null}
