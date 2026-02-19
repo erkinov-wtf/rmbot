@@ -20,10 +20,11 @@ npm run dev
 From repository root:
 
 ```bash
-docker compose up -d frontend
+docker compose up -d --build frontend
 ```
 
 Frontend will be available on `http://localhost:5173` by default.
+Set `VITE_API_BASE_URL` in the repository root `.env` before building.
 
 ## Environment
 

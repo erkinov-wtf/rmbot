@@ -7,10 +7,10 @@ RUN npm ci
 
 COPY . .
 
-# Build-time API base URL for Vite.
-ARG VITE_API_BASE_URL=http://localhost:8005/api/v1
+# Build-time API base URL for Vite (required).
+ARG VITE_API_BASE_URL
+RUN test -n "$VITE_API_BASE_URL"
 ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
-
 RUN npm run build
 
 FROM nginx:1.27-alpine AS runtime
