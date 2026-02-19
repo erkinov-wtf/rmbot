@@ -1,7 +1,7 @@
 services:
   db:
     container_name: db-prod
-    image: postgres:18-alpine
+    image: postgres:18
     volumes:
       - ./pg_data:/var/lib/postgresql
     ports:
@@ -19,7 +19,7 @@ services:
 
   redis:
     container_name: redis-prod
-    image: redis:7-alpine
+    image: redis:7
     ports:
       - "127.0.0.1:${REDIS_PORT:-6380}:6379"
     healthcheck:
