@@ -746,6 +746,7 @@ class ProgressionService:
         new_level: int,
         note: str | None = None,
         clear_warning: bool = False,
+        warning_active: bool | None = None,
     ) -> dict[str, Any]:
         if not User.objects.filter(id=actor_user_id).exists():
             raise ValueError("actor_user_id does not exist.")
@@ -774,20 +775,29 @@ class ProgressionService:
             )
             warning_before = cls._warning_active_from_evaluation(latest_eval)
 
-        warning_after = False if clear_warning else warning_before
+        if warning_active is None:
+            warning_after = False if clear_warning else warning_before
+        else:
+            warning_after = bool(warning_active)
         normalized_note = str(note or "").strip()
 
         if target_level != previous_level:
             user.level = target_level
             user.save(update_fields=["level", "updated_at"])
 
+        level_changed = target_level != previous_level
+        warning_changed = warning_before != warning_after
+
         status = "manual_review"
-        if clear_warning and warning_before and target_level == previous_level:
-            status = "warning_cleared"
-        elif clear_warning and warning_before and target_level != previous_level:
-            status = "manual_set_and_warning_cleared"
-        elif target_level != previous_level:
+        if level_changed and warning_changed:
+            if warning_after:
+                status = "manual_set_and_warning_enabled"
+            else:
+                status = "manual_set_and_warning_cleared"
+        elif level_changed:
             status = "manual_set"
+        elif warning_changed:
+            status = "warning_enabled" if warning_after else "warning_cleared"
 
         reference = f"manual_level:{user.id}:{uuid4().hex}"
         history_event = UserLevelHistoryEvent.objects.create(
@@ -806,6 +816,9 @@ class ProgressionService:
             note=normalized_note,
             payload={
                 "clear_warning": bool(clear_warning),
+                "warning_active_override": (
+                    None if warning_active is None else bool(warning_active)
+                ),
                 "actor_user_id": int(actor_user_id),
             },
         )

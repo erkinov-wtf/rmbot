@@ -205,6 +205,7 @@ class LevelControlSetLevelAPIView(BaseAPIView):
                 new_level=int(serializer.validated_data["level"]),
                 note=serializer.validated_data.get("note", ""),
                 clear_warning=bool(serializer.validated_data.get("clear_warning", False)),
+                warning_active=serializer.validated_data.get("warning_active"),
             )
         except ValueError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)

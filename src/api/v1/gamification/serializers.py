@@ -54,3 +54,4 @@ class LevelManualSetSerializer(serializers.Serializer):
         allow_blank=True,
     )
     clear_warning = serializers.BooleanField(required=False, default=False)
+    warning_active = serializers.BooleanField(required=False)

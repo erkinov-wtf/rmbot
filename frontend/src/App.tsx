@@ -293,15 +293,15 @@ export default function App() {
 
   if (!session) {
     return (
-      <>
+      <div className="relative">
         <LoginForm onLoggedIn={handleLoggedIn} noticeMessage={authNotice} />
-        <div className="fixed bottom-4 left-4 z-50">
+        <div className="fixed right-4 top-4 z-50">
           <LanguageSwitcher
             compact
             className="border-slate-300 bg-white/95 shadow-lg backdrop-blur"
           />
         </div>
-      </>
+      </div>
     );
   }
 
@@ -436,6 +436,11 @@ export default function App() {
             </div>
 
             <div className="mt-4 space-y-3 border-t border-slate-200/80 pt-3 lg:mt-auto">
+              <LanguageSwitcher
+                compact
+                className="w-full justify-between border-slate-300 bg-white/95"
+              />
+
               <div className="rm-subpanel p-3">
                 <p className="text-sm font-semibold text-slate-900">{displayName}</p>
                 {currentUser ? (
@@ -534,12 +539,6 @@ export default function App() {
           </section>
         </div>
       </main>
-      <div className="fixed bottom-4 left-4 z-50">
-        <LanguageSwitcher
-          compact
-          className="border-slate-300 bg-white/95 shadow-lg backdrop-blur"
-        />
-      </div>
     </>
   );
 }

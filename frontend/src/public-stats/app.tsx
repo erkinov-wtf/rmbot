@@ -337,22 +337,28 @@ export default function PublicStatsApp() {
                 )}
               </p>
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              className="h-10"
-              onClick={() => {
-                if (viewState === "detail" && selectedUserId) {
-                  void loadDetail(selectedUserId);
-                } else {
-                  void loadLeaderboard();
-                }
-              }}
-              disabled={isLoadingLeaderboard || isLoadingDetail}
-            >
-              <RefreshCcw className="mr-2 h-4 w-4" />
-              {t("Refresh")}
-            </Button>
+            <div className="flex flex-col gap-2 sm:items-end">
+              <LanguageSwitcher
+                compact
+                className="border-slate-300 bg-white/95 shadow-sm"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10"
+                onClick={() => {
+                  if (viewState === "detail" && selectedUserId) {
+                    void loadDetail(selectedUserId);
+                  } else {
+                    void loadLeaderboard();
+                  }
+                }}
+                disabled={isLoadingLeaderboard || isLoadingDetail}
+              >
+                <RefreshCcw className="mr-2 h-4 w-4" />
+                {t("Refresh")}
+              </Button>
+            </div>
           </div>
         </section>
 
@@ -741,12 +747,6 @@ export default function PublicStatsApp() {
             ) : null}
           </>
         )}
-      </div>
-      <div className="fixed bottom-4 left-4 z-50">
-        <LanguageSwitcher
-          compact
-          className="border-slate-300 bg-white/95 shadow-lg backdrop-blur"
-        />
       </div>
     </main>
   );

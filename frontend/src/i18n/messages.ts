@@ -150,6 +150,8 @@ const RU_MESSAGES: TranslationCatalog = {
   "Select at least one part for the ticket.":
     "Выберите хотя бы одну часть для тикета.",
   "Select technician": "Выберите техника",
+  "Set warning week": "Включить неделю предупреждения",
+  "Unset warning week": "Снять неделю предупреждения",
   "Selected": "Выбрано",
   "Session cleared. Reopen mini app from Telegram.":
     "Сессия очищена. Откройте mini app из Telegram заново.",
@@ -202,7 +204,9 @@ const RU_MESSAGES: TranslationCatalog = {
   "1st pass": "1-й проход",
   "API endpoint": "API endpoint",
   "All": "Все",
+  "Admin actions": "Действия администратора",
   "Amount": "Сумма",
+  "Apply level": "Применить уровень",
   "Approve & Assign": "Одобрить и назначить",
   "Approve Review": "Одобрить проверку",
   "Attend": "Посещ.",
@@ -215,6 +219,7 @@ const RU_MESSAGES: TranslationCatalog = {
   "Closed Tickets": "Закрытые тикеты",
   "Closed flags": "Закрытые флаги",
   "Closed tickets contribution": "Вклад закрытых тикетов",
+  "Cumulative XP": "Накопленный XP",
   "Duration": "Длительность",
   "Entries": "Записи",
   "Failed To Render": "Не удалось отрисовать",
@@ -239,11 +244,37 @@ const RU_MESSAGES: TranslationCatalog = {
   "Recent XP Activity": "Недавняя активность XP",
   "Red": "Красный",
   "Ref": "Ссылка",
+  "Set level to L1": "Установить уровень L1",
   "Tasks": "Задачи",
   "Technicians": "Техники",
   "Ticket Quality": "Качество тикетов",
   "Unknown rendering error.": "Неизвестная ошибка рендеринга.",
+  "User is in warning week and missed KPI again. Suggested action: set level to L1.":
+    "Пользователь на неделе предупреждения и снова не выполнил KPI. Рекомендуемое действие: установить уровень L1.",
+  "User met weekly KPI while in warning week. Suggested action: remove warning week.":
+    "Пользователь выполнил недельный KPI в неделе предупреждения. Рекомендуемое действие: снять неделю предупреждения.",
+  "User missed weekly KPI. Suggested action: set warning week.":
+    "Пользователь не выполнил недельный KPI. Рекомендуемое действие: включить неделю предупреждения.",
   "Username": "Имя пользователя",
+  "Warning week added": "Неделя предупреждения добавлена",
+  "Warning week removed": "Неделя предупреждения снята",
+  "Warning week unchanged (active)":
+    "Неделя предупреждения без изменений (активна)",
+  "Warning week unchanged (not active)":
+    "Неделя предупреждения без изменений (не активна)",
+  "Weekly KPI achieved. No mandatory action.":
+    "Недельный KPI выполнен. Обязательных действий нет.",
+  "Weekly KPI helper: review technician XP, set warning week manually, and apply level decisions with clear suggestions.":
+    "Помощник по недельному KPI: проверяйте XP техников, вручную выставляйте неделю предупреждения и применяйте решения по уровню по подсказкам.",
+  "Weekly KPI target": "Недельная цель KPI",
+  "Below weekly KPI.": "Ниже недельного KPI.",
+  "Levelling up: L{{from}} -> L{{to}}":
+    "Повышение уровня: L{{from}} -> L{{to}}",
+  "Levelling down: L{{from}} -> L{{to}}":
+    "Понижение уровня: L{{from}} -> L{{to}}",
+  "Level unchanged: L{{level}}": "Уровень без изменений: L{{level}}",
+  "{{name}}: {{warning}}. {{level}}. Comment: {{comment}}":
+    "{{name}}: {{warning}}. {{level}}. Комментарий: {{comment}}",
   min: "мин",
   "You do not have permission to approve and assign tickets.":
     "У вас нет прав на одобрение и назначение тикетов.",
@@ -400,6 +431,8 @@ const UZ_MESSAGES: TranslationCatalog = {
   "Select at least one part for the ticket.":
     "Ariza uchun kamida bitta qismni tanlang.",
   "Select technician": "Texnikni tanlang",
+  "Set warning week": "Ogohlantirish haftasini yoqish",
+  "Unset warning week": "Ogohlantirish haftasini olib tashlash",
   Selected: "Tanlangan",
   "Session cleared. Reopen mini app from Telegram.":
     "Sessiya tozalandi. Mini app'ni Telegramdan qayta oching.",
@@ -452,7 +485,9 @@ const UZ_MESSAGES: TranslationCatalog = {
   "1st pass": "1-urinish",
   "API endpoint": "API manzili",
   "All": "Barchasi",
+  "Admin actions": "Admin amallari",
   "Amount": "Miqdor",
+  "Apply level": "Darajani qo'llash",
   "Approve & Assign": "Tasdiqlash va biriktirish",
   "Approve Review": "Ko'rib chiqishni tasdiqlash",
   "Attend": "Dav.",
@@ -466,6 +501,7 @@ const UZ_MESSAGES: TranslationCatalog = {
   "Closed Tickets": "Yopilgan arizalar",
   "Closed flags": "Yopilgan flaglar",
   "Closed tickets contribution": "Yopilgan arizalar hissasi",
+  "Cumulative XP": "Jamlangan XP",
   "Duration": "Davomiylik",
   "Entries": "Yozuvlar",
   "Failed To Render": "Render qilib bo'lmadi",
@@ -491,11 +527,37 @@ const UZ_MESSAGES: TranslationCatalog = {
   "Recent XP Activity": "So'nggi XP faolligi",
   "Red": "Qizil",
   "Ref": "Havola",
+  "Set level to L1": "Darajani L1 ga o'rnatish",
   "Tasks": "Vazifalar",
   "Technicians": "Texniklar",
   "Ticket Quality": "Ariza sifati",
   "Unknown rendering error.": "Noma'lum render xatosi.",
+  "User is in warning week and missed KPI again. Suggested action: set level to L1.":
+    "Foydalanuvchi ogohlantirish haftasida va KPI'ni yana bajarmadi. Tavsiya etilgan amal: darajani L1 ga o'rnatish.",
+  "User met weekly KPI while in warning week. Suggested action: remove warning week.":
+    "Foydalanuvchi ogohlantirish haftasida haftalik KPI'ni bajardi. Tavsiya etilgan amal: ogohlantirish haftasini olib tashlash.",
+  "User missed weekly KPI. Suggested action: set warning week.":
+    "Foydalanuvchi haftalik KPI'ni bajarmadi. Tavsiya etilgan amal: ogohlantirish haftasini yoqish.",
   "Username": "Foydalanuvchi nomi",
+  "Warning week added": "Ogohlantirish haftasi qo'shildi",
+  "Warning week removed": "Ogohlantirish haftasi olib tashlandi",
+  "Warning week unchanged (active)":
+    "Ogohlantirish haftasi o'zgarmadi (faol)",
+  "Warning week unchanged (not active)":
+    "Ogohlantirish haftasi o'zgarmadi (faol emas)",
+  "Weekly KPI achieved. No mandatory action.":
+    "Haftalik KPI bajarildi. Majburiy amal yo'q.",
+  "Weekly KPI helper: review technician XP, set warning week manually, and apply level decisions with clear suggestions.":
+    "Haftalik KPI yordamchisi: texniklar XP'sini ko'ring, ogohlantirish haftasini qo'lda belgilang va daraja qarorlarini aniq tavsiyalar bilan qo'llang.",
+  "Weekly KPI target": "Haftalik KPI maqsadi",
+  "Below weekly KPI.": "Haftalik KPI dan past.",
+  "Levelling up: L{{from}} -> L{{to}}":
+    "Daraja oshirilmoqda: L{{from}} -> L{{to}}",
+  "Levelling down: L{{from}} -> L{{to}}":
+    "Daraja tushirilmoqda: L{{from}} -> L{{to}}",
+  "Level unchanged: L{{level}}": "Daraja o'zgarmadi: L{{level}}",
+  "{{name}}: {{warning}}. {{level}}. Comment: {{comment}}":
+    "{{name}}: {{warning}}. {{level}}. Izoh: {{comment}}",
   min: "daq",
   "You do not have permission to approve and assign tickets.":
     "Arizani tasdiqlash va biriktirish uchun sizda ruxsat yo'q.",

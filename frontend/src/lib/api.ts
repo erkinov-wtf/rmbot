@@ -1714,6 +1714,7 @@ export async function setLevelControlUserLevel(
     level: number;
     note?: string;
     clear_warning?: boolean;
+    warning_active?: boolean;
   },
 ): Promise<ManualLevelSetResult> {
   const payload = await apiRequest<unknown>(

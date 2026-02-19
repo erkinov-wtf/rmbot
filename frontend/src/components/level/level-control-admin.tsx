@@ -1,5 +1,5 @@
 import {
-  CalendarClock,
+  AlertTriangle,
   Loader2,
   RefreshCcw,
   ShieldAlert,
@@ -12,13 +12,17 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/i18n";
 import {
+  getInventoryItem,
   getLevelControlOverview,
   getLevelControlUserHistory,
-  runWeeklyLevelEvaluation,
+  getTicket,
   setLevelControlUserLevel,
+  type InventoryItem,
   type LevelControlOverview,
+  type LevelControlOverviewRow,
   type LevelControlUserHistory,
   type ManualLevelSetResult,
+  type Ticket,
 } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -34,6 +38,12 @@ type FeedbackState =
     }
   | null;
 
+type TicketContext = {
+  ticketId: number;
+  inventoryItemId: number | null;
+  serialNumber: string | null;
+};
+
 const fieldClassName = "rm-input";
 
 function toIsoDate(value: Date): string {
@@ -48,15 +58,6 @@ function defaultRange(): { dateFrom: string; dateTo: string } {
     dateFrom: toIsoDate(from),
     dateTo: toIsoDate(today),
   };
-}
-
-function previousMondayToken(): string {
-  const now = new Date();
-  const monday = new Date(now);
-  const weekday = monday.getDay();
-  const distanceToCurrentMonday = (weekday + 6) % 7;
-  monday.setDate(monday.getDate() - distanceToCurrentMonday - 7);
-  return toIsoDate(monday);
 }
 
 function toErrorMessage(error: unknown, fallback: string): string {
@@ -106,14 +107,103 @@ function manualLevelSuccessMessage(
   t: (key: string, params?: Record<string, string | number>) => string,
 ): string {
   const normalizedNote = note.trim();
-  return (
-    t("{{name}}: {{warning}}. {{level}}. Comment: {{comment}}", {
-      name: result.display_name,
-      warning: warningWeekChangeLabel(result, t),
-      level: levelChangeLabel(result, t),
-      comment: normalizedNote || "-",
-    })
-  );
+  return t("{{name}}: {{warning}}. {{level}}. Comment: {{comment}}", {
+    name: result.display_name,
+    warning: warningWeekChangeLabel(result, t),
+    level: levelChangeLabel(result, t),
+    comment: normalizedNote || "-",
+  });
+}
+
+function entryTicketId(
+  row: LevelControlUserHistory["xp_history"][number],
+): number | null {
+  const payload = row.payload as Record<string, unknown>;
+  const fromPayload = payload?.ticket_id;
+  if (typeof fromPayload === "number" && Number.isInteger(fromPayload) && fromPayload > 0) {
+    return fromPayload;
+  }
+  if (typeof fromPayload === "string") {
+    const parsed = Number.parseInt(fromPayload, 10);
+    if (Number.isInteger(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+  const match = row.reference.match(/^ticket_[a-z_]+:(\d+)(?::\d+)?$/i);
+  if (!match) {
+    return null;
+  }
+  const parsed = Number.parseInt(match[1], 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function rowPriority(row: LevelControlOverviewRow): number {
+  if (row.suggested_reset_to_l1) {
+    return 0;
+  }
+  if (row.suggested_warning) {
+    return 1;
+  }
+  if (!row.meets_target) {
+    return 2;
+  }
+  if (row.warning_active) {
+    return 3;
+  }
+  return 4;
+}
+
+function suggestionToneClass(
+  tone: "good" | "warn" | "danger" | "neutral",
+): string {
+  if (tone === "good") {
+    return "border-emerald-200 bg-emerald-50 text-emerald-800";
+  }
+  if (tone === "warn") {
+    return "border-amber-200 bg-amber-50 text-amber-800";
+  }
+  if (tone === "danger") {
+    return "border-rose-200 bg-rose-50 text-rose-800";
+  }
+  return "border-slate-200 bg-slate-50 text-slate-700";
+}
+
+function suggestionForRow(
+  row: LevelControlOverviewRow,
+  t: (key: string, params?: Record<string, string | number>) => string,
+): { tone: "good" | "warn" | "danger" | "neutral"; text: string } {
+  if (row.suggested_reset_to_l1) {
+    return {
+      tone: "danger",
+      text: t(
+        "User is in warning week and missed KPI again. Suggested action: set level to L1.",
+      ),
+    };
+  }
+  if (row.suggested_warning) {
+    return {
+      tone: "warn",
+      text: t("User missed weekly KPI. Suggested action: set warning week."),
+    };
+  }
+  if (row.warning_active && row.meets_target) {
+    return {
+      tone: "good",
+      text: t(
+        "User met weekly KPI while in warning week. Suggested action: remove warning week.",
+      ),
+    };
+  }
+  if (row.meets_target) {
+    return {
+      tone: "good",
+      text: t("Weekly KPI achieved. No mandatory action."),
+    };
+  }
+  return {
+    tone: "neutral",
+    text: t("Below weekly KPI."),
+  };
 }
 
 export function LevelControlAdmin({
@@ -121,30 +211,125 @@ export function LevelControlAdmin({
   canManage,
 }: LevelControlAdminProps) {
   const { t } = useI18n();
-  const [dateFromInput, setDateFromInput] = useState(defaultRange().dateFrom);
-  const [dateToInput, setDateToInput] = useState(defaultRange().dateTo);
-  const [appliedRange, setAppliedRange] = useState(defaultRange());
-  const [evaluationWeekStart, setEvaluationWeekStart] = useState(previousMondayToken);
+  const [dateFromInput, setDateFromInput] = useState(() => defaultRange().dateFrom);
+  const [dateToInput, setDateToInput] = useState(() => defaultRange().dateTo);
+  const [appliedRange, setAppliedRange] = useState(defaultRange);
 
   const [overview, setOverview] = useState<LevelControlOverview | null>(null);
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
-  const [selectedUserHistory, setSelectedUserHistory] = useState<LevelControlUserHistory | null>(
-    null,
-  );
+  const [selectedUserHistory, setSelectedUserHistory] =
+    useState<LevelControlUserHistory | null>(null);
+  const [ticketContextById, setTicketContextById] = useState<
+    Record<number, TicketContext>
+  >({});
 
   const [levelInput, setLevelInput] = useState("1");
-  const [levelNote, setLevelNote] = useState("");
-  const [clearWarningInput, setClearWarningInput] = useState(false);
+  const [actionNote, setActionNote] = useState("");
+  const [feedback, setFeedback] = useState<FeedbackState>(null);
 
   const [isLoadingOverview, setIsLoadingOverview] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
-  const [isSettingLevel, setIsSettingLevel] = useState(false);
-  const [isRunningEvaluation, setIsRunningEvaluation] = useState(false);
-  const [feedback, setFeedback] = useState<FeedbackState>(null);
+  const [isApplying, setIsApplying] = useState(false);
 
   const selectedRow = useMemo(
     () => overview?.rows.find((row) => row.user_id === selectedUserId) ?? null,
     [overview, selectedUserId],
+  );
+
+  const sortedRows = useMemo(() => {
+    if (!overview) {
+      return [];
+    }
+    return [...overview.rows].sort((left, right) => {
+      const priorityDelta = rowPriority(left) - rowPriority(right);
+      if (priorityDelta !== 0) {
+        return priorityDelta;
+      }
+      const xpDelta = left.range_xp - right.range_xp;
+      if (xpDelta !== 0) {
+        return xpDelta;
+      }
+      return left.display_name.localeCompare(right.display_name);
+    });
+  }, [overview]);
+
+  const hydrateTicketContexts = useCallback(
+    async (entries: LevelControlUserHistory["xp_history"]) => {
+      const ticketIds = [...new Set(entries.map(entryTicketId).filter((id): id is number => id !== null))]
+        .slice(0, 80);
+      if (!ticketIds.length) {
+        return;
+      }
+
+      const missingTicketIds = ticketIds.filter((id) => !ticketContextById[id]);
+      if (!missingTicketIds.length) {
+        return;
+      }
+
+      const ticketResults = await Promise.all(
+        missingTicketIds.map(async (ticketId) => {
+          try {
+            const ticket = await getTicket(accessToken, ticketId);
+            return { ticketId, ticket };
+          } catch {
+            return null;
+          }
+        }),
+      );
+      const validTickets = ticketResults.filter(
+        (row): row is { ticketId: number; ticket: Ticket } => row !== null,
+      );
+      const uniqueInventoryIds = [
+        ...new Set(
+          validTickets
+            .map((row) => row.ticket.inventory_item)
+            .filter((id) => Number.isInteger(id) && id > 0),
+        ),
+      ];
+
+      const inventoryById: Record<number, InventoryItem> = {};
+      await Promise.all(
+        uniqueInventoryIds.map(async (inventoryItemId) => {
+          try {
+            inventoryById[inventoryItemId] = await getInventoryItem(
+              accessToken,
+              inventoryItemId,
+            );
+          } catch {
+            // ignore one-off fetch errors
+          }
+        }),
+      );
+
+      setTicketContextById((prev) => {
+        const next = { ...prev };
+        validTickets.forEach(({ ticketId, ticket }) => {
+          const inventoryItemId =
+            Number.isInteger(ticket.inventory_item) && ticket.inventory_item > 0
+              ? ticket.inventory_item
+              : null;
+          next[ticketId] = {
+            ticketId,
+            inventoryItemId,
+            serialNumber:
+              inventoryItemId && inventoryById[inventoryItemId]
+                ? inventoryById[inventoryItemId].serial_number
+                : null,
+          };
+        });
+        missingTicketIds.forEach((ticketId) => {
+          if (!next[ticketId]) {
+            next[ticketId] = {
+              ticketId,
+              inventoryItemId: null,
+              serialNumber: null,
+            };
+          }
+        });
+        return next;
+      });
+    },
+    [accessToken, ticketContextById],
   );
 
   const loadOverview = useCallback(async () => {
@@ -186,9 +371,10 @@ export function LevelControlAdmin({
         const history = await getLevelControlUserHistory(accessToken, userId, {
           date_from: appliedRange.dateFrom,
           date_to: appliedRange.dateTo,
-          limit: 1000,
+          limit: 500,
         });
         setSelectedUserHistory(history);
+        await hydrateTicketContexts(history.xp_history);
       } catch (error) {
         setFeedback({
           type: "error",
@@ -198,7 +384,14 @@ export function LevelControlAdmin({
         setIsLoadingHistory(false);
       }
     },
-    [accessToken, appliedRange.dateFrom, appliedRange.dateTo, canManage, t],
+    [
+      accessToken,
+      appliedRange.dateFrom,
+      appliedRange.dateTo,
+      canManage,
+      hydrateTicketContexts,
+      t,
+    ],
   );
 
   useEffect(() => {
@@ -210,10 +403,10 @@ export function LevelControlAdmin({
   }, [loadUserHistory, selectedUserId]);
 
   useEffect(() => {
-    if (selectedRow) {
-      setLevelInput(String(selectedRow.current_level));
-      setClearWarningInput(false);
+    if (!selectedRow) {
+      return;
     }
+    setLevelInput(String(selectedRow.current_level));
   }, [selectedRow]);
 
   const handleApplyRange = () => {
@@ -232,10 +425,71 @@ export function LevelControlAdmin({
       });
       return;
     }
-    setAppliedRange({ dateFrom: dateFromInput, dateTo: dateToInput });
+    setAppliedRange({
+      dateFrom: dateFromInput,
+      dateTo: dateToInput,
+    });
   };
 
-  const handleManualLevelSet = async () => {
+  const applyUserUpdate = useCallback(
+    async (payload: { level: number; warningActive?: boolean }) => {
+      if (!selectedRow) {
+        setFeedback({
+          type: "error",
+          message: t("Select a technician first."),
+        });
+        return;
+      }
+
+      const normalizedNote = actionNote.trim();
+
+      setIsApplying(true);
+      setFeedback(null);
+      try {
+        const result = await setLevelControlUserLevel(accessToken, selectedRow.user_id, {
+          level: payload.level,
+          note: normalizedNote || undefined,
+          warning_active: payload.warningActive,
+        });
+        setFeedback({
+          type: "success",
+          message: manualLevelSuccessMessage(result, normalizedNote, t),
+        });
+        setActionNote("");
+        await Promise.all([loadOverview(), loadUserHistory(selectedRow.user_id)]);
+      } catch (error) {
+        setFeedback({
+          type: "error",
+          message: toErrorMessage(error, t("Failed to update user level.")),
+        });
+      } finally {
+        setIsApplying(false);
+      }
+    },
+    [accessToken, actionNote, loadOverview, loadUserHistory, selectedRow, t],
+  );
+
+  const handleSetWarning = () => {
+    if (!selectedRow) {
+      return;
+    }
+    void applyUserUpdate({
+      level: selectedRow.current_level,
+      warningActive: true,
+    });
+  };
+
+  const handleUnsetWarning = () => {
+    if (!selectedRow) {
+      return;
+    }
+    void applyUserUpdate({
+      level: selectedRow.current_level,
+      warningActive: false,
+    });
+  };
+
+  const handleSetLevel = () => {
     if (!selectedRow) {
       setFeedback({
         type: "error",
@@ -243,8 +497,7 @@ export function LevelControlAdmin({
       });
       return;
     }
-
-    const parsedLevel = Number(levelInput);
+    const parsedLevel = Number.parseInt(levelInput, 10);
     if (!Number.isInteger(parsedLevel) || parsedLevel < 1 || parsedLevel > 5) {
       setFeedback({
         type: "error",
@@ -252,65 +505,18 @@ export function LevelControlAdmin({
       });
       return;
     }
-
-    setIsSettingLevel(true);
-    setFeedback(null);
-    try {
-      const normalizedNote = levelNote.trim();
-      const result = await setLevelControlUserLevel(accessToken, selectedRow.user_id, {
-        level: parsedLevel,
-        note: normalizedNote,
-        clear_warning: clearWarningInput,
-      });
-      setFeedback({
-        type: "success",
-        message: manualLevelSuccessMessage(result, normalizedNote, t),
-      });
-      setLevelNote("");
-      setClearWarningInput(false);
-      await Promise.all([loadOverview(), loadUserHistory(selectedRow.user_id)]);
-    } catch (error) {
-      setFeedback({
-        type: "error",
-        message: toErrorMessage(error, t("Failed to update user level.")),
-      });
-    } finally {
-      setIsSettingLevel(false);
-    }
+    void applyUserUpdate({
+      level: parsedLevel,
+    });
   };
 
-  const handleRunWeeklyEvaluation = async () => {
-    setIsRunningEvaluation(true);
-    setFeedback(null);
-    try {
-      const summary = await runWeeklyLevelEvaluation(accessToken, {
-        week_start: evaluationWeekStart || undefined,
-      });
-      setFeedback({
-        type: "success",
-        message: t(
-          "Weekly evaluation completed for {{from}}..{{to}}. created={{created}}, warnings={{warnings}}, resets={{resets}}.",
-          {
-            from: summary.week_start,
-            to: summary.week_end,
-            created: summary.evaluations_created,
-            warnings: summary.warnings_created,
-            resets: summary.levels_reset_to_l1,
-          },
-        ),
-      });
-      await loadOverview();
-      if (selectedUserId) {
-        await loadUserHistory(selectedUserId);
-      }
-    } catch (error) {
-      setFeedback({
-        type: "error",
-        message: toErrorMessage(error, t("Failed to run weekly level evaluation.")),
-      });
-    } finally {
-      setIsRunningEvaluation(false);
+  const handleSetL1 = () => {
+    if (!selectedRow) {
+      return;
     }
+    void applyUserUpdate({
+      level: 1,
+    });
   };
 
   return (
@@ -321,7 +527,7 @@ export function LevelControlAdmin({
             <h2 className="text-lg font-semibold text-slate-900">{t("Level Control")}</h2>
             <p className="mt-1 text-sm text-slate-600">
               {t(
-                "Weekly XP target tracking, warning-week suggestions, manual level edits, and full per-user progression history.",
+                "Weekly KPI helper: review technician XP, set warning week manually, and apply level decisions with clear suggestions.",
               )}
             </p>
           </div>
@@ -360,7 +566,7 @@ export function LevelControlAdmin({
         </p>
       ) : (
         <>
-          <div className="mt-4 grid gap-3 lg:grid-cols-[1.2fr_1fr_auto]">
+          <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_1fr_auto_auto]">
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
                 {t("From date")}
@@ -387,16 +593,16 @@ export function LevelControlAdmin({
             </div>
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                {t("Current weekly target")}
+                {t("Weekly KPI target")}
               </label>
               <p className="mt-1 inline-flex h-10 w-full items-center rounded-xl border border-slate-300/80 bg-slate-50 px-3 text-sm text-slate-700">
                 {overview ? `${overview.weekly_target_xp} XP` : "-"}
               </p>
             </div>
-            <div className="grid gap-2 self-end">
+            <div className="self-end">
               <Button
                 type="button"
-                className="h-10"
+                className="h-10 w-full"
                 onClick={handleApplyRange}
                 disabled={isLoadingOverview}
               >
@@ -405,7 +611,7 @@ export function LevelControlAdmin({
             </div>
           </div>
 
-          <div className="mt-4 grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          <div className="mt-3 grid gap-3 sm:grid-cols-4">
             <div className="rm-subpanel p-3">
               <p className="text-xs uppercase tracking-wide text-slate-500">{t("Technicians")}</p>
               <p className="mt-1 text-xl font-semibold text-slate-900">
@@ -425,110 +631,90 @@ export function LevelControlAdmin({
               </p>
             </div>
             <div className="rm-subpanel p-3">
-              <p className="text-xs uppercase tracking-wide text-slate-500">{t("Warning active")}</p>
+              <p className="text-xs uppercase tracking-wide text-slate-500">
+                {t("Warning active")}
+              </p>
               <p className="mt-1 text-xl font-semibold text-rose-700">
                 {overview?.summary.warning_active ?? 0}
               </p>
             </div>
-            <div className="rm-subpanel p-3">
-              <p className="text-xs uppercase tracking-wide text-slate-500">{t("Suggest warning")}</p>
-              <p className="mt-1 text-xl font-semibold text-orange-700">
-                {overview?.summary.suggested_warning ?? 0}
-              </p>
-            </div>
-            <div className="rm-subpanel p-3">
-              <p className="text-xs uppercase tracking-wide text-slate-500">{t("Suggest reset")}</p>
-              <p className="mt-1 text-xl font-semibold text-rose-700">
-                {overview?.summary.suggested_reset_to_l1 ?? 0}
-              </p>
-            </div>
           </div>
 
-          <div className="mt-4 grid gap-4 xl:grid-cols-[1.2fr_1fr]">
+          <div className="mt-4 grid gap-4 xl:grid-cols-[1.1fr_1fr]">
             <section className="rounded-xl border border-slate-200 bg-white/70 p-3">
               <div className="mb-3 flex items-center justify-between">
                 <p className="text-sm font-semibold text-slate-900">
                   {t("Technician Weekly XP")}
                 </p>
                 <p className="text-xs text-slate-500">
-                  {overview?.date_from} to {overview?.date_to}
+                  {overview?.date_from} {t("to")} {overview?.date_to}
                 </p>
               </div>
+
               {isLoadingOverview ? (
                 <p className="flex items-center gap-2 px-1 py-5 text-sm text-slate-600">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   {t("Loading level overview...")}
                 </p>
-              ) : overview?.rows.length ? (
+              ) : sortedRows.length ? (
                 <div className="space-y-2">
-                  {overview.rows.map((row) => (
-                    <article
-                      key={row.user_id}
-                      className={cn(
-                        "rounded-lg border px-3 py-3 transition",
-                        selectedUserId === row.user_id
-                          ? "border-slate-900 bg-slate-100/90"
-                          : "border-slate-200 bg-white/80 hover:border-slate-400",
-                      )}
-                    >
-                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                        <div>
-                          <p className="text-sm font-semibold text-slate-900">
-                            {row.display_name}
-                          </p>
-                          <p className="text-xs text-slate-500">@{row.username}</p>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2 text-xs">
-                          <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5">
-                            L{row.current_level}
-                          </span>
-                          <span
-                            className={cn(
-                              "rounded-full border px-2 py-0.5",
-                              row.meets_target
-                                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                                : "border-amber-200 bg-amber-50 text-amber-700",
+                  {sortedRows.map((row) => {
+                    const suggestion = suggestionForRow(row, t);
+                    return (
+                      <button
+                        key={row.user_id}
+                        type="button"
+                        onClick={() => setSelectedUserId(row.user_id)}
+                        className={cn(
+                          "w-full rounded-lg border px-3 py-3 text-left transition",
+                          selectedUserId === row.user_id
+                            ? "border-slate-900 bg-slate-100/90"
+                            : "border-slate-200 bg-white/80 hover:border-slate-400",
+                        )}
+                      >
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-slate-900">
+                              {row.display_name}
+                            </p>
+                            <p className="text-xs text-slate-500">@{row.username}</p>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2 text-xs">
+                            <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5">
+                              L{row.current_level}
+                            </span>
+                            <span
+                              className={cn(
+                                "rounded-full border px-2 py-0.5",
+                                row.meets_target
+                                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                  : "border-amber-200 bg-amber-50 text-amber-700",
+                              )}
+                            >
+                              {row.range_xp}/{row.range_target_xp} XP
+                            </span>
+                            {row.warning_active ? (
+                              <span className="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-rose-700">
+                                <ShieldAlert className="h-3.5 w-3.5" />
+                                {t("Warning")}
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-emerald-700">
+                                <ShieldCheck className="h-3.5 w-3.5" />
+                                {t("Normal")}
+                              </span>
                             )}
-                          >
-                            {row.range_xp}/{row.range_target_xp} XP
-                          </span>
-                          {row.warning_active ? (
-                            <span className="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-rose-700">
-                              <ShieldAlert className="h-3.5 w-3.5" />
-                              {t("Warning")}
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-emerald-700">
-                              <ShieldCheck className="h-3.5 w-3.5" />
-                              {t("Normal")}
-                            </span>
-                          )}
+                          </div>
                         </div>
-                      </div>
 
-                      {(row.suggested_warning || row.suggested_reset_to_l1) ? (
-                        <p className="mt-2 text-xs text-slate-700">
-                          {row.suggested_reset_to_l1
-                            ? t(
-                              "Suggested action: second miss while in warning period, reset to L1.",
-                            )
-                            : t("Suggested action: move to warning week.")}
-                        </p>
-                      ) : null}
-
-                      <div className="mt-2 flex justify-end">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="h-8"
-                          onClick={() => setSelectedUserId(row.user_id)}
-                        >
-                          <UserRound className="mr-1 h-4 w-4" />
-                          {t("Open details")}
-                        </Button>
-                      </div>
-                    </article>
-                  ))}
+                        {!row.meets_target || row.warning_active ? (
+                          <p className={cn("mt-2 rounded-md border px-2 py-1 text-xs", suggestionToneClass(suggestion.tone))}>
+                            {suggestion.text}
+                          </p>
+                        ) : null}
+                      </button>
+                    );
+                  })}
                 </div>
               ) : (
                 <p className="px-1 py-6 text-sm text-slate-600">
@@ -538,35 +724,15 @@ export function LevelControlAdmin({
             </section>
 
             <section className="rounded-xl border border-slate-200 bg-white/70 p-3">
-              <div className="mb-3 flex items-center justify-between">
+              <div className="mb-3">
                 <p className="text-sm font-semibold text-slate-900">{t("Selected User")}</p>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="date"
-                    className={cn(fieldClassName, "h-9 w-[150px]")}
-                    value={evaluationWeekStart}
-                    onChange={(event) => setEvaluationWeekStart(event.target.value)}
-                    disabled={isRunningEvaluation}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-9"
-                    onClick={() => {
-                      void handleRunWeeklyEvaluation();
-                    }}
-                    disabled={isRunningEvaluation}
-                  >
-                    <CalendarClock className="mr-1 h-4 w-4" />
-                    {t("Evaluate")}
-                  </Button>
-                </div>
               </div>
 
               {selectedRow ? (
                 <div className="space-y-3">
                   <div className="rm-subpanel p-3">
-                    <p className="text-sm font-semibold text-slate-900">
+                    <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
+                      <UserRound className="h-4 w-4" />
                       {selectedRow.display_name}
                     </p>
                     <p className="text-xs text-slate-500">@{selectedRow.username}</p>
@@ -575,29 +741,85 @@ export function LevelControlAdmin({
                         {t("Current L{{level}}", { level: selectedRow.current_level })}
                       </span>
                       <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5">
-                        {t("Suggested L{{level}}", {
-                          level: selectedRow.suggested_level_by_xp,
-                        })}
-                      </span>
-                      <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5">
                         {t("XP {{xp}}/{{target}}", {
                           xp: selectedRow.range_xp,
                           target: selectedRow.range_target_xp,
                         })}
                       </span>
+                      <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5">
+                        {t("Cumulative XP")}: {selectedRow.cumulative_xp}
+                      </span>
                     </div>
+                  </div>
+
+                  <div
+                    className={cn(
+                      "rounded-lg border px-3 py-2 text-sm",
+                      suggestionToneClass(suggestionForRow(selectedRow, t).tone),
+                    )}
+                  >
+                    {suggestionForRow(selectedRow, t).text}
                   </div>
 
                   <div className="rounded-lg border border-slate-200 bg-white p-3">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      {t("Manual level update")}
+                      {t("Admin actions")}
                     </p>
+                    <textarea
+                      className={cn(fieldClassName, "mt-2 min-h-[82px] resize-y py-2")}
+                      value={actionNote}
+                      onChange={(event) => setActionNote(event.target.value)}
+                      placeholder={t("Optional note")}
+                      disabled={isApplying}
+                    />
+
                     <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                      {!selectedRow.warning_active ? (
+                        <Button
+                          type="button"
+                          className="h-9"
+                          onClick={handleSetWarning}
+                          disabled={isApplying}
+                        >
+                          <ShieldAlert className="mr-1 h-4 w-4" />
+                          {t("Set warning week")}
+                        </Button>
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="h-9"
+                          onClick={handleUnsetWarning}
+                          disabled={isApplying}
+                        >
+                          <ShieldCheck className="mr-1 h-4 w-4" />
+                          {t("Unset warning week")}
+                        </Button>
+                      )}
+
+                      <Button
+                        type="button"
+                        variant={selectedRow.suggested_reset_to_l1 ? "default" : "outline"}
+                        className={cn(
+                          "h-9",
+                          selectedRow.suggested_reset_to_l1
+                            ? ""
+                            : "border-rose-300 text-rose-700",
+                        )}
+                        onClick={handleSetL1}
+                        disabled={isApplying}
+                      >
+                        <AlertTriangle className="mr-1 h-4 w-4" />
+                        {t("Set level to L1")}
+                      </Button>
+                    </div>
+
+                    <div className="mt-2 grid gap-2 sm:grid-cols-[1fr_auto]">
                       <select
                         className={fieldClassName}
                         value={levelInput}
                         onChange={(event) => setLevelInput(event.target.value)}
-                        disabled={isSettingLevel}
+                        disabled={isApplying}
                       >
                         {[1, 2, 3, 4, 5].map((level) => (
                           <option key={level} value={level}>
@@ -605,34 +827,14 @@ export function LevelControlAdmin({
                           </option>
                         ))}
                       </select>
-                      <label className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-700">
-                        <input
-                          type="checkbox"
-                          checked={clearWarningInput}
-                          onChange={(event) => setClearWarningInput(event.target.checked)}
-                          disabled={isSettingLevel}
-                        />
-                        {t("Clear warning")}
-                      </label>
-                    </div>
-                    <textarea
-                      className={cn(fieldClassName, "mt-2 min-h-[88px] resize-y py-2")}
-                      value={levelNote}
-                      onChange={(event) => setLevelNote(event.target.value)}
-                      placeholder={t("Optional note")}
-                      disabled={isSettingLevel}
-                    />
-                    <div className="mt-2 flex justify-end">
                       <Button
                         type="button"
                         className="h-9"
-                        onClick={() => {
-                          void handleManualLevelSet();
-                        }}
-                        disabled={isSettingLevel}
+                        onClick={handleSetLevel}
+                        disabled={isApplying}
                       >
                         <Sparkles className="mr-1 h-4 w-4" />
-                        {t("Save level")}
+                        {t("Apply level")}
                       </Button>
                     </div>
                   </div>
@@ -650,18 +852,47 @@ export function LevelControlAdmin({
                             count: selectedUserHistory.xp_history.length,
                           })}
                         </p>
-                        <div className="mt-2 max-h-44 space-y-1 overflow-auto text-xs">
+                        <div className="mt-2 max-h-52 space-y-1 overflow-auto text-xs">
                           {selectedUserHistory.xp_history.length ? (
-                            selectedUserHistory.xp_history.map((row) => (
-                              <div key={row.id} className="rounded border border-slate-200 bg-slate-50 px-2 py-1">
-                                <p className="font-medium text-slate-800">
-                                  {row.amount > 0 ? `+${row.amount}` : row.amount} XP | {row.entry_type}
-                                </p>
-                                <p className="text-slate-500">{new Date(row.created_at).toLocaleString()}</p>
-                              </div>
-                            ))
+                            selectedUserHistory.xp_history.map((row) => {
+                              const ticketId = entryTicketId(row);
+                              const context = ticketId
+                                ? ticketContextById[ticketId] ?? null
+                                : null;
+                              return (
+                                <div
+                                  key={row.id}
+                                  className="rounded border border-slate-200 bg-slate-50 px-2 py-1"
+                                >
+                                  <p className="font-medium text-slate-800">
+                                    {row.amount > 0 ? `+${row.amount}` : row.amount} XP |{" "}
+                                    {row.entry_type}
+                                  </p>
+                                  {ticketId ? (
+                                    <p className="text-slate-600">
+                                      {t("Ticket #{{id}}", { id: ticketId })}
+                                      {context?.serialNumber
+                                        ? ` • ${context.serialNumber}`
+                                        : context?.inventoryItemId
+                                          ? ` • ${t("Item #{{id}}", {
+                                            id: context.inventoryItemId,
+                                          })}`
+                                          : ""}
+                                    </p>
+                                  ) : null}
+                                  {row.description ? (
+                                    <p className="text-slate-600">{row.description}</p>
+                                  ) : null}
+                                  <p className="text-slate-500">
+                                    {new Date(row.created_at).toLocaleString()}
+                                  </p>
+                                </div>
+                              );
+                            })
                           ) : (
-                            <p className="text-slate-500">{t("No XP rows in selected period.")}</p>
+                            <p className="text-slate-500">
+                              {t("No XP rows in selected period.")}
+                            </p>
                           )}
                         </div>
                       </div>
@@ -675,24 +906,29 @@ export function LevelControlAdmin({
                         <div className="mt-2 max-h-44 space-y-1 overflow-auto text-xs">
                           {selectedUserHistory.level_history.length ? (
                             selectedUserHistory.level_history.map((row) => (
-                              <div key={row.id} className="rounded border border-slate-200 bg-slate-50 px-2 py-1">
+                              <div
+                                key={row.id}
+                                className="rounded border border-slate-200 bg-slate-50 px-2 py-1"
+                              >
                                 <p className="font-medium text-slate-800">
-                                  {row.source} | {row.status} | L{row.previous_level} {"->"} L{row.new_level}
+                                  {row.source} | {row.status} | L{row.previous_level} {"->"} L
+                                  {row.new_level}
                                 </p>
                                 <p className="text-slate-500">
                                   {new Date(row.created_at).toLocaleString()} | {t("by")}{" "}
                                   {row.actor_username || t("system")}
                                 </p>
-                                {row.warning_active_after ? (
-                                  <p className="text-rose-700">{t("Warning active after this event")}</p>
-                                ) : null}
                                 {row.note ? (
-                                  <p className="text-slate-600">{t("Comment")}: {row.note}</p>
+                                  <p className="text-slate-600">
+                                    {t("Comment")}: {row.note}
+                                  </p>
                                 ) : null}
                               </div>
                             ))
                           ) : (
-                            <p className="text-slate-500">{t("No level history rows in selected period.")}</p>
+                            <p className="text-slate-500">
+                              {t("No level history rows in selected period.")}
+                            </p>
                           )}
                         </div>
                       </div>
@@ -706,23 +942,31 @@ export function LevelControlAdmin({
                         <div className="mt-2 max-h-44 space-y-1 overflow-auto text-xs">
                           {selectedUserHistory.weekly_evaluations.length ? (
                             selectedUserHistory.weekly_evaluations.map((row) => (
-                              <div key={row.id} className="rounded border border-slate-200 bg-slate-50 px-2 py-1">
+                              <div
+                                key={row.id}
+                                className="rounded border border-slate-200 bg-slate-50 px-2 py-1"
+                              >
                                 <p className="font-medium text-slate-800">
                                   {row.week_start}..{row.week_end} | {row.target_status || "n/a"}
                                 </p>
                                 <p className="text-slate-500">
-                                  XP {row.weekly_xp}/{row.weekly_target_xp} | L{row.previous_level} {"->"} L{row.new_level}
+                                  XP {row.weekly_xp}/{row.weekly_target_xp} | L
+                                  {row.previous_level} {"->"} L{row.new_level}
                                 </p>
                               </div>
                             ))
                           ) : (
-                            <p className="text-slate-500">{t("No weekly evaluations in selected period.")}</p>
+                            <p className="text-slate-500">
+                              {t("No weekly evaluations in selected period.")}
+                            </p>
                           )}
                         </div>
                       </div>
                     </div>
                   ) : (
-                    <p className="text-sm text-slate-500">{t("Select a technician to load history.")}</p>
+                    <p className="text-sm text-slate-500">
+                      {t("Select a technician to load history.")}
+                    </p>
                   )}
                 </div>
               ) : (
@@ -732,7 +976,6 @@ export function LevelControlAdmin({
               )}
             </section>
           </div>
-
         </>
       )}
     </section>

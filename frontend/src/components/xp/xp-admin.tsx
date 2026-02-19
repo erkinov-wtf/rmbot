@@ -113,7 +113,7 @@ export function XpAdmin({
       return;
     }
 
-    const parsedAmount = Number(amountInput);
+    const parsedAmount = Number.parseInt(amountInput, 10);
     if (!Number.isInteger(parsedAmount) || parsedAmount <= 0) {
       setFeedback({
         type: "error",
@@ -346,12 +346,13 @@ export function XpAdmin({
                 </label>
                 <input
                   className={cn(fieldClassName, "mt-1")}
-                  type="number"
-                  min={1}
-                  step={1}
+                  type="text"
                   inputMode="numeric"
+                  pattern="[0-9]*"
                   value={amountInput}
-                  onChange={(event) => setAmountInput(event.target.value)}
+                  onChange={(event) =>
+                    setAmountInput(event.target.value.replace(/[^0-9]/g, ""))
+                  }
                   placeholder={t("Enter positive integer")}
                   disabled={isSubmitting}
                 />
