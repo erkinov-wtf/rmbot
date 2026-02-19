@@ -413,6 +413,15 @@ export type InventoryPart = {
   updated_at: string;
 };
 
+export type InventoryImportSummary = {
+  categories_created: number;
+  categories_updated: number;
+  parts_created: number;
+  parts_updated: number;
+  items_created: number;
+  items_updated: number;
+};
+
 export type TicketColor = "green" | "yellow" | "red";
 
 export type TicketStatus =
@@ -792,6 +801,31 @@ async function parseJsonSafe(response: Response): Promise<unknown> {
   }
 }
 
+function parseFileNameFromDisposition(
+  contentDisposition: string | null,
+  fallback: string,
+): string {
+  if (!contentDisposition) {
+    return fallback;
+  }
+
+  const utfMatch = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utfMatch?.[1]) {
+    try {
+      return decodeURIComponent(utfMatch[1]);
+    } catch {
+      // keep fallback behavior
+    }
+  }
+
+  const asciiMatch = contentDisposition.match(/filename="?([^";]+)"?/i);
+  if (asciiMatch?.[1]) {
+    return asciiMatch[1];
+  }
+
+  return fallback;
+}
+
 function extractData<TData>(payload: unknown): TData {
   if (payload && typeof payload === "object" && "data" in payload) {
     return (payload as ApiEnvelope<TData>).data;
@@ -944,6 +978,8 @@ async function apiRequest<TResponse>(
   options: InventoryRequestOptions = {},
 ): Promise<TResponse> {
   const { method = "GET", accessToken, body } = options;
+  const isFormDataBody =
+    typeof FormData !== "undefined" && body instanceof FormData;
 
   const headers: Record<string, string> = {
     Accept: "application/json",
@@ -951,14 +987,19 @@ async function apiRequest<TResponse>(
   if (accessToken) {
     headers.Authorization = `Bearer ${accessToken}`;
   }
-  if (body !== undefined) {
+  if (body !== undefined && !isFormDataBody) {
     headers["Content-Type"] = "application/json";
   }
 
   const response = await fetch(buildApiUrl(path), {
     method,
     headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    body:
+      body === undefined
+        ? undefined
+        : isFormDataBody
+          ? body
+          : JSON.stringify(body),
   });
 
   const payload =
@@ -1343,6 +1384,51 @@ export async function deleteInventoryItem(
     method: "DELETE",
     accessToken,
   });
+}
+
+export async function exportInventoryWorkbookFile(
+  accessToken: string,
+): Promise<{ blob: Blob; fileName: string }> {
+  const response = await fetch(buildApiUrl("inventory/export/"), {
+    method: "GET",
+    headers: {
+      Accept:
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+
+  if (!response.ok) {
+    const payload = await parseJsonSafe(response);
+    throw new Error(
+      toErrorMessage(
+        payload,
+        `Request failed with status ${response.status} for inventory/export/`,
+      ),
+    );
+  }
+
+  const fileName = parseFileNameFromDisposition(
+    response.headers.get("content-disposition"),
+    "inventory_export.xlsx",
+  );
+  const blob = await response.blob();
+  return { blob, fileName };
+}
+
+export async function importInventoryWorkbook(
+  accessToken: string,
+  file: File,
+): Promise<InventoryImportSummary> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const payload = await apiRequest<unknown>("inventory/import/", {
+    method: "POST",
+    accessToken,
+    body: formData,
+  });
+  return extractData<InventoryImportSummary>(payload);
 }
 
 export async function listParts(accessToken: string): Promise<InventoryPart[]> {

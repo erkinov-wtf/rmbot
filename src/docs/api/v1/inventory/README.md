@@ -27,6 +27,15 @@ Documents inventory resources:
 - `PUT/PATCH /api/v1/inventory/items/{id}/`
 - `DELETE /api/v1/inventory/items/{id}/`
 
+### Inventory workbook import/export
+- `GET /api/v1/inventory/export/` (download XLSX workbook)
+- `POST /api/v1/inventory/import/` (upload XLSX workbook)
+
+Workbook contract:
+- Two required sheets: `Categories` and `Inventory Items`.
+- `Categories` sheet is category + part oriented (`category_name`, `part_name`).
+- `Inventory Items` sheet carries inventory-item fields (`serial_number`, `name`, `inventory_name`, `category_name`, `status`, `is_active`, `category_parts`).
+
 List filters:
 - `q` (serial lookup, min 2 chars, suggestion-style matching)
 - `serial_number` (exact normalized match)
@@ -40,7 +49,7 @@ List filters:
 - `ordering` (`created_at`, `-created_at`, `updated_at`, `-updated_at`, `serial_number`, `-serial_number`, `status`, `-status`)
 
 Create/update notes:
-- `serial_number` format is enforced as `RM-[A-Z0-9-]{4,29}`.
+- `serial_number` is normalized (trimmed/uppercased) and must stay unique.
 - `name`, `inventory`, and `category` default when omitted during create.
 - `parts` is read-only on item payloads; manage ownership through `/inventory/parts/` endpoints.
 
@@ -51,6 +60,10 @@ Create/update notes:
 - `PUT/PATCH /api/v1/inventory/categories/{id}/`
 - `DELETE /api/v1/inventory/categories/{id}/`
 
+Delete behavior notes:
+- Category delete is rejected (`400`) when at least one active inventory item is assigned to that category.
+- When no active items are assigned, category-level parts are soft-deleted first, then the category is soft-deleted.
+
 ### Item parts
 - `GET /api/v1/inventory/parts/`
 - `POST /api/v1/inventory/parts/`
@@ -59,11 +72,13 @@ Create/update notes:
 - `DELETE /api/v1/inventory/parts/{id}/`
 
 Create/update notes:
-- `inventory_item` is required; each part belongs to one inventory item.
-- Same `name` may be reused across different inventory items, but not duplicated within the same inventory item.
+- `category` is required for category-level parts.
+- `inventory_item` API writes are ignored (parts are normalized to category-level entities).
+- Same `name` may be reused across different categories, but not duplicated within one category.
 
 ## Validation and Failure Modes
 - Invalid/duplicate `serial_number` -> `400`.
+- Import rejects files that are not `.xlsx` or workbook payloads missing required sheets/headers -> `400`.
 - Too-short/invalid `q` or invalid filter values -> `400`.
 - Unauthorized write role -> `403`.
 - Missing/invalid JWT -> `401`.
@@ -71,6 +86,7 @@ Create/update notes:
 ## Operational Notes
 - Archived inventory-item conflicts are handled in ticket intake (restore-required behavior).
 - Ticket intake uses serial-number suggestions from the shared inventory item service.
+- Workbook import is upsert-only and atomic (all-or-nothing on validation failure).
 
 ## Related Code
 - `api/v1/inventory/urls.py`

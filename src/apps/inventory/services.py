@@ -2,9 +2,16 @@ from __future__ import annotations
 
 import re
 
+from django.db import transaction
 from django.db.models import Q
+from django.utils import timezone
 
-from inventory.models import Inventory, InventoryItem, InventoryItemCategory
+from inventory.models import (
+    Inventory,
+    InventoryItem,
+    InventoryItemCategory,
+    InventoryItemPart,
+)
 
 
 class InventoryItemService:
@@ -113,3 +120,26 @@ class InventoryItemService:
             filtered = filtered.updated_to(updated_to)
 
         return filtered.order_by(ordering, "id")
+
+
+class InventoryCategoryService:
+    CATEGORY_HAS_ITEMS_ERROR = (
+        "Cannot delete category while inventory items are assigned to it."
+    )
+
+    @classmethod
+    @transaction.atomic
+    def delete_category(cls, *, category: InventoryItemCategory) -> None:
+        has_items = (
+            InventoryItem.domain.get_queryset().filter(category_id=category.id).exists()
+        )
+        if has_items:
+            raise ValueError(cls.CATEGORY_HAS_ITEMS_ERROR)
+
+        now_dt = timezone.now()
+        InventoryItemPart.domain.get_queryset().filter(category_id=category.id).update(
+            deleted_at=now_dt,
+            updated_at=now_dt,
+        )
+
+        category.delete()

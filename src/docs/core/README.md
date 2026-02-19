@@ -8,6 +8,7 @@ Documents shared platform behavior used across all apps: base models, API envelo
 - `docs/core/api/README.md`
 - `docs/core/utils/README.md`
 - `docs/core/notifications.md`
+- `docs/core/management/commands/generate_mock_data.md`
 
 ## Maintenance Rules
 - Keep core docs current when changing shared contracts used by multiple apps.
