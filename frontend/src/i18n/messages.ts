@@ -29,6 +29,8 @@ const RU_MESSAGES: TranslationCatalog = {
   Create: "Создать",
   "Create Ticket": "Создать тикет",
   "Creating ticket...": "Создание тикета...",
+  "Could not approve and assign ticket.":
+    "Не удалось одобрить и назначить тикет.",
   "Could not approve ticket.": "Не удалось одобрить тикет.",
   "Could not assign ticket.": "Не удалось назначить тикет.",
   "Could not authenticate Telegram mini app session.":
@@ -176,6 +178,7 @@ const RU_MESSAGES: TranslationCatalog = {
   "Ticket #{{id}}": "Тикет #{{id}}",
   "Ticket #{{id}} approved.": "Тикет #{{id}} одобрен.",
   "Ticket #{{id}} assigned.": "Тикет #{{id}} назначен.",
+  "Ticket approved and assigned.": "Тикет одобрен и назначен.",
   "Ticket Flow": "Поток тикетов",
   "Ticket created successfully.": "Тикет успешно создан.",
   "Ticket Workspace": "Рабочая зона тикетов",
@@ -200,6 +203,7 @@ const RU_MESSAGES: TranslationCatalog = {
   "API endpoint": "API endpoint",
   "All": "Все",
   "Amount": "Сумма",
+  "Approve & Assign": "Одобрить и назначить",
   "Approve Review": "Одобрить проверку",
   "Attend": "Посещ.",
   "Authenticated User": "Аутентифицированный пользователь",
@@ -241,6 +245,8 @@ const RU_MESSAGES: TranslationCatalog = {
   "Unknown rendering error.": "Неизвестная ошибка рендеринга.",
   "Username": "Имя пользователя",
   min: "мин",
+  "You do not have permission to approve and assign tickets.":
+    "У вас нет прав на одобрение и назначение тикетов.",
   "You do not have permission to approve review.":
     "У вас нет прав на одобрение проверки.",
   "You do not have permission to run QC actions.":
@@ -274,6 +280,8 @@ const UZ_MESSAGES: TranslationCatalog = {
   Create: "Yaratish",
   "Create Ticket": "Ariza yaratish",
   "Creating ticket...": "Ariza yaratilmoqda...",
+  "Could not approve and assign ticket.":
+    "Arizani tasdiqlab biriktirib bo'lmadi.",
   "Could not approve ticket.": "Arizani tasdiqlab bo'lmadi.",
   "Could not assign ticket.": "Arizani biriktirib bo'lmadi.",
   "Could not authenticate Telegram mini app session.":
@@ -420,6 +428,7 @@ const UZ_MESSAGES: TranslationCatalog = {
   "Ticket #{{id}}": "Ariza #{{id}}",
   "Ticket #{{id}} approved.": "Ariza #{{id}} tasdiqlandi.",
   "Ticket #{{id}} assigned.": "Ariza #{{id}} biriktirildi.",
+  "Ticket approved and assigned.": "Ariza tasdiqlandi va biriktirildi.",
   "Ticket Flow": "Ariza oqimi",
   "Ticket created successfully.": "Ariza muvaffaqiyatli yaratildi.",
   "Ticket Workspace": "Ariza ish maydoni",
@@ -444,6 +453,7 @@ const UZ_MESSAGES: TranslationCatalog = {
   "API endpoint": "API manzili",
   "All": "Barchasi",
   "Amount": "Miqdor",
+  "Approve & Assign": "Tasdiqlash va biriktirish",
   "Approve Review": "Ko'rib chiqishni tasdiqlash",
   "Attend": "Dav.",
   "Authenticated User": "Autentifikatsiyalangan foydalanuvchi",
@@ -487,6 +497,8 @@ const UZ_MESSAGES: TranslationCatalog = {
   "Unknown rendering error.": "Noma'lum render xatosi.",
   "Username": "Foydalanuvchi nomi",
   min: "daq",
+  "You do not have permission to approve and assign tickets.":
+    "Arizani tasdiqlash va biriktirish uchun sizda ruxsat yo'q.",
   "You do not have permission to approve review.":
     "Ko'rib chiqishni tasdiqlash uchun sizda ruxsat yo'q.",
   "You do not have permission to run QC actions.":

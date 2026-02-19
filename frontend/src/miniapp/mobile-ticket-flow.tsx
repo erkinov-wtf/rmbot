@@ -631,32 +631,19 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
     t,
   ]);
 
-  const handleReviewApprove = useCallback(async () => {
+  const handleReviewApproveAndAssign = useCallback(async () => {
     if (!selectedReviewTicket) {
       return;
     }
-    setIsRunningReviewAction(true);
-    try {
-      await reviewApproveTicket(accessToken, selectedReviewTicket.id);
-      setFeedback({
-        type: "success",
-        message: t("Ticket #{{id}} approved.", { id: selectedReviewTicket.id }),
-      });
-      await refreshReviewTickets();
-    } catch (error) {
+
+    if (!permissions.can_approve_and_assign) {
       setFeedback({
         type: "error",
-        message: toErrorMessage(error, t("Could not approve ticket.")),
+        message: t("You do not have permission to approve and assign tickets."),
       });
-    } finally {
-      setIsRunningReviewAction(false);
-    }
-  }, [accessToken, refreshReviewTickets, selectedReviewTicket, t]);
-
-  const handleReviewAssign = useCallback(async () => {
-    if (!selectedReviewTicket) {
       return;
     }
+
     const technicianId = Number.parseInt(selectedTechnicianId, 10);
     if (!Number.isFinite(technicianId) || technicianId <= 0) {
       setFeedback({
@@ -668,21 +655,32 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
 
     setIsRunningReviewAction(true);
     try {
-      await assignTicket(accessToken, selectedReviewTicket.id, technicianId);
+      const reviewedTicket =
+        selectedReviewTicket.approved_at && selectedReviewTicket.approved_by
+          ? selectedReviewTicket
+          : await reviewApproveTicket(accessToken, selectedReviewTicket.id);
+      await assignTicket(accessToken, reviewedTicket.id, technicianId);
       setFeedback({
         type: "success",
-        message: t("Ticket #{{id}} assigned.", { id: selectedReviewTicket.id }),
+        message: t("Ticket approved and assigned."),
       });
       await refreshReviewTickets();
     } catch (error) {
       setFeedback({
         type: "error",
-        message: toErrorMessage(error, t("Could not assign ticket.")),
+        message: toErrorMessage(error, t("Could not approve and assign ticket.")),
       });
     } finally {
       setIsRunningReviewAction(false);
     }
-  }, [accessToken, refreshReviewTickets, selectedReviewTicket, selectedTechnicianId, t]);
+  }, [
+    accessToken,
+    permissions.can_approve_and_assign,
+    refreshReviewTickets,
+    selectedReviewTicket,
+    selectedTechnicianId,
+    t,
+  ]);
 
   const handleReviewManualMetrics = useCallback(async () => {
     if (!selectedReviewTicket) {
@@ -1121,25 +1119,7 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
               )}
             </div>
 
-            {permissions.can_review ? (
-              <Button
-                type="button"
-                className="h-11 w-full"
-                onClick={() => void handleReviewApprove()}
-                disabled={
-                  isRunningReviewAction ||
-                  !["under_review", "new"].includes(selectedReviewTicket.status)
-                }
-              >
-                {t("Approve Review")}
-              </Button>
-            ) : (
-              <p className="rounded-lg border border-dashed border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                {t("You do not have permission to approve review.")}
-              </p>
-            )}
-
-            {permissions.can_assign ? (
+            {permissions.can_review || permissions.can_assign ? (
               <div className="space-y-2 rounded-xl border border-slate-200 bg-white px-3 py-3">
                 <p className="text-sm font-semibold text-slate-900">
                   {t("Assign technician")}
@@ -1148,6 +1128,7 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
                   className="rm-input h-11"
                   value={selectedTechnicianId}
                   onChange={(event) => setSelectedTechnicianId(event.target.value)}
+                  disabled={!permissions.can_approve_and_assign || isRunningReviewAction}
                 >
                   <option value="">
                     {isLoadingTechnicians
@@ -1168,11 +1149,20 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
                 <Button
                   type="button"
                   className="h-11 w-full"
-                  onClick={() => void handleReviewAssign()}
-                  disabled={isRunningReviewAction || !selectedTechnicianId}
+                  onClick={() => void handleReviewApproveAndAssign()}
+                  disabled={
+                    isRunningReviewAction ||
+                    !selectedTechnicianId ||
+                    !permissions.can_approve_and_assign
+                  }
                 >
-                  {t("Assign Technician")}
+                  {t("Approve & Assign")}
                 </Button>
+                {!permissions.can_approve_and_assign ? (
+                  <p className="rounded-lg border border-dashed border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                    {t("You do not have permission to approve and assign tickets.")}
+                  </p>
+                ) : null}
               </div>
             ) : null}
 
