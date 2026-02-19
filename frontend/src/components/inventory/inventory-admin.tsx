@@ -571,7 +571,11 @@ export function InventoryAdmin({
     setIsImporting(true);
     try {
       const summary = await importInventoryWorkbook(accessToken, selectedFile);
-      await Promise.all([loadCategories(), loadItems(appliedFilters), loadParts()]);
+      await Promise.all([
+        loadCategories(),
+        loadItems(appliedFilters, itemPage, itemPerPage),
+        loadParts(),
+      ]);
       if (route.name === "itemDetail") {
         await loadItemDetail(route.itemId);
       }
