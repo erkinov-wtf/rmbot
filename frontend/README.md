@@ -15,6 +15,16 @@ npm install
 npm run dev
 ```
 
+## Docker
+
+From repository root:
+
+```bash
+docker compose up -d frontend
+```
+
+Frontend will be available on `http://localhost:5173` by default.
+
 ## Environment
 
 Create `.env` from `.env.example` and set backend URL:

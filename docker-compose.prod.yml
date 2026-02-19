@@ -67,6 +67,22 @@ services:
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
 
+  frontend:
+    container_name: frontend-prod
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8005/api/v1}
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-5173}:80"
+    depends_on:
+      web:
+        condition: service_healthy
+    networks:
+      - network-default
+    restart: unless-stopped
+
   worker:
     container_name: worker-prod
     build: .
