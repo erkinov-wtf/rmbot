@@ -318,7 +318,6 @@ class UserNotificationService:
             event_key="ticket_qc_pass",
             user_ids=[ticket.technician_id],
             message=message_builder,
-            exclude_user_ids=[actor_user_id],
         )
 
     @classmethod
@@ -553,14 +552,32 @@ class UserNotificationService:
                         int(telegram_id),
                         normalize_bot_locale(locale=None),
                     )
-                    resolved_message, resolved_reply_markup = await sync_to_async(
-                        UserNotificationService._resolve_localized_payload,
-                        thread_sensitive=True,
-                    )(
-                        locale=locale,
-                        message=message,
-                        reply_markup=reply_markup,
-                    )
+                    try:
+                        resolved_message, resolved_reply_markup = await sync_to_async(
+                            UserNotificationService._resolve_localized_payload,
+                            thread_sensitive=True,
+                        )(
+                            locale=locale,
+                            message=message,
+                            reply_markup=reply_markup,
+                        )
+                    except Exception:
+                        logger.exception(
+                            (
+                                "Failed to render %s notification payload for "
+                                "telegram_id=%s. Sending fallback text."
+                            ),
+                            event_key,
+                            telegram_id,
+                        )
+                        resolved_message = await sync_to_async(
+                            UserNotificationService._fallback_event_message,
+                            thread_sensitive=True,
+                        )(
+                            event_key=event_key,
+                            locale=locale,
+                        )
+                        resolved_reply_markup = None
                     await bot.send_message(
                         chat_id=telegram_id,
                         text=resolved_message,
@@ -590,6 +607,22 @@ class UserNotificationService:
                 reply_markup(translator) if callable(reply_markup) else reply_markup
             )
         return str(resolved_message), resolved_reply_markup
+
+    @staticmethod
+    def _fallback_event_message(*, event_key: str, locale: str) -> str:
+        with translation.override(locale):
+            _ = translation.gettext
+            mapping = {
+                "ticket_assigned_technician": _("🆕 You have a new assigned ticket."),
+                "ticket_assigned_master": _("📌 A ticket has been assigned."),
+                "ticket_started_technician": _("▶️ Ticket work has started."),
+                "ticket_waiting_qc_reviewers": _("🧪 A ticket is waiting for QC."),
+                "ticket_qc_pass": _("✅ Ticket passed QC."),
+                "ticket_qc_fail_technician": _("❌ Ticket was returned from QC."),
+                "manual_xp_adjustment": _("⭐ XP adjustment was applied."),
+                "manual_level_update": _("🎚 Level update was applied."),
+            }
+            return mapping.get(event_key, _("🔔 Ticket update available."))
 
     @staticmethod
     def _normalize_user_ids(

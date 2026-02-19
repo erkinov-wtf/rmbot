@@ -834,6 +834,33 @@ class ProgressionService:
             "history_created_at": history_event.created_at.isoformat(),
         }
 
+    @staticmethod
+    def _weekly_evaluation_note(
+        *,
+        week_start: date,
+        week_end: date,
+        weekly_xp: int,
+        weekly_target_xp: int,
+        target_status: str,
+        coupon_amount: int,
+    ) -> str:
+        status_labels = {
+            "level_up": "level up",
+            "maintained": "maintained",
+            "warning": "warning added",
+            "reset_to_l1": "reset to L1",
+        }
+        status_label = status_labels.get(target_status, str(target_status))
+        parts = [
+            (
+                f"Weekly evaluation {week_start.isoformat()}..{week_end.isoformat()}: "
+                f"XP {int(weekly_xp)}/{int(weekly_target_xp)}, status={status_label}"
+            )
+        ]
+        if int(coupon_amount) > 0:
+            parts.append(f"coupon={int(coupon_amount)} UZS")
+        return "; ".join(parts)
+
     @classmethod
     @transaction.atomic
     def run_weekly_level_evaluation(
@@ -961,7 +988,14 @@ class ProgressionService:
                 week_start=week_start,
                 week_end=week_end,
                 reference=f"weekly_level_history:{week_start.isoformat()}:{user_id}",
-                note="",
+                note=cls._weekly_evaluation_note(
+                    week_start=week_start,
+                    week_end=week_end,
+                    weekly_xp=weekly_xp,
+                    weekly_target_xp=weekly_target_xp,
+                    target_status=target_status,
+                    coupon_amount=0,
+                ),
                 payload={
                     "weekly_xp": weekly_xp,
                     "weekly_target_xp": weekly_target_xp,
@@ -980,6 +1014,7 @@ class ProgressionService:
             if target_status == "reset_to_l1":
                 resets_to_l1 += 1
 
+            awarded_coupon_amount = 0
             if is_level_up:
                 level_ups += 1
                 if coupon_amount > 0:
@@ -1004,8 +1039,26 @@ class ProgressionService:
                             },
                         )
                         coupon_events += 1
+                        awarded_coupon_amount = coupon_amount
                     except IntegrityError:
                         pass
+
+            UserNotificationService.notify_manual_level_update(
+                target_user_id=user_id,
+                actor_user_id=actor_user_id,
+                previous_level=previous_level,
+                new_level=new_level,
+                warning_active_before=previous_warning_active,
+                warning_active_after=warning_active_after,
+                note=cls._weekly_evaluation_note(
+                    week_start=week_start,
+                    week_end=week_end,
+                    weekly_xp=weekly_xp,
+                    weekly_target_xp=weekly_target_xp,
+                    target_status=target_status,
+                    coupon_amount=awarded_coupon_amount,
+                ),
+            )
 
         return {
             "week_start": week_start.isoformat(),
