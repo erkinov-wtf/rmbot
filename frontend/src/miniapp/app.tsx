@@ -1,4 +1,4 @@
-import { AlertTriangle, LogOut, ShieldCheck, Smartphone } from "lucide-react";
+import { AlertTriangle, LogOut, Smartphone, UserRound } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -254,24 +254,18 @@ export default function MiniApp() {
     <>
       <main className="rm-shell px-2 py-3 sm:px-3">
         <div className="mx-auto w-full max-w-md space-y-3">
-          <section className="rm-panel px-3 py-2">
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <p className="inline-flex items-center gap-1 rounded-full bg-cyan-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-cyan-800">
-                  <ShieldCheck className="h-3.5 w-3.5" />
-                  {t("Mini App")}
-                </p>
-                <p className="mt-1 truncate text-sm font-semibold text-slate-900">
-                  {displayName}
-                </p>
-              </div>
-
+          <section className="rounded-xl border border-slate-200 bg-white/90 px-2 py-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <p className="min-w-0 truncate text-xs font-semibold text-slate-700">
+                {displayName}
+              </p>
               <Button
                 type="button"
                 variant="outline"
-                className="h-9 px-3"
+                className="h-8 gap-1 px-2 text-xs"
                 onClick={() => setIsProfileSheetOpen(true)}
               >
+                <UserRound className="h-3.5 w-3.5" />
                 {t("My Profile")}
               </Button>
             </div>

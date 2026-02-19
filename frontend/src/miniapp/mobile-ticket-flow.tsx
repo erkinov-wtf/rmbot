@@ -1400,13 +1400,6 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
 
   return (
     <section className="space-y-3 pb-24">
-      <section className="rm-panel p-4">
-        <p className="text-sm font-semibold text-slate-900">{t("Ticket Workspace")}</p>
-        <p className="mt-1 text-xs text-slate-600">
-          {t("Mobile flow for ticket create, review, and QC actions.")}
-        </p>
-      </section>
-
       {feedback ? (
         <p
           className={cn(
