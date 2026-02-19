@@ -5,9 +5,9 @@ from django.urls import include, path
 from config.settings.base import BOT_WEBHOOK_PATH
 
 urlpatterns = [
-    path("admin/", admin.site.urls),
-    path("api/", include("api.url_router"), name="url_router"),
     path(BOT_WEBHOOK_PATH, include("bot.webhook.urls", namespace="bot_webhook")),
+#     path("admin/", admin.site.urls),
+    path("api/", include("api.url_router"), name="url_router"),
     *static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT),
     *static(settings.STATIC_URL, document_root=settings.STATIC_ROOT),
 ]
