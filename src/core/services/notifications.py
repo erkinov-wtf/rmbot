@@ -554,7 +554,7 @@ class UserNotificationService:
                         normalize_bot_locale(locale=None),
                     )
                     resolved_message, resolved_reply_markup = await sync_to_async(
-                        cls._resolve_localized_payload,
+                        UserNotificationService._resolve_localized_payload,
                         thread_sensitive=True,
                     )(
                         locale=locale,
