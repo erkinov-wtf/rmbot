@@ -45,11 +45,13 @@ export default function MiniApp() {
   const [authContext, setAuthContext] = useState<TelegramMiniAppContext | null>(
     null,
   );
+  const [isProfileSheetOpen, setIsProfileSheetOpen] = useState(false);
 
   const logout = useCallback((nextNotice = "") => {
     clearMiniAppAuthSession();
     setSession(null);
     setNotice(nextNotice);
+    setIsProfileSheetOpen(false);
   }, []);
 
   const authenticateWithTelegram = useCallback(
@@ -249,36 +251,68 @@ export default function MiniApp() {
   }
 
   return (
-    <main className="rm-shell px-2 py-3 sm:px-3">
-      <div className="mx-auto w-full max-w-md space-y-3">
-        <section className="rm-panel p-4">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="inline-flex items-center gap-2 rounded-full bg-cyan-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-cyan-800">
-                <ShieldCheck className="h-4 w-4" />
-                {t("Mini App")}
-              </p>
-              <p className="mt-2 text-sm font-semibold text-slate-900">{displayName}</p>
-              <p className="text-xs text-slate-500">
-                @{session.user.username} {session.user.phone ? `• ${session.user.phone}` : ""}
-              </p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {session.roles.length ? (
-                  session.roles.map((role) => (
-                    <span key={role} className="rm-role-pill">
-                      {role}
-                    </span>
-                  ))
-                ) : (
-                  <span className="text-xs text-slate-500">{t("No roles")}</span>
-                )}
+    <>
+      <main className="rm-shell px-2 py-3 sm:px-3">
+        <div className="mx-auto w-full max-w-md space-y-3">
+          <section className="rm-panel px-3 py-2">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="inline-flex items-center gap-1 rounded-full bg-cyan-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-cyan-800">
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  {t("Mini App")}
+                </p>
+                <p className="mt-1 truncate text-sm font-semibold text-slate-900">
+                  {displayName}
+                </p>
               </div>
+
+              <Button
+                type="button"
+                variant="outline"
+                className="h-9 px-3"
+                onClick={() => setIsProfileSheetOpen(true)}
+              >
+                {t("My Profile")}
+              </Button>
+            </div>
+          </section>
+
+          <MobileTicketFlow
+            accessToken={session.accessToken}
+            permissions={session.permissions}
+          />
+        </div>
+      </main>
+
+      {isProfileSheetOpen ? (
+        <div className="fixed inset-0 z-50 flex items-end">
+          <button
+            type="button"
+            className="absolute inset-0 bg-slate-900/45"
+            onClick={() => setIsProfileSheetOpen(false)}
+          />
+          <section className="relative z-10 w-full rounded-t-2xl border border-slate-200 bg-white p-4 shadow-2xl">
+            <div className="mx-auto mb-3 h-1.5 w-12 rounded-full bg-slate-300" />
+            <p className="text-sm font-semibold text-slate-900">{displayName}</p>
+            <p className="text-xs text-slate-500">
+              @{session.user.username} {session.user.phone ? `• ${session.user.phone}` : ""}
+            </p>
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              {session.roles.length ? (
+                session.roles.map((role) => (
+                  <span key={role} className="rm-role-pill">
+                    {role}
+                  </span>
+                ))
+              ) : (
+                <span className="text-xs text-slate-500">{t("No roles")}</span>
+              )}
             </div>
 
             <Button
               type="button"
-              variant="outline"
-              className="h-10"
+              className="mt-4 h-11 w-full"
               onClick={() =>
                 logout(t("Session cleared. Reopen mini app from Telegram."))
               }
@@ -286,14 +320,9 @@ export default function MiniApp() {
               <LogOut className="mr-2 h-4 w-4" />
               {t("Logout")}
             </Button>
-          </div>
-        </section>
-
-        <MobileTicketFlow
-          accessToken={session.accessToken}
-          permissions={session.permissions}
-        />
-      </div>
-    </main>
+          </section>
+        </div>
+      ) : null}
+    </>
   );
 }
