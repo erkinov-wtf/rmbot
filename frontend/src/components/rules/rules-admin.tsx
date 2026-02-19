@@ -2,7 +2,6 @@ import {
   History,
   RefreshCcw,
   RotateCcw,
-  Settings2,
   ShieldAlert,
   ShieldCheck,
 } from "lucide-react";
@@ -36,6 +35,8 @@ type FeedbackState =
   | null;
 
 const fieldClassName = "rm-input";
+const fieldLabelClassName =
+  "flex min-h-[2.25rem] items-end text-xs font-semibold uppercase tracking-wide text-slate-600";
 
 const LEVEL_KEYS = ["1", "2", "3", "4", "5"] as const;
 
@@ -260,20 +261,6 @@ export function RulesAdmin({
       return String(rollbackOptions[0].version);
     });
   }, [rollbackOptions]);
-
-  const activeChecksumPreview = useMemo(() => {
-    if (!rulesState) {
-      return "-";
-    }
-    const rawChecksum =
-      rulesState.checksum !== undefined && rulesState.checksum !== null
-        ? String(rulesState.checksum)
-        : "";
-    if (!rawChecksum) {
-      return "-";
-    }
-    return `${rawChecksum.slice(0, 12)}...`;
-  }, [rulesState]);
 
   const loadRulesState = useCallback(async () => {
     if (!canRead) {
@@ -557,46 +544,13 @@ export function RulesAdmin({
           {t("Rules config is available only for Super Admin and Ops Manager.")}
         </p>
       ) : (
-        <div className="mt-4 space-y-4">
-          <div className="rm-subpanel p-3">
-            <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
-              <Settings2 className="h-4 w-4" />
-              {t("Active Rules State")}
-            </p>
-            {rulesState ? (
-              <div className="mt-2 grid gap-2 text-xs text-slate-600 sm:grid-cols-2 xl:grid-cols-4">
-                <p>
-                  <span className="font-semibold text-slate-800">{t("Version")}:</span>{" "}
-                  v{rulesState.active_version}
-                </p>
-                <p>
-                  <span className="font-semibold text-slate-800">{t("Updated")}:</span>{" "}
-                  {formatDateTime(rulesState.updated_at)}
-                </p>
-                <p>
-                  <span className="font-semibold text-slate-800">{t("Cache key")}:</span>{" "}
-                  <code>{rulesState.cache_key}</code>
-                </p>
-                <p>
-                  <span className="font-semibold text-slate-800">{t("Checksum")}:</span>{" "}
-                  <code>{activeChecksumPreview}</code>
-                </p>
-              </div>
-            ) : (
-              <p className="mt-2 text-sm text-slate-500">
-                {isLoadingState
-                  ? t("Loading active rules config...")
-                  : t("No rules state loaded.")}
-              </p>
-            )}
-          </div>
-
+        <div className="mt-4 space-y-5">
           <div className="grid gap-4 xl:grid-cols-2">
-            <div className="rm-subpanel p-3">
+            <div className="rm-subpanel p-4 sm:p-5">
               <p className="rm-card-title">{t("Ticket XP")}</p>
-              <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+              <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                  <label className={fieldLabelClassName}>
                     {t("Base divisor")}
                   </label>
                   <input
@@ -611,7 +565,7 @@ export function RulesAdmin({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                  <label className={fieldLabelClassName}>
                     {t("First-pass bonus")}
                   </label>
                   <input
@@ -626,7 +580,7 @@ export function RulesAdmin({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                  <label className={fieldLabelClassName}>
                     {t("QC status XP")}
                   </label>
                   <input
@@ -641,7 +595,7 @@ export function RulesAdmin({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                  <label className={fieldLabelClassName}>
                     {t("Green max minutes")}
                   </label>
                   <input
@@ -656,7 +610,7 @@ export function RulesAdmin({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                  <label className={fieldLabelClassName}>
                     {t("Yellow max minutes")}
                   </label>
                   <input
@@ -672,11 +626,11 @@ export function RulesAdmin({
               </div>
             </div>
 
-            <div className="rm-subpanel p-3">
+            <div className="rm-subpanel p-4 sm:p-5">
               <p className="rm-card-title">{t("Work Session")}</p>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                  <label className={fieldLabelClassName}>
                     {t("Daily pause limit (minutes)")}
                   </label>
                   <input
@@ -691,7 +645,7 @@ export function RulesAdmin({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                  <label className={fieldLabelClassName}>
                     {t("Timezone")}
                   </label>
                   <input
@@ -707,11 +661,11 @@ export function RulesAdmin({
             </div>
           </div>
 
-          <div className="rm-subpanel p-3">
+          <div className="rm-subpanel p-4 sm:p-5">
             <p className="rm-card-title">{t("Attendance")}</p>
             <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                <label className={fieldLabelClassName}>
                   {t("On-time XP")}
                 </label>
                 <input
@@ -725,7 +679,7 @@ export function RulesAdmin({
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                <label className={fieldLabelClassName}>
                   {t("Grace XP")}
                 </label>
                 <input
@@ -739,7 +693,7 @@ export function RulesAdmin({
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                <label className={fieldLabelClassName}>
                   {t("Late XP")}
                 </label>
                 <input
@@ -753,7 +707,7 @@ export function RulesAdmin({
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                <label className={fieldLabelClassName}>
                   {t("On-time cutoff (HH:MM)")}
                 </label>
                 <input
@@ -766,7 +720,7 @@ export function RulesAdmin({
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                <label className={fieldLabelClassName}>
                   {t("Grace cutoff (HH:MM)")}
                 </label>
                 <input
@@ -779,7 +733,7 @@ export function RulesAdmin({
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                <label className={fieldLabelClassName}>
                   {t("Timezone")}
                 </label>
                 <input
@@ -794,11 +748,11 @@ export function RulesAdmin({
             </div>
           </div>
 
-          <div className="rm-subpanel p-3">
+          <div className="rm-subpanel p-4 sm:p-5">
             <p className="rm-card-title">{t("Progression")}</p>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                <label className={fieldLabelClassName}>
                   {t("Weekly target XP")}
                 </label>
                 <input
@@ -813,7 +767,7 @@ export function RulesAdmin({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                <label className={fieldLabelClassName}>
                   {t("Weekly coupon amount")}
                 </label>
                 <input
@@ -828,10 +782,10 @@ export function RulesAdmin({
               </div>
             </div>
 
-            <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
               {LEVEL_KEYS.map((levelKey) => (
                 <div key={levelKey}>
-                  <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                  <label className={fieldLabelClassName}>
                     {t("L{{level}} threshold", { level: levelKey })}
                   </label>
                   <input
@@ -857,9 +811,9 @@ export function RulesAdmin({
             </p>
           </div>
 
-          <div className="rm-subpanel p-3">
+          <div className="rm-subpanel p-4 sm:p-5">
             <p className="rm-card-title">{t("Publish New Version")}</p>
-            <label className="mt-3 block text-xs font-semibold uppercase tracking-wide text-slate-600">
+            <label className={cn("mt-3", fieldLabelClassName)}>
               {t("Change reason (optional)")}
             </label>
             <textarea
@@ -883,7 +837,7 @@ export function RulesAdmin({
             </div>
           </div>
 
-          <div className="rm-subpanel p-3">
+          <div className="rm-subpanel p-4 sm:p-5">
             <div className="flex items-center justify-between gap-3">
               <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
                 <History className="h-4 w-4" />
@@ -935,7 +889,7 @@ export function RulesAdmin({
             </div>
           </div>
 
-          <div className="rm-subpanel p-3">
+          <div className="rm-subpanel p-4 sm:p-5">
             <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
               <RotateCcw className="h-4 w-4" />
               {t("Rollback to Previous Version")}
@@ -948,7 +902,7 @@ export function RulesAdmin({
               <>
                 <div className="mt-3 grid gap-3 sm:grid-cols-[260px_1fr]">
                   <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                    <label className={fieldLabelClassName}>
                       {t("Target version")}
                     </label>
                     <select
@@ -966,7 +920,7 @@ export function RulesAdmin({
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                    <label className={fieldLabelClassName}>
                       {t("Rollback reason (optional)")}
                     </label>
                     <input

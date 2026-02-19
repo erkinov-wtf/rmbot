@@ -1,9 +1,12 @@
 import pytest
 from django.utils import timezone
 
+from account.models import AccessRequest
+from bot.services.technician_ticket_actions import TechnicianTicketActionService
 from bot.services.ticket_qc_queue import QCTicketQueueService
 from core.services.notifications import UserNotificationService
 from core.utils.constants import (
+    AccessRequestStatus,
     InventoryItemStatus,
     RoleSlug,
     TicketStatus,
@@ -694,6 +697,79 @@ def test_qc_fail_notification_targets_technician_only(
     assert payload["event_key"] == "ticket_qc_fail_technician"
     assert payload["user_ids"] == [workflow_context["tech"].id]
     assert payload["reply_markup"] is not None
+
+
+def test_assign_notification_falls_back_if_technician_state_build_fails(
+    workflow_context,
+    monkeypatch,
+):
+    ticket = workflow_context["ticket"]
+    ticket.status = TicketStatus.ASSIGNED
+    ticket.approved_by = workflow_context["ops"]
+    ticket.approved_at = timezone.now()
+    ticket.technician = workflow_context["tech"]
+    ticket.save(
+        update_fields=[
+            "status",
+            "approved_by",
+            "approved_at",
+            "technician",
+        ]
+    )
+
+    captured_payloads: list[dict] = []
+
+    def _capture_notify_users(cls, **kwargs):
+        captured_payloads.append(kwargs)
+
+    monkeypatch.setattr(
+        UserNotificationService,
+        "_notify_users",
+        classmethod(_capture_notify_users),
+    )
+
+    def _raise_state_error(cls, **kwargs):
+        raise ValueError("boom")
+
+    monkeypatch.setattr(
+        TechnicianTicketActionService,
+        "state_for_ticket",
+        classmethod(_raise_state_error),
+    )
+
+    UserNotificationService.notify_ticket_assigned(
+        ticket=ticket,
+        actor_user_id=workflow_context["ops"].id,
+    )
+
+    event_keys = {payload["event_key"] for payload in captured_payloads}
+    assert event_keys == {"ticket_assigned_master", "ticket_assigned_technician"}
+    technician_payload = next(
+        payload
+        for payload in captured_payloads
+        if payload["event_key"] == "ticket_assigned_technician"
+    )
+    assert callable(technician_payload["message"])
+    rendered = technician_payload["message"](lambda text: text)
+    assert "New ticket assigned to you" in rendered
+    assert callable(technician_payload["reply_markup"])
+    assert technician_payload["reply_markup"](lambda text: text) is None
+
+
+def test_telegram_id_lookup_falls_back_to_access_request_when_profile_missing(
+    workflow_context,
+):
+    technician = workflow_context["tech"]
+    AccessRequest.objects.create(
+        telegram_id=777000111,
+        username="tech_fallback",
+        status=AccessRequestStatus.APPROVED,
+        user=technician,
+        resolved_at=timezone.now(),
+    )
+
+    telegram_ids = UserNotificationService._telegram_ids_for_user_ids([technician.id])
+    assert telegram_ids == [777000111]
 
 
 def test_qc_queue_contains_only_current_user_assigned_waiting_qc_checks(

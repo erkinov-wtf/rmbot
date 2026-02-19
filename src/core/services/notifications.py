@@ -13,14 +13,13 @@ from django.db import transaction
 from django.utils import translation
 from django.utils.translation import gettext_noop
 
-from account.models import TelegramProfile, User
+from account.models import AccessRequest, TelegramProfile, User
 from bot.etc.i18n import normalize_bot_locale
 from bot.services.technician_ticket_actions import TechnicianTicketActionService
 from bot.services.ticket_qc_actions import TicketQCActionService
 from core.utils.constants import RoleSlug, TicketStatus
 
 if TYPE_CHECKING:
-    from account.models import AccessRequest
     from ticket.models import Ticket
 
 logger = logging.getLogger(__name__)
@@ -106,12 +105,43 @@ class UserNotificationService:
             exclude_user_ids=[actor_user_id],
         )
 
-        technician_state = TechnicianTicketActionService.state_for_ticket(
-            ticket=ticket,
-            technician_id=ticket.technician_id,
-        )
+        technician_state = None
+        try:
+            technician_state = TechnicianTicketActionService.state_for_ticket(
+                ticket=ticket,
+                technician_id=ticket.technician_id,
+            )
+        except Exception:
+            logger.exception(
+                (
+                    "Failed to build technician state for assigned ticket "
+                    "notification: ticket_id=%s technician_id=%s"
+                ),
+                ticket.id,
+                ticket.technician_id,
+            )
 
         def technician_message_builder(_: Translator) -> str:
+            assignment_meta_line = _("🛠 <b>Assigned by:</b> %(value)s") % {
+                "value": cls._safe_text(
+                    cls._display_name_by_user_id(actor_user_id, _=_)
+                )
+            }
+            if technician_state is None:
+                return "\n".join(
+                    [
+                        _("🆕 <b>New ticket assigned to you</b>"),
+                        _("🎫 <b>Ticket:</b> #%(ticket_id)s")
+                        % {"ticket_id": ticket.id},
+                        _("🔢 <b>Serial:</b> <code>%(value)s</code>")
+                        % {
+                            "value": cls._safe_text(
+                                cls._serial_number(ticket=ticket, _=_)
+                            )
+                        },
+                        assignment_meta_line,
+                    ]
+                )
             return "\n".join(
                 [
                     TechnicianTicketActionService.render_state_message(
@@ -119,16 +149,13 @@ class UserNotificationService:
                         heading=_("🆕 <b>New ticket assigned to you</b>"),
                         _=_,
                     ),
-                    _("🛠 <b>Assigned by:</b> %(value)s")
-                    % {
-                        "value": cls._safe_text(
-                            cls._display_name_by_user_id(actor_user_id, _=_)
-                        )
-                    },
+                    assignment_meta_line,
                 ]
             )
 
         def technician_markup_builder(_: Translator) -> InlineKeyboardMarkup | None:
+            if technician_state is None:
+                return None
             return TechnicianTicketActionService.build_action_keyboard(
                 ticket_id=ticket.id,
                 actions=technician_state.actions,
@@ -438,6 +465,13 @@ class UserNotificationService:
             return
 
         telegram_ids = cls._telegram_ids_for_user_ids(recipient_user_ids)
+        if not telegram_ids:
+            logger.info(
+                "Skip %s notification: no telegram ids resolved for users=%s.",
+                event_key,
+                recipient_user_ids,
+            )
+            return
         cls._notify_telegram_ids(
             event_key=event_key,
             telegram_ids=telegram_ids,
@@ -568,11 +602,45 @@ class UserNotificationService:
         if not resolved:
             return []
 
-        return list(
-            TelegramProfile.objects.filter(user_id__in=resolved)
-            .values_list("telegram_id", flat=True)
-            .distinct()
+        profile_rows = list(
+            TelegramProfile.objects.filter(user_id__in=resolved).values_list(
+                "user_id",
+                "telegram_id",
+            )
         )
+        telegram_ids = {
+            int(telegram_id) for _, telegram_id in profile_rows if telegram_id
+        }
+        covered_user_ids = {int(user_id) for user_id, _ in profile_rows if user_id}
+
+        missing_user_ids = [
+            user_id for user_id in resolved if user_id not in covered_user_ids
+        ]
+        if not missing_user_ids:
+            return sorted(telegram_ids)
+
+        fallback_rows = AccessRequest.all_objects.filter(
+            user_id__in=missing_user_ids,
+        ).exclude(telegram_id__isnull=True)
+        matched_user_ids: set[int] = set()
+        for row in fallback_rows.values("user_id", "telegram_id").order_by(
+            "user_id",
+            "-resolved_at",
+            "-created_at",
+            "-id",
+        ):
+            user_id = row.get("user_id")
+            if not user_id:
+                continue
+            normalized_user_id = int(user_id)
+            if normalized_user_id in matched_user_ids:
+                continue
+            telegram_id = row.get("telegram_id")
+            if telegram_id:
+                telegram_ids.add(int(telegram_id))
+                matched_user_ids.add(normalized_user_id)
+
+        return sorted(telegram_ids)
 
     @staticmethod
     def _user_ids_for_role_slugs(role_slugs: Iterable[str]) -> list[int]:
