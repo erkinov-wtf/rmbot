@@ -8,7 +8,6 @@ from django.db import transaction
 
 from core.utils.constants import InventoryItemStatus
 from inventory.models import (
-    Inventory,
     InventoryItem,
     InventoryItemCategory,
     InventoryItemPart,
@@ -49,7 +48,6 @@ class InventoryImportExportService:
     ITEM_HEADERS = (
         "serial_number",
         "name",
-        "inventory_name",
         "category_name",
         "status",
         "is_active",
@@ -103,7 +101,7 @@ class InventoryImportExportService:
         items_sheet.append(list(cls.ITEM_HEADERS))
         items = list(
             InventoryItem.domain.get_queryset()
-            .select_related("inventory", "category")
+            .select_related("category")
             .order_by("serial_number", "id")
         )
         for item in items:
@@ -111,7 +109,6 @@ class InventoryImportExportService:
                 [
                     item.serial_number,
                     item.name,
-                    item.inventory.name,
                     item.category.name,
                     item.status,
                     bool(item.is_active),
@@ -148,7 +145,6 @@ class InventoryImportExportService:
 
         with transaction.atomic():
             category_cache: dict[str, InventoryItemCategory] = {}
-            inventory_cache: dict[str, Inventory] = {}
 
             for row_number, row in categories_rows:
                 category_name = cls._required_string(
@@ -206,15 +202,7 @@ class InventoryImportExportService:
                         summary.categories_updated += 1
                     category_cache[category_key] = category
 
-                inventory_name = cls._optional_string(row.get("inventory_name"))
-                if not inventory_name:
-                    inventory = InventoryItemService.get_default_inventory()
-                else:
-                    inventory_key = inventory_name.casefold()
-                    inventory = inventory_cache.get(inventory_key)
-                    if inventory is None:
-                        inventory, _ = cls._upsert_inventory(name=inventory_name)
-                        inventory_cache[inventory_key] = inventory
+                inventory = InventoryItemService.get_default_inventory()
 
                 status = cls._parse_status(
                     value=row.get("status"),
@@ -278,25 +266,6 @@ class InventoryImportExportService:
             }
             rows.append((row_number, mapped_row))
         return rows
-
-    @classmethod
-    def _upsert_inventory(cls, *, name: str) -> tuple[Inventory, bool]:
-        existing = (
-            Inventory.all_objects.filter(name__iexact=name).order_by("id").first()
-        )
-        if existing is None:
-            return Inventory.objects.create(name=name), True
-
-        update_fields: list[str] = []
-        if existing.deleted_at is not None:
-            existing.deleted_at = None
-            update_fields.append("deleted_at")
-        if existing.name != name:
-            existing.name = name
-            update_fields.append("name")
-        if update_fields:
-            existing.save(update_fields=update_fields)
-        return existing, False
 
     @classmethod
     def _upsert_category(cls, *, name: str) -> tuple[InventoryItemCategory, bool]:
