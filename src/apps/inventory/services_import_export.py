@@ -53,7 +53,6 @@ class InventoryImportExportService:
         "category_name",
         "status",
         "is_active",
-        "category_parts",
     )
 
     VALID_STATUSES = {choice for choice, _ in InventoryItemStatus.choices}
@@ -108,7 +107,6 @@ class InventoryImportExportService:
             .order_by("serial_number", "id")
         )
         for item in items:
-            category_parts = parts_by_category.get(item.category_id, [])
             items_sheet.append(
                 [
                     item.serial_number,
@@ -117,7 +115,6 @@ class InventoryImportExportService:
                     item.category.name,
                     item.status,
                     bool(item.is_active),
-                    ", ".join(part.name for part in category_parts),
                 ]
             )
 
