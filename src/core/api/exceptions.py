@@ -1,3 +1,4 @@
+from django.db.models.deletion import ProtectedError
 from rest_framework.response import Response
 from rest_framework.status import HTTP_400_BAD_REQUEST
 from rest_framework.views import exception_handler
@@ -20,6 +21,22 @@ def custom_exception_handler(exc, context):
                 "success": False,
                 "message": str(exc),
                 "error": "validation_error",
+            },
+            status=HTTP_400_BAD_REQUEST,
+        )
+
+    # Handle protected FK/soft-delete guard violations → 400
+    if isinstance(exc, ProtectedError):
+        message = (
+            str(exc.args[0]).strip()
+            if exc.args and str(exc.args[0]).strip()
+            else "Cannot delete this record because it is referenced by related records."
+        )
+        return Response(
+            {
+                "success": False,
+                "message": message,
+                "error": "protected_error",
             },
             status=HTTP_400_BAD_REQUEST,
         )
