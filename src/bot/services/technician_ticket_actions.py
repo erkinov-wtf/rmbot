@@ -11,19 +11,34 @@ from django.db.models.functions import Coalesce
 from django.utils.translation import gettext as django_gettext
 from django.utils.translation import gettext_noop
 
-from core.utils.constants import TicketStatus, WorkSessionStatus
+from core.utils.constants import TicketColor, TicketStatus, WorkSessionStatus
 from gamification.models import XPTransaction
-from ticket.models import Ticket, WorkSession
+from ticket.models import Ticket, TicketPartSpec, WorkSession
+
+
+@dataclass(frozen=True)
+class TechnicianTicketPartSpecState:
+    part_name: str
+    color: str
+    minutes: int
+    comment: str
 
 
 @dataclass(frozen=True)
 class TechnicianTicketState:
     ticket_id: int
     serial_number: str
+    inventory_name: str
+    category_name: str
+    item_name: str
+    title: str
     ticket_status: str
     session_status: str | None
+    total_minutes: int
+    ticket_flag_color: str
     potential_xp: int
     acquired_xp: int
+    part_specs: tuple[TechnicianTicketPartSpecState, ...]
     actions: tuple[str, ...]
 
 
@@ -97,6 +112,11 @@ class TechnicianTicketActionService:
         WorkSessionStatus.PAUSED: gettext_noop("Paused"),
         WorkSessionStatus.STOPPED: gettext_noop("Stopped"),
     }
+    _FLAG_COLOR_LABELS = {
+        TicketColor.GREEN: gettext_noop("🟢 Green"),
+        TicketColor.YELLOW: gettext_noop("🟡 Yellow"),
+        TicketColor.RED: gettext_noop("🔴 Red"),
+    }
     _ACTION_FEEDBACK = {
         ACTION_START: gettext_noop("✅ Work session started."),
         ACTION_PAUSE: gettext_noop("⏸ Work session paused."),
@@ -120,6 +140,7 @@ class TechnicianTicketActionService:
     )
     _ERROR_UNSUPPORTED_ACTION = gettext_noop("⚠️ Unsupported action.")
     _SERIAL_UNKNOWN = gettext_noop("unknown")
+    _EMPTY_VALUE = "—"
     _TRANSITION_SOURCE = "telegram_bot"
     _TRANSITION_CHANNEL = "technician_callback"
 
@@ -246,13 +267,20 @@ class TechnicianTicketActionService:
         return TechnicianTicketState(
             ticket_id=ticket.id,
             serial_number=cls._serial_number(ticket=ticket),
+            inventory_name=cls._inventory_name(ticket=ticket),
+            category_name=cls._category_name(ticket=ticket),
+            item_name=cls._item_name(ticket=ticket),
+            title=cls._title(ticket=ticket),
             ticket_status=str(ticket.status),
             session_status=session_status,
+            total_minutes=max(int(ticket.total_duration or 0), 0),
+            ticket_flag_color=cls._normalize_color(color=ticket.flag_color),
             potential_xp=cls._potential_xp_for_ticket(ticket=ticket),
             acquired_xp=cls._acquired_xp_for_ticket_and_technician(
                 ticket=ticket,
                 technician_id=technician_id,
             ),
+            part_specs=cls._part_specs(ticket=ticket),
             actions=actions,
         )
 
@@ -431,6 +459,47 @@ class TechnicianTicketActionService:
                 },
             ]
         )
+        lines.extend(
+            [
+                _("🏬 <b>Inventory:</b> %(inventory)s")
+                % {"inventory": escape(state.inventory_name)},
+                _("🧩 <b>Category:</b> %(category)s")
+                % {"category": escape(state.category_name)},
+                _("📦 <b>Item:</b> %(item)s") % {"item": escape(state.item_name)},
+                _("📝 <b>Title:</b> %(title)s")
+                % {
+                    "title": escape(
+                        state.title or _("No title")
+                    )
+                },
+                _("⏱ <b>Total minutes:</b> %(minutes)s")
+                % {"minutes": state.total_minutes},
+                _("🚩 <b>Ticket flag:</b> %(flag)s")
+                % {
+                    "flag": escape(
+                        cls._ticket_color_label(color=state.ticket_flag_color, _=_)
+                    )
+                },
+            ]
+        )
+        lines.append(_("🧱 <b>Part specs</b>"))
+        if state.part_specs:
+            for spec in state.part_specs:
+                lines.append(
+                    _("• <b>%(part)s</b> • %(color)s • %(minutes)s min")
+                    % {
+                        "part": escape(spec.part_name),
+                        "color": escape(cls._ticket_color_label(color=spec.color, _=_)),
+                        "minutes": spec.minutes,
+                    }
+                )
+                if spec.comment:
+                    lines.append(
+                        _("💬 <b>Comment:</b> %(value)s")
+                        % {"value": escape(spec.comment)}
+                    )
+        else:
+            lines.append(_("No part specs were configured."))
         if state.session_status:
             lines.append(
                 _("🛠 <b>Work session:</b> %(session)s")
@@ -657,7 +726,12 @@ class TechnicianTicketActionService:
         cls, *, technician_id: int, ticket_id: int
     ) -> Ticket | None:
         return (
-            Ticket.domain.select_related("inventory_item")
+            Ticket.domain.select_related(
+                "inventory_item",
+                "inventory_item__inventory",
+                "inventory_item__category",
+            )
+            .prefetch_related("part_specs__inventory_item_part")
             .filter(pk=ticket_id, technician_id=technician_id)
             .first()
         )
@@ -673,7 +747,12 @@ class TechnicianTicketActionService:
     ) -> list[Ticket]:
         cls._validate_view_scope(scope=scope)
         queryset = (
-            Ticket.domain.select_related("inventory_item")
+            Ticket.domain.select_related(
+                "inventory_item",
+                "inventory_item__inventory",
+                "inventory_item__category",
+            )
+            .prefetch_related("part_specs__inventory_item_part")
             .filter(
                 technician_id=technician_id,
                 status__in=list(cls._VIEW_SCOPE_STATUSES[scope]),
@@ -855,6 +934,57 @@ class TechnicianTicketActionService:
             getattr(inventory_item, "serial_number", "")
             or TechnicianTicketActionService._SERIAL_UNKNOWN
         )
+
+    @classmethod
+    def _inventory_name(cls, *, ticket: Ticket) -> str:
+        inventory_item = getattr(ticket, "inventory_item", None)
+        inventory = getattr(inventory_item, "inventory", None)
+        return str(getattr(inventory, "name", "") or cls._EMPTY_VALUE)
+
+    @classmethod
+    def _category_name(cls, *, ticket: Ticket) -> str:
+        inventory_item = getattr(ticket, "inventory_item", None)
+        category = getattr(inventory_item, "category", None)
+        return str(getattr(category, "name", "") or cls._EMPTY_VALUE)
+
+    @classmethod
+    def _item_name(cls, *, ticket: Ticket) -> str:
+        inventory_item = getattr(ticket, "inventory_item", None)
+        return str(getattr(inventory_item, "name", "") or cls._EMPTY_VALUE)
+
+    @classmethod
+    def _title(cls, *, ticket: Ticket) -> str:
+        return str(getattr(ticket, "title", "") or "").strip()
+
+    @classmethod
+    def _normalize_color(cls, *, color: str | None) -> str:
+        value = str(color or "").lower()
+        return value if value in cls._FLAG_COLOR_LABELS else str(TicketColor.GREEN)
+
+    @classmethod
+    def _ticket_color_label(cls, *, color: str, _=None) -> str:
+        label = cls._FLAG_COLOR_LABELS.get(color, str(color))
+        return cls._translate(text=label, _=_)
+
+    @classmethod
+    def _part_specs(cls, *, ticket: Ticket) -> tuple[TechnicianTicketPartSpecState, ...]:
+        raw_specs: list[TicketPartSpec] = sorted(
+            list(ticket.part_specs.all()),
+            key=lambda spec: (spec.id or 0),
+        )
+        states: list[TechnicianTicketPartSpecState] = []
+        for spec in raw_specs:
+            part = getattr(spec, "inventory_item_part", None)
+            part_name = str(getattr(part, "name", "") or cls._EMPTY_VALUE)
+            states.append(
+                TechnicianTicketPartSpecState(
+                    part_name=part_name,
+                    color=cls._normalize_color(color=spec.color),
+                    minutes=max(int(spec.minutes or 0), 0),
+                    comment=str(spec.comment or "").strip(),
+                )
+            )
+        return tuple(states)
 
     @classmethod
     def _transition_metadata(cls, *, action: str) -> dict[str, str]:
