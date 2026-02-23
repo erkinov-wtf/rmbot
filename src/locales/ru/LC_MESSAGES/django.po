@@ -1295,6 +1295,31 @@ msgstr "🔢 Серийный номер: %(serial)s"
 msgid "📍 Status: %(status)s"
 msgstr "📍 Статус: %(status)s"
 
+#: bot/services/technician_ticket_actions.py:449
+#, python-format
+msgid "🏬 <b>Inventory:</b> %(inventory)s"
+msgstr "🏬 <b>Инвентарь:</b> %(inventory)s"
+
+#: bot/services/technician_ticket_actions.py:451
+#, python-format
+msgid "🧩 <b>Category:</b> %(category)s"
+msgstr "🧩 <b>Категория:</b> %(category)s"
+
+#: bot/services/technician_ticket_actions.py:453
+#, python-format
+msgid "📦 <b>Item:</b> %(item)s"
+msgstr "📦 <b>Элемент:</b> %(item)s"
+
+#: bot/services/technician_ticket_actions.py:454
+#, python-format
+msgid "📝 <b>Title:</b> %(title)s"
+msgstr "📝 <b>Название:</b> %(title)s"
+
+#: bot/services/technician_ticket_actions.py:461
+#, python-format
+msgid "🚩 <b>Ticket flag:</b> %(flag)s"
+msgstr "🚩 <b>Флаг заявки:</b> %(flag)s"
+
 #: bot/services/technician_ticket_actions.py:432
 #, python-format
 msgid "🛠 Work session: %(session)s"

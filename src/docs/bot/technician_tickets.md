@@ -43,7 +43,7 @@ Documents class-based Telegram command/callback handlers that let technicians ru
   - callbacks in `bot/routers/technician_tickets/callbacks.py`
 - Queue list rows include status icon, serial number, status label, and XP progress (`acquired/potential`) per ticket.
 - Pagination row is always visible after the listed rows: `<`, `X/Y`, `>`.
-- Ticket detail cards include readable status/session labels plus `Potential XP`, `Acquired XP`, and `XP progress`.
+- Ticket detail cards now include operational checklist context: inventory name, item category, item name, title, total minutes, ticket flag color, and part-spec rows (`part + flag color + minutes + optional comment`), plus `Potential XP`/`Acquired XP`/`XP progress`.
 - Ticket cards always include a back-to-scope inline button so operators can return to the exact queue context.
 - Bottom reply-keyboard buttons are the primary entrypoints; inline buttons are reserved for queue/ticket sub-menu navigation.
 - Message refresh uses service-driven action resolution so stale buttons self-correct after any action.

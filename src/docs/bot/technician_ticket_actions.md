@@ -35,7 +35,7 @@ Resolves technician-allowed ticket actions for Telegram, executes selected actio
 ## Operational Notes
 - Queue keyboard appends a fixed pagination row (`<`, `X/Y`, `>`) after ticket rows; callbacks are page-clamped to avoid out-of-bounds navigation.
 - Queue summaries are scope-aware for both empty-state text and total counters (`active`, `under_qc`, `past`).
-- Queue lines expose ticket status + XP progress (`acquired/potential`) and ticket-detail cards show explicit `Potential XP`, `Acquired XP`, and `XP progress`.
+- Queue lines expose ticket status + XP progress (`acquired/potential`) and ticket-detail cards show checklist-grade details (inventory/category/item/title, total minutes, flag color, part-spec rows with optional comments) plus explicit `Potential XP`, `Acquired XP`, and `XP progress`.
 - Inline labels are action-specific (`Start work`, `Pause work`, `Send to QC`, `Refresh list/ticket`) to keep button intent explicit in Telegram UI.
 - Scope listing rules:
   - `active` -> `assigned`, `rework`, `in_progress`
