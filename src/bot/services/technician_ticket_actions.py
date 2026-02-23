@@ -482,6 +482,7 @@ class TechnicianTicketActionService:
                 },
             ]
         )
+        lines.append("")
         lines.append(_("🧱 <b>Part specs</b>"))
         if state.part_specs:
             for spec in state.part_specs:
@@ -500,6 +501,7 @@ class TechnicianTicketActionService:
                     )
         else:
             lines.append(_("No part specs were configured."))
+        lines.append("")
         if state.session_status:
             lines.append(
                 _("🛠 <b>Work session:</b> %(session)s")
