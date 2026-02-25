@@ -10,6 +10,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { FeedbackToast } from "@/components/ui/feedback-toast";
 import { useI18n } from "@/i18n";
 import {
   assignTicket,
@@ -31,6 +32,7 @@ import {
   type TicketFlowPermissions,
   type TicketStatus,
 } from "@/lib/api";
+import { buildInventorySerialSearchQuery } from "@/lib/inventory-search";
 import { cn } from "@/lib/utils";
 
 type MobileTicketFlowProps = {
@@ -97,7 +99,6 @@ const COLOR_LABEL: Record<TicketColor, string> = {
 
 const DEFAULT_RECENT_LIMIT = 10;
 const SEARCH_RESULT_LIMIT = 500;
-const INVENTORY_SEARCH_MIN_CHARS = 2;
 
 function toErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message) {
@@ -306,10 +307,10 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
   const refreshCreateItems = useCallback(async () => {
     setIsLoadingCreateItems(true);
     try {
-      const search = createSearch.trim();
-      const hasSearch = search.length >= INVENTORY_SEARCH_MIN_CHARS;
+      const searchQuery = buildInventorySerialSearchQuery(createSearch);
+      const hasSearch = Boolean(searchQuery);
       const items = await listInventoryItems(accessToken, {
-        q: hasSearch ? search : undefined,
+        q: searchQuery,
         is_active: true,
         ordering: "-created_at",
         per_page: hasSearch ? SEARCH_RESULT_LIMIT : DEFAULT_RECENT_LIMIT,
@@ -1400,20 +1401,7 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
 
   return (
     <section className="space-y-3 pb-24">
-      {feedback ? (
-        <p
-          className={cn(
-            "rounded-xl border px-3 py-2 text-sm",
-            feedback.type === "error"
-              ? "border-rose-200 bg-rose-50 text-rose-700"
-              : feedback.type === "success"
-                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                : "border-sky-200 bg-sky-50 text-sky-700",
-          )}
-        >
-          {feedback.message}
-        </p>
-      ) : null}
+      <FeedbackToast feedback={feedback} />
 
       {!availableTabs.length ? (
         <section className="rm-panel p-4">

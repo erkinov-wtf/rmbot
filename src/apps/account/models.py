@@ -1,3 +1,5 @@
+import base64
+import mimetypes
 from django.contrib.auth.base_user import AbstractBaseUser
 from django.db import models
 from django.utils import timezone
@@ -22,6 +24,13 @@ class User(AbstractBaseUser, TimestampedModel, SoftDeleteModel):
 
     username = models.CharField(max_length=150, unique=True)
     phone = models.CharField(max_length=15, unique=True, null=True, blank=True)
+    public_photo = models.FileField(
+        upload_to="users/public_photos/",
+        null=True,
+        blank=True,
+    )
+    public_photo_blob = models.BinaryField(null=True, blank=True)
+    public_photo_mime = models.CharField(max_length=100, null=True, blank=True)
     level = models.PositiveSmallIntegerField(
         choices=EmployeeLevel, default=EmployeeLevel.L1, db_index=True
     )
@@ -98,6 +107,50 @@ class User(AbstractBaseUser, TimestampedModel, SoftDeleteModel):
         roles = Role.objects.filter(slug__in=list(role_slugs), deleted_at__isnull=True)
         if roles:
             self.roles.add(*roles)
+
+    def resolve_public_photo_url(self, request=None) -> str | None:
+        if self.public_photo_blob:
+            raw_blob = bytes(self.public_photo_blob)
+            if raw_blob:
+                mime = (self.public_photo_mime or "image/jpeg").strip() or "image/jpeg"
+                encoded = base64.b64encode(raw_blob).decode("ascii")
+                return f"data:{mime};base64,{encoded}"
+
+        photo = self.public_photo
+        if not photo:
+            return None
+
+        try:
+            photo.open("rb")
+            raw_photo = photo.read()
+        except Exception:
+            raw_photo = b""
+        finally:
+            try:
+                photo.close()
+            except Exception:
+                pass
+
+        if raw_photo:
+            guessed_type, _ = mimetypes.guess_type(getattr(photo, "name", ""))
+            mime = (
+                (self.public_photo_mime or guessed_type or "image/jpeg").strip().lower()
+                or "image/jpeg"
+            )
+            encoded = base64.b64encode(raw_photo).decode("ascii")
+            return f"data:{mime};base64,{encoded}"
+
+        try:
+            url = photo.url
+        except ValueError:
+            return None
+
+        if not url.startswith(("http://", "https://", "/")):
+            url = f"/{url.lstrip('/')}"
+
+        if request is not None and not url.startswith(("http://", "https://")):
+            return request.build_absolute_uri(url)
+        return url
 
 
 class UserRole(TimestampedModel, SoftDeleteModel):

@@ -5,6 +5,7 @@ from api.v1.core.views.analytics import (
     AnalyticsTeamAPIView,
     PublicTechnicianDetailAPIView,
     PublicTechnicianLeaderboardAPIView,
+    PublicTechnicianPhotoAPIView,
 )
 
 app_name = "analytics"
@@ -21,5 +22,10 @@ urlpatterns = [
         "public/technicians/<int:user_id>/",
         PublicTechnicianDetailAPIView.as_view(),
         name="public-technician-detail-api",
+    ),
+    path(
+        "public/technicians/<int:user_id>/photo/",
+        PublicTechnicianPhotoAPIView.as_view(),
+        name="public-technician-photo-api",
     ),
 ]

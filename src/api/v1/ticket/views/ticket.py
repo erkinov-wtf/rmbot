@@ -1,4 +1,5 @@
-from django.db.models import Q
+from django.db.models import F, Q, Value
+from django.db.models.functions import Replace, Upper
 from rest_framework.permissions import IsAuthenticated
 
 from api.v1.ticket.permissions import TicketCreatePermission
@@ -6,6 +7,7 @@ from api.v1.ticket.serializers import TicketSerializer
 from core.api.schema import extend_schema
 from core.api.views import BaseModelViewSet
 from core.utils.constants import TicketStatus, TicketTransitionAction
+from inventory.services import InventoryItemService
 from ticket.models import Ticket
 
 
@@ -29,15 +31,24 @@ class TicketViewSet(BaseModelViewSet):
 
         q_filter = str(self.request.query_params.get("q", "")).strip()
         if q_filter:
-            normalized_q = q_filter.lstrip("#").strip()
-            if not normalized_q:
+            text_query = q_filter.lstrip("#").strip()
+            serial_query = InventoryItemService.normalize_serial_search_query(text_query)
+            if not text_query and not serial_query:
                 return queryset.none()
-            search_filter = (
-                Q(inventory_item__serial_number__icontains=normalized_q)
-                | Q(title__icontains=normalized_q)
-            )
-            if normalized_q.isdigit():
-                search_filter |= Q(id=int(normalized_q))
+
+            search_filter = Q(pk__in=[])
+            if serial_query:
+                queryset = queryset.annotate(
+                    _serial_search=Upper(
+                        Replace(F("inventory_item__serial_number"), Value("-"), Value(""))
+                    )
+                )
+                search_filter |= Q(_serial_search__icontains=serial_query)
+
+            if text_query:
+                search_filter |= Q(title__icontains=text_query)
+            if text_query.isdigit():
+                search_filter |= Q(id=int(text_query))
             queryset = queryset.filter(search_filter)
 
         return queryset

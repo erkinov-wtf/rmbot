@@ -16,16 +16,16 @@ Resolves technician-allowed ticket actions for Telegram, executes selected actio
 - Technician ownership is mandatory (`ticket.technician_id == actor_user_id`) for both state reads and action execution.
 - Available action set depends on ticket status + latest session status:
   - `ASSIGNED`/`REWORK` -> `start` only when technician has no other open work session
-  - `IN_PROGRESS` + `RUNNING` -> `pause`, `stop`
-  - `IN_PROGRESS` + `PAUSED` -> `resume`, `stop`
-  - `IN_PROGRESS` + `STOPPED` -> `to_waiting_qc`
+  - `IN_PROGRESS` + `RUNNING` -> `pause`, `stop` (`stop` also moves ticket to `waiting_qc`)
+  - `IN_PROGRESS` + `PAUSED` -> `resume`, `stop` (`stop` also moves ticket to `waiting_qc`)
+  - `IN_PROGRESS` + `STOPPED` -> `to_waiting_qc` (legacy/manual fallback path)
 - Callback payload format is stable: `tt:<ticket_id>:<action>`.
 - Queue payload format is scope/page-aware: `ttq:refresh:<scope>:<page>` and `ttq:open:<ticket_id>:<scope>:<page>` (legacy payloads without scope/page are still parsed as `active`, page `1`).
 
 ## Side Effects
 - Delegates to domain orchestration services (`TicketWorkflowService`, `TicketWorkSessionService`) for all state mutations.
 - Reuses existing transition logging, inventory updates, XP side effects, and notification hooks from those services.
-- `to_waiting_qc` action tags transition metadata with Telegram source context (`source=telegram_bot`, `channel=technician_callback`, `telegram_action=to_waiting_qc`) so status-change audit logs identify bot-originated transitions.
+- `to_waiting_qc` (and one-click `stop` -> `to_waiting_qc`) tags transition metadata with Telegram source context (`source=telegram_bot`, `channel=technician_callback`) so status-change audit logs identify bot-originated transitions.
 
 ## Failure Modes
 - Ticket not found for technician ownership returns user-safe validation error.

@@ -22,6 +22,7 @@ import {
 } from "react";
 
 import { Button } from "@/components/ui/button";
+import { FeedbackToast } from "@/components/ui/feedback-toast";
 import { PaginationControls } from "@/components/ui/pagination-controls";
 import { useI18n } from "@/i18n";
 import {
@@ -46,6 +47,10 @@ import {
   updateInventoryItem,
   updatePart,
 } from "@/lib/api";
+import {
+  buildInventorySerialSearchQuery,
+  normalizeInventorySerialSearchQuery,
+} from "@/lib/inventory-search";
 import { cn } from "@/lib/utils";
 
 type InventoryAdminProps = {
@@ -346,11 +351,11 @@ export function InventoryAdmin({
     async (filters: ItemFilters, page: number, perPage: number) => {
       setIsLoadingItems(true);
       try {
-        const trimmedSearch = filters.search.trim();
+        const searchQuery = buildInventorySerialSearchQuery(filters.search);
         const paginated = await listInventoryItemsPage(accessToken, {
           page,
           per_page: perPage,
-          q: trimmedSearch.length >= 2 ? trimmedSearch : undefined,
+          q: searchQuery,
           category: filters.categoryId ? Number(filters.categoryId) : undefined,
           status: filters.status === "all" ? undefined : filters.status,
           is_active:
@@ -437,6 +442,24 @@ export function InventoryAdmin({
   useEffect(() => {
     void loadItems(appliedFilters, itemPage, itemPerPage);
   }, [appliedFilters, itemPage, itemPerPage, loadItems]);
+
+  useEffect(() => {
+    if (itemFilters.search === appliedFilters.search) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setItemPage(1);
+      setAppliedFilters((prev) => ({
+        ...prev,
+        search: itemFilters.search,
+      }));
+    }, 300);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [appliedFilters.search, itemFilters.search]);
 
   useEffect(() => {
     if (route.name !== "itemDetail") {
@@ -604,8 +627,8 @@ export function InventoryAdmin({
   };
 
   const handleApplyFilters = () => {
-    const trimmedSearch = itemFilters.search.trim();
-    if (trimmedSearch.length === 1) {
+    const normalizedSearch = normalizeInventorySerialSearchQuery(itemFilters.search);
+    if (normalizedSearch.length === 1) {
       setFeedback({
         type: "info",
         message: t("Search query starts applying from 2 characters. Showing wider result set."),
@@ -1071,7 +1094,8 @@ export function InventoryAdmin({
   );
 
   const renderItemsListPage = () => {
-    const oneCharSearch = itemFilters.search.trim().length === 1;
+    const oneCharSearch =
+      normalizeInventorySerialSearchQuery(itemFilters.search).length === 1;
 
     return (
       <div className="mt-4 space-y-4">
@@ -1248,6 +1272,13 @@ export function InventoryAdmin({
                       search: event.target.value,
                     }))
                   }
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter") {
+                      return;
+                    }
+                    event.preventDefault();
+                    handleApplyFilters();
+                  }}
                   placeholder={t("Serial number search")}
                 />
               </div>
@@ -1812,20 +1843,7 @@ export function InventoryAdmin({
         </div>
       </div>
 
-      {feedback ? (
-        <p
-          className={cn(
-            "mt-4 rounded-xl border px-3 py-2 text-sm",
-            feedback.type === "error"
-              ? "border-rose-200 bg-rose-50 text-rose-700"
-              : feedback.type === "success"
-                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                : "border-sky-200 bg-sky-50 text-sky-700",
-          )}
-        >
-          {feedback.message}
-        </p>
-      ) : null}
+      <FeedbackToast feedback={feedback} />
 
       <div className="mt-4 flex flex-wrap gap-2">
         <button

@@ -1,9 +1,10 @@
 import { CircleCheck, LockKeyhole, LogIn, UserRound } from "lucide-react";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/i18n";
 import { loginWithPassword, type LoginTokens } from "@/lib/api";
+import { notify } from "@/lib/notify";
 
 type LoginFormProps = {
   onLoggedIn: (tokens: LoginTokens) => void;
@@ -16,6 +17,18 @@ export function LoginForm({ onLoggedIn, noticeMessage }: LoginFormProps) {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+
+  useEffect(() => {
+    if (noticeMessage) {
+      notify("info", noticeMessage);
+    }
+  }, [noticeMessage]);
+
+  useEffect(() => {
+    if (errorMessage) {
+      notify("error", errorMessage);
+    }
+  }, [errorMessage]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -74,11 +87,6 @@ export function LoginForm({ onLoggedIn, noticeMessage }: LoginFormProps) {
               {t("Automatic logout on token expiry")}
             </li>
           </ul>
-          {noticeMessage ? (
-            <p className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
-              {noticeMessage}
-            </p>
-          ) : null}
         </div>
 
         <form className="rm-panel rm-animate-enter-delayed p-5 sm:p-6 md:p-8" onSubmit={handleSubmit}>
@@ -136,15 +144,6 @@ export function LoginForm({ onLoggedIn, noticeMessage }: LoginFormProps) {
             </div>
           </div>
 
-          {errorMessage ? (
-            <p
-              className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
-              aria-live="polite"
-            >
-              {errorMessage}
-            </p>
-          ) : null}
-
           <div className="mt-6 space-y-3">
             <Button
               type="submit"
@@ -153,9 +152,6 @@ export function LoginForm({ onLoggedIn, noticeMessage }: LoginFormProps) {
             >
               {isLoading ? t("Signing in...") : t("Sign In")}
             </Button>
-            <p className="text-center text-xs text-slate-500">
-              {t("API endpoint")}: <code>/api/v1/auth/login/</code>
-            </p>
           </div>
         </form>
       </section>

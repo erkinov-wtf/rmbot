@@ -24,7 +24,9 @@ const RU_MESSAGES: TranslationCatalog = {
   "Avg duration": "Средняя длительность",
   "Avg work/day": "Средняя работа в день",
   "Back To Leaderboard": "Назад к рейтингу",
+  Champion: "Чемпион",
   Comment: "Комментарий",
+  Daily: "День",
   "Completed days": "Завершенные дни",
   Create: "Создать",
   "Create Ticket": "Создать тикет",
@@ -138,6 +140,7 @@ const RU_MESSAGES: TranslationCatalog = {
   "Rules Panel": "Панель правил",
   "Save Manual Metrics": "Сохранить ручные метрики",
   "Score": "Счет",
+  "Score Breakdown": "Разбор счета",
   "Search by serial or name": "Поиск по серийному номеру или названию",
   "Search ticket id, serial, title":
     "Поиск по ID тикета, серийному номеру, названию",
@@ -245,6 +248,7 @@ const RU_MESSAGES: TranslationCatalog = {
   "Rank": "Ранг",
   "Recent Done Tickets": "Недавние завершенные тикеты",
   "Recent XP Activity": "Недавняя активность XP",
+  "Raw XP": "Сырой XP",
   "Red": "Красный",
   "Ref": "Ссылка",
   "Updated at {{time}}": "Обновлено: {{time}}",
@@ -254,6 +258,7 @@ const RU_MESSAGES: TranslationCatalog = {
   "Ticket QC First Pass Bonus": "Бонус QC за первый проход",
   "Ticket QC Status Update": "XP за обновление статуса QC",
   "Set level to L1": "Установить уровень L1",
+  "Secondary indicators": "Вторичные индикаторы",
   "Tasks": "Задачи",
   "Technicians": "Техники",
   "Ticket Quality": "Качество тикетов",
@@ -271,6 +276,9 @@ const RU_MESSAGES: TranslationCatalog = {
     "Неделя предупреждения без изменений (активна)",
   "Warning week unchanged (not active)":
     "Неделя предупреждения без изменений (не активна)",
+  Weekly: "Неделя",
+  Monthly: "Месяц",
+  Name: "Имя",
   "Weekly KPI achieved. No mandatory action.":
     "Недельный KPI выполнен. Обязательных действий нет.",
   "Weekly KPI helper: review technician XP, set warning week manually, and apply level decisions with clear suggestions.":
@@ -321,7 +329,9 @@ const UZ_MESSAGES: TranslationCatalog = {
   "Avg duration": "O'rtacha davomiylik",
   "Avg work/day": "Kunlik o'rtacha ish",
   "Back To Leaderboard": "Reytingga qaytish",
+  Champion: "Chempion",
   Comment: "Izoh",
+  Daily: "Kunlik",
   "Completed days": "Yakunlangan kunlar",
   Create: "Yaratish",
   "Create Ticket": "Ariza yaratish",
@@ -434,6 +444,7 @@ const UZ_MESSAGES: TranslationCatalog = {
   "Rules Panel": "Qoidalar paneli",
   "Save Manual Metrics": "Qo'lda metrikalarni saqlash",
   Score: "Ball",
+  "Score Breakdown": "Ball tarkibi",
   "Search by serial or name": "Seriya raqami yoki nom bo'yicha qidirish",
   "Search ticket id, serial, title":
     "Ariza ID, seriya raqami, nom bo'yicha qidirish",
@@ -543,6 +554,7 @@ const UZ_MESSAGES: TranslationCatalog = {
   "Rank": "O'rin",
   "Recent Done Tickets": "So'nggi yakunlangan arizalar",
   "Recent XP Activity": "So'nggi XP faolligi",
+  "Raw XP": "Sof XP",
   "Red": "Qizil",
   "Ref": "Havola",
   "Updated at {{time}}": "Yangilangan vaqt: {{time}}",
@@ -552,6 +564,7 @@ const UZ_MESSAGES: TranslationCatalog = {
   "Ticket QC First Pass Bonus": "QC birinchi o'tish bonusi",
   "Ticket QC Status Update": "QC holati yangilash XP",
   "Set level to L1": "Darajani L1 ga o'rnatish",
+  "Secondary indicators": "Ikkinchi indikatorlar",
   "Tasks": "Vazifalar",
   "Technicians": "Texniklar",
   "Ticket Quality": "Ariza sifati",
@@ -569,6 +582,9 @@ const UZ_MESSAGES: TranslationCatalog = {
     "Ogohlantirish haftasi o'zgarmadi (faol)",
   "Warning week unchanged (not active)":
     "Ogohlantirish haftasi o'zgarmadi (faol emas)",
+  Weekly: "Haftalik",
+  Monthly: "Oylik",
+  Name: "Ism",
   "Weekly KPI achieved. No mandatory action.":
     "Haftalik KPI bajarildi. Majburiy amal yo'q.",
   "Weekly KPI helper: review technician XP, set warning week manually, and apply level decisions with clear suggestions.":

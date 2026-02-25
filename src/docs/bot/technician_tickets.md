@@ -21,6 +21,7 @@ Documents class-based Telegram command/callback handlers that let technicians ru
 - Only active linked users with technician role can run ticket action callbacks.
 - Action execution is ownership-scoped (`ticket.technician_id` must match callback actor).
 - `start` is suppressed on assigned/rework tickets while technician has any other open session (`RUNNING`/`PAUSED`).
+- `⏹ Stop session` is a one-click terminal action for active work: it stops the session and immediately sends the ticket to `waiting_qc`.
 - Ticket dashboards are scope-filtered:
   - `active`: `assigned`, `rework`, `in_progress`
   - `under_qc`: `waiting_qc`

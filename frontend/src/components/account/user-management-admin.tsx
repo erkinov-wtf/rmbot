@@ -1,4 +1,5 @@
 import {
+  ImagePlus,
   RefreshCcw,
   Search,
   Shield,
@@ -7,16 +8,26 @@ import {
   UserX2,
   Users,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  type ChangeEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { AccessRequestsAdmin } from "@/components/account/access-requests-admin";
 import { Button } from "@/components/ui/button";
+import { FeedbackToast } from "@/components/ui/feedback-toast";
 import { PaginationControls } from "@/components/ui/pagination-controls";
 import { useI18n } from "@/i18n";
 import {
+  getManagedUser,
   listManagedUsersPage,
   listRoleOptions,
   updateManagedUser,
+  updateManagedUserPhoto,
   type ManagedUser,
   type ManagedUserQuery,
   type PaginationMeta,
@@ -43,6 +54,8 @@ type ActivityFilter = "all" | "active" | "inactive";
 const fieldClassName = "rm-input";
 const USER_PER_PAGE_OPTIONS = [10, 20, 50];
 const DEFAULT_USER_PER_PAGE = 20;
+const MAX_AVATAR_FILE_BYTES = 3 * 1024 * 1024;
+const MAX_AVATAR_FILE_LABEL = "3 MB";
 
 const FALLBACK_ROLE_OPTIONS: RoleOption[] = [
   { slug: "super_admin", name: "Super Admin" },
@@ -68,6 +81,17 @@ function formatDateTime(value: string | null): string {
     return value;
   }
   return parsed.toLocaleString();
+}
+
+function initialsFromName(value: string): string {
+  const words = value.trim().split(/\s+/).filter(Boolean);
+  if (!words.length) {
+    return "?";
+  }
+  if (words.length === 1) {
+    return words[0].slice(0, 2).toUpperCase();
+  }
+  return `${words[0][0] ?? ""}${words[1][0] ?? ""}`.toUpperCase();
 }
 
 function parseTabFromPath(pathname: string): UserTab {
@@ -112,6 +136,82 @@ function statusBadgeClass(isActive: boolean): string {
     : "border-rose-200 bg-rose-50 text-rose-700";
 }
 
+function hasOwnPhoto(
+  source: Record<number, string | null>,
+  userId: number,
+): boolean {
+  return Object.prototype.hasOwnProperty.call(source, userId);
+}
+
+type LazyUserAvatarProps = {
+  userId: number;
+  displayName: string;
+  photoUrl: string | null;
+  shouldLoad: boolean;
+  onVisible: (userId: number) => void;
+  className: string;
+};
+
+function LazyUserAvatar({
+  userId,
+  displayName,
+  photoUrl,
+  shouldLoad,
+  onVisible,
+  className,
+}: LazyUserAvatarProps) {
+  const rootRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!shouldLoad) {
+      return;
+    }
+    const root = rootRef.current;
+    if (!root) {
+      return;
+    }
+
+    if (typeof IntersectionObserver === "undefined") {
+      onVisible(userId);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const isVisible = entries.some((entry) => entry.isIntersecting);
+        if (!isVisible) {
+          return;
+        }
+        onVisible(userId);
+        observer.disconnect();
+      },
+      {
+        rootMargin: "220px 0px",
+      },
+    );
+    observer.observe(root);
+    return () => observer.disconnect();
+  }, [onVisible, shouldLoad, userId]);
+
+  return (
+    <div ref={rootRef} className={className}>
+      {photoUrl ? (
+        <img
+          src={photoUrl}
+          alt={displayName}
+          className="h-full w-full object-cover"
+          loading="lazy"
+          decoding="async"
+        />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-slate-500">
+          {initialsFromName(displayName)}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function UserManagementAdmin({
   accessToken,
   canManage,
@@ -148,6 +248,16 @@ export function UserManagementAdmin({
   const [editRoleSlugs, setEditRoleSlugs] = useState<string[]>([]);
   const [editIsActive, setEditIsActive] = useState(true);
   const [editLevel, setEditLevel] = useState(1);
+  const [editPhotoFile, setEditPhotoFile] = useState<File | null>(null);
+  const [editPhotoPreview, setEditPhotoPreview] = useState<string | null>(null);
+  const [editPhotoClear, setEditPhotoClear] = useState(false);
+  const [lazyPhotoByUserId, setLazyPhotoByUserId] = useState<
+    Record<number, string | null>
+  >({});
+  const queuedPhotoIdsRef = useRef<Set<number>>(new Set());
+  const photoLoadQueueRef = useRef<number[]>([]);
+  const isPhotoQueueRunningRef = useRef(false);
+  const editingUserIdRef = useRef<number | null>(null);
 
   const isSuperAdmin = useMemo(
     () => roleSlugs.includes("super_admin"),
@@ -172,6 +282,71 @@ export function UserManagementAdmin({
     const inactive = total - active;
     return { total, active, inactive };
   }, [users]);
+
+  const fetchManagedUserPhoto = useCallback(
+    async (userId: number): Promise<string | null> => {
+      const detailed = await getManagedUser(accessToken, userId, {
+        include_photo: true,
+      });
+      const nextPhotoUrl = detailed.photo_url;
+      setLazyPhotoByUserId((prev) => ({
+        ...prev,
+        [userId]: nextPhotoUrl,
+      }));
+      setUsers((prev) =>
+        prev.map((row) =>
+          row.id === userId
+            ? {
+                ...row,
+                photo_url: nextPhotoUrl,
+              }
+            : row,
+        ),
+      );
+      return nextPhotoUrl;
+    },
+    [accessToken],
+  );
+
+  const processPhotoQueue = useCallback(() => {
+    if (isPhotoQueueRunningRef.current) {
+      return;
+    }
+    const nextUserId = photoLoadQueueRef.current.shift();
+    if (!nextUserId) {
+      return;
+    }
+
+    isPhotoQueueRunningRef.current = true;
+    void fetchManagedUserPhoto(nextUserId)
+      .catch(() => {
+        setLazyPhotoByUserId((prev) => ({
+          ...prev,
+          [nextUserId]: null,
+        }));
+      })
+      .finally(() => {
+        isPhotoQueueRunningRef.current = false;
+        processPhotoQueue();
+      });
+  }, [fetchManagedUserPhoto]);
+
+  const queuePhotoLoad = useCallback(
+    (userId: number, options: { prioritize?: boolean } = {}) => {
+      const { prioritize = false } = options;
+      if (queuedPhotoIdsRef.current.has(userId)) {
+        return;
+      }
+      queuedPhotoIdsRef.current.add(userId);
+      if (prioritize) {
+        photoLoadQueueRef.current.unshift(userId);
+      } else {
+        photoLoadQueueRef.current.push(userId);
+      }
+      processPhotoQueue();
+    },
+    [processPhotoQueue],
+  );
 
   const loadRoleOptions = useCallback(async () => {
     if (!canManage) {
@@ -209,6 +384,7 @@ export function UserManagementAdmin({
       const query: ManagedUserQuery = {
         q: appliedSearch || undefined,
         role_slug: appliedRoleFilter || undefined,
+        include_photo: false,
         ordering: "-created_at",
         page: usersPage,
         per_page: usersPerPage,
@@ -263,6 +439,20 @@ export function UserManagementAdmin({
     void loadUsers();
   }, [activeTab, loadUsers]);
 
+  useEffect(() => {
+    const activeEditingUserId = editingUserIdRef.current;
+    if (activeEditingUserId === null) {
+      return;
+    }
+    if (editPhotoFile || editPhotoClear) {
+      return;
+    }
+    if (!hasOwnPhoto(lazyPhotoByUserId, activeEditingUserId)) {
+      return;
+    }
+    setEditPhotoPreview(lazyPhotoByUserId[activeEditingUserId] ?? null);
+  }, [editPhotoClear, editPhotoFile, lazyPhotoByUserId]);
+
   const handleTabChange = (nextTab: UserTab) => {
     const nextPath = tabPath(nextTab);
     if (window.location.pathname !== nextPath) {
@@ -289,16 +479,67 @@ export function UserManagementAdmin({
   };
 
   const startEdit = (user: ManagedUser) => {
+    const hasCachedPhoto = hasOwnPhoto(lazyPhotoByUserId, user.id);
+    const resolvedPhoto = hasCachedPhoto
+      ? lazyPhotoByUserId[user.id]
+      : user.photo_url;
+
+    editingUserIdRef.current = user.id;
     setEditingUserId(user.id);
     setEditRoleSlugs([...user.role_slugs]);
     setEditIsActive(user.is_active);
     setEditLevel(user.level);
+    setEditPhotoFile(null);
+    setEditPhotoPreview(resolvedPhoto ?? null);
+    setEditPhotoClear(false);
     setFeedback(null);
+
+    if (!resolvedPhoto && user.has_photo) {
+      queuePhotoLoad(user.id, { prioritize: true });
+    }
   };
 
   const cancelEdit = () => {
+    editingUserIdRef.current = null;
     setEditingUserId(null);
     setEditRoleSlugs([]);
+    setEditPhotoFile(null);
+    setEditPhotoPreview(null);
+    setEditPhotoClear(false);
+  };
+
+  const handleEditPhotoChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = event.target.files?.[0] ?? null;
+    event.target.value = "";
+    if (!selectedFile) {
+      return;
+    }
+    if (selectedFile.size > MAX_AVATAR_FILE_BYTES) {
+      setFeedback({
+        type: "error",
+        message: t("Avatar must be {{size}} or smaller.", {
+          size: MAX_AVATAR_FILE_LABEL,
+        }),
+      });
+      return;
+    }
+
+    setEditPhotoFile(selectedFile);
+    setEditPhotoClear(false);
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        setEditPhotoPreview(reader.result);
+      }
+    };
+    reader.readAsDataURL(selectedFile);
+  };
+
+  const handleRemoveEditPhoto = (user: ManagedUser) => {
+    setEditPhotoFile(null);
+    setEditPhotoPreview(null);
+    setEditPhotoClear(Boolean(user.photo_url));
   };
 
   const toggleEditRole = (roleSlug: string) => {
@@ -316,14 +557,25 @@ export function UserManagementAdmin({
     setIsMutating(true);
     setFeedback(null);
     try {
-      const updated = await updateManagedUser(accessToken, editingUserId, {
+      let updated = await updateManagedUser(accessToken, editingUserId, {
         role_slugs: editRoleSlugs,
         is_active: editIsActive,
         level: editLevel,
       });
+      if (editPhotoFile || editPhotoClear) {
+        updated = await updateManagedUserPhoto(accessToken, editingUserId, {
+          photo: editPhotoFile ?? undefined,
+          photo_clear: editPhotoClear,
+        });
+      }
       setUsers((prev) =>
         prev.map((user) => (user.id === updated.id ? updated : user)),
       );
+      setLazyPhotoByUserId((prev) => ({
+        ...prev,
+        [updated.id]: updated.photo_url,
+      }));
+      queuedPhotoIdsRef.current.add(updated.id);
       setFeedback({ type: "success", message: t("User updated successfully.") });
       cancelEdit();
     } catch (error) {
@@ -413,18 +665,7 @@ export function UserManagementAdmin({
         />
       ) : (
         <section className="rm-panel p-4 sm:p-5">
-          {feedback ? (
-            <p
-              className={cn(
-                "mb-4 rounded-xl border px-3 py-2 text-sm",
-                feedback.type === "error"
-                  ? "border-rose-200 bg-rose-50 text-rose-700"
-                  : "border-emerald-200 bg-emerald-50 text-emerald-700",
-              )}
-            >
-              {feedback.message}
-            </p>
-          ) : null}
+          <FeedbackToast feedback={feedback} />
 
           {!canManage ? (
             <p className="rounded-md border border-dashed border-slate-300 px-3 py-8 text-center text-sm text-slate-600">
@@ -542,6 +783,12 @@ export function UserManagementAdmin({
                         ? user.role_slugs
                         : ["no_role"];
                       const rolesReadOnly = user.is_superuser && !isSuperAdmin;
+                      const isLazyPhotoResolved = hasOwnPhoto(lazyPhotoByUserId, user.id);
+                      const resolvedPhotoUrl =
+                        user.photo_url
+                        ?? (isLazyPhotoResolved ? lazyPhotoByUserId[user.id] ?? null : null);
+                      const shouldLoadPhoto =
+                        user.has_photo && !resolvedPhotoUrl && !isLazyPhotoResolved;
 
                       return (
                         <article
@@ -549,53 +796,63 @@ export function UserManagementAdmin({
                           className="rounded-xl border border-slate-200 bg-slate-50 p-3"
                         >
                           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                            <div className="space-y-2">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <p className="text-sm font-semibold text-slate-900">
-                                  {user.display_name}
-                                </p>
-                                <span
-                                  className={cn(
-                                    "rounded-full border px-2 py-0.5 text-xs font-medium",
-                                    statusBadgeClass(user.is_active),
-                                  )}
-                                >
-                                  {user.is_active ? t("Active") : t("Inactive")}
-                                </span>
-                                {user.is_superuser ? (
-                                  <span className="inline-flex items-center gap-1 rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700">
-                                    <Shield className="h-3.5 w-3.5" />
-                                    {t("Superuser")}
-                                  </span>
-                                ) : null}
-                              </div>
-
-                              <div className="grid gap-x-4 gap-y-1 text-xs text-slate-600 sm:grid-cols-2">
-                                <p>{t("Username")}: @{user.username}</p>
-                                <p>{t("Phone")}: {user.phone || "-"}</p>
-                                <p>{t("Level")}: L{user.level}</p>
-                                <p>{t("Last login")}: {formatDateTime(user.last_login)}</p>
-                                <p>{t("Created")}: {formatDateTime(user.created_at)}</p>
-                                <p>
-                                  {t("Telegram")}:{" "}
-                                  {user.telegram?.telegram_id
-                                    ? `tg:${user.telegram.telegram_id}`
-                                    : "-"}
-                                </p>
-                              </div>
-
-                              <div className="flex flex-wrap gap-2">
-                                {userRoles.map((roleSlug) => (
+                            <div className="flex items-start gap-3">
+                              <LazyUserAvatar
+                                userId={user.id}
+                                displayName={user.display_name}
+                                photoUrl={resolvedPhotoUrl}
+                                shouldLoad={shouldLoadPhoto}
+                                onVisible={queuePhotoLoad}
+                                className="h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-white"
+                              />
+                              <div className="space-y-2">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <p className="text-sm font-semibold text-slate-900">
+                                    {user.display_name}
+                                  </p>
                                   <span
-                                    key={`${user.id}-${roleSlug}`}
                                     className={cn(
                                       "rounded-full border px-2 py-0.5 text-xs font-medium",
-                                      rolePillClass(roleSlug),
+                                      statusBadgeClass(user.is_active),
                                     )}
                                   >
-                                    {t(roleNameBySlug.get(roleSlug) ?? roleSlug)}
+                                    {user.is_active ? t("Active") : t("Inactive")}
                                   </span>
-                                ))}
+                                  {user.is_superuser ? (
+                                    <span className="inline-flex items-center gap-1 rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-xs font-medium text-violet-700">
+                                      <Shield className="h-3.5 w-3.5" />
+                                      {t("Superuser")}
+                                    </span>
+                                  ) : null}
+                                </div>
+
+                                <div className="grid gap-x-4 gap-y-1 text-xs text-slate-600 sm:grid-cols-2">
+                                  <p>{t("Username")}: @{user.username}</p>
+                                  <p>{t("Phone")}: {user.phone || "-"}</p>
+                                  <p>{t("Level")}: L{user.level}</p>
+                                  <p>{t("Last login")}: {formatDateTime(user.last_login)}</p>
+                                  <p>{t("Created")}: {formatDateTime(user.created_at)}</p>
+                                  <p>
+                                    {t("Telegram")}:{" "}
+                                    {user.telegram?.telegram_id
+                                      ? `tg:${user.telegram.telegram_id}`
+                                      : "-"}
+                                  </p>
+                                </div>
+
+                                <div className="flex flex-wrap gap-2">
+                                  {userRoles.map((roleSlug) => (
+                                    <span
+                                      key={`${user.id}-${roleSlug}`}
+                                      className={cn(
+                                        "rounded-full border px-2 py-0.5 text-xs font-medium",
+                                        rolePillClass(roleSlug),
+                                      )}
+                                    >
+                                      {t(roleNameBySlug.get(roleSlug) ?? roleSlug)}
+                                    </span>
+                                  ))}
+                                </div>
                               </div>
                             </div>
 
@@ -673,8 +930,56 @@ export function UserManagementAdmin({
                                       }
                                       disabled={isMutating}
                                     />
-                                    {t("Active account")}
-                                  </label>
+                                      {t("Active account")}
+                                    </label>
+
+                                  <div>
+                                    <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-600">
+                                      {t("Photo")}
+                                    </p>
+                                    <div className="flex items-center gap-2">
+                                      <div className="h-12 w-12 overflow-hidden rounded-lg border border-slate-200 bg-white">
+                                        {editPhotoPreview ? (
+                                          <img
+                                            src={editPhotoPreview}
+                                            alt={user.display_name}
+                                            className="h-full w-full object-cover"
+                                          />
+                                        ) : (
+                                          <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-slate-500">
+                                            {initialsFromName(user.display_name)}
+                                          </div>
+                                        )}
+                                      </div>
+                                      <label className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-700">
+                                        <ImagePlus className="h-3.5 w-3.5" />
+                                        {t("Upload")}
+                                        <input
+                                          type="file"
+                                          accept="image/*"
+                                          className="hidden"
+                                          onChange={handleEditPhotoChange}
+                                          disabled={isMutating}
+                                        />
+                                      </label>
+                                      {(editPhotoPreview || user.photo_url) ? (
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          className="h-7 px-2 text-xs"
+                                          onClick={() => handleRemoveEditPhoto(user)}
+                                          disabled={isMutating}
+                                        >
+                                          {t("Remove")}
+                                        </Button>
+                                      ) : null}
+                                    </div>
+                                    {editPhotoFile ? (
+                                      <p className="mt-1 text-[11px] text-slate-500">
+                                        {editPhotoFile.name}
+                                      </p>
+                                    ) : null}
+                                  </div>
                                 </div>
                               </div>
 

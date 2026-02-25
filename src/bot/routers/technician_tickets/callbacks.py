@@ -6,6 +6,7 @@ from account.models import User
 from bot.services.error_text import translate_error_reason
 from bot.services.technician_queue import TechnicianQueueService
 from bot.services.technician_ticket_actions import TechnicianTicketActionService
+from core.utils.constants import TicketStatus
 from core.utils.asyncio import run_sync
 
 router = Router(name="technician_tickets_callbacks")
@@ -95,9 +96,13 @@ class TechnicianQueueControlHandler(
                 return
 
             heading = (
-                _("🎛 Technician ticket controls.")
-                if scope == TechnicianTicketActionService.VIEW_SCOPE_ACTIVE
-                else _("🔎 Technician ticket details.")
+                _("🔧 Ticket sent to QC")
+                if scope == TechnicianTicketActionService.VIEW_SCOPE_UNDER_QC
+                else (
+                    _("🎛 Technician ticket controls.")
+                    if scope == TechnicianTicketActionService.VIEW_SCOPE_ACTIVE
+                    else _("🔎 Technician ticket details.")
+                )
             )
             text = TechnicianTicketActionService.render_state_message(
                 state=state,
@@ -165,9 +170,14 @@ class TechnicianTicketActionHandler(
             )
             return
 
+        heading = (
+            _("🔧 Ticket sent to QC")
+            if state.ticket_status == TicketStatus.WAITING_QC
+            else _("✅ Ticket state updated.")
+        )
         text = TechnicianTicketActionService.render_state_message(
             state=state,
-            heading=_("✅ Ticket state updated."),
+            heading=heading,
             _=_,
         )
         target_scope = TechnicianTicketActionService.scope_for_ticket_status(
