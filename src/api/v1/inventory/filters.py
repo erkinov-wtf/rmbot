@@ -1,4 +1,5 @@
-from django.db.models import Q
+from django.db.models import F, Value
+from django.db.models.functions import Replace, Upper
 from django_filters import rest_framework as filters
 from rest_framework.exceptions import ValidationError
 
@@ -74,17 +75,12 @@ class InventoryItemFilterSet(filters.FilterSet):
         return queryset
 
     def filter_q(self, queryset, name, value):
-        query = InventoryItemService.normalize_serial_number(value)
+        query = InventoryItemService.normalize_serial_search_query(value)
         if len(query) < InventoryItemService.SUGGESTION_MIN_CHARS:
             raise ValidationError({"q": "q must contain at least 2 characters."})
-
-        suggestions = InventoryItemService.suggest_serial_numbers(
-            query,
-            limit=InventoryItemService.LIST_SEARCH_SUGGESTION_LIMIT,
-        )
-        return queryset.filter(
-            Q(serial_number__icontains=query) | Q(serial_number__in=suggestions)
-        )
+        return queryset.annotate(
+            _serial_search=Upper(Replace(F("serial_number"), Value("-"), Value("")))
+        ).filter(_serial_search__icontains=query)
 
     def filter_serial_number(self, queryset, name, value):
         normalized_serial_number = InventoryItemService.normalize_serial_number(value)

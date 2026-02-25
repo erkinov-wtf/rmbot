@@ -1301,6 +1301,56 @@ msgstr "🔢 Seriya raqami: %(serial)s"
 msgid "📍 Status: %(status)s"
 msgstr "📍 Holat: %(status)s"
 
+#: bot/services/technician_ticket_actions.py:582
+#, python-format
+msgid "🎫 <b>Ticket:</b> #%(ticket_id)s  |  <b>Serial number:</b> <code>%(serial)s</code>"
+msgstr "🎫 <b>Ariza:</b> #%(ticket_id)s  |  <b>Seriya raqami:</b> <code>%(serial)s</code>"
+
+#: bot/services/technician_ticket_actions.py:589
+#, python-format
+msgid "📍 <b>Status:</b> 🕒 %(status)s  •  <b>Priority:</b> %(priority)s"
+msgstr "📍 <b>Holat:</b> 🕒 %(status)s  •  <b>Ustuvorlik:</b> %(priority)s"
+
+#: bot/services/technician_ticket_actions.py:596
+#, python-format
+msgid "⏱ <b>SRT (standard):</b> %(minutes)s min  •  <b>Work session:</b> %(session)s"
+msgstr ""
+"⏱ <b>SRT (standart):</b> %(minutes)s min  •  <b>Ish sessiyasi:</b> %(session)s"
+
+#: bot/services/technician_ticket_actions.py:604
+#, python-format
+msgid "📋 <b>Work items (%(count)s items / %(minutes)s min):</b>"
+msgstr "📋 <b>Ishlar (%(count)s pozitsiya / %(minutes)s min):</b>"
+
+#: bot/services/technician_ticket_actions.py:613
+#, python-format
+msgid "%(index)s) %(color)s %(part)s — %(minutes)s min"
+msgstr "%(index)s) %(color)s %(part)s — %(minutes)s min"
+
+#: bot/services/technician_ticket_actions.py:622
+#, python-format
+msgid "   💬 %(comment)s"
+msgstr "   💬 %(comment)s"
+
+#: bot/services/technician_ticket_actions.py:629
+#, python-format
+msgid "🎯 <b>XP:</b> +%(xp)s will be awarded after QC PASS (current: %(current)s)"
+msgstr ""
+"🎯 <b>XP:</b> +%(xp)s QC PASS dan keyin beriladi (hozir: %(current)s)"
+
+#: bot/services/technician_ticket_actions.py:637
+#, python-format
+msgid "🎯 <b>XP:</b> will be calculated after QC PASS (current: %(current)s)"
+msgstr "🎯 <b>XP:</b> QC PASS dan keyin hisoblanadi (hozir: %(current)s)"
+
+#: bot/services/technician_ticket_actions.py:641
+msgid "➡️ <b>Next step:</b> no action required — waiting for QC review."
+msgstr "➡️ <b>Keyingi qadam:</b> amal talab qilinmaydi — QC tekshiruvini kutamiz."
+
+#: bot/services/technician_ticket_actions.py:644
+msgid "   On FAIL, ticket returns to you in status “Rework”."
+msgstr "   FAIL bo'lsa, ariza sizga \"Qayta ishlash\" holatida qaytadi."
+
 #: bot/services/technician_ticket_actions.py:449
 #, python-format
 msgid "🏬 <b>Inventory:</b> %(inventory)s"
@@ -1389,6 +1439,10 @@ msgstr ""
 #: bot/services/technician_ticket_actions.py:567
 msgid "Ticket state updated."
 msgstr "Ariza holati yangilandi."
+
+#: bot/routers/technician_tickets/callbacks.py:169
+msgid "🔧 Ticket sent to QC"
+msgstr "🔧 Ariza QC ga yuborildi"
 
 #: bot/services/ticket_admin_support.py:53
 msgid "Under review"

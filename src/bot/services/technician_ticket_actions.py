@@ -121,7 +121,7 @@ class TechnicianTicketActionService:
         ACTION_START: gettext_noop("✅ Work session started."),
         ACTION_PAUSE: gettext_noop("⏸ Work session paused."),
         ACTION_RESUME: gettext_noop("▶ Work session resumed."),
-        ACTION_STOP: gettext_noop("⏹ Work session stopped."),
+        ACTION_STOP: gettext_noop("🧪 Ticket sent to QC."),
         ACTION_TO_WAITING_QC: gettext_noop("🧪 Ticket sent to QC."),
         ACTION_REFRESH: gettext_noop("🔄 Ticket details refreshed."),
     }
@@ -434,6 +434,13 @@ class TechnicianTicketActionService:
         _=None,
     ) -> str:
         _ = _ or django_gettext
+        if state.ticket_status == TicketStatus.WAITING_QC:
+            return cls._render_waiting_qc_state_message(
+                state=state,
+                heading=heading,
+                _=_,
+            )
+
         serial_number = (
             _(cls._SERIAL_UNKNOWN)
             if state.serial_number == cls._SERIAL_UNKNOWN
@@ -540,6 +547,99 @@ class TechnicianTicketActionService:
             lines.extend(f"• {escape(label)}" for label in available_labels)
         else:
             lines.append(_("🧊 No technician actions are available right now."))
+        return "\n".join(lines)
+
+    @classmethod
+    def _render_waiting_qc_state_message(
+        cls,
+        *,
+        state: TechnicianTicketState,
+        heading: str | None = None,
+        _,
+    ) -> str:
+        serial_number = (
+            _(cls._SERIAL_UNKNOWN)
+            if state.serial_number == cls._SERIAL_UNKNOWN
+            else state.serial_number
+        )
+        status_label = cls._ticket_status_label(status=state.ticket_status, _=_)
+        priority_label = cls._ticket_color_label(color=state.ticket_flag_color, _=_)
+        session_label = (
+            cls._session_status_label(status=state.session_status, _=_)
+            if state.session_status
+            else _("Stopped")
+        )
+        lines: list[str] = []
+        if heading:
+            lines.append(heading)
+            lines.append("")
+
+        lines.append(
+            _("🎫 <b>Ticket:</b> #%(ticket_id)s  |  <b>Serial number:</b> <code>%(serial)s</code>")
+            % {
+                "ticket_id": state.ticket_id,
+                "serial": escape(serial_number),
+            }
+        )
+        lines.append(
+            _("📍 <b>Status:</b> 🕒 %(status)s  •  <b>Priority:</b> %(priority)s")
+            % {
+                "status": escape(status_label),
+                "priority": escape(priority_label),
+            }
+        )
+        lines.append(
+            _("⏱ <b>SRT (standard):</b> %(minutes)s min  •  <b>Work session:</b> %(session)s")
+            % {
+                "minutes": state.total_minutes,
+                "session": escape(str(session_label).lower()),
+            }
+        )
+        lines.append("")
+        lines.append(
+            _("📋 <b>Work items (%(count)s items / %(minutes)s min):</b>")
+            % {
+                "count": len(state.part_specs),
+                "minutes": state.total_minutes,
+            }
+        )
+        if state.part_specs:
+            for index, spec in enumerate(state.part_specs, start=1):
+                lines.append(
+                    _("%(index)s) %(color)s %(part)s — %(minutes)s min")
+                    % {
+                        "index": index,
+                        "color": cls._ticket_color_icon(color=spec.color),
+                        "part": escape(spec.part_name),
+                        "minutes": spec.minutes,
+                    }
+                )
+                if spec.comment:
+                    lines.append(
+                        _("   💬 %(comment)s") % {"comment": escape(spec.comment)}
+                    )
+        else:
+            lines.append(_("No part specs were configured."))
+        lines.append("")
+        if state.potential_xp > 0:
+            lines.append(
+                _("🎯 <b>XP:</b> +%(xp)s will be awarded after QC PASS (current: %(current)s)")
+                % {
+                    "xp": state.potential_xp,
+                    "current": state.acquired_xp,
+                }
+            )
+        else:
+            lines.append(
+                _("🎯 <b>XP:</b> will be calculated after QC PASS (current: %(current)s)")
+                % {"current": state.acquired_xp}
+            )
+        lines.append(
+            _("➡️ <b>Next step:</b> no action required — waiting for QC review.")
+        )
+        lines.append(
+            _("   On FAIL, ticket returns to you in status “Rework”.")
+        )
         return "\n".join(lines)
 
     @classmethod
@@ -910,10 +1010,16 @@ class TechnicianTicketActionService:
 
         if action == cls.ACTION_STOP:
             from ticket.services_work_session import TicketWorkSessionService
+            from ticket.services_workflow import TicketWorkflowService
 
             TicketWorkSessionService.stop_work_session(
                 ticket=ticket,
                 actor_user_id=technician_id,
+            )
+            TicketWorkflowService.move_ticket_to_waiting_qc(
+                ticket=ticket,
+                actor_user_id=technician_id,
+                transition_metadata=cls._transition_metadata(action=action),
             )
             return
 
@@ -967,6 +1073,14 @@ class TechnicianTicketActionService:
     def _ticket_color_label(cls, *, color: str, _=None) -> str:
         label = cls._FLAG_COLOR_LABELS.get(color, str(color))
         return cls._translate(text=label, _=_)
+
+    @classmethod
+    def _ticket_color_icon(cls, *, color: str) -> str:
+        if color == TicketColor.YELLOW:
+            return "🟡"
+        if color == TicketColor.RED:
+            return "🔴"
+        return "🟢"
 
     @classmethod
     def _part_specs(cls, *, ticket: Ticket) -> tuple[TechnicianTicketPartSpecState, ...]:

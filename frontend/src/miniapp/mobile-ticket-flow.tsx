@@ -31,6 +31,7 @@ import {
   type TicketFlowPermissions,
   type TicketStatus,
 } from "@/lib/api";
+import { buildInventorySerialSearchQuery } from "@/lib/inventory-search";
 import { cn } from "@/lib/utils";
 
 type MobileTicketFlowProps = {
@@ -97,7 +98,6 @@ const COLOR_LABEL: Record<TicketColor, string> = {
 
 const DEFAULT_RECENT_LIMIT = 10;
 const SEARCH_RESULT_LIMIT = 500;
-const INVENTORY_SEARCH_MIN_CHARS = 2;
 
 function toErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message) {
@@ -306,10 +306,10 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
   const refreshCreateItems = useCallback(async () => {
     setIsLoadingCreateItems(true);
     try {
-      const search = createSearch.trim();
-      const hasSearch = search.length >= INVENTORY_SEARCH_MIN_CHARS;
+      const searchQuery = buildInventorySerialSearchQuery(createSearch);
+      const hasSearch = Boolean(searchQuery);
       const items = await listInventoryItems(accessToken, {
-        q: hasSearch ? search : undefined,
+        q: searchQuery,
         is_active: true,
         ordering: "-created_at",
         per_page: hasSearch ? SEARCH_RESULT_LIMIT : DEFAULT_RECENT_LIMIT,

@@ -47,6 +47,10 @@ import {
   type WorkSessionTransition,
   type WorkSessionStatus,
 } from "@/lib/api";
+import {
+  buildInventorySerialSearchQuery,
+  normalizeInventorySerialSearchQuery,
+} from "@/lib/inventory-search";
 import { cn } from "@/lib/utils";
 
 type TicketFlowProps = {
@@ -829,11 +833,11 @@ export function TicketFlow({
     async (filters: ItemFilterState, page: number, perPage: number) => {
       setIsLoadingCreateItems(true);
       try {
-        const search = filters.search.trim();
+        const searchQuery = buildInventorySerialSearchQuery(filters.search);
         const paginated = await listInventoryItemsPage(accessToken, {
           page,
           per_page: perPage,
-          q: search.length >= 2 ? search : undefined,
+          q: searchQuery,
           category: filters.categoryId ? Number(filters.categoryId) : undefined,
           status: filters.status === "all" ? undefined : filters.status,
           is_active:
@@ -1241,6 +1245,24 @@ export function TicketFlow({
   }, [qcSearch, qcStatusFilter]);
 
   useEffect(() => {
+    if (itemFilters.search === appliedItemFilters.search) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setCreateItemsPage(1);
+      setAppliedItemFilters((prev) => ({
+        ...prev,
+        search: itemFilters.search,
+      }));
+    }, 300);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [appliedItemFilters.search, itemFilters.search]);
+
+  useEffect(() => {
     if (route.name !== "createList") {
       return;
     }
@@ -1449,8 +1471,8 @@ export function TicketFlow({
   };
 
   const handleApplyItemFilters = () => {
-    const trimmed = itemFilters.search.trim();
-    if (trimmed.length === 1) {
+    const normalizedSearch = normalizeInventorySerialSearchQuery(itemFilters.search);
+    if (normalizedSearch.length === 1) {
       setFeedback({
         type: "info",
         message: t("Search query starts applying from 2 characters. Showing wider result set."),
@@ -1691,7 +1713,8 @@ export function TicketFlow({
   };
 
   const renderCreateListPage = () => {
-    const oneCharSearch = itemFilters.search.trim().length === 1;
+    const oneCharSearch =
+      normalizeInventorySerialSearchQuery(itemFilters.search).length === 1;
 
     return (
       <div className="mt-4 space-y-4">
@@ -1719,6 +1742,13 @@ export function TicketFlow({
                       search: event.target.value,
                     }))
                   }
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter") {
+                      return;
+                    }
+                    event.preventDefault();
+                    handleApplyItemFilters();
+                  }}
                   placeholder={t("Serial number search")}
                 />
               </div>

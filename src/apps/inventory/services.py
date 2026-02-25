@@ -3,7 +3,8 @@ from __future__ import annotations
 import re
 
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import F, Value
+from django.db.models.functions import Replace, Upper
 from django.utils import timezone
 
 from inventory.models import (
@@ -24,6 +25,14 @@ class InventoryItemService:
     def normalize_serial_number(cls, raw_serial_number: str) -> str:
         value = str(raw_serial_number or "")
         value = re.sub(r"\s+", "", value)
+        return value.upper()
+
+    @classmethod
+    def normalize_serial_search_query(cls, raw_query: str) -> str:
+        value = str(raw_query or "")
+        # Keep only alphanumerics for resilient partial matching
+        # (e.g. "RM 01-2" -> "RM012").
+        value = re.sub(r"[^A-Za-z0-9]+", "", value)
         return value.upper()
 
     @classmethod
@@ -88,13 +97,15 @@ class InventoryItemService:
             filtered = filtered.by_serial_number(serial_number)
 
         if q:
-            suggestions = cls.suggest_serial_numbers(
-                q,
-                limit=cls.LIST_SEARCH_SUGGESTION_LIMIT,
-            )
-            filtered = filtered.filter(
-                Q(serial_number__icontains=q) | Q(serial_number__in=suggestions)
-            )
+            normalized_q = cls.normalize_serial_search_query(q)
+            if len(normalized_q) < cls.SUGGESTION_MIN_CHARS:
+                filtered = filtered.none()
+            else:
+                filtered = filtered.annotate(
+                    _serial_search=Upper(
+                        Replace(F("serial_number"), Value("-"), Value(""))
+                    )
+                ).filter(_serial_search__icontains=normalized_q)
 
         if inventory_id:
             filtered = filtered.with_inventory(inventory_id)

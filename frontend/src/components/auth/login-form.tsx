@@ -153,9 +153,6 @@ export function LoginForm({ onLoggedIn, noticeMessage }: LoginFormProps) {
             >
               {isLoading ? t("Signing in...") : t("Sign In")}
             </Button>
-            <p className="text-center text-xs text-slate-500">
-              {t("API endpoint")}: <code>/api/v1/auth/login/</code>
-            </p>
           </div>
         </form>
       </section>
