@@ -22,6 +22,7 @@ import {
 } from "react";
 
 import { Button } from "@/components/ui/button";
+import { FeedbackToast } from "@/components/ui/feedback-toast";
 import { PaginationControls } from "@/components/ui/pagination-controls";
 import { useI18n } from "@/i18n";
 import {
@@ -1842,20 +1843,7 @@ export function InventoryAdmin({
         </div>
       </div>
 
-      {feedback ? (
-        <p
-          className={cn(
-            "mt-4 rounded-xl border px-3 py-2 text-sm",
-            feedback.type === "error"
-              ? "border-rose-200 bg-rose-50 text-rose-700"
-              : feedback.type === "success"
-                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                : "border-sky-200 bg-sky-50 text-sky-700",
-          )}
-        >
-          {feedback.message}
-        </p>
-      ) : null}
+      <FeedbackToast feedback={feedback} />
 
       <div className="mt-4 flex flex-wrap gap-2">
         <button

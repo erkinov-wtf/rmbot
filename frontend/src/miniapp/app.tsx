@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/i18n";
 import { verifyMiniAppTelegramInitData } from "@/lib/api";
+import { notify } from "@/lib/notify";
 import {
   clearMiniAppAuthSession,
   createMiniAppAuthSession,
@@ -46,6 +47,18 @@ export default function MiniApp() {
     null,
   );
   const [isProfileSheetOpen, setIsProfileSheetOpen] = useState(false);
+
+  useEffect(() => {
+    if (notice) {
+      notify("info", notice);
+    }
+  }, [notice]);
+
+  useEffect(() => {
+    if (errorMessage) {
+      notify("error", errorMessage);
+    }
+  }, [errorMessage]);
 
   const logout = useCallback((nextNotice = "") => {
     clearMiniAppAuthSession();
@@ -182,18 +195,6 @@ export default function MiniApp() {
           <section className="rm-panel p-5">
             {isAuthenticating ? (
               <p className="text-sm text-slate-600">{t("Authenticating with Telegram...")}</p>
-            ) : null}
-
-            {notice ? (
-              <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
-                {notice}
-              </p>
-            ) : null}
-
-            {errorMessage ? (
-              <p className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
-                {errorMessage}
-              </p>
             ) : null}
 
             {missingAccess ? (

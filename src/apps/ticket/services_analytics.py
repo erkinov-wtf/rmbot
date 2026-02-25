@@ -314,6 +314,8 @@ class TicketAnalyticsService:
         cls,
         *,
         days: int | None = None,
+        request=None,
+        include_photo: bool = False,
     ) -> dict[str, object]:
         now = timezone.now()
         window_days = int(days) if days is not None else None
@@ -334,6 +336,8 @@ class TicketAnalyticsService:
             technicians=technicians,
             start_date=start_date,
             end_date=end_date,
+            request=request,
+            include_photo=include_photo,
         )
 
         tickets_done_total = sum(int(item["tickets_done_total"]) for item in members)
@@ -365,8 +369,17 @@ class TicketAnalyticsService:
         return payload
 
     @classmethod
-    def public_technician_detail(cls, *, user_id: int) -> dict[str, object]:
-        leaderboard = cls.public_technician_leaderboard()
+    def public_technician_detail(
+        cls,
+        *,
+        user_id: int,
+        request=None,
+        include_photo: bool = False,
+    ) -> dict[str, object]:
+        leaderboard = cls.public_technician_leaderboard(
+            request=request,
+            include_photo=include_photo,
+        )
         members = list(leaderboard.get("members", []))
         selected_member = next(
             (item for item in members if int(item.get("user_id", 0)) == int(user_id)),
@@ -574,6 +587,8 @@ class TicketAnalyticsService:
                 "name": str(selected_member["name"]),
                 "username": str(selected_member["username"]),
                 "level": int(selected_member["level"]),
+                "has_photo": bool(selected_member.get("has_photo", False)),
+                "photo_url": selected_member.get("photo_url"),
             },
             "score_breakdown": {
                 "components": {
@@ -652,6 +667,8 @@ class TicketAnalyticsService:
         technicians: list[User],
         start_date: date | None = None,
         end_date: date | None = None,
+        request=None,
+        include_photo: bool = False,
     ) -> list[dict[str, object]]:
         technician_ids = [int(user.id) for user in technicians]
         if not technician_ids:
@@ -809,6 +826,12 @@ class TicketAnalyticsService:
                     "name": full_name or user.username,
                     "username": user.username,
                     "level": int(user.level),
+                    "has_photo": cls._has_public_photo(user=user),
+                    "photo_url": (
+                        cls._resolve_public_photo_url(user=user, request=request)
+                        if include_photo
+                        else None
+                    ),
                     "score": int(score),
                     "score_components": {
                         "tickets_done_points": int(tickets_done_points),
@@ -847,6 +870,41 @@ class TicketAnalyticsService:
         for index, row in enumerate(members, start=1):
             row["rank"] = index
         return members
+
+    @classmethod
+    def public_technician_photo(cls, *, user_id: int, request=None) -> dict[str, object]:
+        user = (
+            User.objects.filter(
+                id=user_id,
+                deleted_at__isnull=True,
+                is_active=True,
+                roles__slug=RoleSlug.TECHNICIAN,
+                roles__deleted_at__isnull=True,
+            )
+            .distinct()
+            .first()
+        )
+        if user is None:
+            raise ValueError("Technician was not found.")
+
+        has_photo = cls._has_public_photo(user=user)
+        return {
+            "user_id": int(user.id),
+            "has_photo": has_photo,
+            "photo_url": (
+                cls._resolve_public_photo_url(user=user, request=request)
+                if has_photo
+                else None
+            ),
+        }
+
+    @staticmethod
+    def _resolve_public_photo_url(*, user: User, request=None) -> str | None:
+        return user.resolve_public_photo_url(request=request)
+
+    @staticmethod
+    def _has_public_photo(*, user: User) -> bool:
+        return bool(user.public_photo_blob) or bool(user.public_photo)
 
     @classmethod
     def _backlog_kpis(

@@ -3,6 +3,8 @@ if (!rawApiBaseUrl) {
   throw new Error("Missing VITE_API_BASE_URL");
 }
 const API_BASE_URL = rawApiBaseUrl.replace(/\/+$/, "");
+const MAX_PUBLIC_PHOTO_BYTES = 3 * 1024 * 1024;
+const MAX_PUBLIC_PHOTO_LABEL = "3 MB";
 
 type PrimitiveQueryValue = string | number | boolean | null | undefined;
 
@@ -61,6 +63,7 @@ type CurrentUserRaw = {
   last_name: string | null;
   username: string;
   phone: string | null;
+  photo_url?: string | null;
   level: number;
   roles: UserRole[];
 };
@@ -142,6 +145,8 @@ type ManagedUserRaw = {
   last_name: string | null;
   username: string;
   phone: string | null;
+  photo_url: string | null;
+  has_photo: boolean;
   level: number;
   is_active: boolean;
   is_staff: boolean;
@@ -531,6 +536,8 @@ export type PublicTechnicianLeaderboardMember = {
   name: string;
   username: string;
   level: number;
+  has_photo: boolean;
+  photo_url: string | null;
   rank: number;
   score: number;
   score_components: {
@@ -589,6 +596,8 @@ export type PublicTechnicianDetail = {
     name: string;
     username: string;
     level: number;
+    has_photo: boolean;
+    photo_url: string | null;
   };
   score_breakdown: {
     components: Record<string, number>;
@@ -665,6 +674,12 @@ export type PublicTechnicianDetail = {
   };
 };
 
+export type PublicTechnicianPhoto = {
+  user_id: number;
+  has_photo: boolean;
+  photo_url: string | null;
+};
+
 export type AccessRequestStatus = "pending" | "approved" | "rejected";
 
 export type AccessRequest = {
@@ -723,6 +738,7 @@ export type ManagedUserQuery = {
   q?: string;
   role_slug?: string;
   is_active?: boolean;
+  include_photo?: boolean;
   ordering?:
     | "created_at"
     | "-created_at"
@@ -799,6 +815,21 @@ async function parseJsonSafe(response: Response): Promise<unknown> {
   } catch {
     return null;
   }
+}
+
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Failed to read selected photo file."));
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        resolve(reader.result);
+        return;
+      }
+      reject(new Error("Photo file read returned unexpected result."));
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 function parseFileNameFromDisposition(
@@ -1159,6 +1190,7 @@ export async function listManagedUsersPage(
       q: query.q,
       role_slug: query.role_slug,
       is_active: query.is_active,
+      include_photo: query.include_photo ?? false,
       ordering: query.ordering ?? "-created_at",
       page,
       per_page: perPage,
@@ -1175,6 +1207,21 @@ export async function listManagedUsersPage(
   };
 }
 
+export async function getManagedUser(
+  accessToken: string,
+  id: number,
+  query: { include_photo?: boolean } = {},
+): Promise<ManagedUser> {
+  const payload = await apiRequest<unknown>(
+    withQuery(`users/management/${id}/`, {
+      include_photo: query.include_photo,
+    }),
+    { accessToken },
+  );
+  const user = extractData<ManagedUserRaw>(payload);
+  return mapManagedUser(user);
+}
+
 export async function updateManagedUser(
   accessToken: string,
   id: number,
@@ -1188,6 +1235,40 @@ export async function updateManagedUser(
     method: "PATCH",
     accessToken,
     body,
+  });
+  const updated = extractData<ManagedUserRaw>(payload);
+  return mapManagedUser(updated);
+}
+
+export async function updateManagedUserPhoto(
+  accessToken: string,
+  id: number,
+  body: {
+    photo?: File;
+    photo_clear?: boolean;
+  },
+): Promise<ManagedUser> {
+  if (!body.photo && !body.photo_clear) {
+    throw new Error("Provide photo or photo_clear.");
+  }
+  if (body.photo && body.photo.size > MAX_PUBLIC_PHOTO_BYTES) {
+    throw new Error(`Avatar must be ${MAX_PUBLIC_PHOTO_LABEL} or smaller.`);
+  }
+  const payloadBody: {
+    photo_data_url?: string;
+    photo_clear?: boolean;
+  } = {};
+  if (body.photo) {
+    payloadBody.photo_data_url = await fileToDataUrl(body.photo);
+  }
+  if (body.photo_clear) {
+    payloadBody.photo_clear = true;
+  }
+
+  const payload = await apiRequest<unknown>(`users/management/${id}/`, {
+    method: "PATCH",
+    accessToken,
+    body: payloadBody,
   });
   const updated = extractData<ManagedUserRaw>(payload);
   return mapManagedUser(updated);
@@ -1572,11 +1653,12 @@ export async function listTechnicianOptions(
 }
 
 export async function getPublicTechnicianLeaderboard(
-  query: { days?: number } = {},
+  query: { days?: number; include_photo?: boolean } = {},
 ): Promise<PublicTechnicianLeaderboard> {
   const payload = await apiRequest<unknown>(
     withQuery("analytics/public/leaderboard/", {
       days: query.days,
+      include_photo: query.include_photo ?? false,
     }),
   );
   return extractData<PublicTechnicianLeaderboard>(payload);
@@ -1584,11 +1666,23 @@ export async function getPublicTechnicianLeaderboard(
 
 export async function getPublicTechnicianDetail(
   userId: number,
+  query: { include_photo?: boolean } = {},
 ): Promise<PublicTechnicianDetail> {
   const payload = await apiRequest<unknown>(
-    `analytics/public/technicians/${userId}/`,
+    withQuery(`analytics/public/technicians/${userId}/`, {
+      include_photo: query.include_photo ?? false,
+    }),
   );
   return extractData<PublicTechnicianDetail>(payload);
+}
+
+export async function getPublicTechnicianPhoto(
+  userId: number,
+): Promise<PublicTechnicianPhoto> {
+  const payload = await apiRequest<unknown>(
+    `analytics/public/technicians/${userId}/photo/`,
+  );
+  return extractData<PublicTechnicianPhoto>(payload);
 }
 
 export async function listTicketTransitions(

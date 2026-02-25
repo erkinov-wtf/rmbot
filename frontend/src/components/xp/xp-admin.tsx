@@ -2,6 +2,7 @@ import { MinusCircle, PlusCircle, RefreshCcw, Search, Sparkles, UserRound } from
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { FeedbackToast } from "@/components/ui/feedback-toast";
 import { useI18n } from "@/i18n";
 import { adjustUserXp, listUserOptions, type UserOption } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -193,18 +194,7 @@ export function XpAdmin({
         </Button>
       </div>
 
-      {feedback ? (
-        <p
-          className={cn(
-            "mt-4 rounded-xl border px-3 py-2 text-sm",
-            feedback.type === "error"
-              ? "border-rose-200 bg-rose-50 text-rose-700"
-              : "border-emerald-200 bg-emerald-50 text-emerald-700",
-          )}
-        >
-          {feedback.message}
-        </p>
-      ) : null}
+      <FeedbackToast feedback={feedback} />
 
       {!canManage ? (
         <p

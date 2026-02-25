@@ -35,6 +35,7 @@ import {
   saveAuthSession,
   type AuthSession,
 } from "@/lib/auth";
+import { notify } from "@/lib/notify";
 import { cn } from "@/lib/utils";
 
 type ProfileState = "idle" | "loading" | "ok" | "error";
@@ -283,6 +284,12 @@ export default function App() {
     };
   }, []);
 
+  useEffect(() => {
+    if (profileState === "error" && profileMessage) {
+      notify("error", profileMessage);
+    }
+  }, [profileMessage, profileState]);
+
   if (!isAuthHydrated) {
     return (
       <main className="rm-shell flex items-center justify-center">
@@ -474,12 +481,6 @@ export default function App() {
           </aside>
 
           <section className="space-y-4">
-            {profileState === "error" ? (
-              <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
-                {profileMessage}
-              </p>
-            ) : null}
-
             {section === "inventory" ? (
               <InventoryAdmin
                 accessToken={session.accessToken}

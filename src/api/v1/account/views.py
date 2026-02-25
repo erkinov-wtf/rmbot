@@ -2,6 +2,7 @@ from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
@@ -29,6 +30,17 @@ UserManagementPermission = HasRole.as_any(RoleSlug.SUPER_ADMIN, RoleSlug.OPS_MAN
 UserOptionsPermission = HasRole.as_any(
     RoleSlug.SUPER_ADMIN, RoleSlug.OPS_MANAGER, RoleSlug.MASTER
 )
+
+
+def parse_bool_query_param(raw_value, *, default: bool) -> bool:
+    if raw_value is None:
+        return default
+    normalized = str(raw_value).strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    return default
 
 
 @extend_schema(
@@ -104,6 +116,14 @@ class UserManagementListAPIView(ListAPIView):
         .order_by("-created_at", "-id")
     )
 
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context["include_photo"] = parse_bool_query_param(
+            self.request.query_params.get("include_photo"),
+            default=False,
+        )
+        return context
+
     def get_queryset(self):
         queryset = self.queryset
 
@@ -159,6 +179,7 @@ class UserManagementListAPIView(ListAPIView):
 class UserManagementDetailAPIView(BaseAPIView):
     serializer_class = UserManagementUpdateSerializer
     permission_classes = (IsAuthenticated, UserManagementPermission)
+    parser_classes = (JSONParser, MultiPartParser, FormParser)
 
     @staticmethod
     def _get_user_queryset():
@@ -167,9 +188,19 @@ class UserManagementDetailAPIView(BaseAPIView):
             "telegram_profiles",
         )
 
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context["include_photo"] = parse_bool_query_param(
+            self.request.query_params.get("include_photo"),
+            default=True,
+        )
+        return context
+
     def get(self, request, *args, **kwargs):
         user = get_object_or_404(self._get_user_queryset(), pk=kwargs["pk"])
-        output = UserManagementSerializer(user).data
+        output = UserManagementSerializer(
+            user, context=self.get_serializer_context()
+        ).data
         return Response(output, status=status.HTTP_200_OK)
 
     def patch(self, request, *args, **kwargs):
@@ -192,7 +223,9 @@ class UserManagementDetailAPIView(BaseAPIView):
 
         serializer.save()
         user.refresh_from_db()
-        output = UserManagementSerializer(user).data
+        output = UserManagementSerializer(
+            user, context=self.get_serializer_context()
+        ).data
         return Response(output, status=status.HTTP_200_OK)
 
 

@@ -20,10 +20,11 @@ class TeamAnalyticsQuerySerializer(serializers.Serializer):
 
 class PublicTechnicianLeaderboardQuerySerializer(serializers.Serializer):
     days = serializers.IntegerField(required=False, min_value=1, max_value=90)
+    include_photo = serializers.BooleanField(required=False, default=False)
 
 
 class PublicTechnicianDetailQuerySerializer(serializers.Serializer):
-    user_id = serializers.IntegerField(min_value=1)
+    include_photo = serializers.BooleanField(required=False, default=False)
 
 
 @extend_schema(
@@ -81,7 +82,12 @@ class PublicTechnicianLeaderboardAPIView(BaseAPIView):
         serializer = self.get_serializer(data=request.query_params)
         serializer.is_valid(raise_exception=True)
         days = serializer.validated_data.get("days")
-        payload = TicketAnalyticsService.public_technician_leaderboard(days=days)
+        include_photo = serializer.validated_data.get("include_photo", False)
+        payload = TicketAnalyticsService.public_technician_leaderboard(
+            days=days,
+            request=request,
+            include_photo=include_photo,
+        )
         return Response(payload, status=status.HTTP_200_OK)
 
 
@@ -96,10 +102,39 @@ class PublicTechnicianLeaderboardAPIView(BaseAPIView):
 )
 class PublicTechnicianDetailAPIView(BaseAPIView):
     permission_classes = (AllowAny,)
+    serializer_class = PublicTechnicianDetailQuerySerializer
+
+    def get(self, request, user_id: int, *args, **kwargs):
+        serializer = self.get_serializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+        include_photo = serializer.validated_data.get("include_photo", False)
+        try:
+            payload = TicketAnalyticsService.public_technician_detail(
+                user_id=user_id,
+                request=request,
+                include_photo=include_photo,
+            )
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_404_NOT_FOUND)
+        return Response(payload, status=status.HTTP_200_OK)
+
+
+@extend_schema(
+    tags=["Analytics"],
+    summary="Public technician photo",
+    description=(
+        "Returns technician public avatar payload for on-demand lazy-loading in public dashboards."
+    ),
+)
+class PublicTechnicianPhotoAPIView(BaseAPIView):
+    permission_classes = (AllowAny,)
 
     def get(self, request, user_id: int, *args, **kwargs):
         try:
-            payload = TicketAnalyticsService.public_technician_detail(user_id=user_id)
+            payload = TicketAnalyticsService.public_technician_photo(
+                user_id=user_id,
+                request=request,
+            )
         except ValueError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_404_NOT_FOUND)
         return Response(payload, status=status.HTTP_200_OK)

@@ -10,6 +10,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { FeedbackToast } from "@/components/ui/feedback-toast";
 import { useI18n } from "@/i18n";
 import {
   assignTicket,
@@ -1400,20 +1401,7 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
 
   return (
     <section className="space-y-3 pb-24">
-      {feedback ? (
-        <p
-          className={cn(
-            "rounded-xl border px-3 py-2 text-sm",
-            feedback.type === "error"
-              ? "border-rose-200 bg-rose-50 text-rose-700"
-              : feedback.type === "success"
-                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                : "border-sky-200 bg-sky-50 text-sky-700",
-          )}
-        >
-          {feedback.message}
-        </p>
-      ) : null}
+      <FeedbackToast feedback={feedback} />
 
       {!availableTabs.length ? (
         <section className="rm-panel p-4">

@@ -190,3 +190,7 @@ docker-compose.override.yml
 !frontend/src/lib/**
 
 /pg_data
+
+.agents
+.claude
+.cache
