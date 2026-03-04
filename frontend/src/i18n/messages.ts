@@ -54,8 +54,11 @@ const RU_MESSAGES: TranslationCatalog = {
   "Could not load technician queue.":
     "Не удалось загрузить очередь техников.",
   "Could not process QC action.": "Не удалось выполнить действие QC.",
+  "Could not load work session history.":
+    "Не удалось загрузить историю рабочей сессии.",
   "Could not submit part completion.":
     "Не удалось отправить завершение частей.",
+  "Could not update work session.": "Не удалось обновить рабочую сессию.",
   "Could not update manual metrics.":
     "Не удалось обновить ручные метрики.",
   "Date range": "Диапазон дат",
@@ -87,6 +90,7 @@ const RU_MESSAGES: TranslationCatalog = {
   "Loading leaderboard...": "Загрузка рейтинга...",
   "Loading parts...": "Загрузка частей...",
   "Loading QC queue...": "Загрузка очереди QC...",
+  "Loading work session...": "Загрузка рабочей сессии...",
   "Loading technician queue...": "Загрузка очереди техников...",
   "Loading technician details...": "Загрузка данных техника...",
   "Loading technicians...": "Загрузка техников...",
@@ -107,6 +111,7 @@ const RU_MESSAGES: TranslationCatalog = {
   "New": "Новый",
   "No matching inventory items.": "Подходящие элементы инвентаря не найдены.",
   "No active pool tickets.": "В активном пуле нет тикетов.",
+  "Not started": "Не начато",
   "No pending parts": "Нет незавершенных частей",
   "No part specs.": "Нет параметров частей.",
   "No parts are configured for this item category.":
@@ -126,14 +131,18 @@ const RU_MESSAGES: TranslationCatalog = {
   "Operations workspace": "Операционное рабочее пространство",
   "Part specs": "Параметры частей",
   "Part completion submitted.": "Завершение частей отправлено.",
+  Pause: "Пауза",
+  Paused: "На паузе",
   Parts: "Части",
   "Parts completion": "Завершение частей",
+  "Parts done": "Сделано частей",
   "Pending parts": "Незавершенные части",
   "Penalty": "Штраф",
   "Preparing authentication...": "Подготовка аутентификации...",
   "Preparing mini app...": "Подготовка мини-приложения...",
   "Period": "Период",
   "Public Stats": "Публичная статистика",
+  Planned: "План",
   "QC": "QC",
   "QC Fail": "QC не пройден",
   "QC failed for ticket #{{id}}.": "QC не пройден для тикета #{{id}}.",
@@ -148,6 +157,7 @@ const RU_MESSAGES: TranslationCatalog = {
   "Reload this page. If the issue continues, contact support.":
     "Перезагрузите страницу. Если проблема повторится, обратитесь в поддержку.",
   "Rent Market": "Rent Market",
+  Resume: "Продолжить",
   Rework: "Доработка",
   Review: "Проверка",
   "Review queue": "Очередь проверки",
@@ -190,6 +200,7 @@ const RU_MESSAGES: TranslationCatalog = {
     "Сессия истекла. Откройте mini app из Telegram заново.",
   "Session is stored in localStorage and expires automatically when JWT `exp` is reached.":
     "Сессия хранится в localStorage и истекает автоматически при достижении JWT `exp`.",
+  Running: "В работе",
   "Sign In": "Войти",
   "Sign in with your backend account to continue.":
     "Войдите с вашим backend-аккаунтом, чтобы продолжить.",
@@ -198,6 +209,7 @@ const RU_MESSAGES: TranslationCatalog = {
   "System score": "Системный счет",
   "Technician": "Техник",
   "Technician queue": "Очередь техников",
+  Timer: "Таймер",
   "Technician Top Chart": "Топ-рейтинг техников",
   "Telegram account is not linked to an active user.":
     "Ваш Telegram-аккаунт не привязан к активному пользователю.",
@@ -220,6 +232,17 @@ const RU_MESSAGES: TranslationCatalog = {
   "Top Positive Factors": "Главные положительные факторы",
   "Top Negative Factors": "Главные отрицательные факторы",
   "Total XP": "Всего XP",
+  "Work started.": "Работа начата.",
+  "Work paused.": "Работа поставлена на паузу.",
+  "Work resumed.": "Работа продолжена.",
+  "Work stopped. Select completed parts.":
+    "Работа остановлена. Выберите завершенные части.",
+  "Worked": "Отработано",
+  "Start work": "Начать работу",
+  Stop: "Остановить",
+  Stopped: "Остановлено",
+  "Stop session to select completed parts.":
+    "Остановите сессию, чтобы выбрать завершенные части.",
   "Under review": "На проверке",
   "User #{{id}}": "Пользователь #{{id}}",
   Users: "Пользователи",
@@ -394,8 +417,11 @@ const UZ_MESSAGES: TranslationCatalog = {
   "Could not load technician queue.":
     "Texniklar navbatini yuklab bo'lmadi.",
   "Could not process QC action.": "QC amalini bajarib bo'lmadi.",
+  "Could not load work session history.":
+    "Ish sessiyasi tarixini yuklab bo'lmadi.",
   "Could not submit part completion.":
     "Qismlar yakunlanganini yuborib bo'lmadi.",
+  "Could not update work session.": "Ish sessiyasini yangilab bo'lmadi.",
   "Could not update manual metrics.": "Qo'lda metrikalarni yangilab bo'lmadi.",
   "Date range": "Sana oralig'i",
   Done: "Yakunlangan",
@@ -427,6 +453,7 @@ const UZ_MESSAGES: TranslationCatalog = {
   "Loading leaderboard...": "Reyting yuklanmoqda...",
   "Loading parts...": "Qismlar yuklanmoqda...",
   "Loading QC queue...": "QC navbati yuklanmoqda...",
+  "Loading work session...": "Ish sessiyasi yuklanmoqda...",
   "Loading technician queue...": "Texniklar navbati yuklanmoqda...",
   "Loading technician details...": "Texnik tafsilotlari yuklanmoqda...",
   "Loading technicians...": "Texniklar yuklanmoqda...",
@@ -447,6 +474,7 @@ const UZ_MESSAGES: TranslationCatalog = {
   New: "Yangi",
   "No matching inventory items.": "Mos inventar elementlari topilmadi.",
   "No active pool tickets.": "Faol pulda arizalar yo'q.",
+  "Not started": "Boshlanmagan",
   "No pending parts": "Yakunlanmagan qismlar yo'q",
   "No part specs.": "Qism parametrlari yo'q.",
   "No parts are configured for this item category.":
@@ -466,14 +494,18 @@ const UZ_MESSAGES: TranslationCatalog = {
   "Operations workspace": "Operatsion ish maydoni",
   "Part specs": "Qism parametrlari",
   "Part completion submitted.": "Qismlar yakunlanganligi yuborildi.",
+  Pause: "Pauza",
+  Paused: "Pauzada",
   Parts: "Qismlar",
   "Parts completion": "Qismlarni yakunlash",
+  "Parts done": "Yakunlangan qismlar",
   "Pending parts": "Yakunlanmagan qismlar",
   Penalty: "Jarima",
   "Preparing authentication...": "Autentifikatsiya tayyorlanmoqda...",
   "Preparing mini app...": "Mini app tayyorlanmoqda...",
   "Period": "Davr",
   "Public Stats": "Ommaviy statistika",
+  Planned: "Reja",
   QC: "QC",
   "QC Fail": "QC muvaffaqiyatsiz",
   "QC failed for ticket #{{id}}.": "#{{id}} ariza uchun QC muvaffaqiyatsiz.",
@@ -488,6 +520,7 @@ const UZ_MESSAGES: TranslationCatalog = {
   "Reload this page. If the issue continues, contact support.":
     "Sahifani qayta yuklang. Muammo davom etsa, qo'llab-quvvatlashga murojaat qiling.",
   "Rent Market": "Rent Market",
+  Resume: "Davom ettirish",
   Rework: "Qayta ishlash",
   Review: "Ko'rib chiqish",
   "Review queue": "Ko'rib chiqish navbati",
@@ -530,6 +563,7 @@ const UZ_MESSAGES: TranslationCatalog = {
     "Sessiya tugadi. Mini app'ni Telegramdan qayta oching.",
   "Session is stored in localStorage and expires automatically when JWT `exp` is reached.":
     "Sessiya localStorage'da saqlanadi va JWT `exp` ga yetganda avtomatik tugaydi.",
+  Running: "Jarayonda",
   "Sign In": "Kirish",
   "Sign in with your backend account to continue.":
     "Davom etish uchun backend hisobingiz bilan kiring.",
@@ -538,6 +572,7 @@ const UZ_MESSAGES: TranslationCatalog = {
   "System score": "Tizim balli",
   Technician: "Texnik",
   "Technician queue": "Texniklar navbati",
+  Timer: "Taymer",
   "Technician Top Chart": "Texniklar top reytingi",
   "Telegram account is not linked to an active user.":
     "Telegram hisobingiz faol foydalanuvchiga bog'lanmagan.",
@@ -560,6 +595,17 @@ const UZ_MESSAGES: TranslationCatalog = {
   "Top Positive Factors": "Asosiy ijobiy omillar",
   "Top Negative Factors": "Asosiy salbiy omillar",
   "Total XP": "Jami XP",
+  "Work started.": "Ish boshlandi.",
+  "Work paused.": "Ish pauzaga qo'yildi.",
+  "Work resumed.": "Ish davom ettirildi.",
+  "Work stopped. Select completed parts.":
+    "Ish to'xtatildi. Yakunlangan qismlarni tanlang.",
+  "Worked": "Bajarilgan",
+  "Start work": "Ishni boshlash",
+  Stop: "To'xtatish",
+  Stopped: "To'xtatilgan",
+  "Stop session to select completed parts.":
+    "Yakunlangan qismlarni tanlash uchun sessiyani to'xtating.",
   "Under review": "Ko'rib chiqilmoqda",
   "User #{{id}}": "Foydalanuvchi #{{id}}",
   Users: "Foydalanuvchilar",

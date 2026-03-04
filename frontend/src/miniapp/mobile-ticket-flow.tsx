@@ -1,11 +1,17 @@
 import {
+  CirclePlay,
   CheckCircle2,
   ClipboardCheck,
+  ListTodo,
   Loader2,
+  Pause,
+  Play,
   PlusSquare,
   RefreshCcw,
   Search,
   ShieldAlert,
+  Square,
+  Timer,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -21,13 +27,18 @@ import {
   listActivePoolTickets,
   listInventoryItems,
   listParts,
+  listTicketWorkSessionHistory,
   listTechnicianTodoTickets,
   listTechnicianOptions,
   listTickets,
+  pauseTicketWorkSession,
   qcFailTicket,
   qcPassTicket,
+  resumeTicketWorkSession,
   reviewApproveTicket,
   reviewTicketManualMetrics,
+  startTicketWork,
+  stopTicketWorkSession,
   type InventoryItem,
   type InventoryPart,
   type TechnicianOption,
@@ -35,6 +46,8 @@ import {
   type TicketColor,
   type TicketFlowPermissions,
   type TicketStatus,
+  type WorkSessionStatus,
+  type WorkSessionTransition,
 } from "@/lib/api";
 import { buildInventorySerialSearchQuery } from "@/lib/inventory-search";
 import { cn } from "@/lib/utils";
@@ -109,6 +122,8 @@ const COLOR_LABEL: Record<TicketColor, string> = {
 
 const DEFAULT_RECENT_LIMIT = 10;
 const SEARCH_RESULT_LIMIT = 500;
+type WorkQueueView = "pool" | "todo";
+type DerivedSessionStatus = WorkSessionStatus | "idle";
 
 function toErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message) {
@@ -209,6 +224,81 @@ function formatDate(value: string | null | undefined): string {
   return parsed.toLocaleString();
 }
 
+function formatClock(secondsRaw: number): string {
+  const seconds = Math.max(Math.floor(secondsRaw), 0);
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secondsRest = seconds % 60;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(secondsRest).padStart(2, "0")}`;
+}
+
+function timestampMs(value: string | null | undefined): number | null {
+  if (!value) {
+    return null;
+  }
+  const ts = new Date(value).valueOf();
+  return Number.isFinite(ts) ? ts : null;
+}
+
+function deriveSessionSnapshot(
+  transitions: WorkSessionTransition[],
+  nowMs: number,
+): {
+  status: DerivedSessionStatus;
+  activeSeconds: number;
+} {
+  const ordered = [...transitions].sort((left, right) => {
+    const leftTs = timestampMs(left.event_at) ?? 0;
+    const rightTs = timestampMs(right.event_at) ?? 0;
+    return leftTs - rightTs;
+  });
+
+  let status: DerivedSessionStatus = "idle";
+  let activeSeconds = 0;
+  let runningSinceMs: number | null = null;
+
+  for (const event of ordered) {
+    const eventMs = timestampMs(event.event_at);
+    if (eventMs === null) {
+      continue;
+    }
+
+    if (event.action === "started" || event.action === "resumed") {
+      if (runningSinceMs === null) {
+        runningSinceMs = eventMs;
+      }
+      status = "running";
+      continue;
+    }
+
+    if (event.action === "paused") {
+      if (runningSinceMs !== null) {
+        activeSeconds += Math.max(Math.floor((eventMs - runningSinceMs) / 1000), 0);
+      }
+      runningSinceMs = null;
+      status = "paused";
+      continue;
+    }
+
+    if (event.action === "stopped") {
+      if (runningSinceMs !== null) {
+        activeSeconds += Math.max(Math.floor((eventMs - runningSinceMs) / 1000), 0);
+      }
+      runningSinceMs = null;
+      status = "stopped";
+    }
+  }
+
+  if (runningSinceMs !== null) {
+    activeSeconds += Math.max(Math.floor((nowMs - runningSinceMs) / 1000), 0);
+  }
+
+  return {
+    status,
+    activeSeconds,
+  };
+}
+
 export function MobileTicketFlow({
   accessToken,
   permissions,
@@ -259,10 +349,14 @@ export function MobileTicketFlow({
   const [workPoolTickets, setWorkPoolTickets] = useState<Ticket[]>([]);
   const [workTodoTickets, setWorkTodoTickets] = useState<Ticket[]>([]);
   const [isLoadingWorkQueues, setIsLoadingWorkQueues] = useState(false);
+  const [workQueueView, setWorkQueueView] = useState<WorkQueueView>("pool");
   const [selectedWorkTicketId, setSelectedWorkTicketId] = useState<number | null>(null);
   const [selectedWorkCompletedPartIds, setSelectedWorkCompletedPartIds] = useState<number[]>(
     [],
   );
+  const [workSessionHistory, setWorkSessionHistory] = useState<WorkSessionTransition[]>([]);
+  const [isLoadingWorkSessionHistory, setIsLoadingWorkSessionHistory] = useState(false);
+  const [workNowMs, setWorkNowMs] = useState(() => Date.now());
   const [isRunningWorkAction, setIsRunningWorkAction] = useState(false);
 
   const [qcTickets, setQcTickets] = useState<Ticket[]>([]);
@@ -279,6 +373,21 @@ export function MobileTicketFlow({
   );
   const colorLabel = useCallback(
     (color: TicketColor) => t(COLOR_LABEL[color]),
+    [t],
+  );
+  const sessionStatusLabel = useCallback(
+    (status: DerivedSessionStatus) => {
+      if (status === "running") {
+        return t("Running");
+      }
+      if (status === "paused") {
+        return t("Paused");
+      }
+      if (status === "stopped") {
+        return t("Stopped");
+      }
+      return t("Not started");
+    },
     [t],
   );
 
@@ -446,6 +555,27 @@ export function MobileTicketFlow({
       setIsLoadingWorkQueues(false);
     }
   }, [accessToken, currentUserId, ensureInventoryLoaded, t, workSearch]);
+
+  const refreshWorkSessionHistory = useCallback(
+    async (ticketId: number) => {
+      setIsLoadingWorkSessionHistory(true);
+      try {
+        const history = await listTicketWorkSessionHistory(accessToken, ticketId, {
+          per_page: 300,
+        });
+        setWorkSessionHistory(history);
+      } catch (error) {
+        setWorkSessionHistory([]);
+        setFeedback({
+          type: "error",
+          message: toErrorMessage(error, t("Could not load work session history.")),
+        });
+      } finally {
+        setIsLoadingWorkSessionHistory(false);
+      }
+    },
+    [accessToken, t],
+  );
 
   const refreshQcTickets = useCallback(async () => {
     setIsLoadingQcTickets(true);
@@ -734,9 +864,62 @@ export function MobileTicketFlow({
     [selectedWorkTicketId, workCombined],
   );
 
+  const isSelectedWorkTicketFromPool = useMemo(
+    () =>
+      selectedWorkTicket
+        ? workPoolFiltered.some((ticket) => ticket.id === selectedWorkTicket.id)
+        : false,
+    [selectedWorkTicket, workPoolFiltered],
+  );
+  const isSelectedWorkTicketFromTodo = useMemo(
+    () =>
+      selectedWorkTicket
+        ? workTodoFiltered.some((ticket) => ticket.id === selectedWorkTicket.id)
+        : false,
+    [selectedWorkTicket, workTodoFiltered],
+  );
+
   useEffect(() => {
     setSelectedWorkCompletedPartIds([]);
+    setWorkSessionHistory([]);
+    setWorkNowMs(Date.now());
   }, [selectedWorkTicketId]);
+
+  useEffect(() => {
+    if (!selectedWorkTicket || !isSelectedWorkTicketFromTodo) {
+      setWorkSessionHistory([]);
+      return;
+    }
+    void refreshWorkSessionHistory(selectedWorkTicket.id);
+  }, [isSelectedWorkTicketFromTodo, refreshWorkSessionHistory, selectedWorkTicket]);
+
+  const selectedWorkSessionSnapshot = useMemo(
+    () => deriveSessionSnapshot(workSessionHistory, workNowMs),
+    [workNowMs, workSessionHistory],
+  );
+
+  useEffect(() => {
+    if (selectedWorkSessionSnapshot.status !== "running") {
+      return;
+    }
+    const timer = window.setInterval(() => {
+      setWorkNowMs(Date.now());
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [selectedWorkSessionSnapshot.status]);
+
+  useEffect(() => {
+    if (!selectedWorkTicket) {
+      return;
+    }
+    if (isSelectedWorkTicketFromTodo) {
+      setWorkQueueView("todo");
+      return;
+    }
+    if (isSelectedWorkTicketFromPool) {
+      setWorkQueueView("pool");
+    }
+  }, [isSelectedWorkTicketFromPool, isSelectedWorkTicketFromTodo, selectedWorkTicket]);
 
   const qcTicketsFiltered = useMemo(() => {
     return qcTickets;
@@ -973,6 +1156,7 @@ export function MobileTicketFlow({
       });
       await Promise.all([refreshWorkQueues(), refreshQcTickets()]);
       setSelectedWorkTicketId(ticketId);
+      setWorkQueueView("todo");
     } catch (error) {
       setFeedback({
         type: "error",
@@ -982,6 +1166,60 @@ export function MobileTicketFlow({
       setIsRunningWorkAction(false);
     }
   }, [accessToken, permissions.can_work, refreshQcTickets, refreshWorkQueues, t]);
+
+  const handleWorkSessionAction = useCallback(
+    async (
+      ticketId: number,
+      action: "start" | "pause" | "resume" | "stop",
+    ) => {
+      if (!permissions.can_work) {
+        return;
+      }
+      setIsRunningWorkAction(true);
+      try {
+        if (action === "start") {
+          await startTicketWork(accessToken, ticketId);
+        } else if (action === "pause") {
+          await pauseTicketWorkSession(accessToken, ticketId);
+        } else if (action === "resume") {
+          await resumeTicketWorkSession(accessToken, ticketId);
+        } else {
+          await stopTicketWorkSession(accessToken, ticketId);
+        }
+
+        if (action === "start") {
+          setFeedback({ type: "success", message: t("Work started.") });
+        } else if (action === "pause") {
+          setFeedback({ type: "success", message: t("Work paused.") });
+        } else if (action === "resume") {
+          setFeedback({ type: "success", message: t("Work resumed.") });
+        } else {
+          setFeedback({
+            type: "success",
+            message: t("Work stopped. Select completed parts."),
+          });
+        }
+
+        await Promise.all([refreshWorkQueues(), refreshQcTickets()]);
+        await refreshWorkSessionHistory(ticketId);
+      } catch (error) {
+        setFeedback({
+          type: "error",
+          message: toErrorMessage(error, t("Could not update work session.")),
+        });
+      } finally {
+        setIsRunningWorkAction(false);
+      }
+    },
+    [
+      accessToken,
+      permissions.can_work,
+      refreshQcTickets,
+      refreshWorkQueues,
+      refreshWorkSessionHistory,
+      t,
+    ],
+  );
 
   const handleSubmitWorkCompletion = useCallback(async () => {
     if (!permissions.can_work || !selectedWorkTicket) {
@@ -1006,6 +1244,7 @@ export function MobileTicketFlow({
       });
       setSelectedWorkCompletedPartIds([]);
       await Promise.all([refreshWorkQueues(), refreshQcTickets()]);
+      setWorkQueueView("pool");
     } catch (error) {
       setFeedback({
         type: "error",
@@ -1534,13 +1773,53 @@ export function MobileTicketFlow({
   );
 
   const renderWorkTab = () => {
-    const isSelectedFromPool = selectedWorkTicket
-      ? workPoolFiltered.some((ticket) => ticket.id === selectedWorkTicket.id)
-      : false;
-    const isSelectedFromTodo = selectedWorkTicket
-      ? workTodoFiltered.some((ticket) => ticket.id === selectedWorkTicket.id)
-      : false;
+    const isSelectedFromPool = isSelectedWorkTicketFromPool;
+    const isSelectedFromTodo = isSelectedWorkTicketFromTodo;
     const selectedPartSet = new Set(selectedWorkCompletedPartIds);
+    const visibleTickets = workQueueView === "pool" ? workPoolFiltered : workTodoFiltered;
+    const selectedWorkSessionStatus: DerivedSessionStatus = isSelectedFromTodo
+      ? selectedWorkSessionSnapshot.status
+      : "idle";
+    const workedSeconds = selectedWorkSessionSnapshot.activeSeconds;
+
+    const plannedSeconds = Math.max((selectedWorkTicket?.total_duration ?? 0) * 60, 0);
+    const totalParts = selectedWorkTicket?.ticket_parts.length ?? 0;
+    const completedParts = selectedWorkTicket
+      ? selectedWorkTicket.ticket_parts.filter((part) => Boolean(part.is_completed)).length
+      : 0;
+    const pendingParts = selectedWorkTicket ? pendingPartsForTicket(selectedWorkTicket) : [];
+    const progressPercent =
+      totalParts > 0 ? Math.min(Math.round((completedParts / totalParts) * 100), 100) : 0;
+    const selectedWorkTicketStatus = selectedWorkTicket?.status ?? null;
+
+    const canStartWork =
+      selectedWorkTicketStatus !== null &&
+      isSelectedFromTodo &&
+      (selectedWorkTicketStatus === "assigned" || selectedWorkTicketStatus === "rework");
+    const canPauseWork =
+      selectedWorkTicketStatus !== null &&
+      isSelectedFromTodo &&
+      selectedWorkTicketStatus === "in_progress" &&
+      selectedWorkSessionStatus === "running";
+    const canResumeWork =
+      selectedWorkTicketStatus !== null &&
+      isSelectedFromTodo &&
+      selectedWorkTicketStatus === "in_progress" &&
+      selectedWorkSessionStatus === "paused";
+    const canStopWork =
+      selectedWorkTicketStatus !== null &&
+      isSelectedFromTodo &&
+      selectedWorkTicketStatus === "in_progress" &&
+      (selectedWorkSessionStatus === "running" || selectedWorkSessionStatus === "paused");
+    const canSelectCompletedParts =
+      selectedWorkTicketStatus !== null &&
+      isSelectedFromTodo &&
+      (selectedWorkTicketStatus !== "in_progress" || selectedWorkSessionStatus === "stopped");
+    const canSubmitCompletion =
+      canSelectCompletedParts &&
+      selectedWorkCompletedPartIds.length > 0 &&
+      !isRunningWorkAction &&
+      permissions.can_work;
 
     return (
       <div className="space-y-3">
@@ -1568,146 +1847,110 @@ export function MobileTicketFlow({
             />
           </div>
 
-          <div className="mt-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              {t("Active pool")}
-            </p>
-            <div className="mt-2 max-h-[24svh] space-y-2 overflow-y-auto pr-1">
-              {isLoadingWorkQueues ? (
-                <p className="text-sm text-slate-600">{t("Loading technician queue...")}</p>
-              ) : workPoolFiltered.length ? (
-                workPoolFiltered.map((ticket) => {
-                  const serial =
-                    inventoryCache[ticket.inventory_item]?.serial_number ??
-                    t("Item #{{id}}", { id: ticket.inventory_item });
-                  const pendingParts = pendingPartsForTicket(ticket);
-                  const selected = selectedWorkTicketId === ticket.id;
-                  return (
-                    <div
-                      key={`pool-${ticket.id}`}
-                      className={cn(
-                        "rounded-xl border px-3 py-3",
-                        ticketCardClass(ticket.flag_color, selected),
-                      )}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedWorkTicketId(ticket.id);
-                          void ensureInventoryLoaded([ticket.inventory_item]);
-                        }}
-                        className="w-full text-left"
-                      >
-                        <p className="text-sm font-semibold">
-                          {t("Ticket #{{id}}", { id: ticket.id })}
-                        </p>
-                        <p
-                          className={cn(
-                            "mt-1 text-xs",
-                            ticketCardMetaClass(ticket.flag_color, selected),
-                          )}
-                        >
-                          {t("Serial")}: {serial}
-                        </p>
-                        <p
-                          className={cn(
-                            "mt-1 text-xs",
-                            ticketCardMetaClass(ticket.flag_color, selected),
-                          )}
-                        >
-                          {t("Priority")}: {colorLabel(ticket.flag_color)}
-                        </p>
-                        <p
-                          className={cn(
-                            "mt-1 text-xs",
-                            ticketCardMetaClass(ticket.flag_color, selected),
-                          )}
-                        >
-                          {t("Pending parts")}: {pendingParts.length}
-                        </p>
-                        {renderPendingPartDetails(ticket, ticket.flag_color, selected)}
-                      </button>
-                      <Button
-                        type="button"
-                        className="mt-2 h-9 w-full"
-                        onClick={() => void handleClaimWorkTicket(ticket.id)}
-                        disabled={isRunningWorkAction || !permissions.can_work}
-                      >
-                        {t("Claim")}
-                      </Button>
-                    </div>
-                  );
-                })
-              ) : (
-                <p className="rounded-lg border border-dashed border-slate-300 px-3 py-3 text-center text-sm text-slate-500">
-                  {t("No active pool tickets.")}
-                </p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setWorkQueueView("pool")}
+              className={cn(
+                "rounded-xl border px-3 py-2 text-left text-xs font-semibold transition",
+                workQueueView === "pool"
+                  ? "border-slate-900 bg-slate-900 text-white"
+                  : "border-slate-300 bg-slate-50 text-slate-700",
               )}
-            </div>
+            >
+              <span className="inline-flex items-center gap-1.5">
+                <ListTodo className="h-4 w-4" />
+                {t("Active pool")}
+              </span>
+              <p
+                className={cn(
+                  "mt-1 text-[11px]",
+                  workQueueView === "pool" ? "text-slate-300" : "text-slate-500",
+                )}
+              >
+                {workPoolFiltered.length}
+              </p>
+            </button>
+            <button
+              type="button"
+              onClick={() => setWorkQueueView("todo")}
+              className={cn(
+                "rounded-xl border px-3 py-2 text-left text-xs font-semibold transition",
+                workQueueView === "todo"
+                  ? "border-slate-900 bg-slate-900 text-white"
+                  : "border-slate-300 bg-slate-50 text-slate-700",
+              )}
+            >
+              <span className="inline-flex items-center gap-1.5">
+                <ClipboardCheck className="h-4 w-4" />
+                {t("My todo")}
+              </span>
+              <p
+                className={cn(
+                  "mt-1 text-[11px]",
+                  workQueueView === "todo" ? "text-slate-300" : "text-slate-500",
+                )}
+              >
+                {workTodoFiltered.length}
+              </p>
+            </button>
           </div>
 
-          <div className="mt-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              {t("My todo")}
-            </p>
-            <div className="mt-2 max-h-[24svh] space-y-2 overflow-y-auto pr-1">
-              {isLoadingWorkQueues ? null : workTodoFiltered.length ? (
-                workTodoFiltered.map((ticket) => {
-                  const serial =
-                    inventoryCache[ticket.inventory_item]?.serial_number ??
-                    t("Item #{{id}}", { id: ticket.inventory_item });
-                  const pendingParts = pendingPartsForTicket(ticket);
-                  const selected = selectedWorkTicketId === ticket.id;
-                  return (
-                    <button
-                      key={`todo-${ticket.id}`}
-                      type="button"
-                      onClick={() => {
-                        setSelectedWorkTicketId(ticket.id);
-                        void ensureInventoryLoaded([ticket.inventory_item]);
-                      }}
-                      className={cn(
-                        "w-full rounded-xl border px-3 py-3 text-left transition",
-                        ticketCardClass(ticket.flag_color, selected),
-                      )}
-                    >
-                      <p className="text-sm font-semibold">
-                        {t("Ticket #{{id}}", { id: ticket.id })}
-                      </p>
-                      <p
+          <div className="mt-3 max-h-[33svh] space-y-2 overflow-y-auto pr-1">
+            {isLoadingWorkQueues ? (
+              <p className="text-sm text-slate-600">{t("Loading technician queue...")}</p>
+            ) : visibleTickets.length ? (
+              visibleTickets.map((ticket) => {
+                const serial =
+                  inventoryCache[ticket.inventory_item]?.serial_number ??
+                  t("Item #{{id}}", { id: ticket.inventory_item });
+                const pending = pendingPartsForTicket(ticket);
+                const selected = selectedWorkTicketId === ticket.id;
+                return (
+                  <button
+                    key={`${workQueueView}-${ticket.id}`}
+                    type="button"
+                    onClick={() => {
+                      setSelectedWorkTicketId(ticket.id);
+                      void ensureInventoryLoaded([ticket.inventory_item]);
+                    }}
+                    className={cn(
+                      "w-full rounded-xl border px-3 py-3 text-left transition",
+                      ticketCardClass(ticket.flag_color, selected),
+                    )}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-semibold">{t("Ticket #{{id}}", { id: ticket.id })}</p>
+                      <span
                         className={cn(
-                          "mt-1 text-xs",
-                          ticketCardMetaClass(ticket.flag_color, selected),
+                          "rounded-full border px-2 py-0.5 text-[11px] font-semibold",
+                          selected
+                            ? ticket.flag_color === "yellow"
+                              ? "border-black/15 text-slate-800"
+                              : "border-white/35 text-white"
+                            : "border-slate-400/60 text-slate-700",
                         )}
                       >
-                        {t("Serial")}: {serial}
-                      </p>
-                      <p
-                        className={cn(
-                          "mt-1 text-xs",
-                          ticketCardMetaClass(ticket.flag_color, selected),
-                        )}
-                      >
-                        {t("Priority")}: {colorLabel(ticket.flag_color)}
-                      </p>
-                      <p
-                        className={cn(
-                          "mt-1 text-xs",
-                          ticketCardMetaClass(ticket.flag_color, selected),
-                        )}
-                      >
-                        {t("Pending parts")}: {pendingParts.length}
-                      </p>
-                      {renderPendingPartDetails(ticket, ticket.flag_color, selected)}
-                    </button>
-                  );
-                })
-              ) : (
-                <p className="rounded-lg border border-dashed border-slate-300 px-3 py-3 text-center text-sm text-slate-500">
-                  {t("No tickets in personal todo.")}
-                </p>
-              )}
-            </div>
+                        {statusLabel(ticket.status)}
+                      </span>
+                    </div>
+                    <p className={cn("mt-1 text-xs", ticketCardMetaClass(ticket.flag_color, selected))}>
+                      {t("Serial")}: {serial}
+                    </p>
+                    <p className={cn("mt-1 text-xs", ticketCardMetaClass(ticket.flag_color, selected))}>
+                      {t("Pending parts")}: {pending.length}
+                    </p>
+                    {renderPendingPartDetails(ticket, ticket.flag_color, selected)}
+                  </button>
+                );
+              })
+            ) : (
+              <p className="rounded-lg border border-dashed border-slate-300 px-3 py-3 text-center text-sm text-slate-500">
+                {workQueueView === "pool"
+                  ? t("No active pool tickets.")
+                  : t("No tickets in personal todo.")}
+              </p>
+            )}
           </div>
         </section>
 
@@ -1742,7 +1985,7 @@ export function MobileTicketFlow({
                   {t("Priority")}: {colorLabel(selectedWorkTicket.flag_color)}
                 </p>
                 <p className="mt-1 text-xs text-slate-700">
-                  {t("Pending parts")}: {pendingPartsForTicket(selectedWorkTicket).length}
+                  {t("Pending parts")}: {pendingParts.length}
                 </p>
                 {renderPendingPartDetails(
                   selectedWorkTicket,
@@ -1769,7 +2012,93 @@ export function MobileTicketFlow({
               ) : null}
 
               {isSelectedFromTodo ? (
-                <div className="space-y-2 rounded-xl border border-slate-200 bg-white px-3 py-3">
+                <div className="space-y-3 rounded-xl border border-slate-200 bg-white px-3 py-3">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
+                        <Timer className="h-4 w-4 text-slate-500" />
+                        {t("Timer")}
+                      </p>
+                      <span className="rounded-full border border-slate-300 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-700">
+                        {sessionStatusLabel(selectedWorkSessionStatus)}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-xl font-semibold tracking-tight text-slate-900">
+                      {formatClock(workedSeconds)}
+                    </p>
+                    <p className="text-xs text-slate-600">
+                      {t("Worked")}: {formatClock(workedSeconds)} · {t("Planned")}:{" "}
+                      {formatClock(plannedSeconds)}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-600">
+                      {t("Parts done")}: {completedParts}/{totalParts}
+                    </p>
+                    <div className="mt-2 h-1.5 rounded-full bg-slate-200">
+                      <div
+                        className="h-full rounded-full bg-slate-900 transition-all"
+                        style={{ width: `${progressPercent}%` }}
+                      />
+                    </div>
+                    {isLoadingWorkSessionHistory ? (
+                      <p className="mt-2 text-xs text-slate-500">{t("Loading work session...")}</p>
+                    ) : null}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    {canStartWork ? (
+                      <Button
+                        type="button"
+                        className="h-11"
+                        onClick={() => void handleWorkSessionAction(selectedWorkTicket.id, "start")}
+                        disabled={isRunningWorkAction || !permissions.can_work}
+                      >
+                        <Play className="mr-1.5 h-4 w-4" />
+                        {t("Start work")}
+                      </Button>
+                    ) : null}
+                    {canPauseWork ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-11 border-amber-300 text-amber-700"
+                        onClick={() => void handleWorkSessionAction(selectedWorkTicket.id, "pause")}
+                        disabled={isRunningWorkAction || !permissions.can_work}
+                      >
+                        <Pause className="mr-1.5 h-4 w-4" />
+                        {t("Pause")}
+                      </Button>
+                    ) : null}
+                    {canResumeWork ? (
+                      <Button
+                        type="button"
+                        className="h-11"
+                        onClick={() => void handleWorkSessionAction(selectedWorkTicket.id, "resume")}
+                        disabled={isRunningWorkAction || !permissions.can_work}
+                      >
+                        <CirclePlay className="mr-1.5 h-4 w-4" />
+                        {t("Resume")}
+                      </Button>
+                    ) : null}
+                    {canStopWork ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-11 border-rose-300 text-rose-700"
+                        onClick={() => void handleWorkSessionAction(selectedWorkTicket.id, "stop")}
+                        disabled={isRunningWorkAction || !permissions.can_work}
+                      >
+                        <Square className="mr-1.5 h-4 w-4" />
+                        {t("Stop")}
+                      </Button>
+                    ) : null}
+                  </div>
+
+                  {!canSelectCompletedParts ? (
+                    <p className="rounded-lg border border-dashed border-slate-300 px-3 py-2 text-xs text-slate-600">
+                      {t("Stop session to select completed parts.")}
+                    </p>
+                  ) : null}
+
                   <p className="text-sm font-semibold text-slate-900">{t("Parts completion")}</p>
                   {selectedWorkTicket.ticket_parts.length ? (
                     selectedWorkTicket.ticket_parts.map((part) => {
@@ -1802,7 +2131,12 @@ export function MobileTicketFlow({
                                     return [...next];
                                   });
                                 }}
-                                disabled={isCompleted || isRunningWorkAction}
+                                disabled={
+                                  isCompleted ||
+                                  isRunningWorkAction ||
+                                  !permissions.can_work ||
+                                  !canSelectCompletedParts
+                                }
                                 className="h-5 w-5 accent-slate-900"
                               />
                               <p className="text-sm font-medium text-slate-900">{part.part_name}</p>
@@ -1833,12 +2167,9 @@ export function MobileTicketFlow({
                     type="button"
                     className="h-11 w-full"
                     onClick={() => void handleSubmitWorkCompletion()}
-                    disabled={
-                      isRunningWorkAction ||
-                      !permissions.can_work ||
-                      !selectedWorkCompletedPartIds.length
-                    }
+                    disabled={!canSubmitCompletion}
                   >
+                    <CheckCircle2 className="mr-1.5 h-4 w-4" />
                     {t("Submit completion")}
                   </Button>
                 </div>
