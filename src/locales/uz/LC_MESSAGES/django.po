@@ -2391,6 +2391,68 @@ msgstr "QC tekshiruvi ochildi."
 msgid "🧪 Ticket sent to QC."
 msgstr "Ariza QC ga yuborildi."
 
+msgid " (rework)"
+msgstr " (qayta ishlash)"
+
+#, python-format
+msgid "%(checked)s %(index)s) %(color)s %(part)s — %(minutes)s min%(suffix)s"
+msgstr "%(checked)s %(index)s) %(color)s %(part)s — %(minutes)s daq%(suffix)s"
+
+msgid "All ticket parts must be completed before sending to QC."
+msgstr "QC ga yuborishdan oldin arizaning barcha qismlari yakunlangan bo‘lishi kerak."
+
+#, python-format
+msgid "Selected: %(selected)s/%(total)s"
+msgstr "Tanlangan: %(selected)s/%(total)s"
+
+msgid "Use refresh or return back to queue."
+msgstr "Yangilang yoki navbatga qayting."
+
+msgid "ℹ️ No pending parts are available for completion."
+msgstr "ℹ️ Yakunlash uchun kutilayotgan qismlar yo‘q."
+
+msgid "ℹ️ Ticket is no longer in your queue."
+msgstr "ℹ️ Ariza endi sizning navbatingizda yo‘q."
+
+msgid "↩️ Returned to ticket controls."
+msgstr "↩️ Ariza boshqaruviga qaytildi."
+
+msgid "⏹ Session stopped. Select completed parts."
+msgstr "⏹ Seans to‘xtatildi. Yakunlangan qismlarni tanlang."
+
+msgid "⚠️ Select at least one completed part."
+msgstr "⚠️ Kamida bitta yakunlangan qismni tanlang."
+
+msgid "⚠️ Unsupported part-completion action."
+msgstr "⚠️ Qismni yakunlash amali qo‘llab-quvvatlanmaydi."
+
+msgid "✅ All parts are already completed."
+msgstr "✅ Barcha qismlar allaqachon yakunlangan."
+
+msgid "✅ Parts completion submitted."
+msgstr "✅ Qismlar yakunlangani yuborildi."
+
+msgid "✅ Submit parts"
+msgstr "✅ Qismlarni yuborish"
+
+msgid "📋 <b>Pending parts</b>"
+msgstr "📋 <b>Yakunlanmagan qismlar</b>"
+
+msgid "🔄 Refresh"
+msgstr "🔄 Yangilash"
+
+msgid "🔄 Selection refreshed."
+msgstr "🔄 Tanlov yangilandi."
+
+msgid "🧩 <b>Next step:</b> complete finished parts in the Telegram mini app."
+msgstr "🧩 <b>Keyingi qadam:</b> Telegram mini appda yakunlangan qismlarni belgilang."
+
+msgid "🧩 <b>Select completed parts and submit.</b>"
+msgstr "🧩 <b>Yakunlangan qismlarni tanlang va yuboring.</b>"
+
+msgid "🧩 <b>Select completed parts</b>"
+msgstr "🧩 <b>Yakunlangan qismlarni tanlang</b>"
+
 #~ msgid "Moderator"
 #~ msgstr "Moderator"
 

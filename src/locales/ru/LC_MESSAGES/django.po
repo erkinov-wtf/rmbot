@@ -2382,6 +2382,68 @@ msgstr "Проверка QC открыта."
 msgid "🧪 Ticket sent to QC."
 msgstr "Заявка отправлена в QC."
 
+msgid " (rework)"
+msgstr " (доработка)"
+
+#, python-format
+msgid "%(checked)s %(index)s) %(color)s %(part)s — %(minutes)s min%(suffix)s"
+msgstr "%(checked)s %(index)s) %(color)s %(part)s — %(minutes)s мин%(suffix)s"
+
+msgid "All ticket parts must be completed before sending to QC."
+msgstr "Все части тикета должны быть завершены перед отправкой в QC."
+
+#, python-format
+msgid "Selected: %(selected)s/%(total)s"
+msgstr "Выбрано: %(selected)s/%(total)s"
+
+msgid "Use refresh or return back to queue."
+msgstr "Обновите список или вернитесь в очередь."
+
+msgid "ℹ️ No pending parts are available for completion."
+msgstr "ℹ️ Нет незавершенных частей для выполнения."
+
+msgid "ℹ️ Ticket is no longer in your queue."
+msgstr "ℹ️ Тикета больше нет в вашей очереди."
+
+msgid "↩️ Returned to ticket controls."
+msgstr "↩️ Возврат к управлению тикетом."
+
+msgid "⏹ Session stopped. Select completed parts."
+msgstr "⏹ Сессия остановлена. Выберите завершенные части."
+
+msgid "⚠️ Select at least one completed part."
+msgstr "⚠️ Выберите хотя бы одну завершенную часть."
+
+msgid "⚠️ Unsupported part-completion action."
+msgstr "⚠️ Неподдерживаемое действие завершения частей."
+
+msgid "✅ All parts are already completed."
+msgstr "✅ Все части уже завершены."
+
+msgid "✅ Parts completion submitted."
+msgstr "✅ Завершение частей отправлено."
+
+msgid "✅ Submit parts"
+msgstr "✅ Отправить части"
+
+msgid "📋 <b>Pending parts</b>"
+msgstr "📋 <b>Незавершенные части</b>"
+
+msgid "🔄 Refresh"
+msgstr "🔄 Обновить"
+
+msgid "🔄 Selection refreshed."
+msgstr "🔄 Выбор обновлен."
+
+msgid "🧩 <b>Next step:</b> complete finished parts in the Telegram mini app."
+msgstr "🧩 <b>Следующий шаг:</b> отметьте завершенные части в Telegram mini app."
+
+msgid "🧩 <b>Select completed parts and submit.</b>"
+msgstr "🧩 <b>Выберите завершенные части и отправьте.</b>"
+
+msgid "🧩 <b>Select completed parts</b>"
+msgstr "🧩 <b>Выберите завершенные части</b>"
+
 #~ msgid "Moderator"
 #~ msgstr "Модератор"
 
