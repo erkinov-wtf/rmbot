@@ -44,7 +44,7 @@ class TicketWorkflowService:
     ) -> Ticket:
         locked_ticket = (
             Ticket.domain.select_for_update()
-            .select_related("inventory_item", "master", "technician")
+            .select_related("inventory_item", "master")
             .prefetch_related("part_specs__inventory_item_part")
             .get(pk=ticket.pk)
         )
@@ -160,7 +160,7 @@ class TicketWorkflowService:
 
         locked_ticket = (
             Ticket.domain.select_for_update()
-            .select_related("inventory_item", "master", "technician")
+            .select_related("inventory_item", "master")
             .prefetch_related("part_specs__inventory_item_part")
             .get(pk=ticket.pk)
         )
@@ -416,7 +416,7 @@ class TicketWorkflowService:
     ) -> Ticket:
         locked_ticket = (
             Ticket.domain.select_for_update()
-            .select_related("inventory_item", "master", "technician")
+            .select_related("inventory_item", "master")
             .prefetch_related("part_specs__inventory_item_part")
             .get(pk=ticket.pk)
         )
