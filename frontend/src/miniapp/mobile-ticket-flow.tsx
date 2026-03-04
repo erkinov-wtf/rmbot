@@ -165,6 +165,35 @@ function colorPickerButtonClass(color: TicketColor, isActive: boolean): string {
     : "border-rose-200 bg-rose-50 text-rose-800";
 }
 
+function ticketCardClass(flagColor: TicketColor, isActive: boolean): string {
+  if (flagColor === "green") {
+    return isActive
+      ? "border-emerald-700 bg-emerald-600 text-white"
+      : "border-emerald-300 bg-emerald-100 text-emerald-900";
+  }
+  if (flagColor === "yellow") {
+    return isActive
+      ? "border-amber-700 bg-amber-300 text-slate-900"
+      : "border-amber-300 bg-amber-100 text-amber-900";
+  }
+  return isActive
+    ? "border-rose-700 bg-rose-600 text-white"
+    : "border-rose-300 bg-rose-100 text-rose-900";
+}
+
+function ticketCardMetaClass(flagColor: TicketColor, isActive: boolean): string {
+  if (isActive) {
+    return flagColor === "yellow" ? "text-slate-700" : "text-white/85";
+  }
+  if (flagColor === "green") {
+    return "text-emerald-700";
+  }
+  if (flagColor === "yellow") {
+    return "text-amber-800";
+  }
+  return "text-rose-700";
+}
+
 function distinctNumbers(values: number[]): number[] {
   return [...new Set(values)];
 }
@@ -250,6 +279,51 @@ export function MobileTicketFlow({
   const colorLabel = useCallback(
     (color: TicketColor) => t(COLOR_LABEL[color]),
     [t],
+  );
+
+  const pendingPartsForTicket = useCallback((ticket: Ticket) => {
+    return ticket.ticket_parts.filter(
+      (part) => Boolean(part.needs_rework) || !Boolean(part.is_completed),
+    );
+  }, []);
+
+  const renderPendingPartDetails = useCallback(
+    (
+      ticket: Ticket,
+      flagColor: TicketColor,
+      isActive: boolean,
+      options?: { limit?: number; className?: string },
+    ) => {
+      const pending = pendingPartsForTicket(ticket);
+      const limit = Math.max(options?.limit ?? 2, 1);
+      const textClass = options?.className ?? ticketCardMetaClass(flagColor, isActive);
+
+      if (!pending.length) {
+        return <p className={cn("mt-1 text-xs", textClass)}>{t("No pending parts")}</p>;
+      }
+
+      return (
+        <div className="mt-1 space-y-1">
+          {pending.slice(0, limit).map((part) => {
+            const detail = `${part.part_name} · ${part.minutes} ${t("min")} · ${colorLabel(part.color)}`;
+            return (
+              <p
+                key={`pending-part-${ticket.id}-${part.id}`}
+                className={cn("text-xs", textClass)}
+              >
+                {part.needs_rework ? `${detail} · ${t("Rework")}` : detail}
+              </p>
+            );
+          })}
+          {pending.length > limit ? (
+            <p className={cn("text-xs", textClass)}>
+              +{pending.length - limit} {t("Pending parts")}
+            </p>
+          ) : null}
+        </div>
+      );
+    },
+    [colorLabel, pendingPartsForTicket, t],
   );
 
   const cacheInventoryItems = useCallback((items: InventoryItem[]) => {
@@ -1502,14 +1576,14 @@ export function MobileTicketFlow({
                   const serial =
                     inventoryCache[ticket.inventory_item]?.serial_number ??
                     t("Item #{{id}}", { id: ticket.inventory_item });
+                  const pendingParts = pendingPartsForTicket(ticket);
+                  const selected = selectedWorkTicketId === ticket.id;
                   return (
                     <div
                       key={`pool-${ticket.id}`}
                       className={cn(
                         "rounded-xl border px-3 py-3",
-                        selectedWorkTicketId === ticket.id
-                          ? "border-slate-900 bg-slate-900 text-white"
-                          : "border-slate-200 bg-slate-50",
+                        ticketCardClass(ticket.flag_color, selected),
                       )}
                     >
                       <button
@@ -1520,15 +1594,34 @@ export function MobileTicketFlow({
                         }}
                         className="w-full text-left"
                       >
-                        <p className="text-sm font-semibold">#{ticket.id}</p>
+                        <p className="text-sm font-semibold">
+                          {t("Ticket #{{id}}", { id: ticket.id })}
+                        </p>
                         <p
                           className={cn(
                             "mt-1 text-xs",
-                            selectedWorkTicketId === ticket.id ? "text-slate-200" : "text-slate-600",
+                            ticketCardMetaClass(ticket.flag_color, selected),
                           )}
                         >
-                          {serial}
+                          {t("Serial")}: {serial}
                         </p>
+                        <p
+                          className={cn(
+                            "mt-1 text-xs",
+                            ticketCardMetaClass(ticket.flag_color, selected),
+                          )}
+                        >
+                          {t("Priority")}: {colorLabel(ticket.flag_color)}
+                        </p>
+                        <p
+                          className={cn(
+                            "mt-1 text-xs",
+                            ticketCardMetaClass(ticket.flag_color, selected),
+                          )}
+                        >
+                          {t("Pending parts")}: {pendingParts.length}
+                        </p>
+                        {renderPendingPartDetails(ticket, ticket.flag_color, selected)}
                       </button>
                       <Button
                         type="button"
@@ -1559,6 +1652,8 @@ export function MobileTicketFlow({
                   const serial =
                     inventoryCache[ticket.inventory_item]?.serial_number ??
                     t("Item #{{id}}", { id: ticket.inventory_item });
+                  const pendingParts = pendingPartsForTicket(ticket);
+                  const selected = selectedWorkTicketId === ticket.id;
                   return (
                     <button
                       key={`todo-${ticket.id}`}
@@ -1569,20 +1664,37 @@ export function MobileTicketFlow({
                       }}
                       className={cn(
                         "w-full rounded-xl border px-3 py-3 text-left transition",
-                        selectedWorkTicketId === ticket.id
-                          ? "border-slate-900 bg-slate-900 text-white"
-                          : "border-slate-200 bg-white text-slate-900",
+                        ticketCardClass(ticket.flag_color, selected),
                       )}
                     >
-                      <p className="text-sm font-semibold">#{ticket.id}</p>
+                      <p className="text-sm font-semibold">
+                        {t("Ticket #{{id}}", { id: ticket.id })}
+                      </p>
                       <p
                         className={cn(
                           "mt-1 text-xs",
-                          selectedWorkTicketId === ticket.id ? "text-slate-200" : "text-slate-600",
+                          ticketCardMetaClass(ticket.flag_color, selected),
                         )}
                       >
-                        {serial}
+                        {t("Serial")}: {serial}
                       </p>
+                      <p
+                        className={cn(
+                          "mt-1 text-xs",
+                          ticketCardMetaClass(ticket.flag_color, selected),
+                        )}
+                      >
+                        {t("Priority")}: {colorLabel(ticket.flag_color)}
+                      </p>
+                      <p
+                        className={cn(
+                          "mt-1 text-xs",
+                          ticketCardMetaClass(ticket.flag_color, selected),
+                        )}
+                      >
+                        {t("Pending parts")}: {pendingParts.length}
+                      </p>
+                      {renderPendingPartDetails(ticket, ticket.flag_color, selected)}
                     </button>
                   );
                 })
@@ -1598,7 +1710,12 @@ export function MobileTicketFlow({
         <section className="rm-panel p-4">
           {selectedWorkTicket ? (
             <div className="space-y-3">
-              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+              <div
+                className={cn(
+                  "rounded-xl border px-3 py-2",
+                  ticketCardClass(selectedWorkTicket.flag_color, false),
+                )}
+              >
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-semibold text-slate-900">
                     {t("Ticket #{{id}}", { id: selectedWorkTicket.id })}
@@ -1612,12 +1729,23 @@ export function MobileTicketFlow({
                     {statusLabel(selectedWorkTicket.status)}
                   </span>
                 </div>
-                <p className="mt-1 text-xs text-slate-600">
-                  {
-                    inventoryCache[selectedWorkTicket.inventory_item]?.serial_number ??
-                    t("Item #{{id}}", { id: selectedWorkTicket.inventory_item })
-                  }
+                <p className="mt-1 text-xs text-slate-700">
+                  {t("Serial")}:{" "}
+                  {inventoryCache[selectedWorkTicket.inventory_item]?.serial_number ??
+                    t("Item #{{id}}", { id: selectedWorkTicket.inventory_item })}
                 </p>
+                <p className="mt-1 text-xs text-slate-700">
+                  {t("Priority")}: {colorLabel(selectedWorkTicket.flag_color)}
+                </p>
+                <p className="mt-1 text-xs text-slate-700">
+                  {t("Pending parts")}: {pendingPartsForTicket(selectedWorkTicket).length}
+                </p>
+                {renderPendingPartDetails(
+                  selectedWorkTicket,
+                  selectedWorkTicket.flag_color,
+                  false,
+                  { limit: 3, className: "text-slate-700" },
+                )}
               </div>
 
               {isSelectedFromPool ? (
@@ -1663,9 +1791,9 @@ export function MobileTicketFlow({
                                   setSelectedWorkCompletedPartIds((prev) => {
                                     const next = new Set(prev);
                                     if (event.target.checked) {
-                                      next.add(part.part_id);
+                                      next.add(part.id);
                                     } else {
-                                      next.delete(part.part_id);
+                                      next.delete(part.id);
                                     }
                                     return [...next];
                                   });
@@ -1685,6 +1813,7 @@ export function MobileTicketFlow({
                             </span>
                           </div>
                           <p className="mt-1 text-xs text-slate-600">{t("Minutes")}: {part.minutes}</p>
+                          <p className="mt-1 text-xs text-slate-600">{t("Comment")}: {part.comment || "-"}</p>
                           <p className="mt-1 text-xs text-slate-600">{t("Completed by")}: {completedBy}</p>
                           <p className="mt-1 text-xs text-slate-600">
                             {t("Completed at")}: {formatDate(part.completed_at)}
@@ -1755,6 +1884,8 @@ export function MobileTicketFlow({
               const serial =
                 inventoryCache[ticket.inventory_item]?.serial_number ??
                 t("Item #{{id}}", { id: ticket.inventory_item });
+              const pendingParts = pendingPartsForTicket(ticket);
+              const selected = selectedQcTicketId === ticket.id;
               return (
                 <button
                   key={ticket.id}
@@ -1765,28 +1896,37 @@ export function MobileTicketFlow({
                   }}
                   className={cn(
                     "w-full rounded-xl border px-3 py-3 text-left transition",
-                    selectedQcTicketId === ticket.id
-                      ? "border-slate-900 bg-slate-900 text-white"
-                      : "border-slate-200 bg-slate-50 text-slate-900",
+                    ticketCardClass(ticket.flag_color, selected),
                   )}
                 >
-                  <p className="text-sm font-semibold">#{ticket.id}</p>
-                  <p
-                    className={cn(
-                      "mt-1 text-xs",
-                      selectedQcTicketId === ticket.id ? "text-slate-200" : "text-slate-600",
-                    )}
-                  >
-                    {serial}
+                  <p className="text-sm font-semibold">
+                    {t("Ticket #{{id}}", { id: ticket.id })}
                   </p>
                   <p
                     className={cn(
                       "mt-1 text-xs",
-                      selectedQcTicketId === ticket.id ? "text-slate-200" : "text-slate-600",
+                      ticketCardMetaClass(ticket.flag_color, selected),
                     )}
                   >
-                    {statusLabel(ticket.status)}
+                    {t("Serial")}: {serial}
                   </p>
+                  <p
+                    className={cn(
+                      "mt-1 text-xs",
+                      ticketCardMetaClass(ticket.flag_color, selected),
+                    )}
+                  >
+                    {t("Priority")}: {colorLabel(ticket.flag_color)}
+                  </p>
+                  <p
+                    className={cn(
+                      "mt-1 text-xs",
+                      ticketCardMetaClass(ticket.flag_color, selected),
+                    )}
+                  >
+                    {t("Pending parts")}: {pendingParts.length}
+                  </p>
+                  {renderPendingPartDetails(ticket, ticket.flag_color, selected)}
                 </button>
               );
             })
@@ -1801,7 +1941,12 @@ export function MobileTicketFlow({
       <section className="rm-panel p-4">
         {selectedQcTicket ? (
           <div className="space-y-3">
-            <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+            <div
+              className={cn(
+                "rounded-xl border px-3 py-2",
+                ticketCardClass(selectedQcTicket.flag_color, false),
+              )}
+            >
               <div className="flex items-center gap-2">
                 <p className="text-sm font-semibold text-slate-900">
                   {t("Ticket #{{id}}", { id: selectedQcTicket.id })}
@@ -1815,19 +1960,30 @@ export function MobileTicketFlow({
                   {statusLabel(selectedQcTicket.status)}
                 </span>
               </div>
-              <p className="mt-1 text-xs text-slate-600">
-                {
-                  inventoryCache[selectedQcTicket.inventory_item]?.serial_number ??
-                  t("Item #{{id}}", { id: selectedQcTicket.inventory_item })
-                }
+              <p className="mt-1 text-xs text-slate-700">
+                {t("Serial")}:{" "}
+                {inventoryCache[selectedQcTicket.inventory_item]?.serial_number ??
+                  t("Item #{{id}}", { id: selectedQcTicket.inventory_item })}
               </p>
+              <p className="mt-1 text-xs text-slate-700">
+                {t("Priority")}: {colorLabel(selectedQcTicket.flag_color)}
+              </p>
+              <p className="mt-1 text-xs text-slate-700">
+                {t("Pending parts")}: {pendingPartsForTicket(selectedQcTicket).length}
+              </p>
+              {renderPendingPartDetails(
+                selectedQcTicket,
+                selectedQcTicket.flag_color,
+                false,
+                { limit: 3, className: "text-slate-700" },
+              )}
             </div>
 
             <div className="space-y-2 rounded-xl border border-slate-200 bg-white px-3 py-3">
               <p className="text-sm font-semibold text-slate-900">{t("Part specs")}</p>
               {selectedQcTicket.ticket_parts.length ? (
                 selectedQcTicket.ticket_parts.map((part) => {
-                  const checked = selectedQcFailedPartIds.includes(part.part_id);
+                  const checked = selectedQcFailedPartIds.includes(part.id);
                   const completedBy =
                     part.completed_by_name ||
                     (typeof part.completed_by === "number"
@@ -1847,9 +2003,9 @@ export function MobileTicketFlow({
                               setSelectedQcFailedPartIds((prev) => {
                                 const next = new Set(prev);
                                 if (event.target.checked) {
-                                  next.add(part.part_id);
+                                  next.add(part.id);
                                 } else {
-                                  next.delete(part.part_id);
+                                  next.delete(part.id);
                                 }
                                 return [...next];
                               });

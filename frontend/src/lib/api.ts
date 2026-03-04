@@ -449,6 +449,10 @@ export type TicketPartSpec = {
   completed_by?: number | null;
   completed_by_name?: string | null;
   completed_at?: string | null;
+  completion_note?: string;
+  needs_rework?: boolean;
+  rework_for_technician?: number | null;
+  rework_for_technician_name?: string | null;
   completed_history?: TicketPartCompletionEvent[];
   created_at: string;
   updated_at: string;

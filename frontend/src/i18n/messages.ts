@@ -26,6 +26,8 @@ const RU_MESSAGES: TranslationCatalog = {
   "Back To Leaderboard": "Назад к рейтингу",
   Champion: "Чемпион",
   Comment: "Комментарий",
+  "Completed at": "Завершено в",
+  "Completed by": "Выполнено",
   Daily: "День",
   "Completed days": "Завершенные дни",
   Create: "Создать",
@@ -38,6 +40,7 @@ const RU_MESSAGES: TranslationCatalog = {
   "Could not authenticate Telegram mini app session.":
     "Не удалось аутентифицировать Telegram mini app сессию.",
   "Could not create ticket.": "Не удалось создать тикет.",
+  "Could not claim ticket.": "Не удалось взять тикет в работу.",
   "Could not load inventory items.": "Не удалось загрузить элементы инвентаря.",
   "Could not load parts.": "Не удалось загрузить части.",
   "Could not load public technician leaderboard.":
@@ -48,7 +51,11 @@ const RU_MESSAGES: TranslationCatalog = {
     "Не удалось загрузить детали по технику.",
   "Could not load technician list.":
     "Не удалось загрузить список техников.",
+  "Could not load technician queue.":
+    "Не удалось загрузить очередь техников.",
   "Could not process QC action.": "Не удалось выполнить действие QC.",
+  "Could not submit part completion.":
+    "Не удалось отправить завершение частей.",
   "Could not update manual metrics.":
     "Не удалось обновить ручные метрики.",
   "Date range": "Диапазон дат",
@@ -80,6 +87,7 @@ const RU_MESSAGES: TranslationCatalog = {
   "Loading leaderboard...": "Загрузка рейтинга...",
   "Loading parts...": "Загрузка частей...",
   "Loading QC queue...": "Загрузка очереди QC...",
+  "Loading technician queue...": "Загрузка очереди техников...",
   "Loading technician details...": "Загрузка данных техника...",
   "Loading technicians...": "Загрузка техников...",
   "Loading tickets...": "Загрузка тикетов...",
@@ -98,12 +106,15 @@ const RU_MESSAGES: TranslationCatalog = {
     "Мобильный поток для создания, проверки и QC тикетов.",
   "New": "Новый",
   "No matching inventory items.": "Подходящие элементы инвентаря не найдены.",
+  "No active pool tickets.": "В активном пуле нет тикетов.",
+  "No pending parts": "Нет незавершенных частей",
   "No part specs.": "Нет параметров частей.",
   "No parts are configured for this item category.":
     "Для категории этого элемента части не настроены.",
   "No roles": "Нет ролей",
   "No ticket permissions": "Нет прав на тикеты",
   "No tickets found.": "Тикеты не найдены.",
+  "No tickets in personal todo.": "В личном списке задач тикетов нет.",
   "No tickets in QC queue.": "В очереди QC нет тикетов.",
   "No technicians available in leaderboard.":
     "В рейтинге нет доступных техников.",
@@ -114,7 +125,10 @@ const RU_MESSAGES: TranslationCatalog = {
     "Откройте эту страницу из Telegram-бота через кнопку mini app.",
   "Operations workspace": "Операционное рабочее пространство",
   "Part specs": "Параметры частей",
+  "Part completion submitted.": "Завершение частей отправлено.",
   Parts: "Части",
+  "Parts completion": "Завершение частей",
+  "Pending parts": "Незавершенные части",
   "Penalty": "Штраф",
   "Preparing authentication...": "Подготовка аутентификации...",
   "Preparing mini app...": "Подготовка мини-приложения...",
@@ -155,6 +169,12 @@ const RU_MESSAGES: TranslationCatalog = {
     "Выберите элемент для создания нового ремонтного тикета.",
   "Select at least one part for the ticket.":
     "Выберите хотя бы одну часть для тикета.",
+  "Select at least one completed part.":
+    "Выберите хотя бы одну завершенную часть.",
+  "Select at least one failed part.":
+    "Выберите хотя бы одну часть с ошибкой.",
+  "Select a work ticket to continue.":
+    "Выберите рабочий тикет, чтобы продолжить.",
   "Select technician": "Выберите техника",
   "Set warning week": "Включить неделю предупреждения",
   "Unset warning week": "Снять неделю предупреждения",
@@ -176,6 +196,7 @@ const RU_MESSAGES: TranslationCatalog = {
   "Status Counts (All Time)": "Счетчики статусов (за все время)",
   "System score": "Системный счет",
   "Technician": "Техник",
+  "Technician queue": "Очередь техников",
   "Technician Top Chart": "Топ-рейтинг техников",
   "Telegram account is not linked to an active user.":
     "Ваш Telegram-аккаунт не привязан к активному пользователю.",
@@ -187,6 +208,7 @@ const RU_MESSAGES: TranslationCatalog = {
   "Ticket #{{id}} approved.": "Тикет #{{id}} одобрен.",
   "Ticket #{{id}} assigned.": "Тикет #{{id}} назначен.",
   "Ticket approved and assigned.": "Тикет одобрен и назначен.",
+  "Ticket claimed.": "Тикет взят в работу.",
   "Ticket Flow": "Поток тикетов",
   "Ticket created successfully.": "Тикет успешно создан.",
   "Ticket Workspace": "Рабочая зона тикетов",
@@ -198,10 +220,12 @@ const RU_MESSAGES: TranslationCatalog = {
   "Top Negative Factors": "Главные отрицательные факторы",
   "Total XP": "Всего XP",
   "Under review": "На проверке",
+  "User #{{id}}": "Пользователь #{{id}}",
   Users: "Пользователи",
   "Username: @{{username}}": "Имя пользователя: @{{username}}",
   "Waiting QC": "Ожидает QC",
   "Why This Rank": "Почему этот ранг",
+  Work: "Работа",
   "XP Breakdown": "Разбор XP",
   "XP Control": "Управление XP",
   "XP amount": "Количество XP",
@@ -214,6 +238,10 @@ const RU_MESSAGES: TranslationCatalog = {
   "Amount": "Сумма",
   "Apply level": "Применить уровень",
   "Approve & Assign": "Одобрить и назначить",
+  "Active pool": "Активный пул",
+  Claim: "Взять в работу",
+  "Claim this ticket to move it into your todo queue.":
+    "Возьмите этот тикет в работу, чтобы переместить его в личный список задач.",
   "Approve Review": "Одобрить проверку",
   "Attend": "Посещ.",
   "Authenticated User": "Аутентифицированный пользователь",
@@ -236,6 +264,7 @@ const RU_MESSAGES: TranslationCatalog = {
   "Login failed with an unknown error.": "Ошибка входа с неизвестной причиной.",
   "No done tickets yet.": "Пока нет завершенных тикетов.",
   "No negative factors.": "Нет отрицательных факторов.",
+  "Not completed": "Не завершено",
   "No positive factors.": "Нет положительных факторов.",
   Pending: "В ожидании",
   "Password": "Пароль",
@@ -251,6 +280,9 @@ const RU_MESSAGES: TranslationCatalog = {
   "Raw XP": "Сырой XP",
   "Red": "Красный",
   "Ref": "Ссылка",
+  Priority: "Приоритет",
+  Serial: "Серийный номер",
+  "Submit completion": "Отправить завершение",
   "Updated at {{time}}": "Обновлено: {{time}}",
   "Auto-refresh every 10 seconds": "Автообновление каждые 10 секунд",
   "Attendance Punctuality": "Пунктуальность посещаемости",
@@ -307,6 +339,9 @@ const RU_MESSAGES: TranslationCatalog = {
     "У вас нет прав на выполнение QC действий.",
   "Your account does not have create/review/qc access.":
     "У вашей учетной записи нет доступа к create/review/qc.",
+  "Your account does not have create/review/work/qc access.":
+    "У вашей учетной записи нет доступа к create/review/work/qc.",
+  "My todo": "Мои задачи",
   "your.username": "ваш.username",
 };
 
@@ -331,6 +366,8 @@ const UZ_MESSAGES: TranslationCatalog = {
   "Back To Leaderboard": "Reytingga qaytish",
   Champion: "Chempion",
   Comment: "Izoh",
+  "Completed at": "Yakunlangan vaqt",
+  "Completed by": "Kim yakunladi",
   Daily: "Kunlik",
   "Completed days": "Yakunlangan kunlar",
   Create: "Yaratish",
@@ -343,6 +380,7 @@ const UZ_MESSAGES: TranslationCatalog = {
   "Could not authenticate Telegram mini app session.":
     "Telegram mini app sessiyasini autentifikatsiya qilib bo'lmadi.",
   "Could not create ticket.": "Ariza yaratib bo'lmadi.",
+  "Could not claim ticket.": "Arizani ishga olib bo'lmadi.",
   "Could not load inventory items.":
     "Inventar elementlarini yuklab bo'lmadi.",
   "Could not load parts.": "Qismlarni yuklab bo'lmadi.",
@@ -352,7 +390,11 @@ const UZ_MESSAGES: TranslationCatalog = {
   "Could not load review tickets.": "Ko'rib chiqish arizalarini yuklab bo'lmadi.",
   "Could not load technician detail.": "Texnik tafsilotlarini yuklab bo'lmadi.",
   "Could not load technician list.": "Texniklar ro'yxatini yuklab bo'lmadi.",
+  "Could not load technician queue.":
+    "Texniklar navbatini yuklab bo'lmadi.",
   "Could not process QC action.": "QC amalini bajarib bo'lmadi.",
+  "Could not submit part completion.":
+    "Qismlar yakunlanganini yuborib bo'lmadi.",
   "Could not update manual metrics.": "Qo'lda metrikalarni yangilab bo'lmadi.",
   "Date range": "Sana oralig'i",
   Done: "Yakunlangan",
@@ -384,6 +426,7 @@ const UZ_MESSAGES: TranslationCatalog = {
   "Loading leaderboard...": "Reyting yuklanmoqda...",
   "Loading parts...": "Qismlar yuklanmoqda...",
   "Loading QC queue...": "QC navbati yuklanmoqda...",
+  "Loading technician queue...": "Texniklar navbati yuklanmoqda...",
   "Loading technician details...": "Texnik tafsilotlari yuklanmoqda...",
   "Loading technicians...": "Texniklar yuklanmoqda...",
   "Loading tickets...": "Arizalar yuklanmoqda...",
@@ -402,12 +445,15 @@ const UZ_MESSAGES: TranslationCatalog = {
     "Ariza yaratish, ko'rib chiqish va QC amallari uchun mobil oqim.",
   New: "Yangi",
   "No matching inventory items.": "Mos inventar elementlari topilmadi.",
+  "No active pool tickets.": "Faol pulda arizalar yo'q.",
+  "No pending parts": "Yakunlanmagan qismlar yo'q",
   "No part specs.": "Qism parametrlari yo'q.",
   "No parts are configured for this item category.":
     "Ushbu element kategoriyasi uchun qismlar sozlanmagan.",
   "No roles": "Rollar yo'q",
   "No ticket permissions": "Ariza ruxsatlari yo'q",
   "No tickets found.": "Arizalar topilmadi.",
+  "No tickets in personal todo.": "Shaxsiy vazifalar ro'yxatida arizalar yo'q.",
   "No tickets in QC queue.": "QC navbatida arizalar yo'q.",
   "No technicians available in leaderboard.":
     "Reytingda texniklar mavjud emas.",
@@ -418,7 +464,10 @@ const UZ_MESSAGES: TranslationCatalog = {
     "Ushbu sahifani Telegram botidagi mini app tugmasi orqali oching.",
   "Operations workspace": "Operatsion ish maydoni",
   "Part specs": "Qism parametrlari",
+  "Part completion submitted.": "Qismlar yakunlanganligi yuborildi.",
   Parts: "Qismlar",
+  "Parts completion": "Qismlarni yakunlash",
+  "Pending parts": "Yakunlanmagan qismlar",
   Penalty: "Jarima",
   "Preparing authentication...": "Autentifikatsiya tayyorlanmoqda...",
   "Preparing mini app...": "Mini app tayyorlanmoqda...",
@@ -459,6 +508,12 @@ const UZ_MESSAGES: TranslationCatalog = {
     "Yangi ta'mirlash arizasini yaratish uchun elementni tanlang.",
   "Select at least one part for the ticket.":
     "Ariza uchun kamida bitta qismni tanlang.",
+  "Select at least one completed part.":
+    "Kamida bitta yakunlangan qismni tanlang.",
+  "Select at least one failed part.":
+    "Kamida bitta xato qismni tanlang.",
+  "Select a work ticket to continue.":
+    "Davom etish uchun ish arizasini tanlang.",
   "Select technician": "Texnikni tanlang",
   "Set warning week": "Ogohlantirish haftasini yoqish",
   "Unset warning week": "Ogohlantirish haftasini olib tashlash",
@@ -480,6 +535,7 @@ const UZ_MESSAGES: TranslationCatalog = {
   "Status Counts (All Time)": "Holatlar soni (hamma vaqt)",
   "System score": "Tizim balli",
   Technician: "Texnik",
+  "Technician queue": "Texniklar navbati",
   "Technician Top Chart": "Texniklar top reytingi",
   "Telegram account is not linked to an active user.":
     "Telegram hisobingiz faol foydalanuvchiga bog'lanmagan.",
@@ -491,6 +547,7 @@ const UZ_MESSAGES: TranslationCatalog = {
   "Ticket #{{id}} approved.": "Ariza #{{id}} tasdiqlandi.",
   "Ticket #{{id}} assigned.": "Ariza #{{id}} biriktirildi.",
   "Ticket approved and assigned.": "Ariza tasdiqlandi va biriktirildi.",
+  "Ticket claimed.": "Ariza ishga olindi.",
   "Ticket Flow": "Ariza oqimi",
   "Ticket created successfully.": "Ariza muvaffaqiyatli yaratildi.",
   "Ticket Workspace": "Ariza ish maydoni",
@@ -502,10 +559,12 @@ const UZ_MESSAGES: TranslationCatalog = {
   "Top Negative Factors": "Asosiy salbiy omillar",
   "Total XP": "Jami XP",
   "Under review": "Ko'rib chiqilmoqda",
+  "User #{{id}}": "Foydalanuvchi #{{id}}",
   Users: "Foydalanuvchilar",
   "Username: @{{username}}": "Foydalanuvchi nomi: @{{username}}",
   "Waiting QC": "QC kutilmoqda",
   "Why This Rank": "Nega bu o'rin",
+  Work: "Ish",
   "XP Breakdown": "XP taqsimoti",
   "XP Control": "XP nazorati",
   "XP amount": "XP miqdori",
@@ -518,6 +577,10 @@ const UZ_MESSAGES: TranslationCatalog = {
   "Amount": "Miqdor",
   "Apply level": "Darajani qo'llash",
   "Approve & Assign": "Tasdiqlash va biriktirish",
+  "Active pool": "Faol pul",
+  Claim: "Ishga olish",
+  "Claim this ticket to move it into your todo queue.":
+    "Bu arizani ishga oling, u shaxsiy vazifalar ro'yxatiga o'tadi.",
   "Approve Review": "Ko'rib chiqishni tasdiqlash",
   "Attend": "Dav.",
   "Authenticated User": "Autentifikatsiyalangan foydalanuvchi",
@@ -542,6 +605,7 @@ const UZ_MESSAGES: TranslationCatalog = {
     "Kirish noma'lum xatolik bilan muvaffaqiyatsiz tugadi.",
   "No done tickets yet.": "Hali yakunlangan arizalar yo'q.",
   "No negative factors.": "Salbiy omillar yo'q.",
+  "Not completed": "Yakunlanmagan",
   "No positive factors.": "Ijobiy omillar yo'q.",
   Pending: "Kutilmoqda",
   "Password": "Parol",
@@ -557,6 +621,9 @@ const UZ_MESSAGES: TranslationCatalog = {
   "Raw XP": "Sof XP",
   "Red": "Qizil",
   "Ref": "Havola",
+  Priority: "Ustuvorlik",
+  Serial: "Seriya raqami",
+  "Submit completion": "Yakunlashni yuborish",
   "Updated at {{time}}": "Yangilangan vaqt: {{time}}",
   "Auto-refresh every 10 seconds": "Har 10 soniyada avtoyangilanadi",
   "Attendance Punctuality": "Davomat punktualligi",
@@ -613,6 +680,9 @@ const UZ_MESSAGES: TranslationCatalog = {
     "QC amallarini bajarish uchun sizda ruxsat yo'q.",
   "Your account does not have create/review/qc access.":
     "Hisobingizda create/review/qc kirish huquqi yo'q.",
+  "Your account does not have create/review/work/qc access.":
+    "Hisobingizda create/review/work/qc kirish huquqi yo'q.",
+  "My todo": "Mening vazifalarim",
   "your.username": "sizning.username",
 };
 
