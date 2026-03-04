@@ -177,6 +177,14 @@ class TicketWorkflowService:
             raise DomainValidationError(
                 "Ticket parts cannot be completed in current ticket status."
             )
+        latest_session = WorkSession.domain.get_latest_for_ticket_and_technician(
+            ticket=locked_ticket,
+            technician_id=actor_user_id,
+        )
+        if latest_session is None or latest_session.status != WorkSessionStatus.STOPPED:
+            raise DomainValidationError(
+                "Work session must be stopped before completing ticket parts."
+            )
 
         part_specs = {
             spec.id: spec

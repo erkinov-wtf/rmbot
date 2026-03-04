@@ -1314,15 +1314,6 @@ export function MobileTicketFlow({
     ],
   );
 
-  const tabGridClass =
-    availableTabs.length === 1
-      ? "grid-cols-1"
-      : availableTabs.length === 2
-        ? "grid-cols-2"
-        : availableTabs.length === 3
-          ? "grid-cols-3"
-          : "grid-cols-4";
-
   const renderCreateTab = () => (
     <div className="space-y-3">
       <section className="rm-panel p-4">
@@ -1814,7 +1805,8 @@ export function MobileTicketFlow({
     const canSelectCompletedParts =
       selectedWorkTicketStatus !== null &&
       isSelectedFromTodo &&
-      (selectedWorkTicketStatus !== "in_progress" || selectedWorkSessionStatus === "stopped");
+      selectedWorkTicketStatus === "in_progress" &&
+      selectedWorkSessionStatus === "stopped";
     const canSubmitCompletion =
       canSelectCompletedParts &&
       selectedWorkCompletedPartIds.length > 0 &&
@@ -1845,55 +1837,6 @@ export function MobileTicketFlow({
               onChange={(event) => setWorkSearch(event.target.value)}
               placeholder={t("Search ticket id, serial, title")}
             />
-          </div>
-
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => setWorkQueueView("pool")}
-              className={cn(
-                "rounded-xl border px-3 py-2 text-left text-xs font-semibold transition",
-                workQueueView === "pool"
-                  ? "border-slate-900 bg-slate-900 text-white"
-                  : "border-slate-300 bg-slate-50 text-slate-700",
-              )}
-            >
-              <span className="inline-flex items-center gap-1.5">
-                <ListTodo className="h-4 w-4" />
-                {t("Active pool")}
-              </span>
-              <p
-                className={cn(
-                  "mt-1 text-[11px]",
-                  workQueueView === "pool" ? "text-slate-300" : "text-slate-500",
-                )}
-              >
-                {workPoolFiltered.length}
-              </p>
-            </button>
-            <button
-              type="button"
-              onClick={() => setWorkQueueView("todo")}
-              className={cn(
-                "rounded-xl border px-3 py-2 text-left text-xs font-semibold transition",
-                workQueueView === "todo"
-                  ? "border-slate-900 bg-slate-900 text-white"
-                  : "border-slate-300 bg-slate-50 text-slate-700",
-              )}
-            >
-              <span className="inline-flex items-center gap-1.5">
-                <ClipboardCheck className="h-4 w-4" />
-                {t("My todo")}
-              </span>
-              <p
-                className={cn(
-                  "mt-1 text-[11px]",
-                  workQueueView === "todo" ? "text-slate-300" : "text-slate-500",
-                )}
-              >
-                {workTodoFiltered.length}
-              </p>
-            </button>
           </div>
 
           <div className="mt-3 max-h-[33svh] space-y-2 overflow-y-auto pr-1">
@@ -2097,81 +2040,83 @@ export function MobileTicketFlow({
                     <p className="rounded-lg border border-dashed border-slate-300 px-3 py-2 text-xs text-slate-600">
                       {t("Stop session to select completed parts.")}
                     </p>
-                  ) : null}
-
-                  <p className="text-sm font-semibold text-slate-900">{t("Parts completion")}</p>
-                  {selectedWorkTicket.ticket_parts.length ? (
-                    selectedWorkTicket.ticket_parts.map((part) => {
-                      const isCompleted = Boolean(part.is_completed || part.completed_at);
-                      const checked = selectedPartSet.has(part.id);
-                      const completedBy =
-                        part.completed_by_name ||
-                        (typeof part.completed_by === "number"
-                          ? t("User #{{id}}", { id: part.completed_by })
-                          : t("Not completed"));
-
-                      return (
-                        <label
-                          key={`work-part-${part.id}`}
-                          className="block rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                onChange={(event) => {
-                                  setSelectedWorkCompletedPartIds((prev) => {
-                                    const next = new Set(prev);
-                                    if (event.target.checked) {
-                                      next.add(part.id);
-                                    } else {
-                                      next.delete(part.id);
-                                    }
-                                    return [...next];
-                                  });
-                                }}
-                                disabled={
-                                  isCompleted ||
-                                  isRunningWorkAction ||
-                                  !permissions.can_work ||
-                                  !canSelectCompletedParts
-                                }
-                                className="h-5 w-5 accent-slate-900"
-                              />
-                              <p className="text-sm font-medium text-slate-900">{part.part_name}</p>
-                            </div>
-                            <span
-                              className={cn(
-                                "rounded-full border px-2 py-0.5 text-[11px] font-semibold",
-                                colorPillClass(part.color),
-                              )}
-                            >
-                              {colorLabel(part.color)}
-                            </span>
-                          </div>
-                          <p className="mt-1 text-xs text-slate-600">{t("Minutes")}: {part.minutes}</p>
-                          <p className="mt-1 text-xs text-slate-600">{t("Comment")}: {part.comment || "-"}</p>
-                          <p className="mt-1 text-xs text-slate-600">{t("Completed by")}: {completedBy}</p>
-                          <p className="mt-1 text-xs text-slate-600">
-                            {t("Completed at")}: {formatDate(part.completed_at)}
-                          </p>
-                        </label>
-                      );
-                    })
                   ) : (
-                    <p className="text-xs text-slate-500">{t("No part specs.")}</p>
-                  )}
+                    <>
+                      <p className="text-sm font-semibold text-slate-900">{t("Parts completion")}</p>
+                      {selectedWorkTicket.ticket_parts.length ? (
+                        selectedWorkTicket.ticket_parts.map((part) => {
+                          const isCompleted = Boolean(part.is_completed || part.completed_at);
+                          const checked = selectedPartSet.has(part.id);
+                          const completedBy =
+                            part.completed_by_name ||
+                            (typeof part.completed_by === "number"
+                              ? t("User #{{id}}", { id: part.completed_by })
+                              : t("Not completed"));
 
-                  <Button
-                    type="button"
-                    className="h-11 w-full"
-                    onClick={() => void handleSubmitWorkCompletion()}
-                    disabled={!canSubmitCompletion}
-                  >
-                    <CheckCircle2 className="mr-1.5 h-4 w-4" />
-                    {t("Submit completion")}
-                  </Button>
+                          return (
+                            <label
+                              key={`work-part-${part.id}`}
+                              className="block rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    onChange={(event) => {
+                                      setSelectedWorkCompletedPartIds((prev) => {
+                                        const next = new Set(prev);
+                                        if (event.target.checked) {
+                                          next.add(part.id);
+                                        } else {
+                                          next.delete(part.id);
+                                        }
+                                        return [...next];
+                                      });
+                                    }}
+                                    disabled={
+                                      isCompleted ||
+                                      isRunningWorkAction ||
+                                      !permissions.can_work ||
+                                      !canSelectCompletedParts
+                                    }
+                                    className="h-5 w-5 accent-slate-900"
+                                  />
+                                  <p className="text-sm font-medium text-slate-900">{part.part_name}</p>
+                                </div>
+                                <span
+                                  className={cn(
+                                    "rounded-full border px-2 py-0.5 text-[11px] font-semibold",
+                                    colorPillClass(part.color),
+                                  )}
+                                >
+                                  {colorLabel(part.color)}
+                                </span>
+                              </div>
+                              <p className="mt-1 text-xs text-slate-600">{t("Minutes")}: {part.minutes}</p>
+                              <p className="mt-1 text-xs text-slate-600">{t("Comment")}: {part.comment || "-"}</p>
+                              <p className="mt-1 text-xs text-slate-600">{t("Completed by")}: {completedBy}</p>
+                              <p className="mt-1 text-xs text-slate-600">
+                                {t("Completed at")}: {formatDate(part.completed_at)}
+                              </p>
+                            </label>
+                          );
+                        })
+                      ) : (
+                        <p className="text-xs text-slate-500">{t("No part specs.")}</p>
+                      )}
+
+                      <Button
+                        type="button"
+                        className="h-11 w-full"
+                        onClick={() => void handleSubmitWorkCompletion()}
+                        disabled={!canSubmitCompletion}
+                      >
+                        <CheckCircle2 className="mr-1.5 h-4 w-4" />
+                        {t("Submit completion")}
+                      </Button>
+                    </>
+                  )}
                 </div>
               ) : null}
             </div>
@@ -2435,6 +2380,9 @@ export function MobileTicketFlow({
     </div>
   );
 
+  const hasWorkTab = availableTabs.includes("work");
+  const nonWorkTabs = availableTabs.filter((tab) => tab !== "work");
+
   return (
     <section className="space-y-3 pb-24">
       <FeedbackToast feedback={feedback} />
@@ -2463,13 +2411,49 @@ export function MobileTicketFlow({
 
       {availableTabs.length ? (
         <nav className="fixed inset-x-0 bottom-0 z-40 px-3 pb-3">
-          <div
-            className={cn(
-              "mx-auto grid max-w-md gap-2 rounded-2xl border border-white/80 bg-white/95 p-2 shadow-[0_16px_32px_-22px_rgba(15,23,42,0.55)] backdrop-blur",
-              tabGridClass,
-            )}
-          >
-            {availableTabs.map((tab) => {
+          <div className="mx-auto flex max-w-md gap-2 rounded-2xl border border-white/80 bg-white/95 p-2 shadow-[0_16px_32px_-22px_rgba(15,23,42,0.55)] backdrop-blur">
+            {hasWorkTab ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab("work");
+                    setWorkQueueView("pool");
+                  }}
+                  className={cn(
+                    "flex-1 rounded-xl px-3 py-2.5 text-xs font-semibold transition",
+                    activeTab === "work" && workQueueView === "pool"
+                      ? "bg-slate-900 text-white"
+                      : "border border-slate-200 bg-slate-50 text-slate-700",
+                  )}
+                >
+                  <span className="inline-flex items-center gap-1.5">
+                    <ListTodo className="h-4 w-4" />
+                    {t("Active pool")}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab("work");
+                    setWorkQueueView("todo");
+                  }}
+                  className={cn(
+                    "flex-1 rounded-xl px-3 py-2.5 text-xs font-semibold transition",
+                    activeTab === "work" && workQueueView === "todo"
+                      ? "bg-slate-900 text-white"
+                      : "border border-slate-200 bg-slate-50 text-slate-700",
+                  )}
+                >
+                  <span className="inline-flex items-center gap-1.5">
+                    <ClipboardCheck className="h-4 w-4" />
+                    {t("My todo")}
+                  </span>
+                </button>
+              </>
+            ) : null}
+
+            {nonWorkTabs.map((tab) => {
               const Icon = TAB_META[tab].icon;
               return (
                 <button
@@ -2477,7 +2461,7 @@ export function MobileTicketFlow({
                   type="button"
                   onClick={() => setActiveTab(tab)}
                   className={cn(
-                    "rounded-xl px-3 py-2.5 text-xs font-semibold transition",
+                    "flex-1 rounded-xl px-3 py-2.5 text-xs font-semibold transition",
                     activeTab === tab
                       ? "bg-slate-900 text-white"
                       : "border border-slate-200 bg-slate-50 text-slate-700",
