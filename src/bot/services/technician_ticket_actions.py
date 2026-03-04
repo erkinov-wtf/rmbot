@@ -18,10 +18,13 @@ from ticket.models import Ticket, TicketPartSpec, WorkSession
 
 @dataclass(frozen=True)
 class TechnicianTicketPartSpecState:
+    part_spec_id: int
     part_name: str
     color: str
     minutes: int
     comment: str
+    is_completed: bool
+    needs_rework: bool
 
 
 @dataclass(frozen=True)
@@ -47,6 +50,7 @@ class TechnicianTicketActionService:
 
     CALLBACK_PREFIX = "tt"
     QUEUE_CALLBACK_PREFIX = "ttq"
+    PARTS_CALLBACK_PREFIX = "ttp"
 
     ACTION_START = "start"
     ACTION_PAUSE = "pause"
@@ -57,6 +61,10 @@ class TechnicianTicketActionService:
 
     QUEUE_ACTION_OPEN = "open"
     QUEUE_ACTION_REFRESH = "refresh"
+    PARTS_ACTION_TOGGLE = "tog"
+    PARTS_ACTION_SUBMIT = "submit"
+    PARTS_ACTION_CANCEL = "cancel"
+    PARTS_ACTION_REFRESH = "refresh"
 
     VIEW_SCOPE_ACTIVE = "active"
     VIEW_SCOPE_UNDER_QC = "under_qc"
@@ -138,6 +146,16 @@ class TechnicianTicketActionService:
         "⚠️ Action is not available for this ticket right now."
     )
     _ERROR_UNSUPPORTED_ACTION = gettext_noop("⚠️ Unsupported action.")
+    _ERROR_UNSUPPORTED_PARTS_ACTION = gettext_noop(
+        "⚠️ Unsupported part-completion action."
+    )
+    _ERROR_PART_SELECTION_REQUIRED = gettext_noop(
+        "⚠️ Select at least one completed part."
+    )
+    _ERROR_INVALID_PART_SELECTION = gettext_noop("⚠️ Invalid part selection.")
+    _ERROR_NO_PENDING_PARTS = gettext_noop(
+        "ℹ️ No pending parts are available for completion."
+    )
     _SERIAL_UNKNOWN = gettext_noop("unknown")
     _EMPTY_VALUE = "—"
     _TRANSITION_SOURCE = "telegram_bot"
@@ -774,6 +792,193 @@ class TechnicianTicketActionService:
         return ticket_id, action
 
     @classmethod
+    def build_parts_callback_data(
+        cls,
+        *,
+        ticket_id: int,
+        action: str,
+        part_spec_id: int | None = None,
+    ) -> str:
+        if action not in {
+            cls.PARTS_ACTION_TOGGLE,
+            cls.PARTS_ACTION_SUBMIT,
+            cls.PARTS_ACTION_CANCEL,
+            cls.PARTS_ACTION_REFRESH,
+        }:
+            raise ValueError(cls._ERROR_UNSUPPORTED_PARTS_ACTION)
+
+        if action == cls.PARTS_ACTION_TOGGLE:
+            if part_spec_id is None:
+                raise ValueError(cls._ERROR_INVALID_PART_SELECTION)
+            return (
+                f"{cls.PARTS_CALLBACK_PREFIX}:{int(ticket_id)}:{action}:{int(part_spec_id)}"
+            )
+        return f"{cls.PARTS_CALLBACK_PREFIX}:{int(ticket_id)}:{action}"
+
+    @classmethod
+    def parse_parts_callback_data(
+        cls,
+        *,
+        callback_data: str,
+    ) -> tuple[int, str, int | None] | None:
+        parts = str(callback_data or "").split(":")
+        if len(parts) < 3 or parts[0] != cls.PARTS_CALLBACK_PREFIX:
+            return None
+        try:
+            ticket_id = int(parts[1])
+        except (TypeError, ValueError):
+            return None
+
+        action = parts[2]
+        if action not in {
+            cls.PARTS_ACTION_TOGGLE,
+            cls.PARTS_ACTION_SUBMIT,
+            cls.PARTS_ACTION_CANCEL,
+            cls.PARTS_ACTION_REFRESH,
+        }:
+            return None
+
+        part_spec_id: int | None = None
+        if action == cls.PARTS_ACTION_TOGGLE:
+            if len(parts) < 4:
+                return None
+            try:
+                part_spec_id = int(parts[3])
+            except (TypeError, ValueError):
+                return None
+        return ticket_id, action, part_spec_id
+
+    @classmethod
+    def pending_part_specs(
+        cls,
+        *,
+        ticket: Ticket,
+    ) -> tuple[TechnicianTicketPartSpecState, ...]:
+        return tuple(
+            part_state
+            for part_state in cls._part_specs(ticket=ticket)
+            if part_state.needs_rework or not part_state.is_completed
+        )
+
+    @classmethod
+    def render_part_completion_message(
+        cls,
+        *,
+        state: TechnicianTicketState,
+        pending_parts: Iterable[TechnicianTicketPartSpecState],
+        selected_part_spec_ids: set[int],
+        heading: str | None = None,
+        _=None,
+    ) -> str:
+        _ = _ or django_gettext
+        serial_number = (
+            _(cls._SERIAL_UNKNOWN)
+            if state.serial_number == cls._SERIAL_UNKNOWN
+            else state.serial_number
+        )
+        lines: list[str] = []
+        if heading:
+            lines.append(heading)
+        lines.extend(
+            [
+                _("🎫 <b>Ticket:</b> #%(ticket_id)s") % {"ticket_id": state.ticket_id},
+                _("🔢 <b>Serial number:</b> <code>%(serial)s</code>")
+                % {"serial": escape(serial_number)},
+                _("🧩 <b>Select completed parts and submit.</b>"),
+            ]
+        )
+
+        pending_list = list(pending_parts)
+        if not pending_list:
+            lines.append(_("✅ All parts are already completed."))
+            lines.append(_("Use refresh or return back to queue."))
+            return "\n".join(lines)
+
+        lines.append("")
+        lines.append(_("📋 <b>Pending parts</b>"))
+        for index, part in enumerate(pending_list, start=1):
+            checked = "✅" if part.part_spec_id in selected_part_spec_ids else "☑️"
+            rework_suffix = _(" (rework)") if part.needs_rework else ""
+            lines.append(
+                _("%(checked)s %(index)s) %(color)s %(part)s — %(minutes)s min%(suffix)s")
+                % {
+                    "checked": checked,
+                    "index": index,
+                    "color": cls._ticket_color_icon(color=part.color),
+                    "part": escape(part.part_name),
+                    "minutes": part.minutes,
+                    "suffix": rework_suffix,
+                }
+            )
+            if part.comment:
+                lines.append(_("   💬 %(comment)s") % {"comment": escape(part.comment)})
+        lines.append("")
+        lines.append(
+            _("Selected: %(selected)s/%(total)s")
+            % {"selected": len(selected_part_spec_ids), "total": len(pending_list)}
+        )
+        return "\n".join(lines)
+
+    @classmethod
+    def build_part_completion_keyboard(
+        cls,
+        *,
+        ticket_id: int,
+        pending_parts: Iterable[TechnicianTicketPartSpecState],
+        selected_part_spec_ids: set[int],
+        _=None,
+    ) -> InlineKeyboardMarkup:
+        _ = _ or django_gettext
+        rows: list[list[InlineKeyboardButton]] = []
+        for part in pending_parts:
+            is_selected = part.part_spec_id in selected_part_spec_ids
+            check_mark = "✅" if is_selected else "☑️"
+            part_label = f"{check_mark} {part.part_name} ({part.minutes}m)"
+            rows.append(
+                [
+                    InlineKeyboardButton(
+                        text=part_label[:64],
+                        callback_data=cls.build_parts_callback_data(
+                            ticket_id=ticket_id,
+                            action=cls.PARTS_ACTION_TOGGLE,
+                            part_spec_id=part.part_spec_id,
+                        ),
+                    )
+                ]
+            )
+
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text=_("✅ Submit parts"),
+                    callback_data=cls.build_parts_callback_data(
+                        ticket_id=ticket_id,
+                        action=cls.PARTS_ACTION_SUBMIT,
+                    ),
+                ),
+                InlineKeyboardButton(
+                    text=_("🔄 Refresh"),
+                    callback_data=cls.build_parts_callback_data(
+                        ticket_id=ticket_id,
+                        action=cls.PARTS_ACTION_REFRESH,
+                    ),
+                ),
+            ]
+        )
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text=_("⬅ Back to ticket"),
+                    callback_data=cls.build_parts_callback_data(
+                        ticket_id=ticket_id,
+                        action=cls.PARTS_ACTION_CANCEL,
+                    ),
+                )
+            ]
+        )
+        return InlineKeyboardMarkup(inline_keyboard=rows)
+
+    @classmethod
     def build_queue_callback_data(
         cls,
         *,
@@ -1096,10 +1301,13 @@ class TechnicianTicketActionService:
             part_name = str(getattr(part, "name", "") or cls._EMPTY_VALUE)
             states.append(
                 TechnicianTicketPartSpecState(
+                    part_spec_id=int(spec.id or 0),
                     part_name=part_name,
                     color=cls._normalize_color(color=spec.color),
                     minutes=max(int(spec.minutes or 0), 0),
                     comment=str(spec.comment or "").strip(),
+                    is_completed=bool(spec.is_completed),
+                    needs_rework=bool(spec.needs_rework),
                 )
             )
         return tuple(states)

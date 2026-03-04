@@ -46,6 +46,9 @@ _ERROR_REASON_MAP: dict[str, str] = {
     "Only assigned technician can send ticket to QC.": gettext_noop(
         "Only assigned technician can send ticket to QC."
     ),
+    "All ticket parts must be completed before sending to QC.": gettext_noop(
+        "All ticket parts must be completed before sending to QC."
+    ),
     "QC PASS allowed only from WAITING_QC.": gettext_noop(
         "QC PASS allowed only from WAITING_QC."
     ),
@@ -83,4 +86,3 @@ def translate_error_reason(*, reason: object, _) -> str:
     normalized = " ".join(raw_reason.split())
     mapped = _ERROR_REASON_MAP.get(normalized, normalized)
     return translator(mapped)
-
