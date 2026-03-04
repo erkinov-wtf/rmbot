@@ -146,9 +146,17 @@ export default function App() {
     () => effectiveRoleSlugs.some((slug) => TICKET_DASHBOARD_ADMIN_ROLES.has(slug)),
     [effectiveRoleSlugs],
   );
-  const canReviewTicket = false;
+  const canReviewTicket = useMemo(
+    () => effectiveRoleSlugs.some((slug) => TICKET_DASHBOARD_ADMIN_ROLES.has(slug)),
+    [effectiveRoleSlugs],
+  );
   const canWorkTicket = false;
-  const canQcTicket = false;
+  const canQcTicket = useMemo(
+    () =>
+      effectiveRoleSlugs.includes("super_admin") ||
+      effectiveRoleSlugs.includes("qc_inspector"),
+    [effectiveRoleSlugs],
+  );
   const canManageUsers = useMemo(
     () => effectiveRoleSlugs.some((slug) => ACCESS_REQUEST_MANAGE_ROLES.has(slug)),
     [effectiveRoleSlugs],
