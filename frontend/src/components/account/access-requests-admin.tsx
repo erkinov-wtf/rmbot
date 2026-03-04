@@ -42,7 +42,6 @@ const DEFAULT_REQUESTS_PER_PAGE = 20;
 
 const ROLE_OPTIONS: Array<{ slug: string; label: string }> = [
   { slug: "super_admin", label: "Super Admin" },
-  { slug: "ops_manager", label: "Ops Manager" },
   { slug: "master", label: "Master" },
   { slug: "technician", label: "Technician" },
   { slug: "qc_inspector", label: "QC Inspector" },

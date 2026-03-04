@@ -3,6 +3,8 @@ from django.contrib import admin
 from core.admin import BaseModelAdmin
 from ticket.models import (
     Ticket,
+    TicketPartCompletion,
+    TicketPartQCFailure,
     TicketPartSpec,
     TicketTransition,
     WorkSession,
@@ -41,10 +43,83 @@ class TicketPartSpecAdmin(BaseModelAdmin):
         "inventory_item_part",
         "color",
         "minutes",
+        "is_completed",
+        "completed_by",
+        "needs_rework",
+        "rework_for_technician",
         "created_at",
     )
-    list_filter = ("color",)
+    list_filter = ("color", "is_completed", "needs_rework")
     search_fields = ("id", "ticket__id", "inventory_item_part__name")
+
+
+@admin.register(TicketPartCompletion)
+class TicketPartCompletionAdmin(BaseModelAdmin):
+    list_display = (
+        "id",
+        "ticket",
+        "ticket_part_spec",
+        "technician",
+        "is_rework",
+        "completed_at",
+        "created_at",
+    )
+    list_filter = ("is_rework",)
+    search_fields = ("id", "ticket__id", "ticket_part_spec__id", "technician__username")
+    readonly_fields = (
+        "ticket",
+        "ticket_part_spec",
+        "technician",
+        "completed_at",
+        "note",
+        "is_rework",
+        "source_qc_fail_transition",
+        "metadata",
+        "created_at",
+        "updated_at",
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(TicketPartQCFailure)
+class TicketPartQCFailureAdmin(BaseModelAdmin):
+    list_display = (
+        "id",
+        "ticket",
+        "ticket_part_spec",
+        "technician",
+        "qc_fail_transition",
+        "created_at",
+    )
+    search_fields = ("id", "ticket__id", "ticket_part_spec__id", "technician__username")
+    readonly_fields = (
+        "ticket",
+        "ticket_part_spec",
+        "qc_fail_transition",
+        "technician",
+        "ticket_part_completion",
+        "note",
+        "metadata",
+        "created_at",
+        "updated_at",
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(WorkSession)

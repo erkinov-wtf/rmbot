@@ -9,7 +9,7 @@ from core.api.views import BaseAPIView
 from core.utils.constants import RoleSlug
 from ticket.services_analytics import TicketAnalyticsService
 
-AnalyticsPermission = HasRole.as_any(RoleSlug.SUPER_ADMIN, RoleSlug.OPS_MANAGER)
+AnalyticsPermission = HasRole.as_any(RoleSlug.SUPER_ADMIN, RoleSlug.MASTER)
 
 
 class TeamAnalyticsQuerySerializer(serializers.Serializer):

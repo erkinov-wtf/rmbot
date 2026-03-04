@@ -15,7 +15,15 @@ class TicketViewSet(BaseModelViewSet):
     serializer_class = TicketSerializer
     queryset = (
         Ticket.objects.select_related("inventory_item", "master", "technician")
-        .prefetch_related("part_specs__inventory_item_part")
+        .prefetch_related(
+            "part_specs__inventory_item_part",
+            "part_specs__completed_by",
+            "part_specs__rework_for_technician",
+            "part_specs__completion_history__technician",
+            "part_specs__completion_history__ticket_part_spec__inventory_item_part",
+            "part_completions__technician",
+            "part_completions__ticket_part_spec__inventory_item_part",
+        )
         .order_by("-created_at")
     )
 
@@ -68,7 +76,7 @@ class TicketViewSet(BaseModelViewSet):
         description=(
             "Creates a new ticket intake by inventory-item serial number with "
             "part-level specs, auto-computed ticket metrics (minutes/flag/XP), and "
-            "initial UNDER_REVIEW status. Unknown serials require explicit "
+            "initial NEW status. Unknown serials require explicit "
             "confirm-create and a reason."
         ),
     )

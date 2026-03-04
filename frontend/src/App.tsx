@@ -48,17 +48,15 @@ type Section =
   | "level_control"
   | "rules";
 
-const INVENTORY_MANAGE_ROLES = new Set(["super_admin", "ops_manager", "master"]);
-const TICKET_CREATE_ROLES = new Set(["super_admin", "master"]);
-const TICKET_REVIEW_ROLES = new Set(["super_admin", "ops_manager"]);
-const TICKET_WORK_ROLES = new Set(["super_admin", "technician"]);
-const TICKET_QC_ROLES = new Set(["super_admin", "qc_inspector"]);
-const ACCESS_REQUEST_MANAGE_ROLES = new Set(["super_admin", "ops_manager"]);
-const ATTENDANCE_MANAGE_ROLES = new Set(["super_admin", "ops_manager", "master"]);
-const XP_MANAGE_ROLES = new Set(["super_admin", "ops_manager", "admin"]);
-const LEVEL_CONTROL_ROLES = new Set(["super_admin", "ops_manager"]);
-const RULES_READ_ROLES = new Set(["super_admin", "ops_manager"]);
-const RULES_WRITE_ROLES = new Set(["super_admin"]);
+const DASHBOARD_ADMIN_ROLES = new Set(["super_admin", "master"]);
+const INVENTORY_MANAGE_ROLES = DASHBOARD_ADMIN_ROLES;
+const TICKET_DASHBOARD_ADMIN_ROLES = DASHBOARD_ADMIN_ROLES;
+const ACCESS_REQUEST_MANAGE_ROLES = DASHBOARD_ADMIN_ROLES;
+const ATTENDANCE_MANAGE_ROLES = DASHBOARD_ADMIN_ROLES;
+const XP_MANAGE_ROLES = DASHBOARD_ADMIN_ROLES;
+const LEVEL_CONTROL_ROLES = DASHBOARD_ADMIN_ROLES;
+const RULES_READ_ROLES = DASHBOARD_ADMIN_ROLES;
+const RULES_WRITE_ROLES = DASHBOARD_ADMIN_ROLES;
 
 function parseSectionFromPath(pathname: string): Section {
   if (pathname.startsWith("/users") || pathname.startsWith("/access-requests")) {
@@ -145,21 +143,12 @@ export default function App() {
     [effectiveRoleSlugs],
   );
   const canCreateTicket = useMemo(
-    () => effectiveRoleSlugs.some((slug) => TICKET_CREATE_ROLES.has(slug)),
+    () => effectiveRoleSlugs.some((slug) => TICKET_DASHBOARD_ADMIN_ROLES.has(slug)),
     [effectiveRoleSlugs],
   );
-  const canReviewTicket = useMemo(
-    () => effectiveRoleSlugs.some((slug) => TICKET_REVIEW_ROLES.has(slug)),
-    [effectiveRoleSlugs],
-  );
-  const canWorkTicket = useMemo(
-    () => effectiveRoleSlugs.some((slug) => TICKET_WORK_ROLES.has(slug)),
-    [effectiveRoleSlugs],
-  );
-  const canQcTicket = useMemo(
-    () => effectiveRoleSlugs.some((slug) => TICKET_QC_ROLES.has(slug)),
-    [effectiveRoleSlugs],
-  );
+  const canReviewTicket = false;
+  const canWorkTicket = false;
+  const canQcTicket = false;
   const canManageUsers = useMemo(
     () => effectiveRoleSlugs.some((slug) => ACCESS_REQUEST_MANAGE_ROLES.has(slug)),
     [effectiveRoleSlugs],
@@ -361,21 +350,23 @@ export default function App() {
               </span>
             </button>
 
-            <button
-              type="button"
-              className={cn(
-                "rm-menu-btn w-full text-left",
-                section === "tickets"
-                  ? "rm-menu-btn-active"
-                  : "rm-menu-btn-idle",
-              )}
-              onClick={() => navigateSection("tickets")}
-            >
-              <span className="inline-flex items-center gap-2">
-                <Ticket className="h-4 w-4" />
-                {t("Tickets")}
-              </span>
-            </button>
+            {canCreateTicket ? (
+              <button
+                type="button"
+                className={cn(
+                  "rm-menu-btn w-full text-left",
+                  section === "tickets"
+                    ? "rm-menu-btn-active"
+                    : "rm-menu-btn-idle",
+                )}
+                onClick={() => navigateSection("tickets")}
+              >
+                <span className="inline-flex items-center gap-2">
+                  <Ticket className="h-4 w-4" />
+                  {t("Tickets")}
+                </span>
+              </button>
+            ) : null}
 
             <button
               type="button"
@@ -494,15 +485,27 @@ export default function App() {
                 roleSlugs={effectiveRoleSlugs}
               />
             ) : section === "tickets" ? (
-              <TicketFlow
-                accessToken={session.accessToken}
-                currentUserId={currentUser?.id ?? null}
-                canCreate={canCreateTicket}
-                canReview={canReviewTicket}
-                canWork={canWorkTicket}
-                canQc={canQcTicket}
-                roleSlugs={effectiveRoleSlugs}
-              />
+              canCreateTicket ? (
+                <TicketFlow
+                  accessToken={session.accessToken}
+                  currentUserId={currentUser?.id ?? null}
+                  canCreate={canCreateTicket}
+                  canReview={canReviewTicket}
+                  canWork={canWorkTicket}
+                  canQc={canQcTicket}
+                  roleSlugs={effectiveRoleSlugs}
+                  restrictTabsByPermission
+                />
+              ) : (
+                <section className="rm-panel p-4">
+                  <p className="text-sm font-semibold text-slate-900">
+                    {t("Ticket Dashboard")}
+                  </p>
+                  <p className="mt-1 text-sm text-slate-600">
+                    {t("Only admin roles can access the dashboard ticket tools.")}
+                  </p>
+                </section>
+              )
             ) : section === "users" ? (
               <UserManagementAdmin
                 accessToken={session.accessToken}

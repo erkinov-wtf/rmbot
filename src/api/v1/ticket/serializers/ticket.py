@@ -9,6 +9,7 @@ from inventory.models import InventoryItem, InventoryItemCategory, InventoryItem
 from inventory.services import InventoryItemService
 from rules.services import RulesService
 from ticket.models import Ticket, TicketPartSpec
+from api.v1.ticket.serializers.transitions import TicketPartCompletionSerializer
 
 
 class TicketPartSpecInputSerializer(serializers.Serializer):
@@ -24,6 +25,13 @@ class TicketPartSpecInputSerializer(serializers.Serializer):
 class TicketPartSpecSerializer(serializers.ModelSerializer):
     part_id = serializers.IntegerField(source="inventory_item_part_id", read_only=True)
     part_name = serializers.CharField(source="inventory_item_part.name", read_only=True)
+    completed_by_name = serializers.SerializerMethodField(read_only=True)
+    rework_for_technician_name = serializers.SerializerMethodField(read_only=True)
+    completed_history = TicketPartCompletionSerializer(
+        source="completion_history",
+        many=True,
+        read_only=True,
+    )
 
     class Meta:
         model = TicketPartSpec
@@ -34,9 +42,31 @@ class TicketPartSpecSerializer(serializers.ModelSerializer):
             "color",
             "comment",
             "minutes",
+            "is_completed",
+            "completed_by",
+            "completed_by_name",
+            "completed_at",
+            "completion_note",
+            "needs_rework",
+            "rework_for_technician",
+            "rework_for_technician_name",
+            "completed_history",
             "created_at",
             "updated_at",
         )
+
+    @staticmethod
+    def _user_display_name(user) -> str | None:
+        if not user:
+            return None
+        full_name = f"{user.first_name or ''} {user.last_name or ''}".strip()
+        return full_name or user.username
+
+    def get_completed_by_name(self, obj: TicketPartSpec) -> str | None:
+        return self._user_display_name(obj.completed_by)
+
+    def get_rework_for_technician_name(self, obj: TicketPartSpec) -> str | None:
+        return self._user_display_name(obj.rework_for_technician)
 
 
 class TicketSerializer(serializers.ModelSerializer):
@@ -58,6 +88,11 @@ class TicketSerializer(serializers.ModelSerializer):
     )
     ticket_parts = TicketPartSpecSerializer(
         source="part_specs", many=True, read_only=True
+    )
+    part_completion_history = TicketPartCompletionSerializer(
+        source="part_completions",
+        many=True,
+        read_only=True,
     )
     total_duration = serializers.IntegerField(read_only=True)
     flag_minutes = serializers.IntegerField(read_only=True)
@@ -86,6 +121,7 @@ class TicketSerializer(serializers.ModelSerializer):
             "title",
             "part_specs",
             "ticket_parts",
+            "part_completion_history",
             "total_duration",
             "approved_by",
             "approved_by_name",
@@ -119,6 +155,7 @@ class TicketSerializer(serializers.ModelSerializer):
             "flag_minutes",
             "is_manual",
             "ticket_parts",
+            "part_completion_history",
             "master_name",
             "technician_name",
             "approved_by_name",
@@ -152,7 +189,7 @@ class TicketSerializer(serializers.ModelSerializer):
                     }
                 )
             if not request.user.roles.filter(
-                slug__in=[RoleSlug.SUPER_ADMIN, RoleSlug.OPS_MANAGER],
+                slug__in=[RoleSlug.SUPER_ADMIN, RoleSlug.MASTER],
                 deleted_at__isnull=True,
             ).exists():
                 raise serializers.ValidationError(

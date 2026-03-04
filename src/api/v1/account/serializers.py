@@ -193,6 +193,14 @@ class UserManagementUpdateSerializer(serializers.Serializer):
         role_slugs = validated_data.get("role_slugs")
         if role_slugs is not None:
             unique_role_slugs = list(dict.fromkeys(role_slugs))
+            if RoleSlug.OPS_MANAGER in unique_role_slugs:
+                raise serializers.ValidationError(
+                    {
+                        "role_slugs": (
+                            "ops_manager role is deprecated and cannot be assigned."
+                        )
+                    }
+                )
             roles = list(
                 Role.objects.filter(
                     slug__in=unique_role_slugs,
@@ -326,3 +334,11 @@ class AccessRequestApproveSerializer(serializers.Serializer):
         required=False,
         allow_empty=True,
     )
+
+    def validate_role_slugs(self, value: list[str]) -> list[str]:
+        normalized = list(dict.fromkeys(value or []))
+        if RoleSlug.OPS_MANAGER in normalized:
+            raise serializers.ValidationError(
+                "ops_manager role is deprecated and cannot be assigned."
+            )
+        return normalized

@@ -14,10 +14,14 @@ import { FeedbackToast } from "@/components/ui/feedback-toast";
 import { useI18n } from "@/i18n";
 import {
   assignTicket,
+  claimTicket,
+  completeTicketParts,
   createTicket,
   getInventoryItem,
+  listActivePoolTickets,
   listInventoryItems,
   listParts,
+  listTechnicianTodoTickets,
   listTechnicianOptions,
   listTickets,
   qcFailTicket,
@@ -38,9 +42,10 @@ import { cn } from "@/lib/utils";
 type MobileTicketFlowProps = {
   accessToken: string;
   permissions: TicketFlowPermissions;
+  currentUserId: number;
 };
 
-type MiniTab = "create" | "review" | "qc";
+type MiniTab = "create" | "review" | "work" | "qc";
 
 type FeedbackState =
   | {
@@ -73,6 +78,11 @@ const TAB_META: Record<
     labelKey: "Review",
     icon: ClipboardCheck,
     permission: "can_open_review_panel",
+  },
+  work: {
+    labelKey: "Work",
+    icon: ClipboardCheck,
+    permission: "can_work",
   },
   qc: {
     labelKey: "QC",
@@ -159,12 +169,27 @@ function distinctNumbers(values: number[]): number[] {
   return [...new Set(values)];
 }
 
-export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowProps) {
+function formatDate(value: string | null | undefined): string {
+  if (!value) {
+    return "-";
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.valueOf())) {
+    return value;
+  }
+  return parsed.toLocaleString();
+}
+
+export function MobileTicketFlow({
+  accessToken,
+  permissions,
+  currentUserId,
+}: MobileTicketFlowProps) {
   const { t } = useI18n();
   const availableTabs = useMemo(
     () =>
       (Object.keys(TAB_META) as MiniTab[]).filter(
-        (tab) => permissions[TAB_META[tab].permission],
+        (tab) => tab !== "review" && permissions[TAB_META[tab].permission],
       ),
     [permissions],
   );
@@ -201,10 +226,21 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
   const [manualXpAmount, setManualXpAmount] = useState("");
   const [isRunningReviewAction, setIsRunningReviewAction] = useState(false);
 
+  const [workSearch, setWorkSearch] = useState("");
+  const [workPoolTickets, setWorkPoolTickets] = useState<Ticket[]>([]);
+  const [workTodoTickets, setWorkTodoTickets] = useState<Ticket[]>([]);
+  const [isLoadingWorkQueues, setIsLoadingWorkQueues] = useState(false);
+  const [selectedWorkTicketId, setSelectedWorkTicketId] = useState<number | null>(null);
+  const [selectedWorkCompletedPartIds, setSelectedWorkCompletedPartIds] = useState<number[]>(
+    [],
+  );
+  const [isRunningWorkAction, setIsRunningWorkAction] = useState(false);
+
   const [qcTickets, setQcTickets] = useState<Ticket[]>([]);
   const [isLoadingQcTickets, setIsLoadingQcTickets] = useState(false);
   const [qcSearch, setQcSearch] = useState("");
   const [selectedQcTicketId, setSelectedQcTicketId] = useState<number | null>(null);
+  const [selectedQcFailedPartIds, setSelectedQcFailedPartIds] = useState<number[]>([]);
   const [isRunningQcAction, setIsRunningQcAction] = useState(false);
 
   const statusLabel = useCallback(
@@ -279,6 +315,62 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
       setIsLoadingReviewTickets(false);
     }
   }, [accessToken, ensureInventoryLoaded, reviewSearch, reviewStatusFilter, t]);
+
+  const refreshWorkQueues = useCallback(async () => {
+    setIsLoadingWorkQueues(true);
+    try {
+      const search = workSearch.trim();
+      const normalizedSearch = search.replace(/^#/, "").trim();
+      const hasSearch =
+        normalizedSearch.length >= 2 || /^\d+$/.test(normalizedSearch);
+
+      try {
+        const [pool, todo] = await Promise.all([
+          listActivePoolTickets(accessToken, {
+            q: hasSearch ? normalizedSearch : undefined,
+            per_page: hasSearch ? SEARCH_RESULT_LIMIT : DEFAULT_RECENT_LIMIT,
+          }),
+          listTechnicianTodoTickets(accessToken, {
+            q: hasSearch ? normalizedSearch : undefined,
+            per_page: hasSearch ? SEARCH_RESULT_LIMIT : DEFAULT_RECENT_LIMIT,
+          }),
+        ]);
+        setWorkPoolTickets(pool.results);
+        setWorkTodoTickets(todo.results);
+        void ensureInventoryLoaded(
+          [...pool.results, ...todo.results]
+            .slice(0, 30)
+            .map((ticket) => ticket.inventory_item),
+        );
+      } catch {
+        const queue = await listTickets(accessToken, {
+          q: hasSearch ? normalizedSearch : undefined,
+          per_page: hasSearch ? SEARCH_RESULT_LIMIT : DEFAULT_RECENT_LIMIT,
+        });
+        const activeStatuses = new Set<TicketStatus>(["assigned", "in_progress", "rework"]);
+        const todo = queue.filter(
+          (ticket) => activeStatuses.has(ticket.status) && ticket.technician === currentUserId,
+        );
+        const pool = queue.filter(
+          (ticket) =>
+            activeStatuses.has(ticket.status) &&
+            (ticket.technician === null || ticket.technician !== currentUserId),
+        );
+        setWorkPoolTickets(pool);
+        setWorkTodoTickets(todo);
+        void ensureInventoryLoaded(
+          [...pool, ...todo].slice(0, 30).map((ticket) => ticket.inventory_item),
+        );
+      }
+    } catch (error) {
+      setFeedback({
+        type: "error",
+        message: toErrorMessage(error, t("Could not load technician queue.")),
+      });
+    } finally {
+      setIsLoadingWorkQueues(false);
+    }
+  }, [accessToken, currentUserId, ensureInventoryLoaded, t, workSearch]);
 
   const refreshQcTickets = useCallback(async () => {
     setIsLoadingQcTickets(true);
@@ -422,6 +514,16 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
     return () => window.clearTimeout(timer);
   }, [activeTab, permissions.can_qc, refreshQcTickets]);
 
+  useEffect(() => {
+    if (!permissions.can_work || activeTab !== "work") {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      void refreshWorkQueues();
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [activeTab, permissions.can_work, refreshWorkQueues]);
+
   const selectedCreateItem = useMemo(() => {
     if (selectedCreateItemId === null) {
       return null;
@@ -523,6 +625,44 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
     setManualXpAmount(String(selectedReviewTicket.xp_amount ?? 0));
   }, [selectedReviewTicket]);
 
+  const workPoolFiltered = useMemo(() => workPoolTickets, [workPoolTickets]);
+  const workTodoFiltered = useMemo(() => workTodoTickets, [workTodoTickets]);
+  const workCombined = useMemo(() => {
+    const seen = new Set<number>();
+    const merged: Ticket[] = [];
+    [...workTodoFiltered, ...workPoolFiltered].forEach((ticket) => {
+      if (seen.has(ticket.id)) {
+        return;
+      }
+      seen.add(ticket.id);
+      merged.push(ticket);
+    });
+    return merged;
+  }, [workPoolFiltered, workTodoFiltered]);
+
+  useEffect(() => {
+    if (!workCombined.length) {
+      setSelectedWorkTicketId(null);
+      return;
+    }
+    if (
+      selectedWorkTicketId !== null &&
+      workCombined.some((ticket) => ticket.id === selectedWorkTicketId)
+    ) {
+      return;
+    }
+    setSelectedWorkTicketId(workCombined[0].id);
+  }, [selectedWorkTicketId, workCombined]);
+
+  const selectedWorkTicket = useMemo(
+    () => workCombined.find((ticket) => ticket.id === selectedWorkTicketId) ?? null,
+    [selectedWorkTicketId, workCombined],
+  );
+
+  useEffect(() => {
+    setSelectedWorkCompletedPartIds([]);
+  }, [selectedWorkTicketId]);
+
   const qcTicketsFiltered = useMemo(() => {
     return qcTickets;
   }, [qcTickets]);
@@ -545,6 +685,10 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
     () => qcTicketsFiltered.find((ticket) => ticket.id === selectedQcTicketId) ?? null,
     [qcTicketsFiltered, selectedQcTicketId],
   );
+
+  useEffect(() => {
+    setSelectedQcFailedPartIds([]);
+  }, [selectedQcTicketId]);
 
   const updatePartDraft = useCallback(
     (partId: number, patch: Partial<PartDraft>) => {
@@ -624,7 +768,7 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
       setSelectedCreateItemId(null);
       setPartDrafts({});
       setTicketTitle("");
-      void Promise.all([refreshReviewTickets(), refreshQcTickets()]);
+      void Promise.all([refreshReviewTickets(), refreshQcTickets(), refreshWorkQueues()]);
     } catch (error) {
       setFeedback({
         type: "error",
@@ -638,6 +782,7 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
     partDrafts,
     refreshQcTickets,
     refreshReviewTickets,
+    refreshWorkQueues,
     selectedCreateItem,
     selectedCreateParts,
     ticketTitle,
@@ -677,7 +822,7 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
         type: "success",
         message: t("Ticket approved and assigned."),
       });
-      await refreshReviewTickets();
+      await Promise.all([refreshReviewTickets(), refreshWorkQueues()]);
     } catch (error) {
       setFeedback({
         type: "error",
@@ -690,6 +835,7 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
     accessToken,
     permissions.can_approve_and_assign,
     refreshReviewTickets,
+    refreshWorkQueues,
     selectedReviewTicket,
     selectedTechnicianId,
     t,
@@ -738,9 +884,80 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
     t,
   ]);
 
+  const handleClaimWorkTicket = useCallback(async (ticketId: number) => {
+    if (!permissions.can_work) {
+      return;
+    }
+    setIsRunningWorkAction(true);
+    try {
+      await claimTicket(accessToken, ticketId);
+      setFeedback({
+        type: "success",
+        message: t("Ticket claimed."),
+      });
+      await Promise.all([refreshWorkQueues(), refreshQcTickets()]);
+      setSelectedWorkTicketId(ticketId);
+    } catch (error) {
+      setFeedback({
+        type: "error",
+        message: toErrorMessage(error, t("Could not claim ticket.")),
+      });
+    } finally {
+      setIsRunningWorkAction(false);
+    }
+  }, [accessToken, permissions.can_work, refreshQcTickets, refreshWorkQueues, t]);
+
+  const handleSubmitWorkCompletion = useCallback(async () => {
+    if (!permissions.can_work || !selectedWorkTicket) {
+      return;
+    }
+    if (!selectedWorkCompletedPartIds.length) {
+      setFeedback({
+        type: "info",
+        message: t("Select at least one completed part."),
+      });
+      return;
+    }
+
+    setIsRunningWorkAction(true);
+    try {
+      await completeTicketParts(accessToken, selectedWorkTicket.id, {
+        completed_part_ids: selectedWorkCompletedPartIds,
+      });
+      setFeedback({
+        type: "success",
+        message: t("Part completion submitted."),
+      });
+      setSelectedWorkCompletedPartIds([]);
+      await Promise.all([refreshWorkQueues(), refreshQcTickets()]);
+    } catch (error) {
+      setFeedback({
+        type: "error",
+        message: toErrorMessage(error, t("Could not submit part completion.")),
+      });
+    } finally {
+      setIsRunningWorkAction(false);
+    }
+  }, [
+    accessToken,
+    permissions.can_work,
+    refreshQcTickets,
+    refreshWorkQueues,
+    selectedWorkCompletedPartIds,
+    selectedWorkTicket,
+    t,
+  ]);
+
   const handleQcDecision = useCallback(
     async (decision: "pass" | "fail") => {
       if (!selectedQcTicket) {
+        return;
+      }
+      if (decision === "fail" && !selectedQcFailedPartIds.length) {
+        setFeedback({
+          type: "error",
+          message: t("Select at least one failed part."),
+        });
         return;
       }
       setIsRunningQcAction(true);
@@ -748,7 +965,9 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
         if (decision === "pass") {
           await qcPassTicket(accessToken, selectedQcTicket.id);
         } else {
-          await qcFailTicket(accessToken, selectedQcTicket.id);
+          await qcFailTicket(accessToken, selectedQcTicket.id, {
+            failed_part_ids: selectedQcFailedPartIds,
+          });
         }
         setFeedback({
           type: "success",
@@ -757,7 +976,7 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
               ? t("QC passed for ticket #{{id}}.", { id: selectedQcTicket.id })
               : t("QC failed for ticket #{{id}}.", { id: selectedQcTicket.id }),
         });
-        await Promise.all([refreshQcTickets(), refreshReviewTickets()]);
+        await Promise.all([refreshQcTickets(), refreshReviewTickets(), refreshWorkQueues()]);
       } catch (error) {
         setFeedback({
           type: "error",
@@ -767,7 +986,15 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
         setIsRunningQcAction(false);
       }
     },
-    [accessToken, refreshQcTickets, refreshReviewTickets, selectedQcTicket, t],
+    [
+      accessToken,
+      refreshQcTickets,
+      refreshReviewTickets,
+      refreshWorkQueues,
+      selectedQcFailedPartIds,
+      selectedQcTicket,
+      t,
+    ],
   );
 
   const tabGridClass =
@@ -775,7 +1002,9 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
       ? "grid-cols-1"
       : availableTabs.length === 2
         ? "grid-cols-2"
-        : "grid-cols-3";
+        : availableTabs.length === 3
+          ? "grid-cols-3"
+          : "grid-cols-4";
 
   const renderCreateTab = () => (
     <div className="space-y-3">
@@ -1226,6 +1455,272 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
     </div>
   );
 
+  const renderWorkTab = () => {
+    const isSelectedFromPool = selectedWorkTicket
+      ? workPoolFiltered.some((ticket) => ticket.id === selectedWorkTicket.id)
+      : false;
+    const isSelectedFromTodo = selectedWorkTicket
+      ? workTodoFiltered.some((ticket) => ticket.id === selectedWorkTicket.id)
+      : false;
+    const selectedPartSet = new Set(selectedWorkCompletedPartIds);
+
+    return (
+      <div className="space-y-3">
+        <section className="rm-panel p-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-semibold text-slate-900">{t("Technician queue")}</p>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-9 px-3"
+              onClick={() => void refreshWorkQueues()}
+              disabled={isLoadingWorkQueues}
+            >
+              <RefreshCcw className="h-4 w-4" />
+            </Button>
+          </div>
+
+          <div className="mt-2 flex items-center gap-2">
+            <Search className="h-4 w-4 text-slate-500" />
+            <input
+              className="rm-input h-10"
+              value={workSearch}
+              onChange={(event) => setWorkSearch(event.target.value)}
+              placeholder={t("Search ticket id, serial, title")}
+            />
+          </div>
+
+          <div className="mt-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              {t("Active pool")}
+            </p>
+            <div className="mt-2 max-h-[24svh] space-y-2 overflow-y-auto pr-1">
+              {isLoadingWorkQueues ? (
+                <p className="text-sm text-slate-600">{t("Loading technician queue...")}</p>
+              ) : workPoolFiltered.length ? (
+                workPoolFiltered.map((ticket) => {
+                  const serial =
+                    inventoryCache[ticket.inventory_item]?.serial_number ??
+                    t("Item #{{id}}", { id: ticket.inventory_item });
+                  return (
+                    <div
+                      key={`pool-${ticket.id}`}
+                      className={cn(
+                        "rounded-xl border px-3 py-3",
+                        selectedWorkTicketId === ticket.id
+                          ? "border-slate-900 bg-slate-900 text-white"
+                          : "border-slate-200 bg-slate-50",
+                      )}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedWorkTicketId(ticket.id);
+                          void ensureInventoryLoaded([ticket.inventory_item]);
+                        }}
+                        className="w-full text-left"
+                      >
+                        <p className="text-sm font-semibold">#{ticket.id}</p>
+                        <p
+                          className={cn(
+                            "mt-1 text-xs",
+                            selectedWorkTicketId === ticket.id ? "text-slate-200" : "text-slate-600",
+                          )}
+                        >
+                          {serial}
+                        </p>
+                      </button>
+                      <Button
+                        type="button"
+                        className="mt-2 h-9 w-full"
+                        onClick={() => void handleClaimWorkTicket(ticket.id)}
+                        disabled={isRunningWorkAction || !permissions.can_work}
+                      >
+                        {t("Claim")}
+                      </Button>
+                    </div>
+                  );
+                })
+              ) : (
+                <p className="rounded-lg border border-dashed border-slate-300 px-3 py-3 text-center text-sm text-slate-500">
+                  {t("No active pool tickets.")}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              {t("My todo")}
+            </p>
+            <div className="mt-2 max-h-[24svh] space-y-2 overflow-y-auto pr-1">
+              {isLoadingWorkQueues ? null : workTodoFiltered.length ? (
+                workTodoFiltered.map((ticket) => {
+                  const serial =
+                    inventoryCache[ticket.inventory_item]?.serial_number ??
+                    t("Item #{{id}}", { id: ticket.inventory_item });
+                  return (
+                    <button
+                      key={`todo-${ticket.id}`}
+                      type="button"
+                      onClick={() => {
+                        setSelectedWorkTicketId(ticket.id);
+                        void ensureInventoryLoaded([ticket.inventory_item]);
+                      }}
+                      className={cn(
+                        "w-full rounded-xl border px-3 py-3 text-left transition",
+                        selectedWorkTicketId === ticket.id
+                          ? "border-slate-900 bg-slate-900 text-white"
+                          : "border-slate-200 bg-white text-slate-900",
+                      )}
+                    >
+                      <p className="text-sm font-semibold">#{ticket.id}</p>
+                      <p
+                        className={cn(
+                          "mt-1 text-xs",
+                          selectedWorkTicketId === ticket.id ? "text-slate-200" : "text-slate-600",
+                        )}
+                      >
+                        {serial}
+                      </p>
+                    </button>
+                  );
+                })
+              ) : (
+                <p className="rounded-lg border border-dashed border-slate-300 px-3 py-3 text-center text-sm text-slate-500">
+                  {t("No tickets in personal todo.")}
+                </p>
+              )}
+            </div>
+          </div>
+        </section>
+
+        <section className="rm-panel p-4">
+          {selectedWorkTicket ? (
+            <div className="space-y-3">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-semibold text-slate-900">
+                    {t("Ticket #{{id}}", { id: selectedWorkTicket.id })}
+                  </p>
+                  <span
+                    className={cn(
+                      "rounded-full border px-2 py-0.5 text-[11px] font-semibold",
+                      statusBadgeClass(selectedWorkTicket.status),
+                    )}
+                  >
+                    {statusLabel(selectedWorkTicket.status)}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-slate-600">
+                  {
+                    inventoryCache[selectedWorkTicket.inventory_item]?.serial_number ??
+                    t("Item #{{id}}", { id: selectedWorkTicket.inventory_item })
+                  }
+                </p>
+              </div>
+
+              {isSelectedFromPool ? (
+                <div className="rounded-xl border border-slate-200 bg-white px-3 py-3">
+                  <p className="text-xs text-slate-600">
+                    {t("Claim this ticket to move it into your todo queue.")}
+                  </p>
+                  <Button
+                    type="button"
+                    className="mt-2 h-11 w-full"
+                    onClick={() => void handleClaimWorkTicket(selectedWorkTicket.id)}
+                    disabled={isRunningWorkAction || !permissions.can_work}
+                  >
+                    {t("Claim")}
+                  </Button>
+                </div>
+              ) : null}
+
+              {isSelectedFromTodo ? (
+                <div className="space-y-2 rounded-xl border border-slate-200 bg-white px-3 py-3">
+                  <p className="text-sm font-semibold text-slate-900">{t("Parts completion")}</p>
+                  {selectedWorkTicket.ticket_parts.length ? (
+                    selectedWorkTicket.ticket_parts.map((part) => {
+                      const isCompleted = Boolean(part.is_completed || part.completed_at);
+                      const checked = selectedPartSet.has(part.id);
+                      const completedBy =
+                        part.completed_by_name ||
+                        (typeof part.completed_by === "number"
+                          ? t("User #{{id}}", { id: part.completed_by })
+                          : t("Not completed"));
+
+                      return (
+                        <label
+                          key={`work-part-${part.id}`}
+                          className="block rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(event) => {
+                                  setSelectedWorkCompletedPartIds((prev) => {
+                                    const next = new Set(prev);
+                                    if (event.target.checked) {
+                                      next.add(part.part_id);
+                                    } else {
+                                      next.delete(part.part_id);
+                                    }
+                                    return [...next];
+                                  });
+                                }}
+                                disabled={isCompleted || isRunningWorkAction}
+                                className="h-5 w-5 accent-slate-900"
+                              />
+                              <p className="text-sm font-medium text-slate-900">{part.part_name}</p>
+                            </div>
+                            <span
+                              className={cn(
+                                "rounded-full border px-2 py-0.5 text-[11px] font-semibold",
+                                colorPillClass(part.color),
+                              )}
+                            >
+                              {colorLabel(part.color)}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-xs text-slate-600">{t("Minutes")}: {part.minutes}</p>
+                          <p className="mt-1 text-xs text-slate-600">{t("Completed by")}: {completedBy}</p>
+                          <p className="mt-1 text-xs text-slate-600">
+                            {t("Completed at")}: {formatDate(part.completed_at)}
+                          </p>
+                        </label>
+                      );
+                    })
+                  ) : (
+                    <p className="text-xs text-slate-500">{t("No part specs.")}</p>
+                  )}
+
+                  <Button
+                    type="button"
+                    className="h-11 w-full"
+                    onClick={() => void handleSubmitWorkCompletion()}
+                    disabled={
+                      isRunningWorkAction ||
+                      !permissions.can_work ||
+                      !selectedWorkCompletedPartIds.length
+                    }
+                  >
+                    {t("Submit completion")}
+                  </Button>
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <p className="rounded-lg border border-dashed border-slate-300 px-3 py-8 text-center text-sm text-slate-500">
+              {t("Select a work ticket to continue.")}
+            </p>
+          )}
+        </section>
+      </div>
+    );
+  };
+
   const renderQcTab = () => (
     <div className="space-y-3">
       <section className="rm-panel p-4">
@@ -1331,30 +1826,67 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
             <div className="space-y-2 rounded-xl border border-slate-200 bg-white px-3 py-3">
               <p className="text-sm font-semibold text-slate-900">{t("Part specs")}</p>
               {selectedQcTicket.ticket_parts.length ? (
-                selectedQcTicket.ticket_parts.map((part) => (
-                  <div
-                    key={part.id}
-                    className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-medium text-slate-900">{part.part_name}</p>
-                      <span
-                        className={cn(
-                          "rounded-full border px-2 py-0.5 text-[11px] font-semibold",
-                          colorPillClass(part.color),
-                        )}
-                      >
-                        {colorLabel(part.color)}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-xs text-slate-600">
-                      {t("Minutes")}: {part.minutes}
-                    </p>
-                    <p className="mt-1 text-xs text-slate-600">
-                      {t("Comment")}: {part.comment || "-"}
-                    </p>
-                  </div>
-                ))
+                selectedQcTicket.ticket_parts.map((part) => {
+                  const checked = selectedQcFailedPartIds.includes(part.part_id);
+                  const completedBy =
+                    part.completed_by_name ||
+                    (typeof part.completed_by === "number"
+                      ? t("User #{{id}}", { id: part.completed_by })
+                      : t("Not completed"));
+                  return (
+                    <label
+                      key={part.id}
+                      className="block rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(event) => {
+                              setSelectedQcFailedPartIds((prev) => {
+                                const next = new Set(prev);
+                                if (event.target.checked) {
+                                  next.add(part.part_id);
+                                } else {
+                                  next.delete(part.part_id);
+                                }
+                                return [...next];
+                              });
+                            }}
+                            disabled={
+                              !permissions.can_qc ||
+                              isRunningQcAction ||
+                              selectedQcTicket.status !== "waiting_qc"
+                            }
+                            className="h-5 w-5 accent-slate-900"
+                          />
+                          <p className="text-sm font-medium text-slate-900">{part.part_name}</p>
+                        </div>
+                        <span
+                          className={cn(
+                            "rounded-full border px-2 py-0.5 text-[11px] font-semibold",
+                            colorPillClass(part.color),
+                          )}
+                        >
+                          {colorLabel(part.color)}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs text-slate-600">
+                        {t("Minutes")}: {part.minutes}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-600">
+                        {t("Comment")}: {part.comment || "-"}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-600">
+                        {t("Completed by")}: {completedBy}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-600">
+                        {t("Completed at")}: {formatDate(part.completed_at)}
+                      </p>
+                    </label>
+                  );
+                })
               ) : (
                 <p className="text-xs text-slate-500">{t("No part specs.")}</p>
               )}
@@ -1378,7 +1910,9 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
                   className="h-11 border-rose-300 text-rose-700"
                   onClick={() => void handleQcDecision("fail")}
                   disabled={
-                    isRunningQcAction || selectedQcTicket.status !== "waiting_qc"
+                    isRunningQcAction ||
+                    selectedQcTicket.status !== "waiting_qc" ||
+                    !selectedQcFailedPartIds.length
                   }
                 >
                   {t("QC Fail")}
@@ -1411,7 +1945,7 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
               {t("No ticket permissions")}
             </p>
             <p className="mt-2 text-xs text-amber-700">
-              {t("Your account does not have create/review/qc access.")}
+              {t("Your account does not have create/review/work/qc access.")}
             </p>
           </div>
         </section>
@@ -1419,6 +1953,8 @@ export function MobileTicketFlow({ accessToken, permissions }: MobileTicketFlowP
         renderCreateTab()
       ) : activeTab === "review" ? (
         renderReviewTab()
+      ) : activeTab === "work" ? (
+        renderWorkTab()
       ) : (
         renderQcTab()
       )}

@@ -445,8 +445,27 @@ export type TicketPartSpec = {
   color: TicketColor;
   comment: string;
   minutes: number;
+  is_completed?: boolean;
+  completed_by?: number | null;
+  completed_by_name?: string | null;
+  completed_at?: string | null;
+  completed_history?: TicketPartCompletionEvent[];
   created_at: string;
   updated_at: string;
+};
+
+export type TicketPartCompletionEvent = {
+  id?: number;
+  ticket?: number;
+  ticket_part?: number;
+  part_id?: number;
+  part_name?: string;
+  technician?: number | null;
+  technician_name?: string | null;
+  completed_at?: string | null;
+  created_at?: string | null;
+  action?: string;
+  metadata?: Record<string, unknown>;
 };
 
 export type Ticket = {
@@ -458,6 +477,7 @@ export type Ticket = {
   technician_name?: string | null;
   title: string | null;
   ticket_parts: TicketPartSpec[];
+  part_completion_history?: TicketPartCompletionEvent[];
   total_duration: number;
   approved_by: number | null;
   approved_by_name?: string | null;
@@ -730,6 +750,12 @@ export type InventoryItemQuery = {
 export type TicketListQuery = {
   q?: string;
   status?: TicketStatus;
+  page?: number;
+  per_page?: number;
+};
+
+export type TicketQueueQuery = {
+  q?: string;
   page?: number;
   per_page?: number;
 };
@@ -1584,6 +1610,46 @@ export async function listTicketsPage(
   });
 }
 
+export async function listActivePoolTickets(
+  accessToken: string,
+  query: TicketQueueQuery = {},
+): Promise<PaginatedResult<Ticket>> {
+  const page = query.page ?? 1;
+  const perPage = query.per_page ?? 50;
+  const payload = await apiRequest<unknown>(
+    withQuery("tickets/active-pool/", {
+      q: query.q,
+      page,
+      per_page: perPage,
+    }),
+    { accessToken },
+  );
+  return extractPaginatedResults<Ticket>(payload, {
+    page,
+    per_page: perPage,
+  });
+}
+
+export async function listTechnicianTodoTickets(
+  accessToken: string,
+  query: TicketQueueQuery = {},
+): Promise<PaginatedResult<Ticket>> {
+  const page = query.page ?? 1;
+  const perPage = query.per_page ?? 50;
+  const payload = await apiRequest<unknown>(
+    withQuery("tickets/todo/", {
+      q: query.q,
+      page,
+      per_page: perPage,
+    }),
+    { accessToken },
+  );
+  return extractPaginatedResults<Ticket>(payload, {
+    page,
+    per_page: perPage,
+  });
+}
+
 export async function getTicket(
   accessToken: string,
   id: number,
@@ -1724,6 +1790,47 @@ export async function assignTicket(
   return extractData<Ticket>(payload);
 }
 
+export async function claimTicket(
+  accessToken: string,
+  ticketId: number,
+): Promise<Ticket> {
+  const payload = await apiRequest<unknown>(`tickets/${ticketId}/claim/`, {
+    method: "POST",
+    accessToken,
+  });
+  return extractData<Ticket>(payload);
+}
+
+export async function completeTicketParts(
+  accessToken: string,
+  ticketId: number,
+  body: {
+    completed_part_ids: number[];
+  },
+): Promise<Ticket> {
+  const payload = await apiRequest<unknown>(`tickets/${ticketId}/complete-parts/`, {
+    method: "POST",
+    accessToken,
+    body,
+  });
+  return extractData<Ticket>(payload);
+}
+
+export async function listTicketPartCompletionHistory(
+  accessToken: string,
+  ticketId: number,
+  query: { page?: number; per_page?: number } = {},
+): Promise<TicketPartCompletionEvent[]> {
+  const payload = await apiRequest<unknown>(
+    withQuery(`tickets/${ticketId}/parts/history/`, {
+      page: query.page,
+      per_page: query.per_page ?? 200,
+    }),
+    { accessToken },
+  );
+  return extractResults<TicketPartCompletionEvent>(payload);
+}
+
 export async function startTicketWork(
   accessToken: string,
   ticketId: number,
@@ -1808,10 +1915,14 @@ export async function qcPassTicket(
 export async function qcFailTicket(
   accessToken: string,
   ticketId: number,
+  body: {
+    failed_part_ids?: number[];
+  } = {},
 ): Promise<Ticket> {
   const payload = await apiRequest<unknown>(`tickets/${ticketId}/qc-fail/`, {
     method: "POST",
     accessToken,
+    body,
   });
   return extractData<Ticket>(payload);
 }

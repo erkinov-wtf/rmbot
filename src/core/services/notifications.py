@@ -322,45 +322,113 @@ class UserNotificationService:
 
     @classmethod
     def notify_ticket_qc_fail(
-        cls, *, ticket: Ticket, actor_user_id: int | None
+        cls,
+        *,
+        ticket: Ticket,
+        actor_user_id: int | None,
+        technician_ids: Iterable[int] | None = None,
+        failed_parts_by_technician: dict[int, tuple[str, ...]] | None = None,
     ) -> None:
-        if not ticket.technician_id:
+        normalized_recipient_ids = sorted(
+            {
+                int(user_id)
+                for user_id in (technician_ids or [ticket.technician_id])
+                if user_id
+            }
+        )
+        if not normalized_recipient_ids:
             return
 
-        technician_state = TechnicianTicketActionService.state_for_ticket(
-            ticket=ticket,
-            technician_id=ticket.technician_id,
-        )
-        def technician_message_builder(_: Translator) -> str:
-            return "\n".join(
-                [
-                    TechnicianTicketActionService.render_state_message(
-                        state=technician_state,
-                        heading=_("❌ <b>Returned from QC</b>"),
-                        _=_,
-                    ),
+        for technician_id in normalized_recipient_ids:
+            technician_state = None
+            if ticket.technician_id == technician_id:
+                try:
+                    technician_state = TechnicianTicketActionService.state_for_ticket(
+                        ticket=ticket,
+                        technician_id=technician_id,
+                    )
+                except Exception:
+                    logger.exception(
+                        (
+                            "Failed to build technician state for QC fail "
+                            "notification: ticket_id=%s technician_id=%s"
+                        ),
+                        ticket.id,
+                        technician_id,
+                    )
+            current_technician_id = technician_id
+            current_state = technician_state
+            current_failed_parts = (failed_parts_by_technician or {}).get(
+                current_technician_id, ()
+            )
+
+            def technician_message_builder(
+                _: Translator,
+                _state=current_state,
+                _failed_parts=current_failed_parts,
+            ) -> str:
+                lines: list[str] = []
+                if _state is not None:
+                    lines.append(
+                        TechnicianTicketActionService.render_state_message(
+                            state=_state,
+                            heading=_("❌ <b>Returned from QC</b>"),
+                            _=_,
+                        )
+                    )
+                else:
+                    lines.extend(
+                        [
+                            _("❌ <b>Returned from QC</b>"),
+                            _("🎫 <b>Ticket:</b> #%(ticket_id)s")
+                            % {"ticket_id": ticket.id},
+                            _("🔢 <b>Serial:</b> <code>%(value)s</code>")
+                            % {
+                                "value": cls._safe_text(
+                                    cls._serial_number(ticket=ticket, _=_)
+                                )
+                            },
+                            _("📍 <b>Status:</b> <code>%(value)s</code>")
+                            % {
+                                "value": cls._safe_text(
+                                    cls._ticket_status_label(ticket.status, _=_)
+                                )
+                            },
+                        ]
+                    )
+                if _failed_parts:
+                    lines.append(
+                        _("🧩 <b>Failed parts:</b> %(value)s")
+                        % {"value": cls._safe_text(", ".join(_failed_parts))}
+                    )
+                lines.append(
                     _("🧪 <b>QC by:</b> %(value)s")
                     % {
                         "value": cls._safe_text(
                             cls._display_name_by_user_id(actor_user_id, _=_)
                         )
-                    },
-                ]
-            )
+                    }
+                )
+                return "\n".join(lines)
 
-        def technician_markup_builder(_: Translator) -> InlineKeyboardMarkup | None:
-            return TechnicianTicketActionService.build_action_keyboard(
-                ticket_id=ticket.id,
-                actions=technician_state.actions,
-                _=_,
-            )
+            def technician_markup_builder(
+                _: Translator,
+                _state=current_state,
+            ) -> InlineKeyboardMarkup | None:
+                if _state is None:
+                    return None
+                return TechnicianTicketActionService.build_action_keyboard(
+                    ticket_id=ticket.id,
+                    actions=_state.actions,
+                    _=_,
+                )
 
-        cls._notify_users(
-            event_key="ticket_qc_fail_technician",
-            user_ids=[ticket.technician_id],
-            message=technician_message_builder,
-            reply_markup=technician_markup_builder,
-        )
+            cls._notify_users(
+                event_key="ticket_qc_fail_technician",
+                user_ids=[current_technician_id],
+                message=technician_message_builder,
+                reply_markup=technician_markup_builder,
+            )
 
     @classmethod
     def notify_manual_xp_adjustment(

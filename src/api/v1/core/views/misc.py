@@ -34,7 +34,7 @@ class HealthAPIView(generics.RetrieveAPIView):
         return Response(data={"status": "ok"}, status=200)
 
 
-AuditFeedPermission = HasRole.as_any(RoleSlug.SUPER_ADMIN, RoleSlug.OPS_MANAGER)
+AuditFeedPermission = HasRole.as_any(RoleSlug.SUPER_ADMIN, RoleSlug.MASTER)
 
 
 @extend_schema(

@@ -63,8 +63,10 @@ class WorkSessionTransitionAction(models.TextChoices):
 
 class TicketTransitionAction(models.TextChoices):
     CREATED = "created", _("Created")
+    CLAIMED = "claimed", _("Claimed")
     ASSIGNED = "assigned", _("Assigned")
     STARTED = "started", _("Started")
+    PARTS_COMPLETED = "parts_completed", _("Parts Completed")
     TO_WAITING_QC = "to_waiting_qc", _("To Waiting QC")
     QC_PASS = "qc_pass", _("QC Pass")
     QC_FAIL = "qc_fail", _("QC Fail")

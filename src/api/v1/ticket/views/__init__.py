@@ -4,6 +4,7 @@ from api.v1.ticket.views.work_sessions import (
     TicketWorkSessionViewSet,
 )
 from api.v1.ticket.views.workflow import (
+    TicketPartCompletionHistoryListAPIView,
     TicketTransitionListAPIView,
     TicketWorkflowViewSet,
 )
@@ -13,5 +14,6 @@ __all__ = [
     "TicketWorkflowViewSet",
     "TicketWorkSessionViewSet",
     "TicketTransitionListAPIView",
+    "TicketPartCompletionHistoryListAPIView",
     "TicketWorkSessionHistoryListAPIView",
 ]

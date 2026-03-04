@@ -59,7 +59,6 @@ const MAX_AVATAR_FILE_LABEL = "3 MB";
 
 const FALLBACK_ROLE_OPTIONS: RoleOption[] = [
   { slug: "super_admin", name: "Super Admin" },
-  { slug: "ops_manager", name: "Ops Manager" },
   { slug: "master", name: "Master" },
   { slug: "technician", name: "Technician" },
   { slug: "qc_inspector", name: "QC Inspector" },

@@ -33,6 +33,24 @@ class TicketQuerySet(models.QuerySet):
     def for_technician(self, *, technician_id: int):
         return self.filter(technician_id=technician_id)
 
+    def claimable_for_technician(self, *, technician_id: int):
+        base_pending_part_filter = models.Q(
+            part_specs__deleted_at__isnull=True,
+            part_specs__is_completed=False,
+        )
+        rework_pending_filter = base_pending_part_filter & models.Q(
+            part_specs__needs_rework=True,
+            part_specs__rework_for_technician_id=technician_id,
+        )
+        return (
+            self.filter(technician_id__isnull=True)
+            .filter(
+                (models.Q(status=TicketStatus.NEW) & base_pending_part_filter)
+                | (models.Q(status=TicketStatus.REWORK) & rework_pending_filter)
+            )
+            .distinct()
+        )
+
 
 class TicketDomainManager(models.Manager.from_queryset(TicketQuerySet)):
     def get_queryset(self):
@@ -62,6 +80,9 @@ class TicketDomainManager(models.Manager.from_queryset(TicketQuerySet)):
             .filter(flag_color=TicketColor.RED)
             .count()
         )
+
+    def claimable_for_technician(self, *, technician_id: int):
+        return self.get_queryset().claimable_for_technician(technician_id=technician_id)
 
 
 class WorkSessionQuerySet(models.QuerySet):

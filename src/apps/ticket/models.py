@@ -69,7 +69,7 @@ class Ticket(TimestampedModel, SoftDeleteModel):
     status = models.CharField(
         max_length=20,
         choices=TicketStatus,
-        default=TicketStatus.UNDER_REVIEW,
+        default=TicketStatus.NEW,
         db_index=True,
     )
     assigned_at = models.DateTimeField(null=True, blank=True)
@@ -100,18 +100,15 @@ class Ticket(TimestampedModel, SoftDeleteModel):
             TicketStatus.REWORK,
         ):
             raise DomainValidationError("Ticket cannot be assigned in current status.")
-        if (
-            self.status in (TicketStatus.UNDER_REVIEW, TicketStatus.NEW)
-            and not self.is_admin_reviewed
-        ):
-            raise DomainValidationError(
-                "Ticket must pass admin review before assignment."
-            )
 
         self.technician_id = technician_id
         self.assigned_at = assigned_at or timezone.now()
         update_fields = ["technician", "assigned_at"]
-        if self.status in (TicketStatus.UNDER_REVIEW, TicketStatus.NEW):
+        if self.status in (
+            TicketStatus.UNDER_REVIEW,
+            TicketStatus.NEW,
+            TicketStatus.REWORK,
+        ):
             self.status = TicketStatus.ASSIGNED
             update_fields.append("status")
         self.save(update_fields=update_fields)
@@ -220,20 +217,28 @@ class Ticket(TimestampedModel, SoftDeleteModel):
             raise DomainValidationError(
                 "Ticket must have an assigned technician before QC PASS."
             )
+        if self.part_specs.filter(deleted_at__isnull=True, is_completed=False).exists():
+            raise DomainValidationError(
+                "All ticket parts must be completed before QC PASS."
+            )
 
         self.status = TicketStatus.DONE
         self.finished_at = finished_at or timezone.now()
         self.save(update_fields=["status", "finished_at"])
         return from_status
 
-    def mark_qc_fail(self) -> str:
+    def mark_qc_fail(self, *, clear_claim: bool = True) -> str:
         from_status = self.status
         if self.status != TicketStatus.WAITING_QC:
             raise DomainValidationError("QC FAIL allowed only from WAITING_QC.")
 
         self.status = TicketStatus.REWORK
         self.finished_at = None
-        self.save(update_fields=["status", "finished_at"])
+        update_fields = ["status", "finished_at"]
+        if clear_claim:
+            self.technician_id = None
+            update_fields.append("technician")
+        self.save(update_fields=update_fields)
         return from_status
 
     def add_transition(
@@ -272,6 +277,24 @@ class TicketPartSpec(TimestampedModel, SoftDeleteModel):
     color = models.CharField(max_length=20, choices=TicketColor, db_index=True)
     comment = models.TextField(blank=True, default="")
     minutes = models.PositiveIntegerField(default=0)
+    is_completed = models.BooleanField(default=False, db_index=True)
+    completed_by = models.ForeignKey(
+        "account.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="completed_ticket_part_specs",
+    )
+    completed_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    completion_note = models.TextField(blank=True, default="")
+    needs_rework = models.BooleanField(default=False, db_index=True)
+    rework_for_technician = models.ForeignKey(
+        "account.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="ticket_part_rework_assignments",
+    )
 
     class Meta:
         indexes = [
@@ -294,6 +317,115 @@ class TicketPartSpec(TimestampedModel, SoftDeleteModel):
 
     def __str__(self) -> str:
         return f"TicketPartSpec#{self.pk} ticket={self.ticket_id} part={self.inventory_item_part_id} color={self.color}"
+
+
+class TicketPartCompletion(AppendOnlyModel):
+    ticket = models.ForeignKey(
+        Ticket,
+        on_delete=models.CASCADE,
+        related_name="part_completions",
+    )
+    ticket_part_spec = models.ForeignKey(
+        TicketPartSpec,
+        on_delete=models.CASCADE,
+        related_name="completion_history",
+    )
+    technician = models.ForeignKey(
+        "account.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    completed_at = models.DateTimeField(db_index=True)
+    note = models.TextField(blank=True, default="")
+    is_rework = models.BooleanField(default=False, db_index=True)
+    source_qc_fail_transition = models.ForeignKey(
+        "ticket.TicketTransition",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="rework_part_completions",
+    )
+    metadata = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(
+                fields=["ticket", "completed_at"],
+                name="tick_partcomp_ticket_at_idx",
+            ),
+            models.Index(
+                fields=["ticket_part_spec", "completed_at"],
+                name="tick_partcomp_spec_at_idx",
+            ),
+            models.Index(
+                fields=["technician", "completed_at"],
+                name="tick_partcomp_tech_at_idx",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return (
+            f"TicketPartCompletion#{self.pk} ticket={self.ticket_id} "
+            f"part_spec={self.ticket_part_spec_id} tech={self.technician_id}"
+        )
+
+
+class TicketPartQCFailure(AppendOnlyModel):
+    ticket = models.ForeignKey(
+        Ticket,
+        on_delete=models.CASCADE,
+        related_name="part_qc_failures",
+    )
+    ticket_part_spec = models.ForeignKey(
+        TicketPartSpec,
+        on_delete=models.CASCADE,
+        related_name="qc_failure_history",
+    )
+    qc_fail_transition = models.ForeignKey(
+        "ticket.TicketTransition",
+        on_delete=models.CASCADE,
+        related_name="failed_part_mappings",
+    )
+    technician = models.ForeignKey(
+        "account.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    ticket_part_completion = models.ForeignKey(
+        TicketPartCompletion,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    note = models.TextField(blank=True, default="")
+    metadata = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(
+                fields=["ticket", "created_at"],
+                name="tick_partfail_ticket_at_idx",
+            ),
+            models.Index(
+                fields=["ticket_part_spec", "created_at"],
+                name="tick_partfail_spec_at_idx",
+            ),
+            models.Index(
+                fields=["technician", "created_at"],
+                name="tick_partfail_tech_at_idx",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return (
+            f"TicketPartQCFailure#{self.pk} ticket={self.ticket_id} "
+            f"part_spec={self.ticket_part_spec_id} tech={self.technician_id}"
+        )
 
 
 class WorkSession(TimestampedModel, SoftDeleteModel):

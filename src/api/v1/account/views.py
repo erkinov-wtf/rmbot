@@ -24,11 +24,13 @@ from core.api.views import BaseAPIView, ListAPIView
 from core.utils.constants import AccessRequestStatus, RoleSlug
 
 AccessRequestManagerPermission = HasRole.as_any(
-    RoleSlug.SUPER_ADMIN, RoleSlug.OPS_MANAGER
+    RoleSlug.SUPER_ADMIN,
+    RoleSlug.MASTER,
 )
-UserManagementPermission = HasRole.as_any(RoleSlug.SUPER_ADMIN, RoleSlug.OPS_MANAGER)
+UserManagementPermission = HasRole.as_any(RoleSlug.SUPER_ADMIN, RoleSlug.MASTER)
 UserOptionsPermission = HasRole.as_any(
-    RoleSlug.SUPER_ADMIN, RoleSlug.OPS_MANAGER, RoleSlug.MASTER
+    RoleSlug.SUPER_ADMIN,
+    RoleSlug.MASTER,
 )
 
 
@@ -96,7 +98,9 @@ class UserOptionListAPIView(ListAPIView):
 class RoleListAPIView(ListAPIView):
     serializer_class = RoleSerializer
     permission_classes = (IsAuthenticated, UserManagementPermission)
-    queryset = Role.objects.filter(deleted_at__isnull=True).order_by("name", "id")
+    queryset = Role.objects.filter(deleted_at__isnull=True).exclude(
+        slug=RoleSlug.OPS_MANAGER
+    ).order_by("name", "id")
 
 
 @extend_schema(

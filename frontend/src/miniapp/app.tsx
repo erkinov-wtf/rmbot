@@ -275,6 +275,7 @@ export default function MiniApp() {
           <MobileTicketFlow
             accessToken={session.accessToken}
             permissions={session.permissions}
+            currentUserId={session.user.id}
           />
         </div>
       </main>

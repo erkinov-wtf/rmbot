@@ -15,38 +15,38 @@ import { PaginationControls } from "@/components/ui/pagination-controls";
 import { useI18n } from "@/i18n";
 import {
   assignTicket,
+  claimTicket,
+  completeTicketParts,
   createTicket,
   getTicket,
   getInventoryItem,
   listAllCategories,
+  listActivePoolTickets,
   listInventoryItemsPage,
   listParts,
+  listTechnicianTodoTickets,
   listTechnicianOptions,
+  listTicketPartCompletionHistory,
   listTicketWorkSessionHistory,
   listTicketTransitions,
   listTickets,
   listTicketsPage,
-  moveTicketToWaitingQc,
-  pauseTicketWorkSession,
   qcFailTicket,
   qcPassTicket,
   reviewApproveTicket,
   reviewTicketManualMetrics,
-  resumeTicketWorkSession,
-  startTicketWork,
-  stopTicketWorkSession,
   type InventoryCategory,
   type InventoryItem,
   type InventoryItemStatus,
   type InventoryPart,
   type PaginationMeta,
+  type TicketPartCompletionEvent,
   type TechnicianOption,
   type Ticket as TicketModel,
   type TicketColor,
   type TicketStatus,
   type TicketTransition,
   type WorkSessionTransition,
-  type WorkSessionStatus,
 } from "@/lib/api";
 import {
   buildInventorySerialSearchQuery,
@@ -187,6 +187,71 @@ function formatMetadataValue(value: unknown): string {
   } catch {
     return String(value);
   }
+}
+
+function completionEventTimestamp(
+  event: TicketPartCompletionEvent,
+): string | null {
+  if (typeof event.completed_at === "string" && event.completed_at.trim()) {
+    return event.completed_at;
+  }
+  if (typeof event.created_at === "string" && event.created_at.trim()) {
+    return event.created_at;
+  }
+  return null;
+}
+
+function partCompletionHistoryForTicket(
+  ticket: TicketModel,
+  part: TicketModel["ticket_parts"][number],
+  extraHistory: TicketPartCompletionEvent[] = [],
+): TicketPartCompletionEvent[] {
+  const raw = [
+    ...(Array.isArray(part.completed_history) ? part.completed_history : []),
+    ...(Array.isArray(ticket.part_completion_history) ? ticket.part_completion_history : []),
+    ...extraHistory,
+  ];
+
+  const scoped = raw.filter((event) => {
+    if (event.ticket_part === part.id) {
+      return true;
+    }
+    if (event.part_id === part.part_id) {
+      return true;
+    }
+    if (
+      typeof event.part_name === "string" &&
+      event.part_name.trim() &&
+      event.part_name.trim().toLowerCase() === part.part_name.trim().toLowerCase()
+    ) {
+      return true;
+    }
+    return false;
+  });
+
+  const unique = new Map<string, TicketPartCompletionEvent>();
+  scoped.forEach((event) => {
+    const eventAt = completionEventTimestamp(event) ?? "";
+    const key = [
+      event.id ?? "-",
+      event.ticket_part ?? "-",
+      event.part_id ?? "-",
+      event.technician ?? "-",
+      event.action ?? "-",
+      eventAt,
+    ].join(":");
+    if (!unique.has(key)) {
+      unique.set(key, event);
+    }
+  });
+
+  return [...unique.values()].sort((left, right) => {
+    const leftTsRaw = new Date(completionEventTimestamp(left) ?? "").valueOf();
+    const rightTsRaw = new Date(completionEventTimestamp(right) ?? "").valueOf();
+    const leftTs = Number.isFinite(leftTsRaw) ? leftTsRaw : 0;
+    const rightTs = Number.isFinite(rightTsRaw) ? rightTsRaw : 0;
+    return rightTs - leftTs;
+  });
 }
 
 function normalizeTicketRouteBase(routeBase: string): string {
@@ -459,6 +524,9 @@ export function TicketFlow({
   const [historyWorkSessionHistory, setHistoryWorkSessionHistory] = useState<
     WorkSessionTransition[]
   >([]);
+  const [historyPartCompletionHistory, setHistoryPartCompletionHistory] = useState<
+    TicketPartCompletionEvent[]
+  >([]);
   const [isLoadingHistoryTicket, setIsLoadingHistoryTicket] = useState(false);
 
   const [reviewTickets, setReviewTickets] = useState<TicketModel[]>([]);
@@ -487,7 +555,8 @@ export function TicketFlow({
   const [reviewFlagColor, setReviewFlagColor] = useState<TicketColor>("green");
   const [reviewXpAmount, setReviewXpAmount] = useState("");
 
-  const [workTickets, setWorkTickets] = useState<TicketModel[]>([]);
+  const [workActivePoolTickets, setWorkActivePoolTickets] = useState<TicketModel[]>([]);
+  const [workTodoTickets, setWorkTodoTickets] = useState<TicketModel[]>([]);
   const [workPage, setWorkPage] = useState(1);
   const [workPerPage, setWorkPerPage] = useState(DEFAULT_LIST_PER_PAGE);
   const [workPagination, setWorkPagination] = useState<PaginationMeta>({
@@ -497,17 +566,17 @@ export function TicketFlow({
     page_count: 1,
   });
   const [isLoadingWorkTickets, setIsLoadingWorkTickets] = useState(false);
-  const [workStatusFilter, setWorkStatusFilter] = useState<
-    "all" | "assigned" | "in_progress" | "rework" | "waiting_qc"
-  >("all");
   const [workSearch, setWorkSearch] = useState("");
   const [selectedWorkTicketId, setSelectedWorkTicketId] = useState<number | null>(null);
   const [workTransitions, setWorkTransitions] = useState<TicketTransition[]>([]);
   const [isLoadingWorkTransitions, setIsLoadingWorkTransitions] = useState(false);
-  const [workSessionHistory, setWorkSessionHistory] = useState<WorkSessionTransition[]>(
+  const [selectedWorkCompletedPartIds, setSelectedWorkCompletedPartIds] = useState<number[]>(
     [],
   );
-  const [isLoadingWorkSessionHistory, setIsLoadingWorkSessionHistory] = useState(false);
+  const [isSubmittingWorkCompletion, setIsSubmittingWorkCompletion] = useState(false);
+  const [workPartCompletionHistory, setWorkPartCompletionHistory] = useState<
+    TicketPartCompletionEvent[]
+  >([]);
   const [workItem, setWorkItem] = useState<InventoryItem | null>(null);
 
   const [qcTickets, setQcTickets] = useState<TicketModel[]>([]);
@@ -527,6 +596,7 @@ export function TicketFlow({
   const [selectedQcTicketId, setSelectedQcTicketId] = useState<number | null>(null);
   const [qcTransitions, setQcTransitions] = useState<TicketTransition[]>([]);
   const [isLoadingQcTransitions, setIsLoadingQcTransitions] = useState(false);
+  const [selectedQcFailedPartIds, setSelectedQcFailedPartIds] = useState<number[]>([]);
   const [qcItem, setQcItem] = useState<InventoryItem | null>(null);
 
   const [inventoryCache, setInventoryCache] = useState<Record<number, InventoryItem>>(
@@ -653,6 +723,24 @@ export function TicketFlow({
     [historyUserLabelById, t],
   );
 
+  const resolvePartCompletionActorLabel = useCallback(
+    (
+      actorId: number | null | undefined,
+      actorName: string | null | undefined,
+      fallbackLabel: string,
+    ): string => {
+      const normalizedName = actorName?.trim();
+      if (normalizedName) {
+        return normalizedName;
+      }
+      if (typeof actorId === "number") {
+        return technicianLabelById.get(actorId) ?? t("User #{{id}}", { id: actorId });
+      }
+      return fallbackLabel;
+    },
+    [t, technicianLabelById],
+  );
+
   const historyTimeline = useMemo<AuditTimelineEvent[]>(() => {
     const workflowEvents: AuditTimelineEvent[] = historyTransitions.map((transition) => ({
       key: `wf-${transition.id}`,
@@ -720,50 +808,33 @@ export function TicketFlow({
     [reviewTickets, selectedReviewTicketId],
   );
 
-  const isSuperAdmin = useMemo(
-    () => roleSlugs.includes("super_admin"),
-    [roleSlugs],
+  const workVisiblePoolTickets = useMemo(
+    () => workActivePoolTickets,
+    [workActivePoolTickets],
   );
 
-  const workVisibleTickets = useMemo(() => {
-    const allowedStatuses = new Set<TicketStatus>([
-      "assigned",
-      "in_progress",
-      "rework",
-      "waiting_qc",
-    ]);
+  const workVisibleTodoTickets = useMemo(
+    () => workTodoTickets,
+    [workTodoTickets],
+  );
 
-    return workTickets.filter((ticket) => {
-      if (!allowedStatuses.has(ticket.status)) {
-        return false;
+  const workAllVisibleTickets = useMemo(() => {
+    const seen = new Set<number>();
+    const merged: TicketModel[] = [];
+    [...workVisibleTodoTickets, ...workVisiblePoolTickets].forEach((ticket) => {
+      if (seen.has(ticket.id)) {
+        return;
       }
-      if (!isSuperAdmin) {
-        if (currentUserId === null) {
-          return false;
-        }
-        if (ticket.technician !== currentUserId) {
-          return false;
-        }
-      }
-      return true;
+      seen.add(ticket.id);
+      merged.push(ticket);
     });
-  }, [
-    currentUserId,
-    isSuperAdmin,
-    workTickets,
-  ]);
+    return merged;
+  }, [workVisiblePoolTickets, workVisibleTodoTickets]);
 
   const selectedWorkTicket = useMemo(
-    () => workVisibleTickets.find((ticket) => ticket.id === selectedWorkTicketId) ?? null,
-    [selectedWorkTicketId, workVisibleTickets],
+    () => workAllVisibleTickets.find((ticket) => ticket.id === selectedWorkTicketId) ?? null,
+    [selectedWorkTicketId, workAllVisibleTickets],
   );
-
-  const currentWorkSessionStatus = useMemo<WorkSessionStatus | null>(() => {
-    if (!workSessionHistory.length) {
-      return null;
-    }
-    return workSessionHistory[0].to_status;
-  }, [workSessionHistory]);
 
   const selectedQcTicket = useMemo(
     () => qcTickets.find((ticket) => ticket.id === selectedQcTicketId) ?? null,
@@ -922,15 +993,19 @@ export function TicketFlow({
     async (ticketId: number) => {
       setIsLoadingHistoryTicket(true);
       try {
-        const [ticket, transitions, workHistory] = await Promise.all([
+        const [ticket, transitions, workHistory, partHistory] = await Promise.all([
           getTicket(accessToken, ticketId),
           listTicketTransitions(accessToken, ticketId, { per_page: 300 }),
           listTicketWorkSessionHistory(accessToken, ticketId, { per_page: 300 }),
+          listTicketPartCompletionHistory(accessToken, ticketId, { per_page: 500 }).catch(
+            () => [],
+          ),
         ]);
 
         setHistoryTicket(ticket);
         setHistoryTransitions(transitions);
         setHistoryWorkSessionHistory(workHistory);
+        setHistoryPartCompletionHistory(partHistory);
 
         const cachedItem = inventoryCache[ticket.inventory_item];
         if (cachedItem) {
@@ -949,6 +1024,7 @@ export function TicketFlow({
         setHistoryItem(null);
         setHistoryTransitions([]);
         setHistoryWorkSessionHistory([]);
+        setHistoryPartCompletionHistory([]);
         setFeedback({
           type: "error",
           message: toErrorMessage(error, t("Failed to load ticket full details.")),
@@ -990,18 +1066,63 @@ export function TicketFlow({
     setIsLoadingWorkTickets(true);
     try {
       const search = workSearch.trim();
-      const paginated = await listTicketsPage(accessToken, {
-        page: workPage,
-        per_page: workPerPage,
-        q: search.length >= 2 ? search : undefined,
-        status: workStatusFilter === "all" ? undefined : workStatusFilter,
-      });
-      if (workPage > paginated.pagination.page_count && paginated.pagination.page_count > 0) {
-        setWorkPage(paginated.pagination.page_count);
-        return;
+      const normalizedSearch = search.length >= 2 ? search : undefined;
+
+      try {
+        const [poolPaginated, todoPaginated] = await Promise.all([
+          listActivePoolTickets(accessToken, {
+            page: workPage,
+            per_page: workPerPage,
+            q: normalizedSearch,
+          }),
+          listTechnicianTodoTickets(accessToken, {
+            per_page: 200,
+            q: normalizedSearch,
+          }),
+        ]);
+
+        if (
+          workPage > poolPaginated.pagination.page_count &&
+          poolPaginated.pagination.page_count > 0
+        ) {
+          setWorkPage(poolPaginated.pagination.page_count);
+          return;
+        }
+
+        setWorkActivePoolTickets(poolPaginated.results);
+        setWorkTodoTickets(todoPaginated.results);
+        setWorkPagination(poolPaginated.pagination);
+      } catch {
+        const paginated = await listTicketsPage(accessToken, {
+          page: workPage,
+          per_page: workPerPage,
+          q: normalizedSearch,
+        });
+        if (workPage > paginated.pagination.page_count && paginated.pagination.page_count > 0) {
+          setWorkPage(paginated.pagination.page_count);
+          return;
+        }
+
+        const activeStatuses = new Set<TicketStatus>([
+          "assigned",
+          "in_progress",
+          "rework",
+        ]);
+        const todo = paginated.results.filter(
+          (ticket) =>
+            activeStatuses.has(ticket.status) &&
+            currentUserId !== null &&
+            ticket.technician === currentUserId,
+        );
+        const pool = paginated.results.filter(
+          (ticket) =>
+            activeStatuses.has(ticket.status) &&
+            (ticket.technician === null || ticket.technician !== currentUserId),
+        );
+        setWorkTodoTickets(todo);
+        setWorkActivePoolTickets(pool);
+        setWorkPagination(paginated.pagination);
       }
-      setWorkTickets(paginated.results);
-      setWorkPagination(paginated.pagination);
     } catch (error) {
       setFeedback({
         type: "error",
@@ -1010,7 +1131,14 @@ export function TicketFlow({
     } finally {
       setIsLoadingWorkTickets(false);
     }
-  }, [accessToken, t, workPage, workPerPage, workSearch, workStatusFilter]);
+  }, [
+    accessToken,
+    currentUserId,
+    t,
+    workPage,
+    workPerPage,
+    workSearch,
+  ]);
 
   const loadQcTickets = useCallback(async () => {
     setIsLoadingQcTickets(true);
@@ -1119,24 +1247,18 @@ export function TicketFlow({
     [accessToken, t],
   );
 
-  const loadWorkSessionHistory = useCallback(
+  const loadWorkPartCompletionHistory = useCallback(
     async (ticketId: number) => {
-      setIsLoadingWorkSessionHistory(true);
       try {
-        const history = await listTicketWorkSessionHistory(accessToken, ticketId, {
-          per_page: 100,
+        const history = await listTicketPartCompletionHistory(accessToken, ticketId, {
+          per_page: 500,
         });
-        setWorkSessionHistory(history);
-      } catch (error) {
-        setFeedback({
-          type: "error",
-          message: toErrorMessage(error, t("Failed to load work session history.")),
-        });
-      } finally {
-        setIsLoadingWorkSessionHistory(false);
+        setWorkPartCompletionHistory(history);
+      } catch {
+        setWorkPartCompletionHistory([]);
       }
     },
-    [accessToken, t],
+    [accessToken],
   );
 
   const loadReviewItem = useCallback(
@@ -1239,7 +1361,7 @@ export function TicketFlow({
 
   useEffect(() => {
     setWorkPage(1);
-  }, [workSearch, workStatusFilter]);
+  }, [workSearch]);
 
   useEffect(() => {
     setQcPage(1);
@@ -1289,6 +1411,7 @@ export function TicketFlow({
       setHistoryItem(null);
       setHistoryTransitions([]);
       setHistoryWorkSessionHistory([]);
+      setHistoryPartCompletionHistory([]);
       return;
     }
 
@@ -1346,7 +1469,8 @@ export function TicketFlow({
   useEffect(() => {
     if (route.name !== "work") {
       setWorkTransitions([]);
-      setWorkSessionHistory([]);
+      setWorkPartCompletionHistory([]);
+      setSelectedWorkCompletedPartIds([]);
       setWorkItem(null);
       return;
     }
@@ -1357,31 +1481,33 @@ export function TicketFlow({
     if (route.name !== "work") {
       return;
     }
-    if (!workVisibleTickets.length) {
+    if (!workAllVisibleTickets.length) {
       setSelectedWorkTicketId(null);
       return;
     }
     if (
       selectedWorkTicketId === null ||
-      !workVisibleTickets.some((ticket) => ticket.id === selectedWorkTicketId)
+      !workAllVisibleTickets.some((ticket) => ticket.id === selectedWorkTicketId)
     ) {
-      setSelectedWorkTicketId(workVisibleTickets[0].id);
+      setSelectedWorkTicketId(workAllVisibleTickets[0].id);
     }
-  }, [route, selectedWorkTicketId, workVisibleTickets]);
+  }, [route, selectedWorkTicketId, workAllVisibleTickets]);
 
   useEffect(() => {
     if (!selectedWorkTicket) {
       setWorkTransitions([]);
-      setWorkSessionHistory([]);
+      setWorkPartCompletionHistory([]);
+      setSelectedWorkCompletedPartIds([]);
       setWorkItem(null);
       return;
     }
+    setSelectedWorkCompletedPartIds([]);
     void loadWorkTransitions(selectedWorkTicket.id);
-    void loadWorkSessionHistory(selectedWorkTicket.id);
+    void loadWorkPartCompletionHistory(selectedWorkTicket.id);
     void loadWorkItem(selectedWorkTicket.inventory_item);
   }, [
     loadWorkItem,
-    loadWorkSessionHistory,
+    loadWorkPartCompletionHistory,
     loadWorkTransitions,
     selectedWorkTicket,
   ]);
@@ -1414,9 +1540,11 @@ export function TicketFlow({
   useEffect(() => {
     if (!selectedQcTicket) {
       setQcTransitions([]);
+      setSelectedQcFailedPartIds([]);
       setQcItem(null);
       return;
     }
+    setSelectedQcFailedPartIds([]);
     void loadQcTransitions(selectedQcTicket.id);
     void loadQcItem(selectedQcTicket.inventory_item);
   }, [loadQcItem, loadQcTransitions, selectedQcTicket]);
@@ -1455,7 +1583,7 @@ export function TicketFlow({
       if (selectedWorkTicket) {
         await Promise.all([
           loadWorkTransitions(selectedWorkTicket.id),
-          loadWorkSessionHistory(selectedWorkTicket.id),
+          loadWorkPartCompletionHistory(selectedWorkTicket.id),
           loadWorkItem(selectedWorkTicket.inventory_item),
         ]);
       }
@@ -1648,45 +1776,57 @@ export function TicketFlow({
     }
   };
 
-  const handleWorkAction = async (
-    action: "start" | "pause" | "resume" | "stop" | "to_waiting_qc",
-  ) => {
-    if (!canWork || !selectedWorkTicket) {
+  const handleClaimWorkTicket = async (ticketId: number) => {
+    if (!canWork) {
       return;
     }
 
-    const successMessageMap: Record<typeof action, string> = {
-      start: t("Work started."),
-      pause: t("Work session paused."),
-      resume: t("Work session resumed."),
-      stop: t("Work session stopped."),
-      to_waiting_qc: t("Ticket moved to waiting QC."),
-    };
-
     try {
       await runMutation(async () => {
-        if (action === "start") {
-          await startTicketWork(accessToken, selectedWorkTicket.id);
-        } else if (action === "pause") {
-          await pauseTicketWorkSession(accessToken, selectedWorkTicket.id);
-        } else if (action === "resume") {
-          await resumeTicketWorkSession(accessToken, selectedWorkTicket.id);
-        } else if (action === "stop") {
-          await stopTicketWorkSession(accessToken, selectedWorkTicket.id);
-        } else {
-          await moveTicketToWaitingQc(accessToken, selectedWorkTicket.id);
-        }
+        await claimTicket(accessToken, ticketId);
+        await Promise.all([
+          loadWorkTickets(),
+          loadWorkTransitions(ticketId),
+          loadWorkPartCompletionHistory(ticketId),
+          loadQcTickets(),
+        ]);
+        setSelectedWorkTicketId(ticketId);
+      }, t("Ticket claimed."));
+    } catch {
+      // feedback already set
+    }
+  };
 
+  const handleSubmitWorkCompletion = async () => {
+    if (!canWork || !selectedWorkTicket) {
+      return;
+    }
+    if (!selectedWorkCompletedPartIds.length) {
+      setFeedback({
+        type: "info",
+        message: t("Select at least one completed part."),
+      });
+      return;
+    }
+
+    setIsSubmittingWorkCompletion(true);
+    try {
+      await runMutation(async () => {
+        await completeTicketParts(accessToken, selectedWorkTicket.id, {
+          completed_part_ids: selectedWorkCompletedPartIds,
+        });
+        setSelectedWorkCompletedPartIds([]);
         await Promise.all([
           loadWorkTickets(),
           loadWorkTransitions(selectedWorkTicket.id),
-          loadWorkSessionHistory(selectedWorkTicket.id),
-          loadReviewTickets(),
+          loadWorkPartCompletionHistory(selectedWorkTicket.id),
           loadQcTickets(),
         ]);
-      }, successMessageMap[action]);
+      }, t("Part completion submitted."));
     } catch {
       // feedback already set
+    } finally {
+      setIsSubmittingWorkCompletion(false);
     }
   };
 
@@ -1694,12 +1834,21 @@ export function TicketFlow({
     if (!canQc || !selectedQcTicket) {
       return;
     }
+    if (decision === "fail" && !selectedQcFailedPartIds.length) {
+      setFeedback({
+        type: "error",
+        message: t("Select at least one failed part."),
+      });
+      return;
+    }
     try {
       await runMutation(async () => {
         if (decision === "pass") {
           await qcPassTicket(accessToken, selectedQcTicket.id);
         } else {
-          await qcFailTicket(accessToken, selectedQcTicket.id);
+          await qcFailTicket(accessToken, selectedQcTicket.id, {
+            failed_part_ids: selectedQcFailedPartIds,
+          });
         }
         await Promise.all([
           loadQcTickets(),
@@ -2443,28 +2592,71 @@ export function TicketFlow({
               <p className="text-sm font-semibold text-slate-900">{t("Selected Part Specs")}</p>
               {historyTicket.ticket_parts.length ? (
                 <div className="mt-3 space-y-2">
-                  {historyTicket.ticket_parts.map((part) => (
-                    <div
-                      key={part.id}
-                      className="rounded-md border border-slate-200 bg-slate-50 p-3"
-                    >
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-sm font-semibold text-slate-900">{part.part_name}</p>
-                        <span
-                          className={cn(
-                            "rounded-full border px-2 py-0.5 text-xs font-medium",
-                            ticketColorBadgeClass(part.color),
-                          )}
-                        >
-                          {ticketColorLabelByValue.get(part.color) ?? part.color}
-                        </span>
+                  {historyTicket.ticket_parts.map((part) => {
+                    const partHistory = partCompletionHistoryForTicket(
+                      historyTicket,
+                      part,
+                      historyPartCompletionHistory,
+                    );
+                    const latestHistory = partHistory[0] ?? null;
+                    const completedAt = part.completed_at
+                      ?? (latestHistory ? completionEventTimestamp(latestHistory) : null);
+                    const completedByLabel = resolvePartCompletionActorLabel(
+                      part.completed_by ?? latestHistory?.technician ?? null,
+                      part.completed_by_name ?? latestHistory?.technician_name ?? null,
+                      t("Not completed"),
+                    );
+
+                    return (
+                      <div
+                        key={part.id}
+                        className="rounded-md border border-slate-200 bg-slate-50 p-3"
+                      >
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm font-semibold text-slate-900">{part.part_name}</p>
+                          <span
+                            className={cn(
+                              "rounded-full border px-2 py-0.5 text-xs font-medium",
+                              ticketColorBadgeClass(part.color),
+                            )}
+                          >
+                            {ticketColorLabelByValue.get(part.color) ?? part.color}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-xs text-slate-600">{t("Minutes")}: {part.minutes}</p>
+                        <p className="mt-1 text-xs text-slate-600">
+                          {t("Comment")}: {part.comment || "-"}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-600">
+                          {t("Completed by")}: {completedByLabel}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-600">
+                          {t("Completed at")}: {formatDate(completedAt)}
+                        </p>
+                        {partHistory.length ? (
+                          <div className="mt-2 space-y-1">
+                            {partHistory.map((event, index) => {
+                              const eventAt = completionEventTimestamp(event);
+                              const actorLabel = resolvePartCompletionActorLabel(
+                                event.technician ?? null,
+                                event.technician_name ?? null,
+                                t("System"),
+                              );
+                              return (
+                                <p
+                                  key={`ph-${part.id}-${event.id ?? index}`}
+                                  className="rounded border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-600"
+                                >
+                                  {actorLabel} • {formatDate(eventAt)} •{" "}
+                                  {formatTokenLabel(event.action ?? "completed")}
+                                </p>
+                              );
+                            })}
+                          </div>
+                        ) : null}
                       </div>
-                      <p className="mt-1 text-xs text-slate-600">{t("Minutes")}: {part.minutes}</p>
-                      <p className="mt-1 text-xs text-slate-600">
-                        {t("Comment")}: {part.comment || "-"}
-                      </p>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <p className="mt-3 rounded-md border border-dashed border-slate-300 px-3 py-4 text-sm text-slate-500">
@@ -2889,15 +3081,24 @@ export function TicketFlow({
     </div>
   );
 
-  const renderWorkPage = () => (
-    <div className="mt-4 grid gap-4 xl:grid-cols-[360px_1fr]">
-      <section className="rounded-lg border border-slate-200 p-4">
-        <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
-          <ClipboardCheck className="h-4 w-4" />
-          {t("Technician Queue")}
-        </p>
-        <div className="mt-3 space-y-2">
-          <div>
+  const renderWorkPage = () => {
+    const isSelectedTicketInPool = selectedWorkTicket
+      ? workVisiblePoolTickets.some((ticket) => ticket.id === selectedWorkTicket.id)
+      : false;
+    const isSelectedTicketInTodo = selectedWorkTicket
+      ? workVisibleTodoTickets.some((ticket) => ticket.id === selectedWorkTicket.id)
+      : false;
+    const selectedPartIdSet = new Set(selectedWorkCompletedPartIds);
+
+    return (
+      <div className="mt-4 grid gap-4 xl:grid-cols-[380px_1fr]">
+        <section className="rounded-lg border border-slate-200 p-4">
+          <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
+            <ClipboardCheck className="h-4 w-4" />
+            {t("Technician Queue")}
+          </p>
+
+          <div className="mt-3">
             <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
               {t("Search")}
             </label>
@@ -2911,195 +3112,285 @@ export function TicketFlow({
               />
             </div>
           </div>
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-              {t("Status")}
-            </label>
-            <select
-              className={cn(fieldClassName, "mt-1")}
-              value={workStatusFilter}
-              onChange={(event) =>
-                setWorkStatusFilter(
-                  event.target.value as "all" | "assigned" | "in_progress" | "rework" | "waiting_qc",
-                )
-              }
-            >
-              <option value="all">{t("All work statuses")}</option>
-              <option value="assigned">{t("Assigned")}</option>
-              <option value="in_progress">{t("In progress")}</option>
-              <option value="rework">{t("Rework")}</option>
-              <option value="waiting_qc">{t("Waiting QC")}</option>
-            </select>
-          </div>
-        </div>
 
-        {workSearch.trim().length === 1 ? (
-          <p className="mt-2 text-xs text-amber-700">
-            {t("Backend search starts at 2 characters.")}
-          </p>
-        ) : null}
+          {workSearch.trim().length === 1 ? (
+            <p className="mt-2 text-xs text-amber-700">
+              {t("Backend search starts at 2 characters.")}
+            </p>
+          ) : null}
 
-        {isLoadingWorkTickets ? (
-          <p className="mt-3 text-sm text-slate-600">{t("Loading technician queue...")}</p>
-        ) : workVisibleTickets.length ? (
-          <div className="mt-3 space-y-2">
-            {workVisibleTickets.map((ticket) => {
-              const item = inventoryCache[ticket.inventory_item];
-              return (
-                <button
-                  key={ticket.id}
-                  type="button"
-                  onClick={() => setSelectedWorkTicketId(ticket.id)}
-                  className={cn(
-                    "w-full rounded-md border p-3 text-left transition",
-                    selectedWorkTicketId === ticket.id
-                      ? "border-slate-900 bg-slate-900 text-white"
-                      : "border-slate-200 bg-slate-50 hover:border-slate-300",
-                  )}
-                >
-                  <p className="text-sm font-semibold">
-                    {t("Ticket #{{id}}", { id: ticket.id })}
-                  </p>
-                  <p
-                    className={cn(
-                      "mt-1 text-xs",
-                      selectedWorkTicketId === ticket.id ? "text-slate-200" : "text-slate-600",
-                    )}
-                  >
-                    {item?.serial_number ?? t("Item #{{id}}", { id: ticket.inventory_item })}
-                  </p>
-                  <p
-                    className={cn(
-                      "mt-1 text-xs",
-                      selectedWorkTicketId === ticket.id ? "text-slate-200" : "text-slate-600",
-                    )}
-                  >
-                    {ticketStatusLabelByValue.get(ticket.status) ?? ticket.status}
-                  </p>
-                </button>
-              );
-            })}
-          </div>
-        ) : (
-          <p className="mt-3 rounded-md border border-dashed border-slate-300 px-3 py-5 text-center text-sm text-slate-500">
-            {t("No tickets in technician queue.")}
-          </p>
-        )}
-
-        <PaginationControls
-          className="mt-3 -mx-4"
-          page={workPagination.page}
-          pageCount={workPagination.page_count}
-          perPage={workPagination.per_page}
-          totalCount={workPagination.total_count}
-          isLoading={isLoadingWorkTickets}
-          onPageChange={(nextPage) => setWorkPage(nextPage)}
-          onPerPageChange={(nextPerPage) => {
-            setWorkPerPage(nextPerPage);
-            setWorkPage(1);
-          }}
-          perPageOptions={LIST_PER_PAGE_OPTIONS}
-        />
-      </section>
-
-      <section className="rounded-lg border border-slate-200 p-4">
-        {selectedWorkTicket ? (
-          <div className="space-y-4">
-            <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="text-lg font-semibold text-slate-900">
-                  {t("Ticket #{{id}}", { id: selectedWorkTicket.id })}
-                </p>
-                <span
-                  className={cn(
-                    "rounded-full border px-2 py-0.5 text-xs font-medium",
-                    ticketStatusBadgeClass(selectedWorkTicket.status),
-                  )}
-                >
-                  {ticketStatusLabelByValue.get(selectedWorkTicket.status) ??
-                    selectedWorkTicket.status}
-                </span>
-              </div>
-              <p className="mt-1 text-xs text-slate-600">
-                {t("Item")}:{" "}
-                {workItem?.serial_number ??
-                  t("Item #{{id}}", { id: selectedWorkTicket.inventory_item })}
-              </p>
-              <p className="mt-1 text-xs text-slate-600">
-                {t("Session status")}: {currentWorkSessionStatus ?? t("none")}
-              </p>
-            </div>
-
-            {!canWork ? (
-              <p className="rounded-md border border-dashed border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                {t("Your roles do not allow work-session actions.")}
-              </p>
-            ) : null}
-
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => void handleWorkAction("stop")}
-                disabled={
-                  !canWork ||
-                  isMutating ||
-                  selectedWorkTicket.status !== "in_progress" ||
-                  !["running", "paused"].includes(currentWorkSessionStatus ?? "")
-                }
-              >
-                {t("Stop")}
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                onClick={() => void handleWorkAction("to_waiting_qc")}
-                disabled={
-                  !canWork ||
-                  isMutating ||
-                  selectedWorkTicket.status !== "in_progress" ||
-                  currentWorkSessionStatus !== "stopped"
-                }
-              >
-                {t("Move To QC")}
-              </Button>
-            </div>
-
-            <div className="rounded-md border border-slate-200 p-3">
-              <p className="text-sm font-semibold text-slate-900">{t("Work Session History")}</p>
-              {isLoadingWorkSessionHistory ? (
-                <p className="mt-2 text-sm text-slate-600">{t("Loading history...")}</p>
-              ) : workSessionHistory.length ? (
-                <div className="mt-2 space-y-2">
-                  {workSessionHistory.map((entry) => (
+          <div className="mt-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              {t("Active pool")}
+            </p>
+            {isLoadingWorkTickets ? (
+              <p className="mt-2 text-sm text-slate-600">{t("Loading technician queue...")}</p>
+            ) : workVisiblePoolTickets.length ? (
+              <div className="mt-2 space-y-2">
+                {workVisiblePoolTickets.map((ticket) => {
+                  const item = inventoryCache[ticket.inventory_item];
+                  return (
                     <div
-                      key={entry.id}
-                      className="rounded-md border border-slate-200 bg-slate-50 p-2"
+                      key={`pool-${ticket.id}`}
+                      className={cn(
+                        "rounded-md border p-3",
+                        selectedWorkTicketId === ticket.id
+                          ? "border-slate-900 bg-slate-900 text-white"
+                          : "border-slate-200 bg-slate-50",
+                      )}
                     >
-                      <p className="text-xs font-semibold text-slate-900">{entry.action}</p>
-                      <p className="mt-1 text-xs text-slate-600">
-                        {entry.from_status || "-"} {"->"} {entry.to_status}
-                      </p>
-                      <p className="mt-1 text-xs text-slate-600">
-                        {formatDate(entry.event_at)}
-                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedWorkTicketId(ticket.id)}
+                        className="w-full text-left"
+                      >
+                        <p className="text-sm font-semibold">{t("Ticket #{{id}}", { id: ticket.id })}</p>
+                        <p
+                          className={cn(
+                            "mt-1 text-xs",
+                            selectedWorkTicketId === ticket.id ? "text-slate-200" : "text-slate-600",
+                          )}
+                        >
+                          {item?.serial_number ?? t("Item #{{id}}", { id: ticket.inventory_item })}
+                        </p>
+                      </button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="mt-2 h-8"
+                        onClick={() => void handleClaimWorkTicket(ticket.id)}
+                        disabled={!canWork || isMutating}
+                      >
+                        {t("Claim")}
+                      </Button>
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="mt-2 text-sm text-slate-600">{t("No work session events yet.")}</p>
-              )}
-            </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="mt-2 rounded-md border border-dashed border-slate-300 px-3 py-3 text-sm text-slate-500">
+                {t("No active pool tickets.")}
+              </p>
+            )}
           </div>
-        ) : (
-          <p className="rounded-md border border-dashed border-slate-300 px-3 py-8 text-center text-sm text-slate-500">
-            {t("Select a ticket from technician queue.")}
-          </p>
-        )}
-      </section>
-    </div>
-  );
+
+          <div className="mt-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              {t("My todo")}
+            </p>
+            {isLoadingWorkTickets ? null : workVisibleTodoTickets.length ? (
+              <div className="mt-2 space-y-2">
+                {workVisibleTodoTickets.map((ticket) => {
+                  const item = inventoryCache[ticket.inventory_item];
+                  return (
+                    <button
+                      key={`todo-${ticket.id}`}
+                      type="button"
+                      onClick={() => setSelectedWorkTicketId(ticket.id)}
+                      className={cn(
+                        "w-full rounded-md border p-3 text-left transition",
+                        selectedWorkTicketId === ticket.id
+                          ? "border-slate-900 bg-slate-900 text-white"
+                          : "border-slate-200 bg-white hover:border-slate-300",
+                      )}
+                    >
+                      <p className="text-sm font-semibold">{t("Ticket #{{id}}", { id: ticket.id })}</p>
+                      <p
+                        className={cn(
+                          "mt-1 text-xs",
+                          selectedWorkTicketId === ticket.id ? "text-slate-200" : "text-slate-600",
+                        )}
+                      >
+                        {item?.serial_number ?? t("Item #{{id}}", { id: ticket.inventory_item })}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="mt-2 rounded-md border border-dashed border-slate-300 px-3 py-3 text-sm text-slate-500">
+                {t("No tickets in personal todo.")}
+              </p>
+            )}
+          </div>
+
+          <PaginationControls
+            className="mt-3 -mx-4"
+            page={workPagination.page}
+            pageCount={workPagination.page_count}
+            perPage={workPagination.per_page}
+            totalCount={workPagination.total_count}
+            isLoading={isLoadingWorkTickets}
+            onPageChange={(nextPage) => setWorkPage(nextPage)}
+            onPerPageChange={(nextPerPage) => {
+              setWorkPerPage(nextPerPage);
+              setWorkPage(1);
+            }}
+            perPageOptions={LIST_PER_PAGE_OPTIONS}
+          />
+        </section>
+
+        <section className="rounded-lg border border-slate-200 p-4">
+          {selectedWorkTicket ? (
+            <div className="space-y-4">
+              <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-lg font-semibold text-slate-900">
+                    {t("Ticket #{{id}}", { id: selectedWorkTicket.id })}
+                  </p>
+                  <span
+                    className={cn(
+                      "rounded-full border px-2 py-0.5 text-xs font-medium",
+                      ticketStatusBadgeClass(selectedWorkTicket.status),
+                    )}
+                  >
+                    {ticketStatusLabelByValue.get(selectedWorkTicket.status) ??
+                      selectedWorkTicket.status}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-slate-600">
+                  {t("Item")}:{" "}
+                  {workItem?.serial_number ??
+                    t("Item #{{id}}", { id: selectedWorkTicket.inventory_item })}
+                </p>
+                <p className="mt-1 text-xs text-slate-600">
+                  {t("Current technician")}:{" "}
+                  {selectedWorkTicket.technician
+                    ? technicianLabelById.get(selectedWorkTicket.technician) ??
+                      t("User #{{id}}", { id: selectedWorkTicket.technician })
+                    : t("Not assigned")}
+                </p>
+              </div>
+
+              {isSelectedTicketInPool ? (
+                <div className="rounded-md border border-slate-200 p-3">
+                  <p className="text-sm text-slate-700">
+                    {t("Claim this ticket to move it from common active pool into your todo.")}
+                  </p>
+                  <Button
+                    type="button"
+                    className="mt-3 h-10"
+                    onClick={() => void handleClaimWorkTicket(selectedWorkTicket.id)}
+                    disabled={!canWork || isMutating}
+                  >
+                    {t("Claim")}
+                  </Button>
+                </div>
+              ) : null}
+
+              {isSelectedTicketInTodo ? (
+                <div className="rounded-md border border-slate-200 p-3">
+                  <p className="text-sm font-semibold text-slate-900">{t("Parts completion")}</p>
+                  {selectedWorkTicket.ticket_parts.length ? (
+                    <div className="mt-2 space-y-2">
+                      {selectedWorkTicket.ticket_parts.map((part) => {
+                        const partHistory = partCompletionHistoryForTicket(
+                          selectedWorkTicket,
+                          part,
+                          workPartCompletionHistory,
+                        );
+                        const latestHistory = partHistory[0] ?? null;
+                        const completedAt = part.completed_at
+                          ?? (latestHistory ? completionEventTimestamp(latestHistory) : null);
+                        const completedByLabel = resolvePartCompletionActorLabel(
+                          part.completed_by ?? latestHistory?.technician ?? null,
+                          part.completed_by_name ?? latestHistory?.technician_name ?? null,
+                          t("Not completed"),
+                        );
+                        const isCompleted = Boolean(part.is_completed || completedAt);
+                        const checked = selectedPartIdSet.has(part.id);
+
+                        return (
+                          <div
+                            key={`work-part-${part.id}`}
+                            className="rounded-md border border-slate-200 bg-slate-50 p-3"
+                          >
+                            <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-900">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(event) => {
+                                  setSelectedWorkCompletedPartIds((prev) => {
+                                    const next = new Set(prev);
+                                    if (event.target.checked) {
+                                      next.add(part.part_id);
+                                    } else {
+                                      next.delete(part.part_id);
+                                    }
+                                    return [...next];
+                                  });
+                                }}
+                                disabled={isCompleted || !canWork || isMutating}
+                              />
+                              {part.part_name}
+                            </label>
+                            <p className="mt-1 text-xs text-slate-600">
+                              {t("Minutes")}: {part.minutes}
+                            </p>
+                            <p className="mt-1 text-xs text-slate-600">
+                              {t("Completed by")}: {completedByLabel}
+                            </p>
+                            <p className="mt-1 text-xs text-slate-600">
+                              {t("Completed at")}: {formatDate(completedAt)}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-sm text-slate-600">{t("No part specs.")}</p>
+                  )}
+                  <Button
+                    type="button"
+                    className="mt-3 h-10"
+                    onClick={() => void handleSubmitWorkCompletion()}
+                    disabled={
+                      !canWork ||
+                      isMutating ||
+                      isSubmittingWorkCompletion ||
+                      !selectedWorkCompletedPartIds.length
+                    }
+                  >
+                    {t("Submit completion")}
+                  </Button>
+                </div>
+              ) : null}
+
+              <div className="rounded-md border border-slate-200 p-3">
+                <p className="text-sm font-semibold text-slate-900">{t("Ticket Transitions")}</p>
+                {isLoadingWorkTransitions ? (
+                  <p className="mt-2 text-sm text-slate-600">{t("Loading transitions...")}</p>
+                ) : workTransitions.length ? (
+                  <div className="mt-2 space-y-2">
+                    {workTransitions.map((transition) => (
+                      <div
+                        key={transition.id}
+                        className="rounded-md border border-slate-200 bg-slate-50 p-2"
+                      >
+                        <p className="text-xs font-semibold text-slate-900">{transition.action}</p>
+                        <p className="mt-1 text-xs text-slate-600">
+                          {transition.from_status || "-"} {"->"} {transition.to_status}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-600">
+                          {formatDate(transition.created_at)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-2 text-sm text-slate-600">{t("No transitions yet.")}</p>
+                )}
+              </div>
+            </div>
+          ) : (
+            <p className="rounded-md border border-dashed border-slate-300 px-3 py-8 text-center text-sm text-slate-500">
+              {t("Select a ticket from technician queue.")}
+            </p>
+          )}
+        </section>
+      </div>
+    );
+  };
 
   const renderQcPage = () => (
     <div className="mt-4 grid gap-4 xl:grid-cols-[360px_1fr]">
@@ -3241,28 +3532,65 @@ export function TicketFlow({
               <p className="text-sm font-semibold text-slate-900">{t("Part Specs")}</p>
               {selectedQcTicket.ticket_parts.length ? (
                 <div className="mt-2 space-y-2">
-                  {selectedQcTicket.ticket_parts.map((part) => (
-                    <div
-                      key={part.id}
-                      className="rounded-md border border-slate-200 bg-slate-50 p-2"
-                    >
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-sm font-medium text-slate-900">{part.part_name}</p>
-                        <span
-                          className={cn(
-                            "rounded-full border px-2 py-0.5 text-xs font-medium",
-                            ticketColorBadgeClass(part.color),
-                          )}
-                        >
-                          {ticketColorLabelByValue.get(part.color) ?? part.color}
-                        </span>
-                      </div>
-                      <p className="mt-1 text-xs text-slate-600">{t("Minutes")}: {part.minutes}</p>
-                      <p className="mt-1 text-xs text-slate-600">
-                        {t("Comment")}: {part.comment || "-"}
-                      </p>
-                    </div>
-                  ))}
+                  {selectedQcTicket.ticket_parts.map((part) => {
+                    const partHistory = partCompletionHistoryForTicket(selectedQcTicket, part);
+                    const latestHistory = partHistory[0] ?? null;
+                    const completedAt = part.completed_at
+                      ?? (latestHistory ? completionEventTimestamp(latestHistory) : null);
+                    const completedByLabel = resolvePartCompletionActorLabel(
+                      part.completed_by ?? latestHistory?.technician ?? null,
+                      part.completed_by_name ?? latestHistory?.technician_name ?? null,
+                      t("Not completed"),
+                    );
+                    const isChecked = selectedQcFailedPartIds.includes(part.part_id);
+
+                    return (
+                      <label
+                        key={part.id}
+                        className="block rounded-md border border-slate-200 bg-slate-50 p-2"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(event) => {
+                                setSelectedQcFailedPartIds((prev) => {
+                                  const next = new Set(prev);
+                                  if (event.target.checked) {
+                                    next.add(part.part_id);
+                                  } else {
+                                    next.delete(part.part_id);
+                                  }
+                                  return [...next];
+                                });
+                              }}
+                              disabled={!canQc || isMutating || selectedQcTicket.status !== "waiting_qc"}
+                            />
+                            <p className="text-sm font-medium text-slate-900">{part.part_name}</p>
+                          </div>
+                          <span
+                            className={cn(
+                              "rounded-full border px-2 py-0.5 text-xs font-medium",
+                              ticketColorBadgeClass(part.color),
+                            )}
+                          >
+                            {ticketColorLabelByValue.get(part.color) ?? part.color}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-xs text-slate-600">{t("Minutes")}: {part.minutes}</p>
+                        <p className="mt-1 text-xs text-slate-600">
+                          {t("Comment")}: {part.comment || "-"}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-600">
+                          {t("Completed by")}: {completedByLabel}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-600">
+                          {t("Completed at")}: {formatDate(completedAt)}
+                        </p>
+                      </label>
+                    );
+                  })}
                 </div>
               ) : (
                 <p className="mt-2 text-sm text-slate-600">{t("No part specs.")}</p>
@@ -3282,7 +3610,12 @@ export function TicketFlow({
                 variant="outline"
                 className="text-rose-700"
                 onClick={() => void handleQcDecision("fail")}
-                disabled={!canQc || isMutating || selectedQcTicket.status !== "waiting_qc"}
+                disabled={
+                  !canQc ||
+                  isMutating ||
+                  selectedQcTicket.status !== "waiting_qc" ||
+                  !selectedQcFailedPartIds.length
+                }
               >
                 {t("QC Fail")}
               </Button>
@@ -3380,7 +3713,6 @@ export function TicketFlow({
             isLoadingTechnicians ||
             isLoadingReviewTransitions ||
             isLoadingWorkTransitions ||
-            isLoadingWorkSessionHistory ||
             isLoadingQcTransitions
           }
         >

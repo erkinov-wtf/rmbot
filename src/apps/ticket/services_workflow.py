@@ -1,5 +1,6 @@
 import logging
 import math
+from collections import defaultdict
 
 from django.db import transaction
 from django.utils import timezone
@@ -14,13 +15,73 @@ from core.utils.constants import (
 )
 from gamification.services import GamificationService
 from rules.services import RulesService
-from ticket.models import Ticket, TicketTransition, WorkSession
+from ticket.models import (
+    Ticket,
+    TicketPartCompletion,
+    TicketPartQCFailure,
+    TicketPartSpec,
+    TicketTransition,
+    WorkSession,
+)
 
 logger = logging.getLogger(__name__)
 
 
 class TicketWorkflowService:
     """Canonical ticket state machine with audit logging and XP side effects."""
+
+    @staticmethod
+    def claimable_tickets_queryset_for_technician(*, technician_id: int):
+        return Ticket.domain.claimable_for_technician(technician_id=technician_id)
+
+    @classmethod
+    @transaction.atomic
+    def claim_ticket(
+        cls,
+        *,
+        ticket: Ticket,
+        actor_user_id: int,
+    ) -> Ticket:
+        locked_ticket = (
+            Ticket.domain.select_for_update()
+            .select_related("inventory_item", "master", "technician")
+            .prefetch_related("part_specs__inventory_item_part")
+            .get(pk=ticket.pk)
+        )
+
+        if locked_ticket.technician_id and locked_ticket.technician_id != actor_user_id:
+            raise DomainValidationError(
+                "Ticket is already claimed by another technician."
+            )
+        if (
+            locked_ticket.technician_id == actor_user_id
+            and locked_ticket.status == TicketStatus.ASSIGNED
+        ):
+            return locked_ticket
+
+        is_claimable = Ticket.domain.claimable_for_technician(
+            technician_id=actor_user_id
+        ).filter(pk=locked_ticket.pk)
+        if not is_claimable.exists():
+            raise DomainValidationError("Ticket is not claimable for this technician.")
+
+        from_status = locked_ticket.assign_to_technician(
+            technician_id=actor_user_id,
+            assigned_at=timezone.now(),
+        )
+        cls.log_ticket_transition(
+            ticket=locked_ticket,
+            from_status=from_status,
+            to_status=locked_ticket.status,
+            action=TicketTransitionAction.CLAIMED,
+            actor_user_id=actor_user_id,
+            metadata={"claim_source": "technician_pool"},
+        )
+        UserNotificationService.notify_ticket_assigned(
+            ticket=locked_ticket,
+            actor_user_id=actor_user_id,
+        )
+        return locked_ticket
 
     @classmethod
     @transaction.atomic
@@ -83,6 +144,152 @@ class TicketWorkflowService:
             actor_user_id=actor_user_id,
         )
         return ticket
+
+    @classmethod
+    @transaction.atomic
+    def complete_ticket_parts(
+        cls,
+        *,
+        ticket: Ticket,
+        actor_user_id: int,
+        part_payloads: list[dict[str, object]],
+        transition_metadata: dict | None = None,
+    ) -> Ticket:
+        if not part_payloads:
+            raise DomainValidationError("At least one part must be selected.")
+
+        locked_ticket = (
+            Ticket.domain.select_for_update()
+            .select_related("inventory_item", "master", "technician")
+            .prefetch_related("part_specs__inventory_item_part")
+            .get(pk=ticket.pk)
+        )
+        if locked_ticket.technician_id != actor_user_id:
+            raise DomainValidationError(
+                "Ticket must be claimed by this technician before completing parts."
+            )
+        if locked_ticket.status not in (
+            TicketStatus.ASSIGNED,
+            TicketStatus.IN_PROGRESS,
+            TicketStatus.REWORK,
+            TicketStatus.NEW,
+        ):
+            raise DomainValidationError(
+                "Ticket parts cannot be completed in current ticket status."
+            )
+
+        part_specs = {
+            spec.id: spec
+            for spec in locked_ticket.part_specs.filter(deleted_at__isnull=True)
+        }
+        selected_part_spec_ids = [int(item["part_spec_id"]) for item in part_payloads]
+        if len(set(selected_part_spec_ids)) != len(selected_part_spec_ids):
+            raise DomainValidationError(
+                "Each part can be completed only once per request."
+            )
+        unknown_ids = sorted(set(selected_part_spec_ids) - set(part_specs.keys()))
+        if unknown_ids:
+            raise DomainValidationError(
+                "Selected parts are not found in ticket: "
+                + ", ".join(str(part_id) for part_id in unknown_ids)
+            )
+
+        now_dt = timezone.now()
+        completed_ids: list[int] = []
+        for payload in part_payloads:
+            part_spec_id = int(payload["part_spec_id"])
+            note = str(payload.get("note", "") or "").strip()
+            part_spec = part_specs[part_spec_id]
+            if part_spec.is_completed and not part_spec.needs_rework:
+                raise DomainValidationError(
+                    f"Ticket part #{part_spec_id} is already completed."
+                )
+            if (
+                part_spec.needs_rework
+                and part_spec.rework_for_technician_id
+                and part_spec.rework_for_technician_id != actor_user_id
+            ):
+                raise DomainValidationError(
+                    f"Ticket part #{part_spec_id} is assigned for rework to another technician."
+                )
+
+            TicketPartCompletion.objects.create(
+                ticket=locked_ticket,
+                ticket_part_spec=part_spec,
+                technician_id=actor_user_id,
+                completed_at=now_dt,
+                note=note,
+                is_rework=bool(part_spec.needs_rework),
+                metadata={"part_spec_id": part_spec_id},
+            )
+
+            part_spec.is_completed = True
+            part_spec.completed_by_id = actor_user_id
+            part_spec.completed_at = now_dt
+            part_spec.completion_note = note
+            part_spec.needs_rework = False
+            part_spec.rework_for_technician_id = None
+            part_spec.save(
+                update_fields=[
+                    "is_completed",
+                    "completed_by",
+                    "completed_at",
+                    "completion_note",
+                    "needs_rework",
+                    "rework_for_technician",
+                ]
+            )
+            completed_ids.append(part_spec_id)
+
+        remaining_parts_qs = locked_ticket.part_specs.filter(
+            deleted_at__isnull=True,
+            is_completed=False,
+        )
+        has_remaining_parts = remaining_parts_qs.exists()
+        from_status = locked_ticket.status
+        if not has_remaining_parts:
+            locked_ticket.status = TicketStatus.WAITING_QC
+            locked_ticket.technician_id = actor_user_id
+            locked_ticket.save(update_fields=["status", "technician"])
+            cls.log_ticket_transition(
+                ticket=locked_ticket,
+                from_status=from_status,
+                to_status=locked_ticket.status,
+                action=TicketTransitionAction.TO_WAITING_QC,
+                actor_user_id=actor_user_id,
+                metadata={
+                    "completed_part_spec_ids": completed_ids,
+                    "auto_waiting_qc": True,
+                    **(transition_metadata or {}),
+                },
+            )
+            UserNotificationService.notify_ticket_waiting_qc(
+                ticket=locked_ticket,
+                actor_user_id=actor_user_id,
+            )
+            return locked_ticket
+
+        has_rework_parts = remaining_parts_qs.filter(needs_rework=True).exists()
+        locked_ticket.status = (
+            TicketStatus.REWORK if has_rework_parts else TicketStatus.NEW
+        )
+        locked_ticket.technician_id = None
+        locked_ticket.save(update_fields=["status", "technician"])
+        cls.log_ticket_transition(
+            ticket=locked_ticket,
+            from_status=from_status,
+            to_status=locked_ticket.status,
+            action=TicketTransitionAction.PARTS_COMPLETED,
+            actor_user_id=actor_user_id,
+            metadata={
+                "completed_part_spec_ids": completed_ids,
+                "remaining_part_spec_ids": list(
+                    remaining_parts_qs.values_list("id", flat=True)
+                ),
+                **(transition_metadata or {}),
+            },
+        )
+        return locked_ticket
 
     @classmethod
     @transaction.atomic
@@ -204,28 +411,126 @@ class TicketWorkflowService:
         ticket: Ticket,
         actor_user_id: int | None = None,
         transition_metadata: dict | None = None,
+        failed_part_spec_ids: list[int] | None = None,
+        note: str | None = None,
     ) -> Ticket:
-        from_status = ticket.mark_qc_fail()
+        locked_ticket = (
+            Ticket.domain.select_for_update()
+            .select_related("inventory_item", "master", "technician")
+            .prefetch_related("part_specs__inventory_item_part")
+            .get(pk=ticket.pk)
+        )
+        all_part_specs = {
+            spec.id: spec
+            for spec in locked_ticket.part_specs.filter(deleted_at__isnull=True)
+        }
+        if not all_part_specs:
+            raise DomainValidationError("Ticket has no part specs configured.")
+
+        selected_part_ids = [
+            int(part_id)
+            for part_id in (
+                failed_part_spec_ids
+                if failed_part_spec_ids is not None
+                else list(all_part_specs.keys())
+            )
+        ]
+        selected_part_ids = list(dict.fromkeys(selected_part_ids))
+        if not selected_part_ids:
+            raise DomainValidationError(
+                "failed_part_ids must contain at least one part."
+            )
+
+        unknown_ids = sorted(set(selected_part_ids) - set(all_part_specs.keys()))
+        if unknown_ids:
+            raise DomainValidationError(
+                "Invalid failed_part_ids provided: "
+                + ", ".join(str(part_id) for part_id in unknown_ids)
+            )
+
+        failed_part_specs: list[TicketPartSpec] = []
+        target_technician_ids: set[int] = set()
+        for part_spec_id in selected_part_ids:
+            part_spec = all_part_specs[part_spec_id]
+            if not part_spec.is_completed:
+                raise DomainValidationError(
+                    f"Ticket part #{part_spec_id} is not completed and cannot fail QC."
+                )
+            if not part_spec.completed_by_id:
+                raise DomainValidationError(
+                    f"Ticket part #{part_spec_id} has no completion owner."
+                )
+            failed_part_specs.append(part_spec)
+            target_technician_ids.add(int(part_spec.completed_by_id))
+
+        from_status = locked_ticket.mark_qc_fail(clear_claim=True)
+        transition_metadata_payload = {
+            "failed_part_spec_ids": [part_spec.id for part_spec in failed_part_specs],
+            "target_technician_ids": sorted(target_technician_ids),
+            **(transition_metadata or {}),
+        }
         transition = cls.log_ticket_transition(
-            ticket=ticket,
+            ticket=locked_ticket,
             from_status=from_status,
-            to_status=ticket.status,
+            to_status=locked_ticket.status,
             action=TicketTransitionAction.QC_FAIL,
             actor_user_id=actor_user_id,
-            metadata=transition_metadata,
+            note=note,
+            metadata=transition_metadata_payload,
         )
+        failed_part_labels_by_technician: dict[int, list[str]] = defaultdict(list)
+        for part_spec in failed_part_specs:
+            latest_completion = (
+                TicketPartCompletion.all_objects.filter(
+                    ticket_part_spec_id=part_spec.id,
+                )
+                .order_by("-completed_at", "-id")
+                .first()
+            )
+            TicketPartQCFailure.objects.create(
+                ticket=locked_ticket,
+                ticket_part_spec=part_spec,
+                qc_fail_transition=transition,
+                technician_id=part_spec.completed_by_id,
+                ticket_part_completion=latest_completion,
+                note=str(note or "").strip(),
+                metadata={"failed_part_spec_id": part_spec.id},
+            )
+            part_spec.is_completed = False
+            part_spec.needs_rework = True
+            part_spec.rework_for_technician_id = part_spec.completed_by_id
+            part_spec.save(
+                update_fields=[
+                    "is_completed",
+                    "needs_rework",
+                    "rework_for_technician",
+                ]
+            )
+            if part_spec.completed_by_id:
+                part_name = getattr(part_spec.inventory_item_part, "name", None) or str(
+                    part_spec.inventory_item_part_id
+                )
+                failed_part_labels_by_technician[int(part_spec.completed_by_id)].append(
+                    str(part_name)
+                )
+
         _, _, qc_status_update_xp, _, _ = cls._ticket_xp_rules()
         cls._award_qc_status_update_xp(
-            ticket=ticket,
+            ticket=locked_ticket,
             transition=transition,
             actor_user_id=actor_user_id,
             amount=qc_status_update_xp,
         )
         UserNotificationService.notify_ticket_qc_fail(
-            ticket=ticket,
+            ticket=locked_ticket,
             actor_user_id=actor_user_id,
+            technician_ids=sorted(target_technician_ids),
+            failed_parts_by_technician={
+                user_id: tuple(part_names)
+                for user_id, part_names in failed_part_labels_by_technician.items()
+            },
         )
-        return ticket
+        return locked_ticket
 
     @classmethod
     @transaction.atomic

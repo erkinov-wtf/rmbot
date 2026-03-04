@@ -1,6 +1,7 @@
 from django.urls import path
 
 from api.v1.ticket.views import (
+    TicketPartCompletionHistoryListAPIView,
     TicketTransitionListAPIView,
     TicketViewSet,
     TicketWorkflowViewSet,
@@ -13,11 +14,36 @@ app_name = "ticket"
 urlpatterns = [
     path("", TicketViewSet.as_view({"get": "list"}), name="ticket-list"),
     path("create/", TicketViewSet.as_view({"post": "create"}), name="ticket-create"),
+    path(
+        "claimable/",
+        TicketWorkflowViewSet.as_view({"get": "claimable"}),
+        name="ticket-claimable",
+    ),
+    path(
+        "active-pool/",
+        TicketWorkflowViewSet.as_view({"get": "active_pool"}),
+        name="ticket-active-pool",
+    ),
+    path(
+        "todo/",
+        TicketWorkflowViewSet.as_view({"get": "todo"}),
+        name="ticket-todo",
+    ),
     path("<int:pk>/", TicketViewSet.as_view({"get": "retrieve"}), name="ticket-detail"),
     path(
         "<int:pk>/assign/",
         TicketWorkflowViewSet.as_view({"post": "assign"}),
         name="ticket-assign",
+    ),
+    path(
+        "<int:pk>/claim/",
+        TicketWorkflowViewSet.as_view({"post": "claim"}),
+        name="ticket-claim",
+    ),
+    path(
+        "<int:pk>/complete-parts/",
+        TicketWorkflowViewSet.as_view({"post": "complete_parts"}),
+        name="ticket-complete-parts",
     ),
     path(
         "<int:pk>/review-approve/",
@@ -28,6 +54,11 @@ urlpatterns = [
         "<int:pk>/transitions/",
         TicketTransitionListAPIView.as_view(),
         name="ticket-transitions",
+    ),
+    path(
+        "<int:pk>/parts/history/",
+        TicketPartCompletionHistoryListAPIView.as_view(),
+        name="ticket-part-history",
     ),
     path(
         "<int:pk>/start/",
