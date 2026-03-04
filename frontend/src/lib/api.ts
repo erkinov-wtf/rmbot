@@ -1921,6 +1921,7 @@ export async function qcFailTicket(
   ticketId: number,
   body: {
     failed_part_ids?: number[];
+    note?: string;
   } = {},
 ): Promise<Ticket> {
   const payload = await apiRequest<unknown>(`tickets/${ticketId}/qc-fail/`, {

@@ -204,6 +204,10 @@ class Ticket(TimestampedModel, SoftDeleteModel):
             raise DomainValidationError(
                 "Only assigned technician can send ticket to QC."
             )
+        if self.part_specs.filter(deleted_at__isnull=True, is_completed=False).exists():
+            raise DomainValidationError(
+                "All ticket parts must be completed before sending to QC."
+            )
 
         self.status = TicketStatus.WAITING_QC
         self.save(update_fields=["status"])

@@ -270,6 +270,7 @@ export function MobileTicketFlow({
   const [qcSearch, setQcSearch] = useState("");
   const [selectedQcTicketId, setSelectedQcTicketId] = useState<number | null>(null);
   const [selectedQcFailedPartIds, setSelectedQcFailedPartIds] = useState<number[]>([]);
+  const [qcFailNote, setQcFailNote] = useState("");
   const [isRunningQcAction, setIsRunningQcAction] = useState(false);
 
   const statusLabel = useCallback(
@@ -762,6 +763,7 @@ export function MobileTicketFlow({
 
   useEffect(() => {
     setSelectedQcFailedPartIds([]);
+    setQcFailNote("");
   }, [selectedQcTicketId]);
 
   const updatePartDraft = useCallback(
@@ -1041,6 +1043,7 @@ export function MobileTicketFlow({
         } else {
           await qcFailTicket(accessToken, selectedQcTicket.id, {
             failed_part_ids: selectedQcFailedPartIds,
+            note: qcFailNote.trim() || undefined,
           });
         }
         setFeedback({
@@ -1066,6 +1069,7 @@ export function MobileTicketFlow({
       refreshReviewTickets,
       refreshWorkQueues,
       selectedQcFailedPartIds,
+      qcFailNote,
       selectedQcTicket,
       t,
     ],
@@ -2049,30 +2053,41 @@ export function MobileTicketFlow({
             </div>
 
             {permissions.can_qc ? (
-              <div className="grid grid-cols-2 gap-2">
-                <Button
-                  type="button"
-                  className="h-11"
-                  onClick={() => void handleQcDecision("pass")}
+              <div className="space-y-2">
+                <textarea
+                  className="rm-input min-h-[84px] resize-y py-2"
+                  value={qcFailNote}
+                  onChange={(event) => setQcFailNote(event.target.value)}
+                  placeholder={t("QC fail comment (optional)")}
                   disabled={
                     isRunningQcAction || selectedQcTicket.status !== "waiting_qc"
                   }
-                >
-                  {t("QC Pass")}
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-11 border-rose-300 text-rose-700"
-                  onClick={() => void handleQcDecision("fail")}
-                  disabled={
-                    isRunningQcAction ||
-                    selectedQcTicket.status !== "waiting_qc" ||
-                    !selectedQcFailedPartIds.length
-                  }
-                >
-                  {t("QC Fail")}
-                </Button>
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    type="button"
+                    className="h-11"
+                    onClick={() => void handleQcDecision("pass")}
+                    disabled={
+                      isRunningQcAction || selectedQcTicket.status !== "waiting_qc"
+                    }
+                  >
+                    {t("QC Pass")}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-11 border-rose-300 text-rose-700"
+                    onClick={() => void handleQcDecision("fail")}
+                    disabled={
+                      isRunningQcAction ||
+                      selectedQcTicket.status !== "waiting_qc" ||
+                      !selectedQcFailedPartIds.length
+                    }
+                  >
+                    {t("QC Fail")}
+                  </Button>
+                </div>
               </div>
             ) : (
               <p className="rounded-lg border border-dashed border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-700">

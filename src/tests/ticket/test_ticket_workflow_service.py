@@ -280,3 +280,25 @@ def test_qc_fail_targets_only_failed_part_technicians(role_cache):
 
     with pytest.raises(DomainValidationError):
         TicketWorkflowService.claim_ticket(ticket=ticket, actor_user_id=tech_3.id)
+
+
+@pytest.mark.django_db
+def test_move_to_waiting_qc_requires_all_parts_completed(role_cache):
+    master = _user(
+        username="master_waiting_qc_guard",
+        role_slug=RoleSlug.MASTER,
+        cache=role_cache,
+    )
+    tech = _user(
+        username="tech_waiting_qc_guard",
+        role_slug=RoleSlug.TECHNICIAN,
+        cache=role_cache,
+    )
+    ticket, _spec_a, _spec_b = _ticket_with_two_parts(master=master)
+
+    TicketWorkflowService.claim_ticket(ticket=ticket, actor_user_id=tech.id)
+    TicketWorkflowService.start_ticket(ticket=ticket, actor_user_id=tech.id)
+    ticket.refresh_from_db()
+
+    with pytest.raises(DomainValidationError):
+        ticket.move_to_waiting_qc(actor_user_id=tech.id)

@@ -68,7 +68,6 @@ class TechnicianTicketActionService:
         ACTION_PAUSE,
         ACTION_RESUME,
         ACTION_STOP,
-        ACTION_TO_WAITING_QC,
     )
     _ACTION_LABELS = {
         ACTION_START: gettext_noop("▶ Start work"),
@@ -121,7 +120,7 @@ class TechnicianTicketActionService:
         ACTION_START: gettext_noop("✅ Work session started."),
         ACTION_PAUSE: gettext_noop("⏸ Work session paused."),
         ACTION_RESUME: gettext_noop("▶ Work session resumed."),
-        ACTION_STOP: gettext_noop("🧪 Ticket sent to QC."),
+        ACTION_STOP: gettext_noop("⏹ Work session stopped."),
         ACTION_TO_WAITING_QC: gettext_noop("🧪 Ticket sent to QC."),
         ACTION_REFRESH: gettext_noop("🔄 Ticket details refreshed."),
     }
@@ -312,7 +311,7 @@ class TechnicianTicketActionService:
         if session_status == WorkSessionStatus.PAUSED:
             return [cls.ACTION_RESUME, cls.ACTION_STOP]
         if session_status == WorkSessionStatus.STOPPED:
-            return [cls.ACTION_TO_WAITING_QC]
+            return []
         return []
 
     @classmethod
@@ -520,6 +519,15 @@ class TechnicianTicketActionService:
                         )
                     )
                 }
+            )
+        if (
+            state.ticket_status == TicketStatus.IN_PROGRESS
+            and state.session_status == WorkSessionStatus.STOPPED
+        ):
+            lines.append(
+                _(
+                    "🧩 <b>Next step:</b> complete finished parts in the Telegram mini app."
+                )
             )
         if state.potential_xp > 0:
             lines.append(
@@ -1010,16 +1018,10 @@ class TechnicianTicketActionService:
 
         if action == cls.ACTION_STOP:
             from ticket.services_work_session import TicketWorkSessionService
-            from ticket.services_workflow import TicketWorkflowService
 
             TicketWorkSessionService.stop_work_session(
                 ticket=ticket,
                 actor_user_id=technician_id,
-            )
-            TicketWorkflowService.move_ticket_to_waiting_qc(
-                ticket=ticket,
-                actor_user_id=technician_id,
-                transition_metadata=cls._transition_metadata(action=action),
             )
             return
 
