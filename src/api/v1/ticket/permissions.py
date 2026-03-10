@@ -4,6 +4,7 @@ from core.utils.constants import RoleSlug
 TicketCreatePermission = HasRole.as_any(
     RoleSlug.MASTER,
     RoleSlug.SUPER_ADMIN,
+    RoleSlug.TECHNICIAN,
 )
 TicketAssignPermission = HasRole.as_any(
     RoleSlug.MASTER,

@@ -1,5 +1,7 @@
+from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
@@ -231,6 +233,48 @@ class UserManagementDetailAPIView(BaseAPIView):
             user, context=self.get_serializer_context()
         ).data
         return Response(output, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        tags=["Users / Management"],
+        summary="Remove user",
+        description=(
+            "Removes a user from active operations by deactivating and "
+            "soft-deleting the account."
+        ),
+    )
+    @transaction.atomic
+    def delete(self, request, *args, **kwargs):
+        user = get_object_or_404(self._get_user_queryset(), pk=kwargs["pk"])
+
+        if user.is_superuser and not request.user.is_superuser:
+            return Response(
+                {"detail": "Only super admins can delete superuser accounts."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        if user.pk == request.user.pk:
+            return Response(
+                {"detail": "You cannot delete your own account."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        update_fields: list[str] = []
+        if user.is_active:
+            user.is_active = False
+            update_fields.append("is_active")
+        if user.is_staff:
+            user.is_staff = False
+            update_fields.append("is_staff")
+        if user.is_superuser:
+            user.is_superuser = False
+            update_fields.append("is_superuser")
+        if user.deleted_at is None:
+            user.deleted_at = timezone.now()
+            update_fields.append("deleted_at")
+
+        if update_fields:
+            user.save(update_fields=update_fields)
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 @extend_schema(

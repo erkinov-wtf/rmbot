@@ -3,6 +3,7 @@ import {
   RefreshCcw,
   Search,
   Shield,
+  Trash2,
   UserCheck2,
   UserRoundCog,
   UserX2,
@@ -23,6 +24,7 @@ import { FeedbackToast } from "@/components/ui/feedback-toast";
 import { PaginationControls } from "@/components/ui/pagination-controls";
 import { useI18n } from "@/i18n";
 import {
+  deleteManagedUser,
   getManagedUser,
   listManagedUsersPage,
   listRoleOptions,
@@ -63,6 +65,10 @@ const FALLBACK_ROLE_OPTIONS: RoleOption[] = [
   { slug: "technician", name: "Technician" },
   { slug: "qc_inspector", name: "QC Inspector" },
 ];
+
+function stripDeprecatedRoleSlugs(roleSlugs: string[]): string[] {
+  return roleSlugs.filter((roleSlug) => roleSlug !== "ops_manager");
+}
 
 function toErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message) {
@@ -485,7 +491,7 @@ export function UserManagementAdmin({
 
     editingUserIdRef.current = user.id;
     setEditingUserId(user.id);
-    setEditRoleSlugs([...user.role_slugs]);
+    setEditRoleSlugs(stripDeprecatedRoleSlugs(user.role_slugs));
     setEditIsActive(user.is_active);
     setEditLevel(user.level);
     setEditPhotoFile(null);
@@ -557,7 +563,7 @@ export function UserManagementAdmin({
     setFeedback(null);
     try {
       let updated = await updateManagedUser(accessToken, editingUserId, {
-        role_slugs: editRoleSlugs,
+        role_slugs: stripDeprecatedRoleSlugs(editRoleSlugs),
         is_active: editIsActive,
         level: editLevel,
       });
@@ -581,6 +587,36 @@ export function UserManagementAdmin({
       setFeedback({
         type: "error",
         message: toErrorMessage(error, t("Failed to update user.")),
+      });
+    } finally {
+      setIsMutating(false);
+    }
+  };
+
+  const handleDeleteUser = async (user: ManagedUser) => {
+    if (!canManage) {
+      return;
+    }
+    const shouldDelete = window.confirm(
+      t("Remove user {{name}} from the system?", { name: user.display_name }),
+    );
+    if (!shouldDelete) {
+      return;
+    }
+
+    setIsMutating(true);
+    setFeedback(null);
+    try {
+      await deleteManagedUser(accessToken, user.id);
+      if (editingUserIdRef.current === user.id) {
+        cancelEdit();
+      }
+      await loadUsers();
+      setFeedback({ type: "success", message: t("User removed successfully.") });
+    } catch (error) {
+      setFeedback({
+        type: "error",
+        message: toErrorMessage(error, t("Failed to remove user.")),
       });
     } finally {
       setIsMutating(false);
@@ -864,6 +900,16 @@ export function UserManagementAdmin({
                                 disabled={isMutating || rolesReadOnly}
                               >
                                 {t("Manage")}
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className="h-9 border-rose-300 text-rose-700 hover:bg-rose-50"
+                                onClick={() => void handleDeleteUser(user)}
+                                disabled={isMutating || rolesReadOnly}
+                              >
+                                <Trash2 className="mr-1 h-4 w-4" />
+                                {t("Delete")}
                               </Button>
                             </div>
                           </div>

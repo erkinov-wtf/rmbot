@@ -1304,6 +1304,16 @@ export async function updateManagedUserPhoto(
   return mapManagedUser(updated);
 }
 
+export async function deleteManagedUser(
+  accessToken: string,
+  id: number,
+): Promise<void> {
+  await apiRequest<void>(`users/management/${id}/`, {
+    method: "DELETE",
+    accessToken,
+  });
+}
+
 export async function listInventories(accessToken: string): Promise<Inventory[]> {
   const payload = await apiRequest<unknown>(
     withQuery("inventory/", { per_page: 200 }),
