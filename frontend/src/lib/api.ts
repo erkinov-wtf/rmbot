@@ -1798,6 +1798,16 @@ export async function getTicket(
   return extractData<Ticket>(payload);
 }
 
+export async function deleteTicket(
+  accessToken: string,
+  id: number,
+): Promise<void> {
+  await apiRequest<void>(`tickets/${id}/`, {
+    method: "DELETE",
+    accessToken,
+  });
+}
+
 export async function createTicket(
   accessToken: string,
   body: {

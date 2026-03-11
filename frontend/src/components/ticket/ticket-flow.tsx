@@ -6,6 +6,7 @@ import {
   RefreshCcw,
   Search,
   Ticket,
+  Trash2,
 } from "lucide-react";
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
@@ -18,6 +19,7 @@ import {
   claimTicket,
   completeTicketParts,
   createTicket,
+  deleteTicket,
   getTicket,
   getInventoryItem,
   listAllCategories,
@@ -81,9 +83,10 @@ type TicketRoute =
   | { name: "historyTicket"; ticketId: number }
   | { name: "review" }
   | { name: "work" }
-  | { name: "qc" };
+  | { name: "qc" }
+  | { name: "delete" };
 
-type TicketFlowMenu = "create" | "review" | "work" | "qc";
+type TicketFlowMenu = "create" | "review" | "work" | "qc" | "delete";
 
 type ItemFilterState = {
   search: string;
@@ -275,6 +278,9 @@ function routeMenu(route: TicketRoute): TicketFlowMenu {
   if (route.name === "qc") {
     return "qc";
   }
+  if (route.name === "delete") {
+    return "delete";
+  }
   return "create";
 }
 
@@ -287,6 +293,9 @@ function routeForMenu(menu: TicketFlowMenu): TicketRoute {
   }
   if (menu === "qc") {
     return { name: "qc" };
+  }
+  if (menu === "delete") {
+    return { name: "delete" };
   }
   return { name: "createList" };
 }
@@ -323,6 +332,9 @@ function parseTicketRoute(pathname: string, routeBase = "/tickets"): TicketRoute
   if (pathname.startsWith(`${normalizedBase}/qc`)) {
     return { name: "qc" };
   }
+  if (pathname.startsWith(`${normalizedBase}/delete`)) {
+    return { name: "delete" };
+  }
 
   if (pathname.startsWith(`${normalizedBase}/create`)) {
     return { name: "createList" };
@@ -341,6 +353,9 @@ function toTicketPath(route: TicketRoute, routeBase = "/tickets"): string {
   }
   if (route.name === "qc") {
     return `${normalizedBase}/qc`;
+  }
+  if (route.name === "delete") {
+    return `${normalizedBase}/delete`;
   }
   if (route.name === "createItem") {
     return `${normalizedBase}/create/item/${route.itemId}`;
@@ -602,6 +617,24 @@ export function TicketFlow({
   const [selectedQcFailedPartIds, setSelectedQcFailedPartIds] = useState<number[]>([]);
   const [qcItem, setQcItem] = useState<InventoryItem | null>(null);
 
+  const [deleteTickets, setDeleteTickets] = useState<TicketModel[]>([]);
+  const [deletePage, setDeletePage] = useState(1);
+  const [deletePerPage, setDeletePerPage] = useState(DEFAULT_LIST_PER_PAGE);
+  const [deletePagination, setDeletePagination] = useState<PaginationMeta>({
+    page: 1,
+    per_page: DEFAULT_LIST_PER_PAGE,
+    total_count: 0,
+    page_count: 1,
+  });
+  const [isLoadingDeleteTickets, setIsLoadingDeleteTickets] = useState(false);
+  const [deleteStatusFilter, setDeleteStatusFilter] = useState<"all" | TicketStatus>("all");
+  const [deleteSearch, setDeleteSearch] = useState("");
+  const [deleteAssigneeFilter, setDeleteAssigneeFilter] = useState("all");
+  const [selectedDeleteTicketId, setSelectedDeleteTicketId] = useState<number | null>(null);
+  const [deleteTransitions, setDeleteTransitions] = useState<TicketTransition[]>([]);
+  const [isLoadingDeleteTransitions, setIsLoadingDeleteTransitions] = useState(false);
+  const [deleteItem, setDeleteItem] = useState<InventoryItem | null>(null);
+
   const [inventoryCache, setInventoryCache] = useState<Record<number, InventoryItem>>(
     {},
   );
@@ -613,6 +646,7 @@ export function TicketFlow({
   const canAccessWorkMenu =
     showWorkTab && (restrictTabsByPermission ? canWork : true);
   const canAccessQcMenu = restrictTabsByPermission ? canQc : true;
+  const canAccessDeleteMenu = canReview;
   const visibleMenus = useMemo<TicketFlowMenu[]>(() => {
     const next: TicketFlowMenu[] = [];
     if (canAccessCreateMenu) {
@@ -627,8 +661,12 @@ export function TicketFlow({
     if (canAccessQcMenu) {
       next.push("qc");
     }
+    if (canAccessDeleteMenu) {
+      next.push("delete");
+    }
     return next;
   }, [
+    canAccessDeleteMenu,
     canAccessCreateMenu,
     canAccessQcMenu,
     canAccessReviewMenu,
@@ -859,6 +897,11 @@ export function TicketFlow({
   const selectedQcTicket = useMemo(
     () => qcTickets.find((ticket) => ticket.id === selectedQcTicketId) ?? null,
     [qcTickets, selectedQcTicketId],
+  );
+
+  const selectedDeleteTicket = useMemo(
+    () => deleteTickets.find((ticket) => ticket.id === selectedDeleteTicketId) ?? null,
+    [deleteTickets, selectedDeleteTicketId],
   );
 
   const navigate = useCallback((nextRoute: TicketRoute) => {
@@ -1220,6 +1263,49 @@ export function TicketFlow({
     }
   }, [accessToken, qcAssigneeFilter, qcPage, qcPerPage, qcSearch, qcStatusFilter, t]);
 
+  const loadDeleteTickets = useCallback(async () => {
+    setIsLoadingDeleteTickets(true);
+    try {
+      const search = deleteSearch.trim();
+      const parsedAssigneeFilter = Number.parseInt(deleteAssigneeFilter, 10);
+      const assigneeFilterId =
+        Number.isInteger(parsedAssigneeFilter) && parsedAssigneeFilter > 0
+          ? parsedAssigneeFilter
+          : undefined;
+      const paginated = await listTicketsPage(accessToken, {
+        page: deletePage,
+        per_page: deletePerPage,
+        q: search.length >= 2 ? search : undefined,
+        status: deleteStatusFilter === "all" ? undefined : deleteStatusFilter,
+        technician: assigneeFilterId,
+      });
+      if (
+        deletePage > paginated.pagination.page_count &&
+        paginated.pagination.page_count > 0
+      ) {
+        setDeletePage(paginated.pagination.page_count);
+        return;
+      }
+      setDeleteTickets(paginated.results);
+      setDeletePagination(paginated.pagination);
+    } catch (error) {
+      setFeedback({
+        type: "error",
+        message: toErrorMessage(error, t("Failed to load tickets for deletion.")),
+      });
+    } finally {
+      setIsLoadingDeleteTickets(false);
+    }
+  }, [
+    accessToken,
+    deleteAssigneeFilter,
+    deletePage,
+    deletePerPage,
+    deleteSearch,
+    deleteStatusFilter,
+    t,
+  ]);
+
   const loadTechnicians = useCallback(async () => {
     if (!canReview && !canWork && !canQc) {
       setTechnicianOptions([]);
@@ -1301,6 +1387,26 @@ export function TicketFlow({
     [accessToken, t],
   );
 
+  const loadDeleteTransitions = useCallback(
+    async (ticketId: number) => {
+      setIsLoadingDeleteTransitions(true);
+      try {
+        const nextTransitions = await listTicketTransitions(accessToken, ticketId, {
+          per_page: 100,
+        });
+        setDeleteTransitions(nextTransitions);
+      } catch (error) {
+        setFeedback({
+          type: "error",
+          message: toErrorMessage(error, t("Failed to load ticket transitions.")),
+        });
+      } finally {
+        setIsLoadingDeleteTransitions(false);
+      }
+    },
+    [accessToken, t],
+  );
+
   const loadWorkPartCompletionHistory = useCallback(
     async (ticketId: number) => {
       try {
@@ -1370,6 +1476,24 @@ export function TicketFlow({
     [accessToken, cacheInventoryItems, inventoryCache],
   );
 
+  const loadDeleteItem = useCallback(
+    async (itemId: number) => {
+      const cached = inventoryCache[itemId];
+      if (cached) {
+        setDeleteItem(cached);
+        return;
+      }
+      try {
+        const item = await getInventoryItem(accessToken, itemId);
+        setDeleteItem(item);
+        cacheInventoryItems([item]);
+      } catch {
+        setDeleteItem(null);
+      }
+    },
+    [accessToken, cacheInventoryItems, inventoryCache],
+  );
+
   useEffect(() => {
     if (!syncRouteWithUrl) {
       return;
@@ -1420,6 +1544,10 @@ export function TicketFlow({
   useEffect(() => {
     setQcPage(1);
   }, [qcSearch, qcStatusFilter]);
+
+  useEffect(() => {
+    setDeletePage(1);
+  }, [deleteSearch, deleteStatusFilter]);
 
   useEffect(() => {
     if (itemFilters.search === appliedItemFilters.search) {
@@ -1605,6 +1733,42 @@ export function TicketFlow({
     void loadQcItem(selectedQcTicket.inventory_item);
   }, [loadQcItem, loadQcTransitions, selectedQcTicket]);
 
+  useEffect(() => {
+    if (route.name !== "delete") {
+      setDeleteTransitions([]);
+      setDeleteItem(null);
+      return;
+    }
+    void loadDeleteTickets();
+    void loadTechnicians();
+  }, [loadDeleteTickets, loadTechnicians, route]);
+
+  useEffect(() => {
+    if (route.name !== "delete") {
+      return;
+    }
+    if (!deleteTickets.length) {
+      setSelectedDeleteTicketId(null);
+      return;
+    }
+    if (
+      selectedDeleteTicketId === null ||
+      !deleteTickets.some((ticket) => ticket.id === selectedDeleteTicketId)
+    ) {
+      setSelectedDeleteTicketId(deleteTickets[0].id);
+    }
+  }, [deleteTickets, route, selectedDeleteTicketId]);
+
+  useEffect(() => {
+    if (!selectedDeleteTicket) {
+      setDeleteTransitions([]);
+      setDeleteItem(null);
+      return;
+    }
+    void loadDeleteTransitions(selectedDeleteTicket.id);
+    void loadDeleteItem(selectedDeleteTicket.inventory_item);
+  }, [loadDeleteItem, loadDeleteTransitions, selectedDeleteTicket]);
+
   const handleRefresh = async () => {
     setFeedback(null);
 
@@ -1645,12 +1809,22 @@ export function TicketFlow({
       }
       return;
     }
+    if (route.name === "qc") {
+      await Promise.all([loadCategories(), loadQcTickets(), loadTechnicians()]);
+      if (selectedQcTicket) {
+        await Promise.all([
+          loadQcTransitions(selectedQcTicket.id),
+          loadQcItem(selectedQcTicket.inventory_item),
+        ]);
+      }
+      return;
+    }
 
-    await Promise.all([loadCategories(), loadQcTickets(), loadTechnicians()]);
-    if (selectedQcTicket) {
+    await Promise.all([loadCategories(), loadDeleteTickets(), loadTechnicians()]);
+    if (selectedDeleteTicket) {
       await Promise.all([
-        loadQcTransitions(selectedQcTicket.id),
-        loadQcItem(selectedQcTicket.inventory_item),
+        loadDeleteTransitions(selectedDeleteTicket.id),
+        loadDeleteItem(selectedDeleteTicket.inventory_item),
       ]);
     }
   };
@@ -1891,6 +2065,36 @@ export function TicketFlow({
           loadReviewTickets(),
         ]);
       }, decision === "pass" ? t("QC passed.") : t("QC failed. Sent to rework."));
+    } catch {
+      // feedback already set
+    }
+  };
+
+  const handleDeleteSelectedTicket = async () => {
+    if (!selectedDeleteTicket) {
+      return;
+    }
+
+    const confirmDelete = window.confirm(
+      t(
+        "Delete ticket #{{id}}? This will remove ticket, parts, transitions, and work/QC history.",
+        { id: selectedDeleteTicket.id },
+      ),
+    );
+    if (!confirmDelete) {
+      return;
+    }
+
+    try {
+      await runMutation(async () => {
+        await deleteTicket(accessToken, selectedDeleteTicket.id);
+        await Promise.all([
+          loadDeleteTickets(),
+          loadReviewTickets(),
+          loadWorkTickets(),
+          loadQcTickets(),
+        ]);
+      }, t("Ticket deleted."));
     } catch {
       // feedback already set
     }
@@ -3803,6 +4007,233 @@ export function TicketFlow({
     </div>
   );
 
+  const renderDeletePage = () => (
+    <div className="mt-4 grid gap-4 xl:grid-cols-[360px_1fr]">
+      <section className="rounded-lg border border-slate-200 p-4">
+        <p className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900">
+          <Trash2 className="h-4 w-4" />
+          {t("Delete Queue")}
+        </p>
+        <div className="mt-3 space-y-2">
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+              {t("Search")}
+            </label>
+            <div className="relative mt-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                className={cn(fieldClassName, "pl-9")}
+                value={deleteSearch}
+                onChange={(event) => setDeleteSearch(event.target.value)}
+                placeholder={t("Ticket id, serial, title")}
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+              {t("Status")}
+            </label>
+            <select
+              className={cn(fieldClassName, "mt-1")}
+              value={deleteStatusFilter}
+              onChange={(event) =>
+                setDeleteStatusFilter(event.target.value as "all" | TicketStatus)
+              }
+            >
+              <option value="all">{t("All statuses")}</option>
+              {TICKET_STATUS_OPTIONS.map((status) => (
+                <option key={status} value={status}>
+                  {ticketStatusLabelByValue.get(status) ?? status}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+              {t("Assigned user")}
+            </label>
+            <select
+              className={cn(fieldClassName, "mt-1")}
+              value={deleteAssigneeFilter}
+              onChange={(event) => {
+                setDeleteAssigneeFilter(event.target.value);
+                setDeletePage(1);
+              }}
+              disabled={isLoadingDeleteTickets || isLoadingTechnicians}
+            >
+              <option value="all">{t("All users")}</option>
+              {technicianOptions.map((technician) => (
+                <option key={technician.user_id} value={technician.user_id}>
+                  {technician.name === technician.username
+                    ? technician.username
+                    : `${technician.name} (@${technician.username})`}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {deleteSearch.trim().length === 1 ? (
+          <p className="mt-2 text-xs text-amber-700">
+            {t("Backend search starts at 2 characters.")}
+          </p>
+        ) : null}
+
+        {isLoadingDeleteTickets ? (
+          <p className="mt-3 text-sm text-slate-600">{t("Loading delete queue...")}</p>
+        ) : deleteTickets.length ? (
+          <div className="mt-3 space-y-2">
+            {deleteTickets.map((ticket) => {
+              const item = inventoryCache[ticket.inventory_item];
+              const assigneeLabel = resolveTicketAssigneeLabel(ticket);
+              return (
+                <button
+                  key={ticket.id}
+                  type="button"
+                  onClick={() => setSelectedDeleteTicketId(ticket.id)}
+                  className={cn(
+                    "w-full rounded-md border p-3 text-left transition",
+                    selectedDeleteTicketId === ticket.id
+                      ? "border-slate-900 bg-slate-900 text-white"
+                      : "border-slate-200 bg-slate-50 hover:border-slate-300",
+                  )}
+                >
+                  <p className="text-sm font-semibold">
+                    {t("Ticket #{{id}}", { id: ticket.id })}
+                  </p>
+                  <p
+                    className={cn(
+                      "mt-1 text-xs",
+                      selectedDeleteTicketId === ticket.id ? "text-slate-200" : "text-slate-600",
+                    )}
+                  >
+                    {item?.serial_number ?? t("Item #{{id}}", { id: ticket.inventory_item })}
+                  </p>
+                  <p
+                    className={cn(
+                      "mt-1 text-xs",
+                      selectedDeleteTicketId === ticket.id ? "text-slate-200" : "text-slate-600",
+                    )}
+                  >
+                    {ticketStatusLabelByValue.get(ticket.status) ?? ticket.status}
+                  </p>
+                  {assigneeLabel ? (
+                    <p
+                      className={cn(
+                        "mt-1 text-xs font-medium",
+                        selectedDeleteTicketId === ticket.id ? "text-sky-200" : "text-sky-700",
+                      )}
+                    >
+                      {t("Assigned to")}: {assigneeLabel}
+                    </p>
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="mt-3 rounded-md border border-dashed border-slate-300 px-3 py-5 text-center text-sm text-slate-500">
+            {t("No tickets in delete queue.")}
+          </p>
+        )}
+
+        <PaginationControls
+          className="mt-3 -mx-4"
+          page={deletePagination.page}
+          pageCount={deletePagination.page_count}
+          perPage={deletePagination.per_page}
+          totalCount={deletePagination.total_count}
+          isLoading={isLoadingDeleteTickets}
+          onPageChange={(nextPage) => setDeletePage(nextPage)}
+          onPerPageChange={(nextPerPage) => {
+            setDeletePerPage(nextPerPage);
+            setDeletePage(1);
+          }}
+          perPageOptions={LIST_PER_PAGE_OPTIONS}
+        />
+      </section>
+
+      <section className="rounded-lg border border-slate-200 p-4">
+        {selectedDeleteTicket ? (
+          <div className="space-y-4">
+            <div className="rounded-md border border-rose-200 bg-rose-50 p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-lg font-semibold text-slate-900">
+                  {t("Ticket #{{id}}", { id: selectedDeleteTicket.id })}
+                </p>
+                <span
+                  className={cn(
+                    "rounded-full border px-2 py-0.5 text-xs font-medium",
+                    ticketStatusBadgeClass(selectedDeleteTicket.status),
+                  )}
+                >
+                  {ticketStatusLabelByValue.get(selectedDeleteTicket.status) ??
+                    selectedDeleteTicket.status}
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-slate-600">
+                {t("Item")}:{" "}
+                {deleteItem?.serial_number ??
+                  t("Item #{{id}}", { id: selectedDeleteTicket.inventory_item })}
+              </p>
+              <p className="mt-1 text-xs text-slate-600">
+                {t(
+                  "This action will remove ticket, parts, transitions, and work/QC history.",
+                )}
+              </p>
+              <p className="mt-1 text-xs text-slate-600">
+                {t("User accounts, attendance records, and XP history will be kept.")}
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="text-rose-700"
+                onClick={() => void handleDeleteSelectedTicket()}
+                disabled={isMutating}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                {t("Delete Ticket")}
+              </Button>
+            </div>
+
+            <div className="rounded-md border border-slate-200 p-3">
+              <p className="text-sm font-semibold text-slate-900">{t("Ticket Transitions")}</p>
+              {isLoadingDeleteTransitions ? (
+                <p className="mt-2 text-sm text-slate-600">{t("Loading transitions...")}</p>
+              ) : deleteTransitions.length ? (
+                <div className="mt-2 space-y-2">
+                  {deleteTransitions.map((transition) => (
+                    <div
+                      key={transition.id}
+                      className="rounded-md border border-slate-200 bg-slate-50 p-2"
+                    >
+                      <p className="text-xs font-semibold text-slate-900">{transition.action}</p>
+                      <p className="mt-1 text-xs text-slate-600">
+                        {transition.from_status || "-"} {"->"} {transition.to_status}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-600">
+                        {formatDate(transition.created_at)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-2 text-sm text-slate-600">{t("No transitions yet.")}</p>
+              )}
+            </div>
+          </div>
+        ) : (
+          <p className="rounded-md border border-dashed border-slate-300 px-3 py-8 text-center text-sm text-slate-500">
+            {t("Select a ticket from delete queue.")}
+          </p>
+        )}
+      </section>
+    </div>
+  );
+
   return (
     <section className="rm-panel rm-animate-enter-delayed p-4 sm:p-5">
       <div className="flex flex-col gap-3 border-b border-slate-200/70 pb-4 sm:flex-row sm:items-start sm:justify-between">
@@ -3855,10 +4286,12 @@ export function TicketFlow({
             isLoadingReviewTickets ||
             isLoadingWorkTickets ||
             isLoadingQcTickets ||
+            isLoadingDeleteTickets ||
             isLoadingTechnicians ||
             isLoadingReviewTransitions ||
             isLoadingWorkTransitions ||
-            isLoadingQcTransitions
+            isLoadingQcTransitions ||
+            isLoadingDeleteTransitions
           }
         >
           <RefreshCcw className="mr-2 h-4 w-4" />
@@ -3946,6 +4379,24 @@ export function TicketFlow({
             </span>
           </button>
         ) : null}
+
+        {canAccessDeleteMenu ? (
+          <button
+            type="button"
+            onClick={() => navigate({ name: "delete" })}
+            className={cn(
+              "rm-menu-btn",
+              activeMenu === "delete"
+                ? "rm-menu-btn-active"
+                : "rm-menu-btn-idle",
+            )}
+          >
+            <span className="inline-flex items-center gap-2">
+              <Trash2 className="h-4 w-4" />
+              {t("Delete Tickets")}
+            </span>
+          </button>
+        ) : null}
       </div>
 
       {visibleMenus.length ? (
@@ -3956,6 +4407,7 @@ export function TicketFlow({
           {route.name === "review" ? renderReviewPage() : null}
           {route.name === "work" ? renderWorkPage() : null}
           {route.name === "qc" ? renderQcPage() : null}
+          {route.name === "delete" ? renderDeletePage() : null}
         </>
       ) : null}
     </section>

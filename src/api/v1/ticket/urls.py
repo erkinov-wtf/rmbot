@@ -29,7 +29,11 @@ urlpatterns = [
         TicketWorkflowViewSet.as_view({"get": "todo"}),
         name="ticket-todo",
     ),
-    path("<int:pk>/", TicketViewSet.as_view({"get": "retrieve"}), name="ticket-detail"),
+    path(
+        "<int:pk>/",
+        TicketViewSet.as_view({"get": "retrieve", "delete": "destroy"}),
+        name="ticket-detail",
+    ),
     path(
         "<int:pk>/assign/",
         TicketWorkflowViewSet.as_view({"post": "assign"}),

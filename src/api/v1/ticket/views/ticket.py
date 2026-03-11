@@ -2,7 +2,7 @@ from django.db.models import F, Q, Value
 from django.db.models.functions import Replace, Upper
 from rest_framework.permissions import IsAuthenticated
 
-from api.v1.ticket.permissions import TicketCreatePermission
+from api.v1.ticket.permissions import TicketCreatePermission, TicketDeletePermission
 from api.v1.ticket.serializers import TicketSerializer
 from core.api.schema import extend_schema
 from core.api.views import BaseModelViewSet
@@ -79,6 +79,8 @@ class TicketViewSet(BaseModelViewSet):
 
         if self.action == "create":
             permission_classes += [TicketCreatePermission]
+        if self.action == "destroy":
+            permission_classes += [TicketDeletePermission]
 
         return [permission() for permission in permission_classes]
 
@@ -101,6 +103,17 @@ class TicketViewSet(BaseModelViewSet):
     )
     def retrieve(self, request, *args, **kwargs):
         return super().retrieve(request, *args, **kwargs)
+
+    @extend_schema(
+        tags=["Tickets / Workflow"],
+        summary="Delete ticket",
+        description=(
+            "Soft-deletes ticket and all related ticket-level history records "
+            "(parts, transitions, work sessions)."
+        ),
+    )
+    def destroy(self, request, *args, **kwargs):
+        return super().destroy(request, *args, **kwargs)
 
     def perform_create(self, serializer):
         ticket = serializer.save(master=self.request.user)

@@ -99,6 +99,11 @@ const RU_MESSAGES: TranslationCatalog = {
   "Could not update manual metrics.":
     "Не удалось обновить ручные метрики.",
   "Date range": "Диапазон дат",
+  "Delete ticket #{{id}}? This will remove ticket, parts, transitions, and work/QC history.":
+    "Удалить тикет #{{id}}? Будут удалены тикет, части, переходы и история работы/QC.",
+  "Delete Queue": "Очередь удаления",
+  "Delete Ticket": "Удалить тикет",
+  "Delete Tickets": "Удаление тикетов",
   Done: "Готово",
   "Done tickets": "Завершенные тикеты",
   "Enter your username and password.":
@@ -125,6 +130,7 @@ const RU_MESSAGES: TranslationCatalog = {
   "Level {{level}}": "Уровень {{level}}",
   "Loading items...": "Загрузка элементов...",
   "Loading leaderboard...": "Загрузка рейтинга...",
+  "Loading delete queue...": "Загрузка очереди удаления...",
   "Loading parts...": "Загрузка частей...",
   "Loading QC queue...": "Загрузка очереди QC...",
   "Loading work session...": "Загрузка рабочей сессии...",
@@ -155,6 +161,7 @@ const RU_MESSAGES: TranslationCatalog = {
     "Для категории этого элемента части не настроены.",
   "No roles": "Нет ролей",
   "No ticket permissions": "Нет прав на тикеты",
+  "No tickets in delete queue.": "В очереди удаления нет тикетов.",
   "No tickets found.": "Тикеты не найдены.",
   "No tickets in personal todo.": "В личном списке задач тикетов нет.",
   "No tickets in QC queue.": "В очереди QC нет тикетов.",
@@ -167,6 +174,8 @@ const RU_MESSAGES: TranslationCatalog = {
     "Откройте эту страницу из Telegram-бота через кнопку mini app.",
   "Operations workspace": "Операционное рабочее пространство",
   "Part specs": "Параметры частей",
+  "Failed to load tickets for deletion.":
+    "Не удалось загрузить тикеты для удаления.",
   "Part completion submitted.": "Завершение частей отправлено.",
   Pause: "Пауза",
   Paused: "На паузе",
@@ -221,6 +230,8 @@ const RU_MESSAGES: TranslationCatalog = {
     "Выберите хотя бы одну завершенную часть.",
   "Select at least one failed part.":
     "Выберите хотя бы одну часть с ошибкой.",
+  "Select a ticket from delete queue.":
+    "Выберите тикет из очереди удаления.",
   "Select a work ticket to continue.":
     "Выберите рабочий тикет, чтобы продолжить.",
   "Select technician": "Выберите техника",
@@ -259,8 +270,11 @@ const RU_MESSAGES: TranslationCatalog = {
   "Ticket #{{id}} assigned.": "Тикет #{{id}} назначен.",
   "Ticket approved and assigned.": "Тикет одобрен и назначен.",
   "Ticket claimed.": "Тикет взят в работу.",
+  "Ticket deleted.": "Тикет удален.",
   "Ticket Flow": "Поток тикетов",
   "Ticket created successfully.": "Тикет успешно создан.",
+  "This action will remove ticket, parts, transitions, and work/QC history.":
+    "Это действие удалит тикет, части, переходы и историю работы/QC.",
   "Ticket Workspace": "Рабочая зона тикетов",
   "Ticket title (optional)": "Название тикета (необязательно)",
   Tickets: "Тикеты",
@@ -500,6 +514,11 @@ const UZ_MESSAGES: TranslationCatalog = {
   "Could not update work session.": "Ish sessiyasini yangilab bo'lmadi.",
   "Could not update manual metrics.": "Qo'lda metrikalarni yangilab bo'lmadi.",
   "Date range": "Sana oralig'i",
+  "Delete ticket #{{id}}? This will remove ticket, parts, transitions, and work/QC history.":
+    "#{{id}} arizani o'chirasizmi? Ariza, qismlar, o'tishlar va ish/QC tarixi o'chiriladi.",
+  "Delete Queue": "O'chirish navbati",
+  "Delete Ticket": "Arizani o'chirish",
+  "Delete Tickets": "Arizalarni o'chirish",
   Done: "Yakunlangan",
   "Done tickets": "Yakunlangan arizalar",
   "Enter your username and password.":
@@ -527,6 +546,7 @@ const UZ_MESSAGES: TranslationCatalog = {
   "Level {{level}}": "{{level}}-daraja",
   "Loading items...": "Elementlar yuklanmoqda...",
   "Loading leaderboard...": "Reyting yuklanmoqda...",
+  "Loading delete queue...": "O'chirish navbati yuklanmoqda...",
   "Loading parts...": "Qismlar yuklanmoqda...",
   "Loading QC queue...": "QC navbati yuklanmoqda...",
   "Loading work session...": "Ish sessiyasi yuklanmoqda...",
@@ -557,6 +577,7 @@ const UZ_MESSAGES: TranslationCatalog = {
     "Ushbu element kategoriyasi uchun qismlar sozlanmagan.",
   "No roles": "Rollar yo'q",
   "No ticket permissions": "Ariza ruxsatlari yo'q",
+  "No tickets in delete queue.": "O'chirish navbatida arizalar yo'q.",
   "No tickets found.": "Arizalar topilmadi.",
   "No tickets in personal todo.": "Shaxsiy vazifalar ro'yxatida arizalar yo'q.",
   "No tickets in QC queue.": "QC navbatida arizalar yo'q.",
@@ -569,6 +590,8 @@ const UZ_MESSAGES: TranslationCatalog = {
     "Ushbu sahifani Telegram botidagi mini app tugmasi orqali oching.",
   "Operations workspace": "Operatsion ish maydoni",
   "Part specs": "Qism parametrlari",
+  "Failed to load tickets for deletion.":
+    "O'chirish uchun arizalarni yuklab bo'lmadi.",
   "Part completion submitted.": "Qismlar yakunlanganligi yuborildi.",
   Pause: "Pauza",
   Paused: "Pauzada",
@@ -623,6 +646,8 @@ const UZ_MESSAGES: TranslationCatalog = {
     "Kamida bitta yakunlangan qismni tanlang.",
   "Select at least one failed part.":
     "Kamida bitta xato qismni tanlang.",
+  "Select a ticket from delete queue.":
+    "O'chirish navbatidan arizani tanlang.",
   "Select a work ticket to continue.":
     "Davom etish uchun ish arizasini tanlang.",
   "Select technician": "Texnikni tanlang",
@@ -661,8 +686,11 @@ const UZ_MESSAGES: TranslationCatalog = {
   "Ticket #{{id}} assigned.": "Ariza #{{id}} biriktirildi.",
   "Ticket approved and assigned.": "Ariza tasdiqlandi va biriktirildi.",
   "Ticket claimed.": "Ariza ishga olindi.",
+  "Ticket deleted.": "Ariza o'chirildi.",
   "Ticket Flow": "Ariza oqimi",
   "Ticket created successfully.": "Ariza muvaffaqiyatli yaratildi.",
+  "This action will remove ticket, parts, transitions, and work/QC history.":
+    "Bu amal ariza, qismlar, o'tishlar va ish/QC tarixini o'chiradi.",
   "Ticket Workspace": "Ariza ish maydoni",
   "Ticket title (optional)": "Ariza nomi (ixtiyoriy)",
   Tickets: "Arizalar",

@@ -14,6 +14,7 @@ TicketReviewPermission = HasRole.as_any(
     RoleSlug.MASTER,
     RoleSlug.SUPER_ADMIN,
 )
+TicketDeletePermission = TicketReviewPermission
 TicketManualMetricsPermission = TicketReviewPermission
 TicketWorkPermission = HasRole.as_any(RoleSlug.TECHNICIAN)
 TicketQCPermission = HasRole.as_any(
