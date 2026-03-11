@@ -7,6 +7,7 @@ from bot.routers.ticket_qc.base import QCTicketBaseMixin
 from bot.services.error_text import translate_error_reason
 from bot.services.ticket_qc_actions import TicketQCActionService
 from bot.services.ticket_qc_queue import QCTicketQueueService
+from core.api.exceptions import DomainValidationError
 from core.utils.asyncio import run_sync
 from ticket.services_workflow import TicketWorkflowService
 
@@ -157,7 +158,7 @@ class QCTicketCallbackHandler(QCTicketBaseMixin, CallbackQueryHandler):
                             action=action
                         ),
                     )
-            except ValueError as exc:
+            except (ValueError, DomainValidationError) as exc:
                 await query.answer(
                     translate_error_reason(reason=exc, _=_),
                     show_alert=True,

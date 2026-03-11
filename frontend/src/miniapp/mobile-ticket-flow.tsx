@@ -1833,8 +1833,8 @@ export function MobileTicketFlow({
                 const serial =
                   inventoryCache[ticket.inventory_item]?.serial_number ??
                   t("Item #{{id}}", { id: ticket.inventory_item });
-                const pending = pendingPartsForTicket(ticket);
                 const selected = selectedWorkTicketId === ticket.id;
+                const title = (ticket.title ?? "").trim();
                 return (
                   <button
                     key={`${workQueueView}-${ticket.id}`}
@@ -1866,10 +1866,16 @@ export function MobileTicketFlow({
                     <p className={cn("mt-1 text-xs", ticketCardMetaClass(ticket.flag_color, selected))}>
                       {t("Serial")}: {serial}
                     </p>
-                    <p className={cn("mt-1 text-xs", ticketCardMetaClass(ticket.flag_color, selected))}>
-                      {t("Pending parts")}: {pending.length}
-                    </p>
-                    {renderPendingPartDetails(ticket, ticket.flag_color, selected)}
+                    {title ? (
+                      <p
+                        className={cn(
+                          "mt-1 text-sm font-extrabold leading-tight",
+                          ticketCardMetaClass(ticket.flag_color, selected),
+                        )}
+                      >
+                        {title}
+                      </p>
+                    ) : null}
                   </button>
                 );
               })
