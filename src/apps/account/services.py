@@ -44,6 +44,14 @@ class AccountService:
         )
 
     @staticmethod
+    def _active_user_with_phone(*, phone: str) -> User | None:
+        return User.all_objects.filter(phone=phone, is_active=True).first()
+
+    @staticmethod
+    def _release_phone_from_inactive_users(*, phone: str) -> int:
+        return User.all_objects.filter(phone=phone, is_active=False).update(phone=None)
+
+    @staticmethod
     def _link_telegram_profile_to_user(
         *,
         telegram_id: int,
@@ -173,6 +181,13 @@ class AccountService:
             telegram_id=telegram_id
         ):
             raise DomainValidationError("You are already registered and linked.")
+
+        if cls._active_user_with_phone(phone=phone):
+            raise DomainValidationError(
+                "Phone number is already used by another account."
+            )
+
+        cls._release_phone_from_inactive_users(phone=phone)
 
         existing = AccessRequest.domain.pending_for_telegram(telegram_id=telegram_id)
         if existing:

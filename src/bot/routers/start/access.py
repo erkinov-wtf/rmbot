@@ -23,6 +23,7 @@ from bot.services.menu import (
     BotMenuService,
 )
 from bot.services.start_support import StartProfileService
+from core.api.exceptions import DomainValidationError
 from core.utils.asyncio import run_sync
 
 router = Router(name="start_access")
@@ -362,7 +363,7 @@ class AccessRequestSupportMixin(StartStateMixin):
                 last_name=last_name,
                 phone=phone,
             )
-        except ValueError as exc:
+        except (ValueError, DomainValidationError) as exc:
             await cls.show_progress_card(
                 message=message,
                 state=state,
