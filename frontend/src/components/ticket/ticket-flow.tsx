@@ -3624,9 +3624,9 @@ export function TicketFlow({
                                   setSelectedWorkCompletedPartIds((prev) => {
                                     const next = new Set(prev);
                                     if (event.target.checked) {
-                                      next.add(part.part_id);
+                                      next.add(part.id);
                                     } else {
-                                      next.delete(part.part_id);
+                                      next.delete(part.id);
                                     }
                                     return [...next];
                                   });
@@ -3891,7 +3891,7 @@ export function TicketFlow({
                       part.completed_by_name ?? latestHistory?.technician_name ?? null,
                       t("Not completed"),
                     );
-                    const isChecked = selectedQcFailedPartIds.includes(part.part_id);
+                    const isChecked = selectedQcFailedPartIds.includes(part.id);
 
                     return (
                       <label
@@ -3907,9 +3907,9 @@ export function TicketFlow({
                                 setSelectedQcFailedPartIds((prev) => {
                                   const next = new Set(prev);
                                   if (event.target.checked) {
-                                    next.add(part.part_id);
+                                    next.add(part.id);
                                   } else {
-                                    next.delete(part.part_id);
+                                    next.delete(part.id);
                                   }
                                   return [...next];
                                 });

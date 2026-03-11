@@ -34,6 +34,48 @@ class TicketWorkflowService:
     def claimable_tickets_queryset_for_technician(*, technician_id: int):
         return Ticket.domain.claimable_for_technician(technician_id=technician_id)
 
+    @staticmethod
+    def _resolve_part_spec_ids_for_ticket(
+        *,
+        raw_part_ids: list[int],
+        part_specs: dict[int, TicketPartSpec],
+        unknown_message_prefix: str,
+    ) -> list[int]:
+        if not raw_part_ids:
+            return []
+
+        # Backward compatibility: accept both ticket part spec ids and inventory part ids.
+        inventory_part_to_spec_id: dict[int, int | None] = {}
+        for spec in part_specs.values():
+            inventory_part_id = int(spec.inventory_item_part_id)
+            if inventory_part_id not in inventory_part_to_spec_id:
+                inventory_part_to_spec_id[inventory_part_id] = int(spec.id)
+                continue
+            current = inventory_part_to_spec_id[inventory_part_id]
+            if current != int(spec.id):
+                inventory_part_to_spec_id[inventory_part_id] = None
+
+        resolved_ids: list[int] = []
+        unknown_ids: list[int] = []
+        for raw_part_id in raw_part_ids:
+            candidate_id = int(raw_part_id)
+            if candidate_id in part_specs:
+                resolved_ids.append(candidate_id)
+                continue
+            mapped_spec_id = inventory_part_to_spec_id.get(candidate_id)
+            if mapped_spec_id is None:
+                unknown_ids.append(candidate_id)
+                continue
+            resolved_ids.append(int(mapped_spec_id))
+
+        if unknown_ids:
+            raise DomainValidationError(
+                unknown_message_prefix
+                + ", ".join(str(part_id) for part_id in sorted(set(unknown_ids)))
+            )
+
+        return resolved_ids
+
     @classmethod
     @transaction.atomic
     def claim_ticket(
@@ -197,22 +239,24 @@ class TicketWorkflowService:
             spec.id: spec
             for spec in locked_ticket.part_specs.filter(deleted_at__isnull=True)
         }
-        selected_part_spec_ids = [int(item["part_spec_id"]) for item in part_payloads]
+        requested_part_ids = [int(item["part_spec_id"]) for item in part_payloads]
+        if len(set(requested_part_ids)) != len(requested_part_ids):
+            raise DomainValidationError(
+                "Each part can be completed only once per request."
+            )
+        selected_part_spec_ids = cls._resolve_part_spec_ids_for_ticket(
+            raw_part_ids=requested_part_ids,
+            part_specs=part_specs,
+            unknown_message_prefix="Selected parts are not found in ticket: ",
+        )
         if len(set(selected_part_spec_ids)) != len(selected_part_spec_ids):
             raise DomainValidationError(
                 "Each part can be completed only once per request."
             )
-        unknown_ids = sorted(set(selected_part_spec_ids) - set(part_specs.keys()))
-        if unknown_ids:
-            raise DomainValidationError(
-                "Selected parts are not found in ticket: "
-                + ", ".join(str(part_id) for part_id in unknown_ids)
-            )
 
         now_dt = timezone.now()
         completed_ids: list[int] = []
-        for payload in part_payloads:
-            part_spec_id = int(payload["part_spec_id"])
+        for payload, part_spec_id in zip(part_payloads, selected_part_spec_ids):
             note = str(payload.get("note", "") or "").strip()
             part_spec = part_specs[part_spec_id]
             if part_spec.is_completed and not part_spec.needs_rework:
@@ -450,17 +494,18 @@ class TicketWorkflowService:
                 else list(all_part_specs.keys())
             )
         ]
-        selected_part_ids = list(dict.fromkeys(selected_part_ids))
+        selected_part_ids = list(
+            dict.fromkeys(
+                cls._resolve_part_spec_ids_for_ticket(
+                    raw_part_ids=selected_part_ids,
+                    part_specs=all_part_specs,
+                    unknown_message_prefix="Invalid failed_part_ids provided: ",
+                )
+            )
+        )
         if not selected_part_ids:
             raise DomainValidationError(
                 "failed_part_ids must contain at least one part."
-            )
-
-        unknown_ids = sorted(set(selected_part_ids) - set(all_part_specs.keys()))
-        if unknown_ids:
-            raise DomainValidationError(
-                "Invalid failed_part_ids provided: "
-                + ", ".join(str(part_id) for part_id in unknown_ids)
             )
 
         failed_part_specs: list[TicketPartSpec] = []

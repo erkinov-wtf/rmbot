@@ -291,6 +291,106 @@ def test_qc_fail_targets_only_failed_part_technicians(role_cache):
 
 
 @pytest.mark.django_db
+def test_complete_ticket_parts_accepts_legacy_inventory_part_ids(role_cache):
+    master = _user(
+        username="master_complete_legacy_ids",
+        role_slug=RoleSlug.MASTER,
+        cache=role_cache,
+    )
+    tech = _user(
+        username="tech_complete_legacy_ids",
+        role_slug=RoleSlug.TECHNICIAN,
+        cache=role_cache,
+    )
+    ticket, spec_a, spec_b = _ticket_with_two_parts(master=master)
+
+    TicketWorkflowService.claim_ticket(ticket=ticket, actor_user_id=tech.id)
+    TicketWorkflowService.complete_ticket_parts(
+        ticket=ticket,
+        actor_user_id=tech.id,
+        part_payloads=[
+            {
+                "part_spec_id": spec_a.inventory_item_part_id,
+                "note": "legacy id payload",
+            }
+        ],
+    )
+
+    ticket.refresh_from_db()
+    spec_a.refresh_from_db()
+    spec_b.refresh_from_db()
+
+    assert ticket.status == TicketStatus.NEW
+    assert spec_a.is_completed is True
+    assert spec_a.completed_by_id == tech.id
+    assert spec_b.is_completed is False
+
+
+@pytest.mark.django_db
+def test_qc_fail_accepts_legacy_inventory_part_ids(role_cache):
+    master = _user(
+        username="master_qc_fail_legacy_ids",
+        role_slug=RoleSlug.MASTER,
+        cache=role_cache,
+    )
+    qc_user = _user(
+        username="qc_qc_fail_legacy_ids",
+        role_slug=RoleSlug.QC_INSPECTOR,
+        cache=role_cache,
+    )
+    tech_1 = _user(
+        username="tech_qc_fail_legacy_ids_1",
+        role_slug=RoleSlug.TECHNICIAN,
+        cache=role_cache,
+    )
+    tech_2 = _user(
+        username="tech_qc_fail_legacy_ids_2",
+        role_slug=RoleSlug.TECHNICIAN,
+        cache=role_cache,
+    )
+    ticket, spec_a, spec_b = _ticket_with_two_parts(master=master)
+
+    TicketWorkflowService.claim_ticket(ticket=ticket, actor_user_id=tech_1.id)
+    TicketWorkflowService.complete_ticket_parts(
+        ticket=ticket,
+        actor_user_id=tech_1.id,
+        part_payloads=[{"part_spec_id": spec_a.id}],
+    )
+
+    TicketWorkflowService.claim_ticket(ticket=ticket, actor_user_id=tech_2.id)
+    TicketWorkflowService.complete_ticket_parts(
+        ticket=ticket,
+        actor_user_id=tech_2.id,
+        part_payloads=[{"part_spec_id": spec_b.id}],
+    )
+
+    ticket.refresh_from_db()
+    assert ticket.status == TicketStatus.WAITING_QC
+
+    TicketWorkflowService.qc_fail_ticket(
+        ticket=ticket,
+        actor_user_id=qc_user.id,
+        failed_part_spec_ids=[spec_a.inventory_item_part_id],
+    )
+
+    ticket.refresh_from_db()
+    spec_a.refresh_from_db()
+    spec_b.refresh_from_db()
+
+    assert ticket.status == TicketStatus.REWORK
+    assert spec_a.is_completed is False
+    assert spec_a.needs_rework is True
+    assert spec_a.rework_for_technician_id == tech_1.id
+
+    assert spec_b.is_completed is True
+    assert spec_b.needs_rework is False
+
+    mappings = TicketPartQCFailure.all_objects.filter(ticket=ticket)
+    assert mappings.count() == 1
+    assert mappings.first().technician_id == tech_1.id
+
+
+@pytest.mark.django_db
 def test_move_to_waiting_qc_requires_all_parts_completed(role_cache):
     master = _user(
         username="master_waiting_qc_guard",

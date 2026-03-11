@@ -524,7 +524,9 @@ export type TicketStatus =
   | "done";
 
 export type TicketPartSpec = {
+  // TicketPartSpec PK (use this for complete/QC fail payloads).
   id: number;
+  // InventoryItemPart PK (catalog part id; display/reference only).
   part_id: number;
   part_name: string;
   color: TicketColor;
