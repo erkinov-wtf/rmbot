@@ -14,9 +14,9 @@ from api.v1.ticket.serializers.transitions import TicketPartCompletionSerializer
 
 class TicketPartSpecInputSerializer(serializers.Serializer):
     part_id = serializers.IntegerField(min_value=1)
-    color = serializers.ChoiceField(choices=TicketColor.choices)
+    color = serializers.ChoiceField(choices=TicketColor.choices, required=False)
     comment = serializers.CharField(required=False, allow_blank=True, default="")
-    minutes = serializers.IntegerField(min_value=1)
+    minutes = serializers.IntegerField(min_value=0, required=False)
 
     def validate_comment(self, value: str) -> str:
         return value.strip()
@@ -86,6 +86,17 @@ class TicketSerializer(serializers.ModelSerializer):
     part_specs = TicketPartSpecInputSerializer(
         many=True, write_only=True, required=True
     )
+    total_minutes = serializers.IntegerField(
+        write_only=True,
+        required=False,
+        min_value=1,
+    )
+    intake_comment = serializers.CharField(
+        write_only=True,
+        required=False,
+        allow_blank=True,
+        default="",
+    )
     ticket_parts = TicketPartSpecSerializer(
         source="part_specs", many=True, read_only=True
     )
@@ -120,6 +131,8 @@ class TicketSerializer(serializers.ModelSerializer):
             "technician_name",
             "title",
             "part_specs",
+            "total_minutes",
+            "intake_comment",
             "ticket_parts",
             "part_completion_history",
             "total_duration",
@@ -176,6 +189,9 @@ class TicketSerializer(serializers.ModelSerializer):
 
     def get_approved_by_name(self, obj: Ticket) -> str | None:
         return self._user_display_name(obj.approved_by)
+
+    def validate_intake_comment(self, value: str) -> str:
+        return value.strip()
 
     def validate(self, attrs):
         request = self.context.get("request")
@@ -274,6 +290,17 @@ class TicketSerializer(serializers.ModelSerializer):
             creating_inventory_item=bool(attrs.get("_create_inventory_item")),
         )
         attrs["_part_specs"] = normalized_specs
+        requested_total_minutes = attrs.get("total_minutes")
+        if requested_total_minutes is not None:
+            total_minutes = int(requested_total_minutes)
+        elif total_minutes < 1:
+            raise serializers.ValidationError(
+                {
+                    "total_minutes": (
+                        "Provide total_minutes (>= 1) or part-level minutes."
+                    )
+                }
+            )
         attrs["_total_minutes"] = total_minutes
         attrs["_part_category_id"] = part_category_id
 
@@ -288,22 +315,21 @@ class TicketSerializer(serializers.ModelSerializer):
 
         manual_flag_color = attrs.get("flag_color")
         manual_xp_amount = attrs.get("xp_amount")
-        if manual_flag_color is not None or manual_xp_amount is not None:
-            if manual_flag_color is None or manual_xp_amount is None:
-                raise serializers.ValidationError(
-                    {
-                        "flag_color": (
-                            "Manual override requires both flag_color and xp_amount."
-                        )
-                    }
-                )
+        if manual_xp_amount is not None and manual_flag_color is None:
+            raise serializers.ValidationError(
+                {"flag_color": "xp_amount override requires flag_color."}
+            )
+        if manual_flag_color is not None:
             attrs["flag_color"] = manual_flag_color
-            attrs["xp_amount"] = int(manual_xp_amount)
             attrs["is_manual"] = True
         else:
             attrs["flag_color"] = auto_flag_color
-            attrs["xp_amount"] = auto_xp_amount
             attrs["is_manual"] = False
+
+        if manual_xp_amount is not None:
+            attrs["xp_amount"] = int(manual_xp_amount)
+        else:
+            attrs["xp_amount"] = auto_xp_amount
 
         attrs["total_duration"] = total_minutes
         attrs["flag_minutes"] = total_minutes
@@ -323,6 +349,8 @@ class TicketSerializer(serializers.ModelSerializer):
         total_minutes = int(validated_data.pop("_total_minutes", 0) or 0)
         part_category_id = validated_data.pop("_part_category_id", None)
         approve_review = bool(validated_data.pop("approve_review", False))
+        intake_comment = str(validated_data.pop("intake_comment", "") or "").strip()
+        validated_data.pop("total_minutes", None)
         validated_data.pop("part_specs", None)
 
         self._resolved_serial_number = serial_number
@@ -330,6 +358,7 @@ class TicketSerializer(serializers.ModelSerializer):
         self._inventory_item_creation_reason = None
         self._resolved_total_minutes = total_minutes
         self._resolved_part_specs_count = len(part_specs)
+        self._resolved_intake_comment = intake_comment
 
         if create_inventory_item:
             default_inventory = InventoryItemService.get_default_inventory()
@@ -442,6 +471,7 @@ class TicketSerializer(serializers.ModelSerializer):
             "part_specs_count": int(
                 getattr(self, "_resolved_part_specs_count", 0) or 0
             ),
+            "intake_comment": getattr(self, "_resolved_intake_comment", ""),
         }
 
     @staticmethod
@@ -552,12 +582,12 @@ class TicketSerializer(serializers.ModelSerializer):
         normalized: list[dict] = []
         total_minutes = 0
         for item in part_specs:
-            minutes = int(item["minutes"])
+            minutes = int(item.get("minutes", 0) or 0)
             total_minutes += minutes
             normalized.append(
                 {
                     "part_id": int(item["part_id"]),
-                    "color": item["color"],
+                    "color": item.get("color") or TicketColor.GREEN,
                     "comment": str(item.get("comment", "")).strip(),
                     "minutes": minutes,
                 }

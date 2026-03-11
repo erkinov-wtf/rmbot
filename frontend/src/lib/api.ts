@@ -1679,11 +1679,15 @@ export async function createTicket(
   body: {
     serial_number: string;
     title?: string;
+    total_minutes?: number;
+    intake_comment?: string;
+    flag_color?: TicketColor;
+    xp_amount?: number;
     part_specs: Array<{
       part_id: number;
-      color: TicketColor;
+      color?: TicketColor;
       comment?: string;
-      minutes: number;
+      minutes?: number;
     }>;
   },
 ): Promise<Ticket> {

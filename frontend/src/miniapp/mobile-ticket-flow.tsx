@@ -69,9 +69,6 @@ type FeedbackState =
 
 type PartDraft = {
   selected: boolean;
-  color: TicketColor;
-  minutes: string;
-  comment: string;
 };
 
 const TAB_META: Record<
@@ -329,6 +326,9 @@ export function MobileTicketFlow({
   const [selectedCreateItemId, setSelectedCreateItemId] = useState<number | null>(null);
   const [partDrafts, setPartDrafts] = useState<Record<number, PartDraft>>({});
   const [ticketTitle, setTicketTitle] = useState("");
+  const [createTotalMinutes, setCreateTotalMinutes] = useState("");
+  const [createFlagColor, setCreateFlagColor] = useState<TicketColor>("green");
+  const [createIntakeComment, setCreateIntakeComment] = useState("");
   const [isCreatingTicket, setIsCreatingTicket] = useState(false);
 
   const [reviewTickets, setReviewTickets] = useState<Ticket[]>([]);
@@ -772,14 +772,17 @@ export function MobileTicketFlow({
       selectedCreateParts.forEach((part) => {
         next[part.id] = prev[part.id] ?? {
           selected: false,
-          color: "green",
-          minutes: "",
-          comment: "",
         };
       });
       return next;
     });
   }, [selectedCreateItem, selectedCreateParts]);
+
+  useEffect(() => {
+    setCreateTotalMinutes("");
+    setCreateFlagColor("green");
+    setCreateIntakeComment("");
+  }, [selectedCreateItemId]);
 
   const selectedPartsCount = useMemo(
     () =>
@@ -956,9 +959,6 @@ export function MobileTicketFlow({
         [partId]: {
           ...(prev[partId] ?? {
             selected: false,
-            color: "green",
-            minutes: "",
-            comment: "",
           }),
           ...patch,
         },
@@ -978,16 +978,9 @@ export function MobileTicketFlow({
 
     const selectedPartSpecs = selectedCreateParts
       .filter((part) => partDrafts[part.id]?.selected)
-      .map((part) => {
-        const draft = partDrafts[part.id];
-        const parsedMinutes = Number.parseInt(draft.minutes, 10);
-        return {
-          part_id: part.id,
-          color: draft.color,
-          comment: draft.comment.trim(),
-          minutes: parsedMinutes,
-        };
-      });
+      .map((part) => ({
+        part_id: part.id,
+      }));
 
     if (!selectedPartSpecs.length) {
       setFeedback({
@@ -996,14 +989,12 @@ export function MobileTicketFlow({
       });
       return;
     }
-    if (
-      selectedPartSpecs.some(
-        (spec) => !Number.isFinite(spec.minutes) || spec.minutes <= 0,
-      )
-    ) {
+
+    const parsedTotalMinutes = Number.parseInt(createTotalMinutes, 10);
+    if (!Number.isFinite(parsedTotalMinutes) || parsedTotalMinutes < 1) {
       setFeedback({
         type: "error",
-        message: t("Each selected part needs a valid minutes value (> 0)."),
+        message: t("Total minutes must be at least 1."),
       });
       return;
     }
@@ -1013,12 +1004,10 @@ export function MobileTicketFlow({
       await createTicket(accessToken, {
         serial_number: selectedCreateItem.serial_number,
         title: ticketTitle.trim() || undefined,
-        part_specs: selectedPartSpecs.map((spec) => ({
-          part_id: spec.part_id,
-          color: spec.color,
-          comment: spec.comment || undefined,
-          minutes: spec.minutes,
-        })),
+        total_minutes: parsedTotalMinutes,
+        flag_color: createFlagColor,
+        intake_comment: createIntakeComment.trim() || undefined,
+        part_specs: selectedPartSpecs,
       });
       setFeedback({
         type: "success",
@@ -1027,6 +1016,9 @@ export function MobileTicketFlow({
       setSelectedCreateItemId(null);
       setPartDrafts({});
       setTicketTitle("");
+      setCreateTotalMinutes("");
+      setCreateFlagColor("green");
+      setCreateIntakeComment("");
       void Promise.all([refreshReviewTickets(), refreshQcTickets(), refreshWorkQueues()]);
     } catch (error) {
       setFeedback({
@@ -1038,6 +1030,9 @@ export function MobileTicketFlow({
     }
   }, [
     accessToken,
+    createFlagColor,
+    createIntakeComment,
+    createTotalMinutes,
     partDrafts,
     refreshQcTickets,
     refreshReviewTickets,
@@ -1410,9 +1405,6 @@ export function MobileTicketFlow({
                 {selectedCreateParts.map((part) => {
                   const draft = partDrafts[part.id] ?? {
                     selected: false,
-                    color: "green" as TicketColor,
-                    minutes: "",
-                    comment: "",
                   };
                   return (
                     <div
@@ -1432,44 +1424,6 @@ export function MobileTicketFlow({
                           className="h-5 w-5 accent-slate-900"
                         />
                       </label>
-
-                      {draft.selected ? (
-                        <div className="mt-3 space-y-2">
-                          <div className="grid grid-cols-3 gap-2">
-                            {(["green", "yellow", "red"] as TicketColor[]).map((color) => (
-                              <button
-                                key={`${part.id}-${color}`}
-                                type="button"
-                                onClick={() => updatePartDraft(part.id, { color })}
-                                className={cn(
-                                  "rounded-lg border px-2 py-2 text-xs font-semibold",
-                                  colorPickerButtonClass(color, draft.color === color),
-                                )}
-                              >
-                                {colorLabel(color)}
-                              </button>
-                            ))}
-                          </div>
-                          <input
-                            className="rm-input h-10"
-                            type="number"
-                            min={1}
-                            value={draft.minutes}
-                            onChange={(event) =>
-                              updatePartDraft(part.id, { minutes: event.target.value })
-                            }
-                            placeholder={t("Minutes")}
-                          />
-                          <textarea
-                            className="rm-input min-h-[80px] resize-y py-2"
-                            value={draft.comment}
-                            onChange={(event) =>
-                              updatePartDraft(part.id, { comment: event.target.value })
-                            }
-                            placeholder={t("Comment")}
-                          />
-                        </div>
-                      ) : null}
                     </div>
                   );
                 })}
@@ -1480,6 +1434,36 @@ export function MobileTicketFlow({
               </p>
             )}
 
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                className="rm-input h-10"
+                type="number"
+                min={1}
+                value={createTotalMinutes}
+                onChange={(event) => setCreateTotalMinutes(event.target.value)}
+                placeholder={t("Total minutes")}
+              />
+              <select
+                className="rm-input h-10"
+                value={createFlagColor}
+                onChange={(event) =>
+                  setCreateFlagColor(event.target.value as TicketColor)
+                }
+              >
+                {(["green", "yellow", "red"] as TicketColor[]).map((color) => (
+                  <option key={`create-flag-${color}`} value={color}>
+                    {colorLabel(color)}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <textarea
+              className="rm-input min-h-[80px] resize-y py-2"
+              value={createIntakeComment}
+              onChange={(event) => setCreateIntakeComment(event.target.value)}
+              placeholder={t("Comment (optional)")}
+            />
+
             <Button
               type="button"
               className="h-11 w-full"
@@ -1487,7 +1471,9 @@ export function MobileTicketFlow({
                 isCreatingTicket ||
                 isLoadingParts ||
                 !selectedCreateItem ||
-                !selectedCreateParts.length
+                !selectedCreateParts.length ||
+                !Number.isInteger(Number.parseInt(createTotalMinutes, 10)) ||
+                Number.parseInt(createTotalMinutes, 10) < 1
               }
               onClick={() => void handleCreateTicket()}
             >

@@ -94,9 +94,6 @@ type ItemFilterState = {
 
 type PartSpecFormState = {
   selected: boolean;
-  color: TicketColor;
-  minutes: string;
-  comment: string;
 };
 
 type AuditTimelineEvent = {
@@ -514,6 +511,9 @@ export function TicketFlow({
     TicketModel[]
   >([]);
   const [ticketTitle, setTicketTitle] = useState("");
+  const [createTotalMinutes, setCreateTotalMinutes] = useState("");
+  const [createFlagColor, setCreateFlagColor] = useState<TicketColor>("green");
+  const [createIntakeComment, setCreateIntakeComment] = useState("");
   const [partSpecForms, setPartSpecForms] = useState<
     Record<number, PartSpecFormState>
   >({});
@@ -961,9 +961,6 @@ export function TicketFlow({
         itemParts.forEach((part) => {
           initialPartForms[part.id] = {
             selected: false,
-            color: "green",
-            minutes: "",
-            comment: "",
           };
         });
 
@@ -972,12 +969,18 @@ export function TicketFlow({
         setSelectedItemTicketHistory(itemTickets);
         setPartSpecForms(initialPartForms);
         setTicketTitle("");
+        setCreateTotalMinutes("");
+        setCreateFlagColor("green");
+        setCreateIntakeComment("");
         cacheInventoryItems([item]);
       } catch (error) {
         setSelectedItem(null);
         setSelectedItemParts([]);
         setSelectedItemTicketHistory([]);
         setPartSpecForms({});
+        setCreateTotalMinutes("");
+        setCreateFlagColor("green");
+        setCreateIntakeComment("");
         setFeedback({
           type: "error",
           message: toErrorMessage(error, t("Failed to load ticket creation context.")),
@@ -1648,40 +1651,13 @@ export function TicketFlow({
       return;
     }
 
-    const partSpecs = [] as Array<{
-      part_id: number;
-      color: TicketColor;
-      comment: string;
-      minutes: number;
-    }>;
-
-    for (const part of selectedParts) {
-      const form = partSpecForms[part.id];
-      if (!form) {
-        setFeedback({
-          type: "error",
-          message: t("Part form state is missing. Refresh and try again."),
-        });
-        return;
-      }
-
-      const parsedMinutes = Number(form.minutes);
-      if (!Number.isInteger(parsedMinutes) || parsedMinutes < 1) {
-        setFeedback({
-          type: "error",
-          message: t("Minutes must be at least 1 for part {{part}}.", {
-            part: part.name,
-          }),
-        });
-        return;
-      }
-
-      partSpecs.push({
-        part_id: part.id,
-        color: form.color,
-        comment: form.comment.trim(),
-        minutes: parsedMinutes,
+    const parsedTotalMinutes = Number.parseInt(createTotalMinutes, 10);
+    if (!Number.isInteger(parsedTotalMinutes) || parsedTotalMinutes < 1) {
+      setFeedback({
+        type: "error",
+        message: t("Total minutes must be at least 1."),
       });
+      return;
     }
 
     try {
@@ -1689,7 +1665,12 @@ export function TicketFlow({
         await createTicket(accessToken, {
           serial_number: selectedItem.serial_number,
           title: ticketTitle.trim() || undefined,
-          part_specs: partSpecs,
+          total_minutes: parsedTotalMinutes,
+          flag_color: createFlagColor,
+          intake_comment: createIntakeComment.trim() || undefined,
+          part_specs: selectedParts.map((part) => ({
+            part_id: part.id,
+          })),
         });
 
         await loadCreateItemPage(selectedItem.id);
@@ -2271,78 +2252,6 @@ export function TicketFlow({
                             {t("Part ID")}: {part.id}
                           </p>
                         </div>
-
-                        <div className="mt-3 grid gap-2 md:grid-cols-3">
-                          <div>
-                            <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                              {t("Color")}
-                            </label>
-                            <select
-                              className={cn(fieldClassName, "mt-1")}
-                              value={form.color}
-                              onChange={(event) =>
-                                setPartSpecForms((prev) => ({
-                                  ...prev,
-                                  [part.id]: {
-                                    ...prev[part.id],
-                                    color: event.target.value as TicketColor,
-                                  },
-                                }))
-                              }
-                              disabled={!canCreate || isMutating || !form.selected}
-                            >
-                              {TICKET_COLOR_OPTIONS.map((option) => (
-                                <option key={option} value={option}>
-                                  {ticketColorLabel(option, t)}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-
-                          <div>
-                            <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                              {t("Minutes")}
-                            </label>
-                            <input
-                              type="number"
-                              min={1}
-                              className={cn(fieldClassName, "mt-1")}
-                              value={form.minutes}
-                              onChange={(event) =>
-                                setPartSpecForms((prev) => ({
-                                  ...prev,
-                                  [part.id]: {
-                                    ...prev[part.id],
-                                    minutes: event.target.value,
-                                  },
-                                }))
-                              }
-                              disabled={!canCreate || isMutating || !form.selected}
-                              placeholder={t("e.g. 20")}
-                            />
-                          </div>
-
-                          <div>
-                            <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                              {t("Comment (optional)")}
-                            </label>
-                            <input
-                              className={cn(fieldClassName, "mt-1")}
-                              value={form.comment}
-                              onChange={(event) =>
-                                setPartSpecForms((prev) => ({
-                                  ...prev,
-                                  [part.id]: {
-                                    ...prev[part.id],
-                                    comment: event.target.value,
-                                  },
-                                }))
-                              }
-                              disabled={!canCreate || isMutating || !form.selected}
-                              placeholder={t("Part note")}
-                            />
-                          </div>
-                        </div>
                       </div>
                     );
                   })}
@@ -2359,6 +2268,55 @@ export function TicketFlow({
                 {t("Selected parts")}: {selectedPartsCount}/{selectedItemParts.length || 0}
               </div>
 
+              <div className="grid gap-2 md:grid-cols-2">
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                    {t("Total Minutes")}
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    className={cn(fieldClassName, "mt-1")}
+                    value={createTotalMinutes}
+                    onChange={(event) => setCreateTotalMinutes(event.target.value)}
+                    disabled={!canCreate || isMutating}
+                    placeholder={t("e.g. 45")}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                    {t("Flag Color")}
+                  </label>
+                  <select
+                    className={cn(fieldClassName, "mt-1")}
+                    value={createFlagColor}
+                    onChange={(event) =>
+                      setCreateFlagColor(event.target.value as TicketColor)
+                    }
+                    disabled={!canCreate || isMutating}
+                  >
+                    {TICKET_COLOR_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {ticketColorLabel(option, t)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                  {t("Comment (optional)")}
+                </label>
+                <textarea
+                  className={cn(fieldClassName, "mt-1 min-h-[84px] resize-y py-2")}
+                  value={createIntakeComment}
+                  onChange={(event) => setCreateIntakeComment(event.target.value)}
+                  disabled={!canCreate || isMutating}
+                  placeholder={t("Ticket intake note")}
+                />
+              </div>
+
               {!canCreate ? (
                 <p className="text-xs text-amber-700">
                   {t("Your roles do not allow ticket creation.")}
@@ -2373,7 +2331,9 @@ export function TicketFlow({
                     !canCreate ||
                     isMutating ||
                     !selectedItemParts.length ||
-                    selectedPartsCount < 1
+                    selectedPartsCount < 1 ||
+                    !Number.isInteger(Number.parseInt(createTotalMinutes, 10)) ||
+                    Number.parseInt(createTotalMinutes, 10) < 1
                   }
                 >
                   {t("Create Ticket")}
