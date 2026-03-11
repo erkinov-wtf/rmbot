@@ -11,6 +11,7 @@ from core.utils.constants import (
     TicketColor,
     TicketStatus,
     TicketTransitionAction,
+    WorkSessionStatus,
 )
 from inventory.models import (
     Inventory,
@@ -18,7 +19,14 @@ from inventory.models import (
     InventoryItemCategory,
     InventoryItemPart,
 )
-from ticket.models import Ticket, TicketPartQCFailure, TicketPartSpec, TicketTransition
+from ticket.models import (
+    Ticket,
+    TicketPartQCFailure,
+    TicketPartSpec,
+    TicketTransition,
+    WorkSession,
+)
+from ticket.services_work_session import TicketWorkSessionService
 from ticket.services_workflow import TicketWorkflowService
 
 
@@ -302,3 +310,83 @@ def test_move_to_waiting_qc_requires_all_parts_completed(role_cache):
 
     with pytest.raises(DomainValidationError):
         ticket.move_to_waiting_qc(actor_user_id=tech.id)
+
+
+@pytest.mark.django_db
+def test_start_ticket_reconciles_stale_open_session(role_cache):
+    master = _user(
+        username="master_stale_open",
+        role_slug=RoleSlug.MASTER,
+        cache=role_cache,
+    )
+    tech = _user(
+        username="tech_stale_open",
+        role_slug=RoleSlug.TECHNICIAN,
+        cache=role_cache,
+    )
+    stale_ticket, _spec_a, _spec_b = _ticket_with_two_parts(master=master)
+    TicketWorkflowService.claim_ticket(ticket=stale_ticket, actor_user_id=tech.id)
+    TicketWorkflowService.start_ticket(ticket=stale_ticket, actor_user_id=tech.id)
+
+    stale_session = WorkSession.domain.get_open_for_ticket_and_technician(
+        ticket=stale_ticket,
+        technician_id=tech.id,
+    )
+    assert stale_session is not None
+    assert stale_session.status == WorkSessionStatus.RUNNING
+
+    Ticket.all_objects.filter(pk=stale_ticket.pk).update(status=TicketStatus.DONE)
+
+    next_ticket, _next_spec_a, _next_spec_b = _ticket_with_two_parts(master=master)
+    TicketWorkflowService.claim_ticket(ticket=next_ticket, actor_user_id=tech.id)
+    TicketWorkflowService.start_ticket(ticket=next_ticket, actor_user_id=tech.id)
+
+    stale_session.refresh_from_db()
+    assert stale_session.status == WorkSessionStatus.STOPPED
+    assert stale_session.ended_at is not None
+
+    open_sessions = (
+        WorkSession.domain.get_queryset().for_technician(technician_id=tech.id).open()
+    )
+    assert open_sessions.count() == 1
+    assert open_sessions.first().ticket_id == next_ticket.id
+
+
+@pytest.mark.django_db
+def test_auto_resume_stops_inconsistent_paused_session(role_cache, monkeypatch):
+    master = _user(
+        username="master_auto_resume_stale",
+        role_slug=RoleSlug.MASTER,
+        cache=role_cache,
+    )
+    tech = _user(
+        username="tech_auto_resume_stale",
+        role_slug=RoleSlug.TECHNICIAN,
+        cache=role_cache,
+    )
+    ticket, _spec_a, _spec_b = _ticket_with_two_parts(master=master)
+    TicketWorkflowService.claim_ticket(ticket=ticket, actor_user_id=tech.id)
+    TicketWorkflowService.start_ticket(ticket=ticket, actor_user_id=tech.id)
+    paused_session = TicketWorkSessionService.pause_work_session(
+        ticket=ticket,
+        actor_user_id=tech.id,
+    )
+    assert paused_session.status == WorkSessionStatus.PAUSED
+
+    Ticket.all_objects.filter(pk=ticket.pk).update(status=TicketStatus.DONE)
+
+    monkeypatch.setattr(
+        TicketWorkSessionService,
+        "get_remaining_pause_seconds_today",
+        classmethod(lambda cls, *, technician_id, now_dt=None: 0),
+    )
+    resumed_count = (
+        TicketWorkSessionService.auto_resume_paused_sessions_if_limit_reached(
+            technician_id=tech.id
+        )
+    )
+
+    paused_session.refresh_from_db()
+    assert resumed_count == 0
+    assert paused_session.status == WorkSessionStatus.STOPPED
+    assert paused_session.ended_at is not None

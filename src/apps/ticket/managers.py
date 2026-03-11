@@ -113,6 +113,11 @@ class WorkSessionDomainManager(models.Manager.from_queryset(WorkSessionQuerySet)
             self.get_queryset()
             .for_technician(technician_id=technician_id)
             .open()
+            .filter(
+                ticket__deleted_at__isnull=True,
+                ticket__status=TicketStatus.IN_PROGRESS,
+                ticket__technician_id=technician_id,
+            )
             .exists()
         )
 

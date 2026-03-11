@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
@@ -6,9 +7,15 @@ from django.db.models import Prefetch
 from django.utils import timezone
 
 from core.api.exceptions import DomainValidationError
-from core.utils.constants import WorkSessionStatus, WorkSessionTransitionAction
+from core.utils.constants import (
+    TicketStatus,
+    WorkSessionStatus,
+    WorkSessionTransitionAction,
+)
 from rules.services import RulesService
 from ticket.models import Ticket, WorkSession, WorkSessionTransition
+
+logger = logging.getLogger(__name__)
 
 
 class TicketWorkSessionService:
@@ -78,15 +85,25 @@ class TicketWorkSessionService:
         )
         resumed_count = 0
         for session in paused_sessions:
+            session.refresh_from_db(fields=["status"])
+            if session.status != WorkSessionStatus.PAUSED:
+                continue
+
+            if not cls.is_open_session_consistent(session=session):
+                session.stop(actor_user_id=session.technician_id, stopped_at=now)
+                logger.warning(
+                    "Stopped stale paused work session id=%s technician_id=%s ticket_id=%s",
+                    session.id,
+                    session.technician_id,
+                    session.ticket_id,
+                )
+                continue
+
             remaining_pause_seconds = cls.get_remaining_pause_seconds_today(
                 technician_id=session.technician_id,
                 now_dt=now,
             )
             if remaining_pause_seconds > 0:
-                continue
-
-            session.refresh_from_db(fields=["status"])
-            if session.status != WorkSessionStatus.PAUSED:
                 continue
 
             try:
@@ -102,6 +119,54 @@ class TicketWorkSessionService:
                 continue
             resumed_count += 1
         return resumed_count
+
+    @classmethod
+    @transaction.atomic
+    def reconcile_open_sessions_for_technician(
+        cls,
+        *,
+        technician_id: int,
+        actor_user_id: int | None = None,
+        now_dt=None,
+    ) -> int:
+        now = now_dt or timezone.now()
+        actor_id = actor_user_id or technician_id
+        open_sessions = list(
+            WorkSession.domain.get_queryset()
+            .for_technician(technician_id=technician_id)
+            .open()
+            .select_related("ticket")
+            .order_by("created_at", "id")
+        )
+        stopped_count = 0
+        for session in open_sessions:
+            if cls.is_open_session_consistent(session=session):
+                continue
+
+            session.refresh_from_db(fields=["status"])
+            if session.status not in (
+                WorkSessionStatus.RUNNING,
+                WorkSessionStatus.PAUSED,
+            ):
+                continue
+
+            session.stop(actor_user_id=actor_id, stopped_at=now)
+            stopped_count += 1
+            logger.warning(
+                "Stopped stale open work session id=%s technician_id=%s ticket_id=%s",
+                session.id,
+                session.technician_id,
+                session.ticket_id,
+            )
+        return stopped_count
+
+    @staticmethod
+    def is_open_session_consistent(*, session: WorkSession) -> bool:
+        return Ticket.domain.filter(
+            id=session.ticket_id,
+            technician_id=session.technician_id,
+            status=TicketStatus.IN_PROGRESS,
+        ).exists()
 
     @classmethod
     def get_remaining_pause_seconds_today(

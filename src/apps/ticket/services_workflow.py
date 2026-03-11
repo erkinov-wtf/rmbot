@@ -114,6 +114,13 @@ class TicketWorkflowService:
     @classmethod
     @transaction.atomic
     def start_ticket(cls, ticket: Ticket, actor_user_id: int) -> Ticket:
+        from ticket.services_work_session import TicketWorkSessionService
+
+        TicketWorkSessionService.reconcile_open_sessions_for_technician(
+            technician_id=actor_user_id,
+            actor_user_id=actor_user_id,
+            now_dt=timezone.now(),
+        )
         if WorkSession.domain.has_open_for_technician(technician_id=actor_user_id):
             raise DomainValidationError(
                 "Technician already has an active work session. Stop current work session "
