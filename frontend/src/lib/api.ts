@@ -70,8 +70,27 @@ function resolveRequestLanguage(): AppLanguage {
   return "uz";
 }
 
+const PROTECTED_DELETE_DYNAMIC_ERROR_PATTERN =
+  /^Cannot delete some instances of model '.+' because they are referenced through (protected|restricted) foreign keys: .+\.$/i;
+const PROTECTED_DELETE_CANONICAL_ERROR =
+  "Cannot delete this record because it is referenced by related records.";
+
+function normalizeApiErrorMessage(text: string): string {
+  const normalized = text.trim().replace(/\s+/g, " ");
+  if (!normalized) {
+    return normalized;
+  }
+  if (PROTECTED_DELETE_DYNAMIC_ERROR_PATTERN.test(normalized)) {
+    return PROTECTED_DELETE_CANONICAL_ERROR;
+  }
+  return normalized;
+}
+
 function localizeApiMessage(text: string): string {
-  return translateMessage(text, resolveRequestLanguage());
+  return translateMessage(
+    normalizeApiErrorMessage(text),
+    resolveRequestLanguage(),
+  );
 }
 
 type ApiEnvelope<TData> = {
@@ -912,7 +931,7 @@ function toErrorMessage(
     }
 
     const source = value as Record<string, unknown>;
-    const prioritizedKeys = ["detail", "error", "message", "non_field_errors"];
+    const prioritizedKeys = ["message", "detail", "non_field_errors", "error"];
     for (const key of prioritizedKeys) {
       if (!(key in source)) {
         continue;
