@@ -794,11 +794,16 @@ export function InventoryAdmin({
   };
 
   const handleDetailItemDelete = async () => {
-    if (
-      !canManage ||
-      !detailItem ||
-      !window.confirm(t("Delete this inventory item?"))
-    ) {
+    if (!canManage || !detailItem) {
+      return;
+    }
+
+    const deleteConfirmationMessage = [
+      t("Delete this inventory item?"),
+      t("All linked tickets and their work/QC history will also be deleted."),
+      t("User accounts, attendance records, and XP history will be kept."),
+    ].join("\n\n");
+    if (!window.confirm(deleteConfirmationMessage)) {
       return;
     }
 

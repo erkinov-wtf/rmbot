@@ -27,7 +27,7 @@ from inventory.models import (
     InventoryItemCategory,
     InventoryItemPart,
 )
-from inventory.services import InventoryCategoryService
+from inventory.services import InventoryCategoryService, InventoryItemDeleteService
 from inventory.services_import_export import (
     XLSX_CONTENT_TYPE,
     InventoryImportExportService,
@@ -63,6 +63,11 @@ class InventoryItemViewSet(InventoryManageMixin, BaseModelViewSet):
     queryset = InventoryItem.domain.get_queryset().order_by("-created_at")
     filter_backends = (DjangoFilterBackend,)
     filterset_class = InventoryItemFilterSet
+
+    def destroy(self, request, *args, **kwargs):
+        item = self.get_object()
+        InventoryItemDeleteService.delete_item_with_related_tickets(item=item)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 @extend_schema(

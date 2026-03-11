@@ -9,6 +9,10 @@ const RU_MESSAGES: TranslationCatalog = {
   "An unexpected error occurred.": "Произошла непредвиденная ошибка.",
   "Cannot delete this record because it is referenced by related records.":
     "Нельзя удалить эту запись, потому что на неё ссылаются связанные записи.",
+  "All linked tickets and their work/QC history will also be deleted.":
+    "Все связанные тикеты и их историю работы/QC также будут удалены.",
+  "User accounts, attendance records, and XP history will be kept.":
+    "Аккаунты пользователей, записи посещаемости и история XP будут сохранены.",
   "Only super admins can update superuser accounts.":
     "Только супер-админы могут изменять аккаунты суперпользователей.",
   "You cannot deactivate your own account.":
@@ -403,6 +407,10 @@ const UZ_MESSAGES: TranslationCatalog = {
   "An unexpected error occurred.": "Kutilmagan xatolik yuz berdi.",
   "Cannot delete this record because it is referenced by related records.":
     "Bu yozuvni o‘chirib bo‘lmaydi, chunki unga bog‘liq yozuvlar mavjud.",
+  "All linked tickets and their work/QC history will also be deleted.":
+    "Barcha bog'langan arizalar va ularning ish/QC tarixi ham o'chiriladi.",
+  "User accounts, attendance records, and XP history will be kept.":
+    "Foydalanuvchi akkauntlari, davomat yozuvlari va XP tarixi saqlanib qoladi.",
   "Only super admins can update superuser accounts.":
     "Faqat super adminlar superuser akkauntlarini yangilashi mumkin.",
   "You cannot deactivate your own account.":

@@ -154,3 +154,36 @@ class InventoryCategoryService:
         )
 
         category.delete()
+
+
+class InventoryItemDeleteService:
+    @classmethod
+    @transaction.atomic
+    def delete_item_with_related_tickets(
+        cls, *, item: InventoryItem
+    ) -> dict[str, int]:
+        """
+        Soft-delete inventory item and all non-deleted linked tickets.
+
+        Ticket-level related records (part specs, work sessions, etc.) are
+        soft-deleted through model cascade rules. User entities and XP records
+        are not touched by this flow.
+        """
+        from ticket.models import Ticket
+
+        linked_tickets = (
+            Ticket.domain.get_queryset()
+            .filter(inventory_item_id=item.id)
+            .order_by("id")
+        )
+
+        deleted_ticket_count = 0
+        for ticket in linked_tickets.iterator(chunk_size=200):
+            ticket.delete()
+            deleted_ticket_count += 1
+
+        item.delete()
+
+        return {
+            "deleted_ticket_count": deleted_ticket_count,
+        }
