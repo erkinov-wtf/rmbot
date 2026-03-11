@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 from django.conf import settings
 from django.core.cache import cache
+from django.utils.translation import gettext as _
 from rest_framework import serializers, status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -169,7 +170,7 @@ class TokenVerifyAPIView(TokenVerifyView, BaseAPIView):
         if response.status_code == 200:
             serializer = TokenVerifySerializer(data=request.data)
             serializer.is_valid(raise_exception=True)
-            response.data = {"detail": "Token is valid"}
+            response.data = {"detail": _("Token is valid")}
 
         return response
 
@@ -185,7 +186,7 @@ class TMAInitDataSerializer(serializers.Serializer):
 
     def validate_init_data(self, value):
         if not value:
-            raise serializers.ValidationError("init_data is required")
+            raise serializers.ValidationError(_("init_data is required"))
         return value
 
     def validate_phone(self, value: str | None) -> str | None:
@@ -195,7 +196,7 @@ class TMAInitDataSerializer(serializers.Serializer):
         if not compact:
             return None
         if not PHONE_PATTERN.fullmatch(compact):
-            raise serializers.ValidationError("phone format is invalid")
+            raise serializers.ValidationError(_("phone format is invalid"))
         return compact if compact.startswith("+") else f"+{compact}"
 
 
@@ -205,9 +206,9 @@ class MiniAppPhoneLoginSerializer(serializers.Serializer):
     def validate_phone(self, value: str) -> str:
         compact = value.strip().replace(" ", "").replace("-", "")
         if not compact:
-            raise serializers.ValidationError("phone is required")
+            raise serializers.ValidationError(_("phone is required"))
         if not PHONE_PATTERN.fullmatch(compact):
-            raise serializers.ValidationError("phone format is invalid")
+            raise serializers.ValidationError(_("phone format is invalid"))
         return compact if compact.startswith("+") else f"+{compact}"
 
 
@@ -257,10 +258,10 @@ class TMAInitDataVerifyAPIView(BaseAPIView):
             )
             init_data_hash = extract_init_data_hash(init_data)
         except InitDataValidationError as exc:
-            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": _(str(exc))}, status=status.HTTP_400_BAD_REQUEST)
         except ValueError as ve:
             return Response(
-                {"detail": "init_data is invalid: " + str(ve)},
+                {"detail": _("init_data is invalid: %(reason)s") % {"reason": str(ve)}},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -269,7 +270,7 @@ class TMAInitDataVerifyAPIView(BaseAPIView):
             user_payload = json.loads(raw_user) if raw_user else {}
         except (TypeError, json.JSONDecodeError):
             return Response(
-                {"detail": "init_data user payload is invalid"},
+                {"detail": _("init_data user payload is invalid")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -278,12 +279,12 @@ class TMAInitDataVerifyAPIView(BaseAPIView):
             telegram_id = int(telegram_id)
         except (TypeError, ValueError):
             return Response(
-                {"detail": "init_data user.id is missing or invalid"},
+                {"detail": _("init_data user.id is missing or invalid")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
         if telegram_id <= 0:
             return Response(
-                {"detail": "init_data user.id is missing or invalid"},
+                {"detail": _("init_data user.id is missing or invalid")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -338,7 +339,7 @@ class TMAInitDataVerifyAPIView(BaseAPIView):
 
         if self._is_replayed(init_data_hash):
             return Response(
-                {"detail": "init_data has already been used"},
+                {"detail": _("init_data has already been used")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -389,7 +390,7 @@ class MiniAppPhoneLoginAPIView(BaseAPIView):
         )
         if user is None:
             return Response(
-                {"detail": "Active user with this phone number was not found."},
+                {"detail": _("Active user with this phone number was not found.")},
                 status=status.HTTP_404_NOT_FOUND,
             )
 

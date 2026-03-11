@@ -2,6 +2,7 @@ from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from django.utils.translation import gettext as _
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
@@ -214,7 +215,7 @@ class UserManagementDetailAPIView(BaseAPIView):
 
         if user.is_superuser and not request.user.is_superuser:
             return Response(
-                {"detail": "Only super admins can update superuser accounts."},
+                {"detail": _("Only super admins can update superuser accounts.")},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
@@ -223,7 +224,7 @@ class UserManagementDetailAPIView(BaseAPIView):
 
         if user.pk == request.user.pk and serializer.validated_data.get("is_active") is False:
             return Response(
-                {"detail": "You cannot deactivate your own account."},
+                {"detail": _("You cannot deactivate your own account.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -248,12 +249,12 @@ class UserManagementDetailAPIView(BaseAPIView):
 
         if user.is_superuser and not request.user.is_superuser:
             return Response(
-                {"detail": "Only super admins can delete superuser accounts."},
+                {"detail": _("Only super admins can delete superuser accounts.")},
                 status=status.HTTP_403_FORBIDDEN,
             )
         if user.pk == request.user.pk:
             return Response(
-                {"detail": "You cannot delete your own account."},
+                {"detail": _("You cannot delete your own account.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -305,7 +306,7 @@ class AccessRequestApproveAPIView(BaseAPIView):
         access_request = get_object_or_404(AccessRequest.objects, pk=kwargs["pk"])
         if access_request.status != AccessRequestStatus.PENDING:
             return Response(
-                {"detail": "Access request is already resolved."},
+                {"detail": _("Access request is already resolved.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -331,7 +332,7 @@ class AccessRequestRejectAPIView(BaseAPIView):
         access_request = get_object_or_404(AccessRequest.objects, pk=kwargs["pk"])
         if access_request.status != AccessRequestStatus.PENDING:
             return Response(
-                {"detail": "Access request is already resolved."},
+                {"detail": _("Access request is already resolved.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 

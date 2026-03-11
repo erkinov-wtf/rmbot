@@ -109,6 +109,8 @@ class AccessRequestDomainManager(models.Manager):
         return self.model.all_objects.filter(
             telegram_id=telegram_id,
             status=AccessRequestStatus.APPROVED,
+            user__is_active=True,
+            user__deleted_at__isnull=True,
         ).exists()
 
     def active_user_link_exists_for_telegram(self, *, telegram_id: int) -> bool:

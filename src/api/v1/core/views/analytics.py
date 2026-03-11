@@ -1,3 +1,4 @@
+from django.utils.translation import gettext as _
 from rest_framework import serializers, status
 from rest_framework.permissions import AllowAny
 from rest_framework.permissions import IsAuthenticated
@@ -115,7 +116,7 @@ class PublicTechnicianDetailAPIView(BaseAPIView):
                 include_photo=include_photo,
             )
         except ValueError as exc:
-            return Response({"detail": str(exc)}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": _(str(exc))}, status=status.HTTP_404_NOT_FOUND)
         return Response(payload, status=status.HTTP_200_OK)
 
 
@@ -136,5 +137,5 @@ class PublicTechnicianPhotoAPIView(BaseAPIView):
                 request=request,
             )
         except ValueError as exc:
-            return Response({"detail": str(exc)}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"detail": _(str(exc))}, status=status.HTTP_404_NOT_FOUND)
         return Response(payload, status=status.HTTP_200_OK)

@@ -6,6 +6,36 @@ type TranslationCatalog = Record<string, string>;
 type TranslationCatalogs = Record<AppLanguage, TranslationCatalog>;
 
 const RU_MESSAGES: TranslationCatalog = {
+  "An unexpected error occurred.": "Произошла непредвиденная ошибка.",
+  "Cannot delete this record because it is referenced by related records.":
+    "Нельзя удалить эту запись, потому что на неё ссылаются связанные записи.",
+  "Only super admins can update superuser accounts.":
+    "Только супер-админы могут изменять аккаунты суперпользователей.",
+  "You cannot deactivate your own account.":
+    "Нельзя деактивировать собственный аккаунт.",
+  "Only super admins can delete superuser accounts.":
+    "Только супер-админы могут удалять аккаунты суперпользователей.",
+  "You cannot delete your own account.": "Нельзя удалить собственный аккаунт.",
+  "Access request is already resolved.": "Запрос доступа уже обработан.",
+  "date_from and date_to must be provided together.":
+    "date_from и date_to нужно передавать вместе.",
+  "limit must be an integer.": "limit должен быть целым числом.",
+  "Token is valid": "Токен действителен",
+  "init_data is required": "Требуется init_data",
+  "phone format is invalid": "Неверный формат телефона",
+  "phone is required": "Требуется номер телефона",
+  "init_data user payload is invalid": "Неверный payload пользователя в init_data",
+  "init_data user.id is missing or invalid":
+    "init_data user.id отсутствует или некорректен",
+  "init_data has already been used": "init_data уже использован",
+  "Active user with this phone number was not found.":
+    "Активный пользователь с этим номером не найден.",
+  "Phone number is already used by another account.":
+    "Этот номер телефона уже используется другим аккаунтом.",
+  "Your access request was already approved.":
+    "Ваша заявка на доступ уже была одобрена.",
+  "You are already registered and linked.":
+    "Вы уже зарегистрированы и привязаны.",
   "Access not approved yet": "Доступ пока не одобрен",
   "Access not registered": "Доступ не зарегистрирован",
   "Access request under review": "Запрос доступа на рассмотрении",
@@ -370,6 +400,38 @@ const RU_MESSAGES: TranslationCatalog = {
 };
 
 const UZ_MESSAGES: TranslationCatalog = {
+  "An unexpected error occurred.": "Kutilmagan xatolik yuz berdi.",
+  "Cannot delete this record because it is referenced by related records.":
+    "Bu yozuvni o‘chirib bo‘lmaydi, chunki unga bog‘liq yozuvlar mavjud.",
+  "Only super admins can update superuser accounts.":
+    "Faqat super adminlar superuser akkauntlarini yangilashi mumkin.",
+  "You cannot deactivate your own account.":
+    "O‘zingizning akkauntingizni nofaol qila olmaysiz.",
+  "Only super admins can delete superuser accounts.":
+    "Faqat super adminlar superuser akkauntlarini o‘chira oladi.",
+  "You cannot delete your own account.":
+    "O‘zingizning akkauntingizni o‘chira olmaysiz.",
+  "Access request is already resolved.":
+    "Kirish so‘rovi allaqachon yakunlangan.",
+  "date_from and date_to must be provided together.":
+    "date_from va date_to birga yuborilishi kerak.",
+  "limit must be an integer.": "limit butun son bo‘lishi kerak.",
+  "Token is valid": "Token yaroqli",
+  "init_data is required": "init_data talab qilinadi",
+  "phone format is invalid": "Telefon formati noto‘g‘ri",
+  "phone is required": "Telefon raqami talab qilinadi",
+  "init_data user payload is invalid": "init_data dagi user payload noto‘g‘ri",
+  "init_data user.id is missing or invalid":
+    "init_data user.id yo‘q yoki noto‘g‘ri",
+  "init_data has already been used": "init_data allaqachon ishlatilgan",
+  "Active user with this phone number was not found.":
+    "Bu telefon raqami bilan faol foydalanuvchi topilmadi.",
+  "Phone number is already used by another account.":
+    "Bu telefon raqami boshqa akkauntda ishlatilmoqda.",
+  "Your access request was already approved.":
+    "Sizning kirish so‘rovingiz allaqachon tasdiqlangan.",
+  "You are already registered and linked.":
+    "Siz allaqachon ro‘yxatdan o‘tgan va bog‘langansiz.",
   "Access not approved yet": "Kirish hali tasdiqlanmagan",
   "Access not registered": "Kirish ro'yxatdan o'tmagan",
   "Access request under review": "Kirish so'rovi ko'rib chiqilmoqda",

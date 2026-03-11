@@ -1,4 +1,5 @@
 from django_filters.rest_framework import DjangoFilterBackend
+from django.utils.translation import gettext as _
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -99,7 +100,7 @@ class LevelControlOverviewAPIView(BaseAPIView):
         if raw_date_from or raw_date_to:
             if not raw_date_from or not raw_date_to:
                 return Response(
-                    {"detail": "date_from and date_to must be provided together."},
+                    {"detail": _("date_from and date_to must be provided together.")},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
             try:
@@ -111,7 +112,7 @@ class LevelControlOverviewAPIView(BaseAPIView):
                 )
             except ValueError as exc:
                 return Response(
-                    {"detail": str(exc)},
+                    {"detail": _(str(exc))},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
@@ -121,7 +122,7 @@ class LevelControlOverviewAPIView(BaseAPIView):
                 date_to=date_to,
             )
         except ValueError as exc:
-            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": _(str(exc))}, status=status.HTTP_400_BAD_REQUEST)
         return Response(payload, status=status.HTTP_200_OK)
 
 
@@ -146,7 +147,7 @@ class LevelControlUserHistoryAPIView(BaseAPIView):
         if raw_date_from or raw_date_to:
             if not raw_date_from or not raw_date_to:
                 return Response(
-                    {"detail": "date_from and date_to must be provided together."},
+                    {"detail": _("date_from and date_to must be provided together.")},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
             try:
@@ -158,7 +159,7 @@ class LevelControlUserHistoryAPIView(BaseAPIView):
                 )
             except ValueError as exc:
                 return Response(
-                    {"detail": str(exc)},
+                    {"detail": _(str(exc))},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
@@ -166,7 +167,7 @@ class LevelControlUserHistoryAPIView(BaseAPIView):
             limit = int(raw_limit) if raw_limit else 500
         except (TypeError, ValueError):
             return Response(
-                {"detail": "limit must be an integer."},
+                {"detail": _("limit must be an integer.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -178,7 +179,7 @@ class LevelControlUserHistoryAPIView(BaseAPIView):
                 limit=limit,
             )
         except ValueError as exc:
-            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": _(str(exc))}, status=status.HTTP_400_BAD_REQUEST)
         return Response(payload, status=status.HTTP_200_OK)
 
 
@@ -208,7 +209,7 @@ class LevelControlSetLevelAPIView(BaseAPIView):
                 warning_active=serializer.validated_data.get("warning_active"),
             )
         except ValueError as exc:
-            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": _(str(exc))}, status=status.HTTP_400_BAD_REQUEST)
         return Response(payload, status=status.HTTP_200_OK)
 
 
@@ -234,5 +235,5 @@ class WeeklyLevelEvaluationRunAPIView(BaseAPIView):
                 actor_user_id=request.user.id,
             )
         except ValueError as exc:
-            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": _(str(exc))}, status=status.HTTP_400_BAD_REQUEST)
         return Response(payload, status=status.HTTP_200_OK)

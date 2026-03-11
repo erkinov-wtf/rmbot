@@ -1,4 +1,5 @@
 from django.db.models.deletion import ProtectedError
+from django.utils.translation import gettext as translate
 from rest_framework.response import Response
 from rest_framework.status import HTTP_400_BAD_REQUEST
 from rest_framework.views import exception_handler
@@ -13,13 +14,52 @@ class DomainValidationError(Exception):
     pass
 
 
+def _normalize_text(value: object) -> str:
+    return " ".join(str(value or "").split()).strip()
+
+
+def _translate_text(value: object) -> str:
+    normalized = _normalize_text(value)
+    if not normalized:
+        return ""
+    return str(translate(normalized))
+
+
+def _collect_error_messages(payload: object) -> list[str]:
+    if isinstance(payload, dict):
+        messages: list[str] = []
+        for field, raw_value in payload.items():
+            nested_messages = _collect_error_messages(raw_value)
+            if not nested_messages:
+                continue
+            if field in {"detail", "non_field_errors"}:
+                messages.extend(nested_messages)
+                continue
+            field_label = _translate_text(field)
+            if not field_label:
+                messages.extend(nested_messages)
+                continue
+            messages.extend(f"{field_label}: {entry}" for entry in nested_messages)
+        return messages
+
+    if isinstance(payload, (list, tuple)):
+        messages: list[str] = []
+        for raw_item in payload:
+            messages.extend(_collect_error_messages(raw_item))
+        return messages
+
+    translated = _translate_text(payload)
+    return [translated] if translated else []
+
+
 def custom_exception_handler(exc, context):
     # Handle DomainValidationError (business logic validation failures) → 400
     if isinstance(exc, DomainValidationError):
         return Response(
             {
                 "success": False,
-                "message": str(exc),
+                "message": _translate_text(exc)
+                or str(translate("An unexpected error occurred.")),
                 "error": "validation_error",
             },
             status=HTTP_400_BAD_REQUEST,
@@ -35,7 +75,8 @@ def custom_exception_handler(exc, context):
         return Response(
             {
                 "success": False,
-                "message": message,
+                "message": _translate_text(message)
+                or str(translate("An unexpected error occurred.")),
                 "error": "protected_error",
             },
             status=HTTP_400_BAD_REQUEST,
@@ -47,32 +88,13 @@ def custom_exception_handler(exc, context):
         return getattr(exc, "code", getattr(exc, "default_code", "error"))
 
     if response is not None:
-        error_messages = []
-
-        if isinstance(response.data, dict):
-            for field, messages in response.data.items():
-                if isinstance(messages, list):
-                    # Simple field errors
-                    joined = ", ".join(str(msg) for msg in messages)
-                    error_messages.append(f"{field}: {joined}")
-                elif isinstance(messages, dict):
-                    # Nested serializer errors
-                    for sub_field, sub_messages in messages.items():
-                        joined = ", ".join(str(msg) for msg in sub_messages)
-                        error_messages.append(f"{field}.{sub_field}: {joined}")
-                else:
-                    # General (non-field) errors, e.g. 'detail'
-                    error_messages.append(str(messages))
-        elif isinstance(response.data, list):
-            # Non-field errors as a list
-            for message in response.data:
-                error_messages.append(str(message))
-
+        error_messages = _collect_error_messages(response.data)
         final_message = "; ".join(error_messages).strip()
 
         response.data = {
             "success": False,
-            "message": final_message or "An unexpected error occurred.",
+            "message": final_message
+            or str(translate("An unexpected error occurred.")),
             "error": _get_error_code(exc),
         }
 

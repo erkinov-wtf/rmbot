@@ -1,3 +1,5 @@
+import { type AppLanguage, translateMessage } from "@/i18n/messages";
+
 const rawApiBaseUrl = import.meta.env.VITE_API_BASE_URL;
 if (!rawApiBaseUrl) {
   throw new Error("Missing VITE_API_BASE_URL");
@@ -5,8 +7,72 @@ if (!rawApiBaseUrl) {
 const API_BASE_URL = rawApiBaseUrl.replace(/\/+$/, "");
 const MAX_PUBLIC_PHOTO_BYTES = 3 * 1024 * 1024;
 const MAX_PUBLIC_PHOTO_LABEL = "3 MB";
+const FRONTEND_LANGUAGE_STORAGE_KEY = "rent_market_frontend_language_v1";
 
 type PrimitiveQueryValue = string | number | boolean | null | undefined;
+
+function normalizeAppLanguage(raw: string | null | undefined): AppLanguage {
+  if (!raw) {
+    return "uz";
+  }
+  const normalized = raw.trim().toLowerCase();
+  if (normalized.startsWith("ru")) {
+    return "ru";
+  }
+  if (normalized.startsWith("en")) {
+    return "en";
+  }
+  if (normalized.startsWith("uz")) {
+    return "uz";
+  }
+  return "uz";
+}
+
+function readTelegramLanguageCode(): string | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  const user = (window as Window & {
+    Telegram?: {
+      WebApp?: {
+        initDataUnsafe?: {
+          user?: {
+            language_code?: string;
+          };
+        };
+      };
+    };
+  }).Telegram?.WebApp?.initDataUnsafe?.user;
+  return typeof user?.language_code === "string" ? user.language_code : null;
+}
+
+function resolveRequestLanguage(): AppLanguage {
+  if (typeof window !== "undefined") {
+    try {
+      const storedLanguage = localStorage.getItem(FRONTEND_LANGUAGE_STORAGE_KEY);
+      if (storedLanguage) {
+        return normalizeAppLanguage(storedLanguage);
+      }
+    } catch {
+      // ignore storage read errors and continue fallback detection
+    }
+  }
+
+  const telegramLanguage = readTelegramLanguageCode();
+  if (telegramLanguage) {
+    return normalizeAppLanguage(telegramLanguage);
+  }
+
+  if (typeof navigator !== "undefined" && navigator.language) {
+    return normalizeAppLanguage(navigator.language);
+  }
+
+  return "uz";
+}
+
+function localizeApiMessage(text: string): string {
+  return translateMessage(text, resolveRequestLanguage());
+}
 
 type ApiEnvelope<TData> = {
   success: boolean;
@@ -827,16 +893,51 @@ function toErrorMessage(
   payload: unknown,
   fallback: string,
 ): string {
-  if (payload && typeof payload === "object") {
-    if ("message" in payload && typeof payload.message === "string") {
-      return payload.message;
+  const extractMessage = (value: unknown): string | null => {
+    if (typeof value === "string") {
+      const compact = value.trim();
+      return compact || null;
     }
-    if ("detail" in payload && typeof payload.detail === "string") {
-      return payload.detail;
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const nested = extractMessage(item);
+        if (nested) {
+          return nested;
+        }
+      }
+      return null;
     }
-  }
+    if (!value || typeof value !== "object") {
+      return null;
+    }
 
-  return fallback;
+    const source = value as Record<string, unknown>;
+    const prioritizedKeys = ["detail", "error", "message", "non_field_errors"];
+    for (const key of prioritizedKeys) {
+      if (!(key in source)) {
+        continue;
+      }
+      const nested = extractMessage(source[key]);
+      if (!nested) {
+        continue;
+      }
+      if (key === "message" && nested.toUpperCase() === "NOT OK") {
+        continue;
+      }
+      return nested;
+    }
+
+    for (const nestedValue of Object.values(source)) {
+      const nested = extractMessage(nestedValue);
+      if (nested) {
+        return nested;
+      }
+    }
+    return null;
+  };
+
+  const resolved = extractMessage(payload) ?? fallback;
+  return localizeApiMessage(resolved);
 }
 
 async function parseJsonSafe(response: Response): Promise<unknown> {
@@ -1044,6 +1145,7 @@ async function apiRequest<TResponse>(
 
   const headers: Record<string, string> = {
     Accept: "application/json",
+    "Accept-Language": resolveRequestLanguage(),
   };
   if (accessToken) {
     headers.Authorization = `Bearer ${accessToken}`;
@@ -1515,6 +1617,7 @@ export async function exportInventoryWorkbookFile(
     headers: {
       Accept:
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "Accept-Language": resolveRequestLanguage(),
       Authorization: `Bearer ${accessToken}`,
     },
   });
