@@ -540,6 +540,9 @@ class TicketWorkflowService:
         )
         failed_part_labels_by_technician: dict[int, list[str]] = defaultdict(list)
         for part_spec in failed_part_specs:
+            completion_owner_id = (
+                int(part_spec.completed_by_id) if part_spec.completed_by_id else None
+            )
             latest_completion = (
                 TicketPartCompletion.all_objects.filter(
                     ticket_part_spec_id=part_spec.id,
@@ -551,28 +554,32 @@ class TicketWorkflowService:
                 ticket=locked_ticket,
                 ticket_part_spec=part_spec,
                 qc_fail_transition=transition,
-                technician_id=part_spec.completed_by_id,
+                technician_id=completion_owner_id,
                 ticket_part_completion=latest_completion,
                 note=str(note or "").strip(),
                 metadata={"failed_part_spec_id": part_spec.id},
             )
             part_spec.is_completed = False
+            part_spec.completed_by_id = None
+            part_spec.completed_at = None
+            part_spec.completion_note = ""
             part_spec.needs_rework = True
-            part_spec.rework_for_technician_id = part_spec.completed_by_id
+            part_spec.rework_for_technician_id = completion_owner_id
             part_spec.save(
                 update_fields=[
                     "is_completed",
+                    "completed_by",
+                    "completed_at",
+                    "completion_note",
                     "needs_rework",
                     "rework_for_technician",
                 ]
             )
-            if part_spec.completed_by_id:
+            if completion_owner_id:
                 part_name = getattr(part_spec.inventory_item_part, "name", None) or str(
                     part_spec.inventory_item_part_id
                 )
-                failed_part_labels_by_technician[int(part_spec.completed_by_id)].append(
-                    str(part_name)
-                )
+                failed_part_labels_by_technician[completion_owner_id].append(str(part_name))
 
         _, _, qc_status_update_xp, _, _ = cls._ticket_xp_rules()
         cls._award_qc_status_update_xp(

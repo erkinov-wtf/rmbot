@@ -2037,7 +2037,7 @@ export function MobileTicketFlow({
                       <p className="text-sm font-semibold text-slate-900">{t("Parts completion")}</p>
                       {selectedWorkTicket.ticket_parts.length ? (
                         selectedWorkTicket.ticket_parts.map((part) => {
-                          const isCompleted = Boolean(part.is_completed || part.completed_at);
+                          const isCompleted = Boolean(part.is_completed && !part.needs_rework);
                           const checked = selectedPartSet.has(part.id);
                           const completedBy =
                             part.completed_by_name ||

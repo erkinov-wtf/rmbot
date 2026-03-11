@@ -3608,7 +3608,7 @@ export function TicketFlow({
                           part.completed_by_name ?? latestHistory?.technician_name ?? null,
                           t("Not completed"),
                         );
-                        const isCompleted = Boolean(part.is_completed || completedAt);
+                        const isCompleted = Boolean(part.is_completed && !part.needs_rework);
                         const checked = selectedPartIdSet.has(part.id);
 
                         return (

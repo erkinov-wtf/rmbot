@@ -252,10 +252,16 @@ def test_qc_fail_targets_only_failed_part_technicians(role_cache):
     assert ticket.technician_id is None
 
     assert spec_a.is_completed is False
+    assert spec_a.completed_by_id is None
+    assert spec_a.completed_at is None
+    assert spec_a.completion_note == ""
     assert spec_a.needs_rework is True
     assert spec_a.rework_for_technician_id == tech_1.id
 
     assert spec_b.is_completed is False
+    assert spec_b.completed_by_id is None
+    assert spec_b.completed_at is None
+    assert spec_b.completion_note == ""
     assert spec_b.needs_rework is True
     assert spec_b.rework_for_technician_id == tech_2.id
 
@@ -379,6 +385,9 @@ def test_qc_fail_accepts_legacy_inventory_part_ids(role_cache):
 
     assert ticket.status == TicketStatus.REWORK
     assert spec_a.is_completed is False
+    assert spec_a.completed_by_id is None
+    assert spec_a.completed_at is None
+    assert spec_a.completion_note == ""
     assert spec_a.needs_rework is True
     assert spec_a.rework_for_technician_id == tech_1.id
 
