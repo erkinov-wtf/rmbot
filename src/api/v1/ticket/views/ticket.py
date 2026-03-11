@@ -88,8 +88,7 @@ class TicketViewSet(BaseModelViewSet):
         description=(
             "Creates a new ticket intake by inventory-item serial number with "
             "part-level specs, auto-computed ticket metrics (minutes/flag/XP), and "
-            "initial NEW status. Unknown serials require explicit "
-            "confirm-create and a reason."
+            "initial NEW status. Unknown serials are auto-created in inventory."
         ),
     )
     def create(self, request, *args, **kwargs):

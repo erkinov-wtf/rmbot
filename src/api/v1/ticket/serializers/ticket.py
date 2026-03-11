@@ -218,52 +218,10 @@ class TicketSerializer(serializers.ModelSerializer):
 
         inventory_item = InventoryItemService.get_by_serial_number(serial_number)
         if inventory_item is None:
-            if not InventoryItemService.is_valid_serial_number(serial_number):
-                raise serializers.ValidationError(
-                    {
-                        "serial_number": (
-                            "serial_number must match pattern RM-[A-Z0-9-]{4,29}."
-                        )
-                    }
-                )
-
-            archived_inventory_item = InventoryItem.all_objects.filter(
-                serial_number__iexact=serial_number,
-                deleted_at__isnull=False,
-            ).first()
-            if archived_inventory_item is not None:
-                raise serializers.ValidationError(
-                    {
-                        "serial_number": (
-                            f"Inventory item '{serial_number}' is archived. Restore "
-                            "the existing item before creating a ticket."
-                        )
-                    }
-                )
-
-            suggestions = InventoryItemService.suggest_serial_numbers(serial_number)
-            if not attrs.get("confirm_create_inventory_item"):
-                message = (
-                    f"Inventory item '{serial_number}' was not found. "
-                    "Set confirm_create_inventory_item=true and provide "
-                    "inventory_item_creation_reason to create it."
-                )
-                if suggestions:
-                    message += f" Closest matches: {', '.join(suggestions)}."
-                raise serializers.ValidationError({"serial_number": message})
-            if not attrs.get("inventory_item_creation_reason"):
-                raise serializers.ValidationError(
-                    {
-                        "inventory_item_creation_reason": (
-                            "inventory_item_creation_reason is required when "
-                            "confirm_create_inventory_item=true."
-                        )
-                    }
-                )
             attrs["_create_inventory_item"] = True
-            attrs["_inventory_item_creation_reason"] = attrs[
-                "inventory_item_creation_reason"
-            ].strip()
+            attrs["_inventory_item_creation_reason"] = str(
+                attrs.get("inventory_item_creation_reason") or ""
+            ).strip()
         else:
             attrs["inventory_item"] = inventory_item
             attrs["_create_inventory_item"] = False
@@ -392,28 +350,41 @@ class TicketSerializer(serializers.ModelSerializer):
                     deleted_at__isnull=False,
                 ).first()
                 if archived_inventory_item is not None:
-                    raise serializers.ValidationError(
-                        {
-                            "serial_number": (
-                                f"Inventory item '{serial_number}' is archived. "
-                                "Restore the existing item before creating a ticket."
-                            )
-                        }
-                    ) from None
+                    update_fields: list[str] = []
+                    if archived_inventory_item.deleted_at is not None:
+                        archived_inventory_item.deleted_at = None
+                        update_fields.append("deleted_at")
+                    if not archived_inventory_item.is_active:
+                        archived_inventory_item.is_active = True
+                        update_fields.append("is_active")
+                    if archived_inventory_item.inventory_id != default_inventory.id:
+                        archived_inventory_item.inventory = default_inventory
+                        update_fields.append("inventory")
+                    if (
+                        part_category is not None
+                        and archived_inventory_item.category_id != part_category.id
+                    ):
+                        archived_inventory_item.category = part_category
+                        update_fields.append("category")
+                    if update_fields:
+                        archived_inventory_item.save(update_fields=update_fields)
+                    inventory_item = archived_inventory_item
+                    created = False
+                else:
+                    inventory_item = InventoryItemService.get_by_serial_number(
+                        serial_number
+                    )
+                    if inventory_item is None:
+                        raise serializers.ValidationError(
+                            {
+                                "serial_number": (
+                                    "serial_number conflict detected while creating the "
+                                    "inventory item. Retry the request."
+                                )
+                            }
+                        ) from None
 
-                inventory_item = InventoryItemService.get_by_serial_number(
-                    serial_number
-                )
-                if inventory_item is None:
-                    raise serializers.ValidationError(
-                        {
-                            "serial_number": (
-                                "serial_number conflict detected while creating the "
-                                "inventory item. Retry the request."
-                            )
-                        }
-                    ) from None
-                created = False
+                    created = False
 
             if Ticket.domain.has_active_for_inventory_item(
                 inventory_item=inventory_item

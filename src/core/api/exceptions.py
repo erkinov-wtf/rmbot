@@ -1,4 +1,5 @@
 import re
+from logging import getLogger
 
 from django.db.models.deletion import ProtectedError
 from django.utils.translation import get_language
@@ -6,6 +7,8 @@ from django.utils.translation import gettext as translate
 from rest_framework.response import Response
 from rest_framework.status import HTTP_400_BAD_REQUEST
 from rest_framework.views import exception_handler
+
+logger = getLogger(__name__)
 
 
 class DomainValidationError(Exception):
@@ -88,6 +91,10 @@ _FALLBACK_ERROR_TRANSLATIONS: dict[str, dict[str, str]] = {
         PROTECTED_REFERENCE_ERROR_MESSAGE: (
             "Нельзя удалить эту запись, потому что на неё ссылаются связанные записи."
         ),
+        "serial_number": "Серийный номер",
+        "part_specs": "Части заявки",
+        "total_minutes": "Общее время (минуты)",
+        "inventory_item_creation_reason": "Причина создания инвентаря",
         "Unknown error.": "Неизвестная ошибка.",
         "You are already registered and linked.": "Вы уже зарегистрированы и привязаны.",
         "Your access request was already approved.": "Ваша заявка на доступ уже была одобрена.",
@@ -100,6 +107,10 @@ _FALLBACK_ERROR_TRANSLATIONS: dict[str, dict[str, str]] = {
         PROTECTED_REFERENCE_ERROR_MESSAGE: (
             "Bu yozuvni o'chirib bo'lmaydi, chunki unga bog'liq yozuvlar murojaat qilmoqda."
         ),
+        "serial_number": "Seriya raqami",
+        "part_specs": "Bilet qismlari",
+        "total_minutes": "Umumiy vaqt (daqiqa)",
+        "inventory_item_creation_reason": "Inventarni yaratish sababi",
         "Unknown error.": "Noma'lum xatolik.",
         "You are already registered and linked.": (
             "Siz allaqachon ro'yxatdan o'tgansiz va bog'langansiz."
@@ -249,11 +260,18 @@ def custom_exception_handler(exc, context):
     if response is not None:
         error_messages = _collect_error_messages(response.data)
         final_message = "; ".join(error_messages).strip()
+        request = context.get("request")
+        logger.warning(
+            "API error response status=%s code=%s path=%s detail=%s",
+            response.status_code,
+            _get_error_code(exc),
+            getattr(request, "path", None),
+            response.data,
+        )
 
         response.data = {
             "success": False,
-            "message": _translate_text(final_message, allow_generic_fallback=True)
-            or _localized_generic_error(),
+            "message": final_message or _localized_generic_error(),
             "error": _get_error_code(exc),
         }
 

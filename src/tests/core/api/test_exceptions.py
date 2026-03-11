@@ -1,5 +1,6 @@
 from django.db.models.deletion import ProtectedError
 from django.utils.translation import override
+from rest_framework.exceptions import ValidationError
 from rest_framework.status import HTTP_400_BAD_REQUEST
 
 from core.api.exceptions import (
@@ -69,4 +70,27 @@ def test_custom_exception_handler_returns_localized_generic_for_unknown_ru_messa
         "success": False,
         "message": "Произошла непредвиденная ошибка.",
         "error": "validation_error",
+    }
+
+
+def test_custom_exception_handler_keeps_localized_validation_detail_for_ru_locale():
+    with override("ru"):
+        response = custom_exception_handler(
+            ValidationError(
+                {
+                    "serial_number": ["Inventory item 'TEST' was not found."]
+                }
+            ),
+            {},
+        )
+
+    assert response is not None
+    assert response.status_code == HTTP_400_BAD_REQUEST
+    assert response.data == {
+        "success": False,
+        "message": (
+            "Серийный номер: "
+            "Inventory item 'TEST' was not found."
+        ),
+        "error": "invalid",
     }

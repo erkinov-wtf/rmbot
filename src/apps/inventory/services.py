@@ -16,7 +16,6 @@ from inventory.models import (
 
 
 class InventoryItemService:
-    SERIAL_NUMBER_PATTERN = re.compile(r"^RM-[A-Z0-9-]{4,29}$")
     SUGGESTION_MIN_CHARS = 2
     SUGGESTION_LIMIT = 5
     LIST_SEARCH_SUGGESTION_LIMIT = 20
@@ -38,7 +37,7 @@ class InventoryItemService:
     @classmethod
     def is_valid_serial_number(cls, serial_number: str) -> bool:
         normalized = cls.normalize_serial_number(serial_number)
-        return bool(cls.SERIAL_NUMBER_PATTERN.fullmatch(normalized))
+        return bool(normalized)
 
     @classmethod
     def get_by_serial_number(cls, serial_number: str) -> InventoryItem | None:
