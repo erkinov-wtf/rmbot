@@ -839,6 +839,7 @@ export type InventoryItemQuery = {
 export type TicketListQuery = {
   q?: string;
   status?: TicketStatus;
+  technician?: number;
   page?: number;
   per_page?: number;
 };
@@ -1735,6 +1736,7 @@ export async function listTicketsPage(
     withQuery("tickets/", {
       q: query.q,
       status: query.status,
+      technician: query.technician,
       page,
       per_page: perPage,
     }),

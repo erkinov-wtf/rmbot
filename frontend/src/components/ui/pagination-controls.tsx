@@ -36,12 +36,12 @@ export function PaginationControls({
   return (
     <div
       className={cn(
-        "flex flex-col gap-2 border-t border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between",
+        "flex flex-col gap-2 border-t border-slate-200 px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between",
         className,
       )}
     >
-      <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
-        <span>
+      <div className="min-w-0 flex flex-wrap items-center gap-2 text-xs text-slate-600">
+        <span className="break-words">
           {t("Showing {{from}}-{{to}} of {{total}}", {
             from,
             to,
@@ -49,7 +49,7 @@ export function PaginationControls({
           })}
         </span>
         {onPerPageChange ? (
-          <label className="inline-flex items-center gap-2">
+          <label className="inline-flex flex-wrap items-center gap-2">
             <span>{t("Rows per page")}</span>
             <select
               className="h-8 rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-700"
@@ -72,8 +72,8 @@ export function PaginationControls({
         ) : null}
       </div>
 
-      <div className="flex items-center gap-2">
-        <span className="text-xs text-slate-600">
+      <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+        <span className="basis-full text-xs text-slate-600 sm:basis-auto">
           {t("Page {{page}} of {{pages}}", {
             page: normalizedPage,
             pages: normalizedPageCount,
@@ -83,7 +83,7 @@ export function PaginationControls({
           type="button"
           size="sm"
           variant="outline"
-          className="h-8 px-2"
+          className="h-8 shrink-0 px-2"
           onClick={() => onPageChange(normalizedPage - 1)}
           disabled={isLoading || normalizedPage <= 1}
         >
@@ -94,7 +94,7 @@ export function PaginationControls({
           type="button"
           size="sm"
           variant="outline"
-          className="h-8 px-2"
+          className="h-8 shrink-0 px-2"
           onClick={() => onPageChange(normalizedPage + 1)}
           disabled={isLoading || normalizedPage >= normalizedPageCount}
         >

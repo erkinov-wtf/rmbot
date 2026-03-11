@@ -542,6 +542,7 @@ export function TicketFlow({
   const [reviewStatusFilter, setReviewStatusFilter] = useState<"all" | TicketStatus>(
     "under_review",
   );
+  const [reviewAssigneeFilter, setReviewAssigneeFilter] = useState("all");
   const [reviewSearch, setReviewSearch] = useState("");
   const [selectedReviewTicketId, setSelectedReviewTicketId] = useState<number | null>(
     null,
@@ -567,6 +568,7 @@ export function TicketFlow({
   });
   const [isLoadingWorkTickets, setIsLoadingWorkTickets] = useState(false);
   const [workSearch, setWorkSearch] = useState("");
+  const [workAssigneeFilter, setWorkAssigneeFilter] = useState("all");
   const [selectedWorkTicketId, setSelectedWorkTicketId] = useState<number | null>(null);
   const [workTransitions, setWorkTransitions] = useState<TicketTransition[]>([]);
   const [isLoadingWorkTransitions, setIsLoadingWorkTransitions] = useState(false);
@@ -593,6 +595,7 @@ export function TicketFlow({
     "waiting_qc",
   );
   const [qcSearch, setQcSearch] = useState("");
+  const [qcAssigneeFilter, setQcAssigneeFilter] = useState("all");
   const [selectedQcTicketId, setSelectedQcTicketId] = useState<number | null>(null);
   const [qcTransitions, setQcTransitions] = useState<TicketTransition[]>([]);
   const [isLoadingQcTransitions, setIsLoadingQcTransitions] = useState(false);
@@ -737,6 +740,23 @@ export function TicketFlow({
         return technicianLabelById.get(actorId) ?? t("User #{{id}}", { id: actorId });
       }
       return fallbackLabel;
+    },
+    [t, technicianLabelById],
+  );
+
+  const resolveTicketAssigneeLabel = useCallback(
+    (ticket: TicketModel): string | null => {
+      if (!ticket.technician) {
+        return null;
+      }
+      const normalizedTechnicianName = ticket.technician_name?.trim();
+      if (normalizedTechnicianName) {
+        return normalizedTechnicianName;
+      }
+      return (
+        technicianLabelById.get(ticket.technician)
+        ?? t("User #{{id}}", { id: ticket.technician })
+      );
     },
     [t, technicianLabelById],
   );
@@ -1043,11 +1063,16 @@ export function TicketFlow({
     setIsLoadingReviewTickets(true);
     try {
       const search = reviewSearch.trim();
+      const parsedAssigneeFilter = Number.parseInt(reviewAssigneeFilter, 10);
+      const assigneeFilterId = Number.isInteger(parsedAssigneeFilter) && parsedAssigneeFilter > 0
+        ? parsedAssigneeFilter
+        : undefined;
       const paginated = await listTicketsPage(accessToken, {
         page: reviewPage,
         per_page: reviewPerPage,
         q: search.length >= 2 ? search : undefined,
         status: reviewStatusFilter === "all" ? undefined : reviewStatusFilter,
+        technician: assigneeFilterId,
       });
       if (reviewPage > paginated.pagination.page_count && paginated.pagination.page_count > 0) {
         setReviewPage(paginated.pagination.page_count);
@@ -1063,15 +1088,30 @@ export function TicketFlow({
     } finally {
       setIsLoadingReviewTickets(false);
     }
-  }, [accessToken, reviewPage, reviewPerPage, reviewSearch, reviewStatusFilter, t]);
+  }, [
+    accessToken,
+    reviewAssigneeFilter,
+    reviewPage,
+    reviewPerPage,
+    reviewSearch,
+    reviewStatusFilter,
+    t,
+  ]);
 
   const loadWorkTickets = useCallback(async () => {
     setIsLoadingWorkTickets(true);
     try {
       const search = workSearch.trim();
       const normalizedSearch = search.length >= 2 ? search : undefined;
+      const parsedAssigneeFilter = Number.parseInt(workAssigneeFilter, 10);
+      const assigneeFilterId = Number.isInteger(parsedAssigneeFilter) && parsedAssigneeFilter > 0
+        ? parsedAssigneeFilter
+        : null;
 
       try {
+        if (assigneeFilterId !== null) {
+          throw new Error("work_assignee_filter_fallback");
+        }
         const [poolPaginated, todoPaginated] = await Promise.all([
           listActivePoolTickets(accessToken, {
             page: workPage,
@@ -1100,6 +1140,7 @@ export function TicketFlow({
           page: workPage,
           per_page: workPerPage,
           q: normalizedSearch,
+          technician: assigneeFilterId ?? undefined,
         });
         if (workPage > paginated.pagination.page_count && paginated.pagination.page_count > 0) {
           setWorkPage(paginated.pagination.page_count);
@@ -1111,17 +1152,21 @@ export function TicketFlow({
           "in_progress",
           "rework",
         ]);
-        const todo = paginated.results.filter(
-          (ticket) =>
-            activeStatuses.has(ticket.status) &&
-            currentUserId !== null &&
-            ticket.technician === currentUserId,
+        const activeTickets = paginated.results.filter((ticket) =>
+          activeStatuses.has(ticket.status),
         );
-        const pool = paginated.results.filter(
-          (ticket) =>
-            activeStatuses.has(ticket.status) &&
-            (ticket.technician === null || ticket.technician !== currentUserId),
-        );
+        const todo = assigneeFilterId !== null
+          ? activeTickets.filter((ticket) => ticket.technician === assigneeFilterId)
+          : activeTickets.filter(
+            (ticket) =>
+              currentUserId !== null && ticket.technician === currentUserId,
+          );
+        const pool = assigneeFilterId !== null
+          ? []
+          : activeTickets.filter(
+            (ticket) =>
+              ticket.technician === null || ticket.technician !== currentUserId,
+          );
         setWorkTodoTickets(todo);
         setWorkActivePoolTickets(pool);
         setWorkPagination(paginated.pagination);
@@ -1138,6 +1183,7 @@ export function TicketFlow({
     accessToken,
     currentUserId,
     t,
+    workAssigneeFilter,
     workPage,
     workPerPage,
     workSearch,
@@ -1147,11 +1193,16 @@ export function TicketFlow({
     setIsLoadingQcTickets(true);
     try {
       const search = qcSearch.trim();
+      const parsedAssigneeFilter = Number.parseInt(qcAssigneeFilter, 10);
+      const assigneeFilterId = Number.isInteger(parsedAssigneeFilter) && parsedAssigneeFilter > 0
+        ? parsedAssigneeFilter
+        : undefined;
       const paginated = await listTicketsPage(accessToken, {
         page: qcPage,
         per_page: qcPerPage,
         q: search.length >= 2 ? search : undefined,
         status: qcStatusFilter === "all" ? undefined : qcStatusFilter,
+        technician: assigneeFilterId,
       });
       if (qcPage > paginated.pagination.page_count && paginated.pagination.page_count > 0) {
         setQcPage(paginated.pagination.page_count);
@@ -1167,10 +1218,10 @@ export function TicketFlow({
     } finally {
       setIsLoadingQcTickets(false);
     }
-  }, [accessToken, qcPage, qcPerPage, qcSearch, qcStatusFilter, t]);
+  }, [accessToken, qcAssigneeFilter, qcPage, qcPerPage, qcSearch, qcStatusFilter, t]);
 
   const loadTechnicians = useCallback(async () => {
-    if (!canReview) {
+    if (!canReview && !canWork && !canQc) {
       setTechnicianOptions([]);
       setIsLoadingTechnicians(false);
       return;
@@ -1188,7 +1239,7 @@ export function TicketFlow({
     } finally {
       setIsLoadingTechnicians(false);
     }
-  }, [accessToken, canReview, t]);
+  }, [accessToken, canQc, canReview, canWork, t]);
 
   const loadReviewTransitions = useCallback(
     async (ticketId: number) => {
@@ -1478,7 +1529,8 @@ export function TicketFlow({
       return;
     }
     void loadWorkTickets();
-  }, [loadWorkTickets, route]);
+    void loadTechnicians();
+  }, [loadTechnicians, loadWorkTickets, route]);
 
   useEffect(() => {
     if (route.name !== "work") {
@@ -1522,7 +1574,8 @@ export function TicketFlow({
       return;
     }
     void loadQcTickets();
-  }, [loadQcTickets, route]);
+    void loadTechnicians();
+  }, [loadQcTickets, loadTechnicians, route]);
 
   useEffect(() => {
     if (route.name !== "qc") {
@@ -1582,7 +1635,7 @@ export function TicketFlow({
       return;
     }
     if (route.name === "work") {
-      await Promise.all([loadCategories(), loadWorkTickets()]);
+      await Promise.all([loadCategories(), loadWorkTickets(), loadTechnicians()]);
       if (selectedWorkTicket) {
         await Promise.all([
           loadWorkTransitions(selectedWorkTicket.id),
@@ -1593,7 +1646,7 @@ export function TicketFlow({
       return;
     }
 
-    await Promise.all([loadCategories(), loadQcTickets()]);
+    await Promise.all([loadCategories(), loadQcTickets(), loadTechnicians()]);
     if (selectedQcTicket) {
       await Promise.all([
         loadQcTransitions(selectedQcTicket.id),
@@ -2747,6 +2800,30 @@ export function TicketFlow({
               ))}
             </select>
           </div>
+
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+              {t("Assigned user")}
+            </label>
+            <select
+              className={cn(fieldClassName, "mt-1")}
+              value={reviewAssigneeFilter}
+              onChange={(event) => {
+                setReviewAssigneeFilter(event.target.value);
+                setReviewPage(1);
+              }}
+              disabled={isLoadingReviewTickets || isLoadingTechnicians}
+            >
+              <option value="all">{t("All users")}</option>
+              {technicianOptions.map((technician) => (
+                <option key={technician.user_id} value={technician.user_id}>
+                  {technician.name === technician.username
+                    ? technician.username
+                    : `${technician.name} (@${technician.username})`}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {reviewSearch.trim().length === 1 ? (
@@ -2761,6 +2838,8 @@ export function TicketFlow({
           <div className="mt-3 space-y-2">
             {reviewTickets.map((ticket) => {
               const item = inventoryCache[ticket.inventory_item];
+              const assigneeLabel =
+                ticket.status === "assigned" ? resolveTicketAssigneeLabel(ticket) : null;
               return (
                 <button
                   key={ticket.id}
@@ -2796,6 +2875,18 @@ export function TicketFlow({
                   >
                     {ticket.title || t("No title")}
                   </p>
+                  {assigneeLabel ? (
+                    <p
+                      className={cn(
+                        "mt-1 text-xs font-medium",
+                        selectedReviewTicketId === ticket.id
+                          ? "text-sky-200"
+                          : "text-sky-700",
+                      )}
+                    >
+                      {t("Assigned to")}: {assigneeLabel}
+                    </p>
+                  ) : null}
                 </button>
               );
             })}
@@ -3073,6 +3164,30 @@ export function TicketFlow({
             </div>
           </div>
 
+          <div className="mt-3">
+            <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+              {t("Assigned user")}
+            </label>
+            <select
+              className={cn(fieldClassName, "mt-1")}
+              value={workAssigneeFilter}
+              onChange={(event) => {
+                setWorkAssigneeFilter(event.target.value);
+                setWorkPage(1);
+              }}
+              disabled={isLoadingWorkTickets || isLoadingTechnicians}
+            >
+              <option value="all">{t("All users")}</option>
+              {technicianOptions.map((technician) => (
+                <option key={technician.user_id} value={technician.user_id}>
+                  {technician.name === technician.username
+                    ? technician.username
+                    : `${technician.name} (@${technician.username})`}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {workSearch.trim().length === 1 ? (
             <p className="mt-2 text-xs text-amber-700">
               {t("Backend search starts at 2 characters.")}
@@ -3089,6 +3204,10 @@ export function TicketFlow({
               <div className="mt-2 space-y-2">
                 {workVisiblePoolTickets.map((ticket) => {
                   const item = inventoryCache[ticket.inventory_item];
+                  const assigneeLabel =
+                    ticket.status === "assigned"
+                      ? resolveTicketAssigneeLabel(ticket)
+                      : null;
                   return (
                     <div
                       key={`pool-${ticket.id}`}
@@ -3113,6 +3232,18 @@ export function TicketFlow({
                         >
                           {item?.serial_number ?? t("Item #{{id}}", { id: ticket.inventory_item })}
                         </p>
+                        {assigneeLabel ? (
+                          <p
+                            className={cn(
+                              "mt-1 text-xs font-medium",
+                              selectedWorkTicketId === ticket.id
+                                ? "text-sky-200"
+                                : "text-sky-700",
+                            )}
+                          >
+                            {t("Assigned to")}: {assigneeLabel}
+                          </p>
+                        ) : null}
                       </button>
                       <Button
                         type="button"
@@ -3142,6 +3273,10 @@ export function TicketFlow({
               <div className="mt-2 space-y-2">
                 {workVisibleTodoTickets.map((ticket) => {
                   const item = inventoryCache[ticket.inventory_item];
+                  const assigneeLabel =
+                    ticket.status === "assigned"
+                      ? resolveTicketAssigneeLabel(ticket)
+                      : null;
                   return (
                     <button
                       key={`todo-${ticket.id}`}
@@ -3163,6 +3298,18 @@ export function TicketFlow({
                       >
                         {item?.serial_number ?? t("Item #{{id}}", { id: ticket.inventory_item })}
                       </p>
+                      {assigneeLabel ? (
+                        <p
+                          className={cn(
+                            "mt-1 text-xs font-medium",
+                            selectedWorkTicketId === ticket.id
+                              ? "text-sky-200"
+                              : "text-sky-700",
+                          )}
+                        >
+                          {t("Assigned to")}: {assigneeLabel}
+                        </p>
+                      ) : null}
                     </button>
                   );
                 })}
@@ -3387,6 +3534,30 @@ export function TicketFlow({
               <option value="all">{t("All statuses")}</option>
             </select>
           </div>
+
+          <div>
+            <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+              {t("Assigned user")}
+            </label>
+            <select
+              className={cn(fieldClassName, "mt-1")}
+              value={qcAssigneeFilter}
+              onChange={(event) => {
+                setQcAssigneeFilter(event.target.value);
+                setQcPage(1);
+              }}
+              disabled={isLoadingQcTickets || isLoadingTechnicians}
+            >
+              <option value="all">{t("All users")}</option>
+              {technicianOptions.map((technician) => (
+                <option key={technician.user_id} value={technician.user_id}>
+                  {technician.name === technician.username
+                    ? technician.username
+                    : `${technician.name} (@${technician.username})`}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {qcSearch.trim().length === 1 ? (
@@ -3401,6 +3572,8 @@ export function TicketFlow({
           <div className="mt-3 space-y-2">
             {qcTickets.map((ticket) => {
               const item = inventoryCache[ticket.inventory_item];
+              const assigneeLabel =
+                ticket.status === "assigned" ? resolveTicketAssigneeLabel(ticket) : null;
               return (
                 <button
                   key={ticket.id}
@@ -3432,6 +3605,18 @@ export function TicketFlow({
                   >
                     {ticketStatusLabelByValue.get(ticket.status) ?? ticket.status}
                   </p>
+                  {assigneeLabel ? (
+                    <p
+                      className={cn(
+                        "mt-1 text-xs font-medium",
+                        selectedQcTicketId === ticket.id
+                          ? "text-sky-200"
+                          : "text-sky-700",
+                      )}
+                    >
+                      {t("Assigned to")}: {assigneeLabel}
+                    </p>
+                  ) : null}
                 </button>
               );
             })}

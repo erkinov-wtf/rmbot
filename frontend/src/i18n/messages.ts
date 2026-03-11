@@ -47,6 +47,9 @@ const RU_MESSAGES: TranslationCatalog = {
     "Аутентификация выполняется через init data Telegram mini app.",
   "Authenticating with Telegram...": "Аутентификация через Telegram...",
   "Assigned": "Назначен",
+  "Assigned to": "Назначено пользователю",
+  "Assigned user": "Назначенный пользователь",
+  "All users": "Все пользователи",
   "Assign technician": "Назначить техника",
   "Assign Technician": "Назначить техника",
   "Ask admin to approve and link your access request.":
@@ -447,6 +450,9 @@ const UZ_MESSAGES: TranslationCatalog = {
     "Autentifikatsiya Telegram mini app init data orqali amalga oshiriladi.",
   "Authenticating with Telegram...": "Telegram orqali autentifikatsiya qilinmoqda...",
   "Assigned": "Biriktirilgan",
+  "Assigned to": "Kimga biriktirilgan",
+  "Assigned user": "Biriktirilgan foydalanuvchi",
+  "All users": "Barcha foydalanuvchilar",
   "Assign technician": "Texnikni biriktirish",
   "Assign Technician": "Texnikni biriktirish",
   "Ask admin to approve and link your access request.":

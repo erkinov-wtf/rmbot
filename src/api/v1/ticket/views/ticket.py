@@ -37,6 +37,18 @@ class TicketViewSet(BaseModelViewSet):
                 return queryset.none()
             queryset = queryset.filter(status=status_filter)
 
+        technician_filter = str(
+            self.request.query_params.get("technician", "")
+        ).strip()
+        if technician_filter:
+            try:
+                technician_id = int(technician_filter)
+            except (TypeError, ValueError):
+                return queryset.none()
+            if technician_id < 1:
+                return queryset.none()
+            queryset = queryset.filter(technician_id=technician_id)
+
         q_filter = str(self.request.query_params.get("q", "")).strip()
         if q_filter:
             text_query = q_filter.lstrip("#").strip()
