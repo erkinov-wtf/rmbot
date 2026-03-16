@@ -1,6 +1,8 @@
 from django.db.models import F, Q, Value
 from django.db.models.functions import Replace, Upper
+from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
 
 from api.v1.ticket.permissions import TicketCreatePermission, TicketDeletePermission
 from api.v1.ticket.serializers import TicketSerializer
@@ -9,6 +11,7 @@ from core.api.views import BaseModelViewSet
 from core.utils.constants import TicketStatus, TicketTransitionAction
 from inventory.services import InventoryItemService
 from ticket.models import Ticket
+from ticket.services_delete import TicketDeleteService
 
 
 class TicketViewSet(BaseModelViewSet):
@@ -74,12 +77,11 @@ class TicketViewSet(BaseModelViewSet):
         return queryset
 
     def get_permissions(self):
-
         permission_classes = [IsAuthenticated]
 
         if self.action == "create":
             permission_classes += [TicketCreatePermission]
-        if self.action == "destroy":
+        if self.action in {"destroy", "bulk_destroy"}:
             permission_classes += [TicketDeletePermission]
 
         return [permission() for permission in permission_classes]
@@ -113,7 +115,27 @@ class TicketViewSet(BaseModelViewSet):
         ),
     )
     def destroy(self, request, *args, **kwargs):
-        return super().destroy(request, *args, **kwargs)
+        ticket = self.get_object()
+        TicketDeleteService.delete_ticket(ticket=ticket)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @extend_schema(
+        tags=["Tickets / Workflow"],
+        summary="Bulk delete tickets",
+        description=(
+            "Soft-deletes every ticket matching the current list filters and "
+            "removes related ticket-level history records (parts, transitions, "
+            "work sessions)."
+        ),
+    )
+    def bulk_destroy(self, request, *args, **kwargs):
+        summary = TicketDeleteService.delete_queryset(
+            queryset=self.filter_queryset(self.get_queryset())
+        )
+        return Response(
+            {"deleted_count": summary["deleted_ticket_count"]},
+            status=status.HTTP_200_OK,
+        )
 
     def perform_create(self, serializer):
         ticket = serializer.save(master=self.request.user)

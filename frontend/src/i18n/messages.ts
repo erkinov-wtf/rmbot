@@ -101,9 +101,14 @@ const RU_MESSAGES: TranslationCatalog = {
   "Date range": "Диапазон дат",
   "Delete ticket #{{id}}? This will remove ticket, parts, transitions, and work/QC history.":
     "Удалить тикет #{{id}}? Будут удалены тикет, части, переходы и история работы/QC.",
+  "Delete all {{count}} tickets matching the current filters?":
+    "Удалить все {{count}} тикетов, подходящих под текущие фильтры?",
+  "Delete all matching tickets": "Удалить все подходящие тикеты",
   "Delete Queue": "Очередь удаления",
+  "Delete All Tickets": "Удалить все тикеты",
   "Delete Ticket": "Удалить тикет",
   "Delete Tickets": "Удаление тикетов",
+  "Deleting All Tickets...": "Удаление всех тикетов...",
   Done: "Готово",
   "Done tickets": "Завершенные тикеты",
   "Enter your username and password.":
@@ -145,6 +150,7 @@ const RU_MESSAGES: TranslationCatalog = {
   "Manual metrics": "Ручные метрики",
   "Manual metrics updated for ticket #{{id}}.":
     "Ручные метрики обновлены для тикета #{{id}}.",
+  "Matching tickets deleted.": "Подходящие тикеты удалены.",
   "Minutes": "Минуты",
   "My Profile": "Мой профиль",
   "Mini App": "Мини-приложение",
@@ -275,6 +281,10 @@ const RU_MESSAGES: TranslationCatalog = {
   "Ticket created successfully.": "Тикет успешно создан.",
   "This action will remove ticket, parts, transitions, and work/QC history.":
     "Это действие удалит тикет, части, переходы и историю работы/QC.",
+  "This will delete {{count}} tickets from the current delete queue.":
+    "Будут удалены {{count}} тикетов из текущей очереди удаления.",
+  "This will remove tickets, parts, transitions, and work/QC history.":
+    "Будут удалены тикеты, части, переходы и история работы/QC.",
   "Ticket Workspace": "Рабочая зона тикетов",
   "Ticket title (optional)": "Название тикета (необязательно)",
   Tickets: "Тикеты",
@@ -303,6 +313,38 @@ const RU_MESSAGES: TranslationCatalog = {
   Work: "Работа",
   "XP Breakdown": "Разбор XP",
   "XP Control": "Управление XP",
+  "Admin-only XP adjustments and stat resets with required comment and Telegram notification.":
+    "Только администраторы могут менять XP и сбрасывать статистику с обязательным комментарием и Telegram-уведомлением.",
+  "Apply XP change": "Применить изменение XP",
+  "Comment (required)": "Комментарий (обязательно)",
+  "Failed to adjust XP.": "Не удалось изменить XP.",
+  "Failed to load users.": "Не удалось загрузить пользователей.",
+  "Failed to reset stats.": "Не удалось сбросить статистику.",
+  "Find user": "Найти пользователя",
+  "Name, username, phone": "Имя, username, телефон",
+  "No users found": "Пользователи не найдены",
+  "Only admin roles can adjust XP.":
+    "Только администраторы могут изменять XP.",
+  "Only admin roles can reset collected stats.":
+    "Только администраторы могут сбрасывать накопленную статистику.",
+  "Reason for this action. This message is sent to Telegram.":
+    "Причина этого действия. Это сообщение отправляется в Telegram.",
+  "Refresh users": "Обновить пользователей",
+  "Reset collected stats": "Сбросить накопленную статистику",
+  "Reset collected stats for {{name}}?":
+    "Сбросить накопленную статистику для {{name}}?",
+  "Resetting stats...": "Сброс статистики...",
+  "Select a user first.": "Сначала выберите пользователя.",
+  "Stats reset for {{name}}.": "Статистика для {{name}} сброшена.",
+  "Target user": "Целевой пользователь",
+  "XP totals and minutes-based performance stats before this moment will stop counting for this user.":
+    "XP и статистика производительности по минутам до этого момента перестанут учитываться для этого пользователя.",
+  "Historical records are kept. This only resets future totals and leaderboards.":
+    "Исторические записи сохраняются. Сбрасываются только будущие итоги и рейтинги.",
+  "XP management is available only for Super Admin and Ops Manager.":
+    "Управление XP доступно только Super Admin и Ops Manager.",
+  "XP updated ({{amount}}) for {{name}}.":
+    "XP обновлен ({{amount}}) для {{name}}.",
   "XP amount": "Количество XP",
   "XP amount must be 0 or higher.": "Количество XP должно быть 0 или больше.",
   "Yellow": "Желтый",
@@ -516,9 +558,14 @@ const UZ_MESSAGES: TranslationCatalog = {
   "Date range": "Sana oralig'i",
   "Delete ticket #{{id}}? This will remove ticket, parts, transitions, and work/QC history.":
     "#{{id}} arizani o'chirasizmi? Ariza, qismlar, o'tishlar va ish/QC tarixi o'chiriladi.",
+  "Delete all {{count}} tickets matching the current filters?":
+    "Joriy filtrlarga mos barcha {{count}} arizani o'chirasizmi?",
+  "Delete all matching tickets": "Mos barcha arizalarni o'chirish",
   "Delete Queue": "O'chirish navbati",
+  "Delete All Tickets": "Barcha arizalarni o'chirish",
   "Delete Ticket": "Arizani o'chirish",
   "Delete Tickets": "Arizalarni o'chirish",
+  "Deleting All Tickets...": "Barcha arizalar o'chirilmoqda...",
   Done: "Yakunlangan",
   "Done tickets": "Yakunlangan arizalar",
   "Enter your username and password.":
@@ -561,6 +608,7 @@ const UZ_MESSAGES: TranslationCatalog = {
   "Manual metrics": "Qo'lda metrikalar",
   "Manual metrics updated for ticket #{{id}}.":
     "#{{id}} ariza uchun qo'lda metrikalar yangilandi.",
+  "Matching tickets deleted.": "Mos arizalar o'chirildi.",
   Minutes: "Daqiqa",
   "My Profile": "Mening profilim",
   "Mini App": "Mini App",
@@ -691,6 +739,10 @@ const UZ_MESSAGES: TranslationCatalog = {
   "Ticket created successfully.": "Ariza muvaffaqiyatli yaratildi.",
   "This action will remove ticket, parts, transitions, and work/QC history.":
     "Bu amal ariza, qismlar, o'tishlar va ish/QC tarixini o'chiradi.",
+  "This will delete {{count}} tickets from the current delete queue.":
+    "Joriy o'chirish navbatidan {{count}} ariza o'chiriladi.",
+  "This will remove tickets, parts, transitions, and work/QC history.":
+    "Arizalar, qismlar, o'tishlar va ish/QC tarixi o'chiriladi.",
   "Ticket Workspace": "Ariza ish maydoni",
   "Ticket title (optional)": "Ariza nomi (ixtiyoriy)",
   Tickets: "Arizalar",
@@ -719,6 +771,38 @@ const UZ_MESSAGES: TranslationCatalog = {
   Work: "Ish",
   "XP Breakdown": "XP taqsimoti",
   "XP Control": "XP nazorati",
+  "Admin-only XP adjustments and stat resets with required comment and Telegram notification.":
+    "Faqat adminlar XP ni o'zgartirishi va statistikani majburiy izoh hamda Telegram bildirishnomasi bilan nollashi mumkin.",
+  "Apply XP change": "XP o'zgarishini qo'llash",
+  "Comment (required)": "Izoh (majburiy)",
+  "Failed to adjust XP.": "XP ni o'zgartirib bo'lmadi.",
+  "Failed to load users.": "Foydalanuvchilarni yuklab bo'lmadi.",
+  "Failed to reset stats.": "Statistikani nollab bo'lmadi.",
+  "Find user": "Foydalanuvchini topish",
+  "Name, username, phone": "Ism, username, telefon",
+  "No users found": "Foydalanuvchilar topilmadi",
+  "Only admin roles can adjust XP.":
+    "Faqat adminlar XP ni o'zgartirishi mumkin.",
+  "Only admin roles can reset collected stats.":
+    "Faqat adminlar yig'ilgan statistikani nollashi mumkin.",
+  "Reason for this action. This message is sent to Telegram.":
+    "Bu amal sababi. Xabar Telegram'ga yuboriladi.",
+  "Refresh users": "Foydalanuvchilarni yangilash",
+  "Reset collected stats": "Yig'ilgan statistikani nollash",
+  "Reset collected stats for {{name}}?":
+    "{{name}} uchun yig'ilgan statistikani nollaysizmi?",
+  "Resetting stats...": "Statistika nollanmoqda...",
+  "Select a user first.": "Avval foydalanuvchini tanlang.",
+  "Stats reset for {{name}}.": "{{name}} uchun statistika nollandi.",
+  "Target user": "Maqsad foydalanuvchi",
+  "XP totals and minutes-based performance stats before this moment will stop counting for this user.":
+    "Ushbu foydalanuvchi uchun shu paytgacha bo'lgan XP va daqiqalarga asoslangan ko'rsatkichlar endi hisoblanmaydi.",
+  "Historical records are kept. This only resets future totals and leaderboards.":
+    "Tarixiy yozuvlar saqlanadi. Faqat kelgusi jami ko'rsatkichlar va reytinglar nollanadi.",
+  "XP management is available only for Super Admin and Ops Manager.":
+    "XP boshqaruvi faqat Super Admin va Ops Manager uchun mavjud.",
+  "XP updated ({{amount}}) for {{name}}.":
+    "{{name}} uchun XP yangilandi ({{amount}}).",
   "XP amount": "XP miqdori",
   "XP amount must be 0 or higher.": "XP miqdori 0 yoki undan katta bo'lishi kerak.",
   Yellow: "Sariq",

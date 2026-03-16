@@ -4,7 +4,7 @@ from uuid import uuid4
 from zoneinfo import ZoneInfo
 
 from django.db import IntegrityError, transaction
-from django.db.models import Sum
+from django.db.models import F, Q, Sum
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 
@@ -88,6 +88,122 @@ class GamificationService:
             comment=normalized_comment,
         )
         return entry
+
+    @classmethod
+    @transaction.atomic
+    def reset_user_stats(
+        cls,
+        *,
+        actor_user_id: int,
+        target_user_id: int,
+        comment: str,
+    ) -> dict[str, Any]:
+        normalized_comment = str(comment or "").strip()
+        if not normalized_comment:
+            raise DomainValidationError("comment is required.")
+
+        if not User.objects.filter(id=actor_user_id).exists():
+            raise DomainValidationError("Actor user was not found.")
+
+        user = (
+            User.objects.select_for_update()
+            .filter(id=target_user_id)
+            .only(
+                "id",
+                "first_name",
+                "last_name",
+                "username",
+                "level",
+                "stats_reset_at",
+            )
+            .first()
+        )
+        if not user:
+            raise DomainValidationError("Target user was not found.")
+
+        previous_level = ProgressionService._normalize_level(user.level)
+        latest_history = ProgressionService._latest_level_history_for_user(
+            user_id=user.id
+        )
+        warning_before = ProgressionService._warning_active_from_history_event(
+            latest_history
+        )
+        if latest_history is None:
+            latest_eval = (
+                WeeklyLevelEvaluation.objects.filter(user_id=user.id)
+                .filter(
+                    ProgressionService._after_user_stats_reset_filter(
+                        user_relation="user",
+                        timestamp_field="created_at",
+                    )
+                )
+                .order_by("-week_start", "-id")
+                .first()
+            )
+            warning_before = ProgressionService._warning_active_from_evaluation(
+                latest_eval
+            )
+
+        previous_reset_at = user.stats_reset_at
+        reset_at = timezone.now()
+        user.stats_reset_at = reset_at
+        user.stats_reset_by_id = actor_user_id
+        user.stats_reset_note = normalized_comment
+        user.save(
+            update_fields=[
+                "stats_reset_at",
+                "stats_reset_by",
+                "stats_reset_note",
+                "updated_at",
+            ]
+        )
+
+        history_event = UserLevelHistoryEvent.objects.create(
+            user_id=user.id,
+            actor_id=actor_user_id,
+            weekly_evaluation=None,
+            source=UserLevelHistorySource.MANUAL_OVERRIDE,
+            status="stats_reset",
+            previous_level=previous_level,
+            new_level=previous_level,
+            warning_active_before=warning_before,
+            warning_active_after=False,
+            week_start=None,
+            week_end=None,
+            reference=f"stats_reset:{user.id}:{uuid4().hex}",
+            note=normalized_comment,
+            payload={
+                "actor_user_id": int(actor_user_id),
+                "previous_stats_reset_at": (
+                    previous_reset_at.isoformat() if previous_reset_at else None
+                ),
+                "stats_reset_at": reset_at.isoformat(),
+            },
+        )
+
+        UserNotificationService.notify_user_stats_reset(
+            target_user_id=user.id,
+            actor_user_id=actor_user_id,
+            comment=normalized_comment,
+        )
+
+        return {
+            "user_id": int(user.id),
+            "display_name": ProgressionService._display_name_for_user(user),
+            "username": user.username,
+            "previous_level": previous_level,
+            "new_level": previous_level,
+            "warning_active_before": warning_before,
+            "warning_active_after": False,
+            "previous_stats_reset_at": (
+                previous_reset_at.isoformat() if previous_reset_at else None
+            ),
+            "stats_reset_at": reset_at.isoformat(),
+            "stats_reset_note": normalized_comment,
+            "history_event_id": int(history_event.id),
+            "history_reference": history_event.reference,
+            "history_created_at": history_event.created_at.isoformat(),
+        }
 
 
 class ProgressionService:
@@ -250,6 +366,12 @@ class ProgressionService:
                 user_id__in=user_ids,
                 week_start__lt=week_start,
             )
+            .filter(
+                cls._after_user_stats_reset_filter(
+                    user_relation="user",
+                    timestamp_field="created_at",
+                )
+            )
             .order_by("user_id", "-week_start", "-id")
             .only("id", "user_id", "week_start", "payload")
         )
@@ -269,6 +391,12 @@ class ProgressionService:
         qs = UserLevelHistoryEvent.objects.select_related("actor").filter(
             user_id__in=user_ids
         )
+        qs = qs.filter(
+            cls._after_user_stats_reset_filter(
+                user_relation="user",
+                timestamp_field="created_at",
+            )
+        )
         if created_before is not None:
             qs = qs.filter(created_at__lt=created_before)
         rows = qs.order_by("user_id", "-created_at", "-id")
@@ -287,6 +415,12 @@ class ProgressionService:
         created_before: datetime | None = None,
     ) -> UserLevelHistoryEvent | None:
         qs = UserLevelHistoryEvent.objects.select_related("actor").filter(user_id=user_id)
+        qs = qs.filter(
+            cls._after_user_stats_reset_filter(
+                user_relation="user",
+                timestamp_field="created_at",
+            )
+        )
         if created_before is not None:
             qs = qs.filter(created_at__lt=created_before)
         return qs.order_by("-created_at", "-id").first()
@@ -309,6 +443,17 @@ class ProgressionService:
         )
         return sorted(xp_user_ids | technician_user_ids)
 
+    @staticmethod
+    def _after_user_stats_reset_filter(
+        *,
+        user_relation: str,
+        timestamp_field: str,
+    ) -> Q:
+        reset_lookup = f"{user_relation}__stats_reset_at"
+        return Q(**{f"{reset_lookup}__isnull": True}) | Q(
+            **{f"{timestamp_field}__gte": F(reset_lookup)}
+        )
+
     @classmethod
     def _xp_aggregates(
         cls,
@@ -324,6 +469,12 @@ class ProgressionService:
                 user_id__in=user_ids,
                 created_at__lt=period_end_exclusive_dt,
             )
+            .filter(
+                cls._after_user_stats_reset_filter(
+                    user_relation="user",
+                    timestamp_field="created_at",
+                )
+            )
             .values("user_id")
             .annotate(total=Coalesce(Sum("amount"), 0))
         )
@@ -332,6 +483,12 @@ class ProgressionService:
                 user_id__in=user_ids,
                 created_at__gte=period_start_inclusive_dt,
                 created_at__lt=period_end_exclusive_dt,
+            )
+            .filter(
+                cls._after_user_stats_reset_filter(
+                    user_relation="user",
+                    timestamp_field="created_at",
+                )
             )
             .values("user_id")
             .annotate(total=Coalesce(Sum("amount"), 0))
@@ -433,7 +590,14 @@ class ProgressionService:
                 roles__deleted_at__isnull=True,
             )
             .distinct()
-            .only("id", "first_name", "last_name", "username", "level")
+            .only(
+                "id",
+                "first_name",
+                "last_name",
+                "username",
+                "level",
+                "stats_reset_at",
+            )
             .order_by("first_name", "last_name", "username", "id")
         )
         user_ids = [user.id for user in users]
@@ -452,6 +616,12 @@ class ProgressionService:
             .filter(
                 user_id__in=user_ids,
                 week_end__lte=resolved_date_to,
+            )
+            .filter(
+                cls._after_user_stats_reset_filter(
+                    user_relation="user",
+                    timestamp_field="created_at",
+                )
             )
             .order_by("user_id", "-week_end", "-id")
         )
@@ -601,6 +771,7 @@ class ProgressionService:
             "username",
             "level",
             "is_active",
+            "stats_reset_at",
         ).first()
         if not user:
             raise ValueError("User was not found.")
@@ -619,7 +790,12 @@ class ProgressionService:
                 _,
             ) = cls._date_range_bounds(date_from=date_from, date_to=date_to)
 
-        xp_qs = XPTransaction.objects.filter(user_id=user.id).order_by("-created_at", "-id")
+        xp_qs = XPTransaction.objects.filter(user_id=user.id).filter(
+            cls._after_user_stats_reset_filter(
+                user_relation="user",
+                timestamp_field="created_at",
+            )
+        ).order_by("-created_at", "-id")
         if range_start_dt is not None and range_end_exclusive_dt is not None:
             xp_qs = xp_qs.filter(
                 created_at__gte=range_start_dt,
@@ -629,6 +805,11 @@ class ProgressionService:
 
         eval_qs = WeeklyLevelEvaluation.objects.select_related("evaluated_by").filter(
             user_id=user.id
+        ).filter(
+            cls._after_user_stats_reset_filter(
+                user_relation="user",
+                timestamp_field="created_at",
+            )
         ).order_by("-week_start", "-id")
         if resolved_date_from is not None and resolved_date_to is not None:
             eval_qs = eval_qs.filter(
@@ -639,6 +820,11 @@ class ProgressionService:
 
         history_qs = UserLevelHistoryEvent.objects.select_related("actor").filter(
             user_id=user.id
+        ).filter(
+            cls._after_user_stats_reset_filter(
+                user_relation="user",
+                timestamp_field="created_at",
+            )
         ).order_by("-created_at", "-id")
         if range_start_dt is not None and range_end_exclusive_dt is not None:
             history_qs = history_qs.filter(
@@ -652,6 +838,12 @@ class ProgressionService:
         if latest_history_event is None:
             latest_evaluation = (
                 WeeklyLevelEvaluation.objects.filter(user_id=user.id)
+                .filter(
+                    cls._after_user_stats_reset_filter(
+                        user_relation="user",
+                        timestamp_field="created_at",
+                    )
+                )
                 .order_by("-week_start", "-id")
                 .first()
             )

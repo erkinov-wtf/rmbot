@@ -37,6 +37,17 @@ class XPAdjustmentSerializer(serializers.Serializer):
         return normalized
 
 
+class XPStatsResetSerializer(serializers.Serializer):
+    user_id = serializers.IntegerField(min_value=1)
+    comment = serializers.CharField(max_length=500)
+
+    def validate_comment(self, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise serializers.ValidationError("comment is required.")
+        return normalized
+
+
 class WeeklyEvaluationRunSerializer(serializers.Serializer):
     week_start = serializers.DateField(required=False)
 

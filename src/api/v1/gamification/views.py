@@ -12,6 +12,7 @@ from api.v1.gamification.serializers import (
     LevelManualSetSerializer,
     WeeklyEvaluationRunSerializer,
     XPAdjustmentSerializer,
+    XPStatsResetSerializer,
     XPTransactionSerializer,
 )
 from core.api.permissions import HasRole
@@ -78,6 +79,31 @@ class XPAdjustmentCreateAPIView(BaseAPIView):
 
         output = XPTransactionSerializer(entry).data
         return Response(output, status=status.HTTP_201_CREATED)
+
+
+@extend_schema(
+    tags=["XP Transactions"],
+    summary="Reset collected stats for one user",
+    description=(
+        "Marks a new stats baseline for a user. Historical rows are kept, but "
+        "XP and minutes-based performance aggregates before the reset stop "
+        "counting in progression and leaderboard totals."
+    ),
+)
+class XPStatsResetAPIView(BaseAPIView):
+    permission_classes = (IsAuthenticated, XPAdjustmentPermission)
+    serializer_class = XPStatsResetSerializer
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        payload = GamificationService.reset_user_stats(
+            actor_user_id=request.user.id,
+            target_user_id=serializer.validated_data["user_id"],
+            comment=serializer.validated_data["comment"],
+        )
+        return Response(payload, status=status.HTTP_200_OK)
 
 
 @extend_schema(

@@ -155,6 +155,35 @@ class InventoryCategoryService:
         category.delete()
 
 
+class InventoryDeleteService:
+    @classmethod
+    @transaction.atomic
+    def delete_inventory_with_related_items(
+        cls, *, inventory: Inventory
+    ) -> dict[str, int]:
+        linked_items = (
+            InventoryItem.domain.get_queryset()
+            .filter(inventory_id=inventory.id)
+            .order_by("id")
+        )
+
+        deleted_item_count = 0
+        deleted_ticket_count = 0
+        for item in linked_items.iterator(chunk_size=200):
+            summary = InventoryItemDeleteService.delete_item_with_related_tickets(
+                item=item
+            )
+            deleted_item_count += 1
+            deleted_ticket_count += summary["deleted_ticket_count"]
+
+        inventory.delete()
+
+        return {
+            "deleted_item_count": deleted_item_count,
+            "deleted_ticket_count": deleted_ticket_count,
+        }
+
+
 class InventoryItemDeleteService:
     @classmethod
     @transaction.atomic
@@ -169,6 +198,7 @@ class InventoryItemDeleteService:
         are not touched by this flow.
         """
         from ticket.models import Ticket
+        from ticket.services_delete import TicketDeleteService
 
         linked_tickets = (
             Ticket.domain.get_queryset()
@@ -176,13 +206,10 @@ class InventoryItemDeleteService:
             .order_by("id")
         )
 
-        deleted_ticket_count = 0
-        for ticket in linked_tickets.iterator(chunk_size=200):
-            ticket.delete()
-            deleted_ticket_count += 1
+        summary = TicketDeleteService.delete_queryset(queryset=linked_tickets)
 
         item.delete()
 
         return {
-            "deleted_ticket_count": deleted_ticket_count,
+            "deleted_ticket_count": summary["deleted_ticket_count"],
         }

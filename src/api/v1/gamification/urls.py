@@ -6,6 +6,7 @@ from api.v1.gamification.views import (
     LevelControlUserHistoryAPIView,
     WeeklyLevelEvaluationRunAPIView,
     XPAdjustmentCreateAPIView,
+    XPStatsResetAPIView,
     XPTransactionListAPIView,
 )
 
@@ -21,6 +22,11 @@ urlpatterns = [
         "adjustments/",
         XPAdjustmentCreateAPIView.as_view(),
         name="xp-adjustment-create",
+    ),
+    path(
+        "reset-stats/",
+        XPStatsResetAPIView.as_view(),
+        name="xp-stats-reset",
     ),
     path(
         "levels/overview/",

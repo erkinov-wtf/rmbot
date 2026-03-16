@@ -19,7 +19,7 @@ from inventory.models import (
     InventoryItemCategory,
     InventoryItemPart,
 )
-from inventory.services import InventoryItemDeleteService
+from inventory.services import InventoryDeleteService, InventoryItemDeleteService
 from ticket.models import Ticket, TicketPartSpec, WorkSession
 
 
@@ -116,3 +116,60 @@ def test_delete_item_without_tickets_deletes_item():
     assert summary["deleted_ticket_count"] == 0
     item.refresh_from_db()
     assert item.deleted_at is not None
+
+
+@pytest.mark.django_db
+def test_delete_inventory_with_related_items_soft_deletes_item_and_ticket_tree():
+    suffix = uuid.uuid4().hex[:8]
+    inventory = Inventory.objects.create(name=f"Inventory-{suffix}")
+    category = InventoryItemCategory.objects.create(name=f"Category-{suffix}")
+    item = InventoryItem.objects.create(
+        inventory=inventory,
+        category=category,
+        name=f"Item-{suffix}",
+        serial_number=f"RM-INV-{suffix.upper()}",
+    )
+    master = User.objects.create_user(
+        username=f"master_inventory_{suffix}",
+        password="pass1234",
+        first_name="Master",
+        is_active=True,
+    )
+    technician = User.objects.create_user(
+        username=f"tech_inventory_{suffix}",
+        password="pass1234",
+        first_name="Tech",
+        is_active=True,
+    )
+    part = InventoryItemPart.objects.create(
+        category=category,
+        name=f"Part-{uuid.uuid4().hex[:6]}",
+    )
+    ticket = Ticket.objects.create(
+        inventory_item=item,
+        master=master,
+        technician=technician,
+        status=TicketStatus.NEW,
+    )
+    part_spec = TicketPartSpec.objects.create(
+        ticket=ticket,
+        inventory_item_part=part,
+        color=TicketColor.GREEN,
+        minutes=15,
+    )
+
+    summary = InventoryDeleteService.delete_inventory_with_related_items(
+        inventory=inventory
+    )
+
+    assert summary == {"deleted_item_count": 1, "deleted_ticket_count": 1}
+
+    inventory.refresh_from_db()
+    item.refresh_from_db()
+    ticket.refresh_from_db()
+    part_spec.refresh_from_db()
+
+    assert inventory.deleted_at is not None
+    assert item.deleted_at is not None
+    assert ticket.deleted_at is not None
+    assert part_spec.deleted_at is not None

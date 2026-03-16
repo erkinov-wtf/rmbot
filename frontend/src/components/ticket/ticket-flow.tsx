@@ -19,6 +19,7 @@ import {
   claimTicket,
   completeTicketParts,
   createTicket,
+  deleteTicketsMatchingQuery,
   deleteTicket,
   getTicket,
   getInventoryItem,
@@ -43,6 +44,7 @@ import {
   type InventoryPart,
   type PaginationMeta,
   type TicketPartCompletionEvent,
+  type TicketListQuery,
   type TechnicianOption,
   type Ticket as TicketModel,
   type TicketColor,
@@ -634,6 +636,7 @@ export function TicketFlow({
   const [deleteTransitions, setDeleteTransitions] = useState<TicketTransition[]>([]);
   const [isLoadingDeleteTransitions, setIsLoadingDeleteTransitions] = useState(false);
   const [deleteItem, setDeleteItem] = useState<InventoryItem | null>(null);
+  const [isDeletingAllTickets, setIsDeletingAllTickets] = useState(false);
 
   const [inventoryCache, setInventoryCache] = useState<Record<number, InventoryItem>>(
     {},
@@ -903,6 +906,21 @@ export function TicketFlow({
     () => deleteTickets.find((ticket) => ticket.id === selectedDeleteTicketId) ?? null,
     [deleteTickets, selectedDeleteTicketId],
   );
+
+  const deleteTicketQuery = useMemo<Omit<TicketListQuery, "page" | "per_page">>(() => {
+    const search = deleteSearch.trim();
+    const parsedAssigneeFilter = Number.parseInt(deleteAssigneeFilter, 10);
+    const assigneeFilterId =
+      Number.isInteger(parsedAssigneeFilter) && parsedAssigneeFilter > 0
+        ? parsedAssigneeFilter
+        : undefined;
+
+    return {
+      q: search.length >= 2 ? search : undefined,
+      status: deleteStatusFilter === "all" ? undefined : deleteStatusFilter,
+      technician: assigneeFilterId,
+    };
+  }, [deleteAssigneeFilter, deleteSearch, deleteStatusFilter]);
 
   const navigate = useCallback((nextRoute: TicketRoute) => {
     if (syncRouteWithUrl) {
@@ -1266,18 +1284,10 @@ export function TicketFlow({
   const loadDeleteTickets = useCallback(async () => {
     setIsLoadingDeleteTickets(true);
     try {
-      const search = deleteSearch.trim();
-      const parsedAssigneeFilter = Number.parseInt(deleteAssigneeFilter, 10);
-      const assigneeFilterId =
-        Number.isInteger(parsedAssigneeFilter) && parsedAssigneeFilter > 0
-          ? parsedAssigneeFilter
-          : undefined;
       const paginated = await listTicketsPage(accessToken, {
         page: deletePage,
         per_page: deletePerPage,
-        q: search.length >= 2 ? search : undefined,
-        status: deleteStatusFilter === "all" ? undefined : deleteStatusFilter,
-        technician: assigneeFilterId,
+        ...deleteTicketQuery,
       });
       if (
         deletePage > paginated.pagination.page_count &&
@@ -1298,11 +1308,9 @@ export function TicketFlow({
     }
   }, [
     accessToken,
-    deleteAssigneeFilter,
     deletePage,
     deletePerPage,
-    deleteSearch,
-    deleteStatusFilter,
+    deleteTicketQuery,
     t,
   ]);
 
@@ -2097,6 +2105,48 @@ export function TicketFlow({
       }, t("Ticket deleted."));
     } catch {
       // feedback already set
+    }
+  };
+
+  const handleDeleteAllTickets = async () => {
+    const totalTickets = deletePagination.total_count;
+    if (totalTickets < 1) {
+      return;
+    }
+
+    const confirmDelete = window.confirm(
+      [
+        t("Delete all {{count}} tickets matching the current filters?", {
+          count: totalTickets,
+        }),
+        t("This will remove tickets, parts, transitions, and work/QC history."),
+        t("User accounts, attendance records, and XP history will be kept."),
+      ].join("\n\n"),
+    );
+    if (!confirmDelete) {
+      return;
+    }
+
+    setIsDeletingAllTickets(true);
+    try {
+      await runMutation(async () => {
+        setSelectedDeleteTicketId(null);
+        setDeleteTransitions([]);
+        setDeleteItem(null);
+
+        await deleteTicketsMatchingQuery(accessToken, deleteTicketQuery);
+
+        await Promise.all([
+          loadDeleteTickets(),
+          loadReviewTickets(),
+          loadWorkTickets(),
+          loadQcTickets(),
+        ]);
+      }, t("Matching tickets deleted."));
+    } catch {
+      // feedback already set
+    } finally {
+      setIsDeletingAllTickets(false);
     }
   };
 
@@ -4077,6 +4127,32 @@ export function TicketFlow({
           <p className="mt-2 text-xs text-amber-700">
             {t("Backend search starts at 2 characters.")}
           </p>
+        ) : null}
+
+        {deletePagination.total_count > 0 ? (
+          <div className="mt-3 flex flex-col gap-3 rounded-md border border-rose-200 bg-rose-50 p-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-rose-900">
+                {t("Delete all matching tickets")}
+              </p>
+              <p className="mt-1 text-xs text-rose-700">
+                {t("This will delete {{count}} tickets from the current delete queue.", {
+                  count: deletePagination.total_count,
+                })}
+              </p>
+            </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              className="text-rose-700"
+              onClick={() => void handleDeleteAllTickets()}
+              disabled={isMutating || isLoadingDeleteTickets || isLoadingTechnicians}
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              {isDeletingAllTickets ? t("Deleting All Tickets...") : t("Delete All Tickets")}
+            </Button>
+          </div>
         ) : null}
 
         {isLoadingDeleteTickets ? (

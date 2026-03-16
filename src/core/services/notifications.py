@@ -516,6 +516,38 @@ class UserNotificationService:
         )
 
     @classmethod
+    def notify_user_stats_reset(
+        cls,
+        *,
+        target_user_id: int,
+        actor_user_id: int | None,
+        comment: str,
+    ) -> None:
+        def message_builder(_: Translator) -> str:
+            return "\n".join(
+                [
+                    _("🧹 <b>Stats Reset Applied</b>"),
+                    _(
+                        "📊 <b>What changed:</b> XP and collected performance stats now start from zero."
+                    ),
+                    _("👤 <b>By:</b> %(value)s")
+                    % {
+                        "value": cls._safe_text(
+                            cls._display_name_by_user_id(actor_user_id, _=_)
+                        )
+                    },
+                    _("💬 <b>Comment:</b> %(value)s")
+                    % {"value": cls._safe_text(comment or "-")},
+                ]
+            )
+
+        cls._notify_users(
+            event_key="user_stats_reset",
+            user_ids=[target_user_id],
+            message=message_builder,
+        )
+
+    @classmethod
     def _notify_users(
         cls,
         *,

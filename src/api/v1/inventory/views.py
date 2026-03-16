@@ -27,7 +27,11 @@ from inventory.models import (
     InventoryItemCategory,
     InventoryItemPart,
 )
-from inventory.services import InventoryCategoryService, InventoryItemDeleteService
+from inventory.services import (
+    InventoryCategoryService,
+    InventoryDeleteService,
+    InventoryItemDeleteService,
+)
 from inventory.services_import_export import (
     XLSX_CONTENT_TYPE,
     InventoryImportExportService,
@@ -78,6 +82,11 @@ class InventoryItemViewSet(InventoryManageMixin, BaseModelViewSet):
 class InventoryViewSet(InventoryManageMixin, BaseModelViewSet):
     serializer_class = InventorySerializer
     queryset = Inventory.domain.get_queryset().order_by("name", "id")
+
+    def destroy(self, request, *args, **kwargs):
+        inventory = self.get_object()
+        InventoryDeleteService.delete_inventory_with_related_items(inventory=inventory)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 @extend_schema(

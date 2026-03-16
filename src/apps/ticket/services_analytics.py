@@ -4,7 +4,7 @@ from collections import defaultdict
 from datetime import date, timedelta
 from zoneinfo import ZoneInfo
 
-from django.db.models import Count, Sum
+from django.db.models import Count, F, Q, Sum
 from django.utils import timezone
 
 from account.models import User
@@ -38,6 +38,17 @@ class TicketAnalyticsService:
         "rework_done_penalty": 25,
         "qc_fail_event_penalty": 12,
     }
+
+    @staticmethod
+    def _after_user_stats_reset_filter(
+        *,
+        user_relation: str,
+        timestamp_field: str,
+    ) -> Q:
+        reset_lookup = f"{user_relation}__stats_reset_at"
+        return Q(**{f"{reset_lookup}__isnull": True}) | Q(
+            **{f"{timestamp_field}__gte": F(reset_lookup)}
+        )
 
     @classmethod
     def fleet_summary(cls) -> dict[str, object]:
@@ -181,6 +192,11 @@ class TicketAnalyticsService:
             status=TicketStatus.DONE,
             finished_at__date__gte=start_date,
             finished_at__date__lte=end_date,
+        ).filter(
+            cls._after_user_stats_reset_filter(
+                user_relation="technician",
+                timestamp_field="finished_at",
+            )
         )
         done_counts = dict(
             tickets_done_qs.values("technician_id")
@@ -216,6 +232,12 @@ class TicketAnalyticsService:
                 created_at__date__gte=start_date,
                 created_at__date__lte=end_date,
             )
+            .filter(
+                cls._after_user_stats_reset_filter(
+                    user_relation="user",
+                    timestamp_field="created_at",
+                )
+            )
             .values("user_id")
             .annotate(total=Sum("amount"))
             .values_list("user_id", "total")
@@ -226,6 +248,12 @@ class TicketAnalyticsService:
                 work_date__gte=start_date,
                 work_date__lte=end_date,
                 check_in_at__isnull=False,
+            )
+            .filter(
+                cls._after_user_stats_reset_filter(
+                    user_relation="user",
+                    timestamp_field="check_in_at",
+                )
             )
             .values("user_id")
             .annotate(total=Count("id"))
@@ -404,6 +432,12 @@ class TicketAnalyticsService:
 
         status_counts_raw = dict(
             Ticket.domain.filter(technician_id=user_id)
+            .filter(
+                cls._after_user_stats_reset_filter(
+                    user_relation="technician",
+                    timestamp_field="created_at",
+                )
+            )
             .values("status")
             .annotate(total=Count("id"))
             .values_list("status", "total")
@@ -436,6 +470,12 @@ class TicketAnalyticsService:
                     TicketTransitionAction.QC_FAIL,
                 ],
             )
+            .filter(
+                cls._after_user_stats_reset_filter(
+                    user_relation="ticket__technician",
+                    timestamp_field="created_at",
+                )
+            )
             .values("action")
             .annotate(total=Count("id"))
             .values_list("action", "total")
@@ -449,6 +489,12 @@ class TicketAnalyticsService:
 
         xp_breakdown_rows = list(
             XPTransaction.objects.filter(user_id=user_id)
+            .filter(
+                cls._after_user_stats_reset_filter(
+                    user_relation="user",
+                    timestamp_field="created_at",
+                )
+            )
             .values("entry_type")
             .annotate(
                 total_amount=Sum("amount"),
@@ -466,6 +512,12 @@ class TicketAnalyticsService:
         ]
         recent_xp_rows = list(
             XPTransaction.objects.filter(user_id=user_id)
+            .filter(
+                cls._after_user_stats_reset_filter(
+                    user_relation="user",
+                    timestamp_field="created_at",
+                )
+            )
             .order_by("-created_at", "-id")
             .values(
                 "id",
@@ -495,6 +547,12 @@ class TicketAnalyticsService:
                 user_id=user_id,
                 check_in_at__isnull=False,
             )
+            .filter(
+                cls._after_user_stats_reset_filter(
+                    user_relation="user",
+                    timestamp_field="check_in_at",
+                )
+            )
             .values("work_date", "check_in_at", "check_out_at")
             .order_by("-work_date")[:366]
         )
@@ -518,6 +576,12 @@ class TicketAnalyticsService:
 
         recent_done_ticket_rows = list(
             Ticket.domain.filter(technician_id=user_id, status=TicketStatus.DONE)
+            .filter(
+                cls._after_user_stats_reset_filter(
+                    user_relation="technician",
+                    timestamp_field="finished_at",
+                )
+            )
             .order_by("-finished_at", "-id")
             .values(
                 "id",
@@ -679,6 +743,11 @@ class TicketAnalyticsService:
         done_ticket_qs = Ticket.domain.filter(
             technician_id__in=technician_ids,
             status=TicketStatus.DONE,
+        ).filter(
+            cls._after_user_stats_reset_filter(
+                user_relation="technician",
+                timestamp_field="finished_at",
+            )
         )
         if has_window:
             done_ticket_qs = done_ticket_qs.filter(
@@ -735,6 +804,11 @@ class TicketAnalyticsService:
         qc_fail_event_qs = TicketTransition.objects.filter(
             ticket__technician_id__in=technician_ids,
             action=TicketTransitionAction.QC_FAIL,
+        ).filter(
+            cls._after_user_stats_reset_filter(
+                user_relation="ticket__technician",
+                timestamp_field="created_at",
+            )
         )
         if has_window:
             qc_fail_event_qs = qc_fail_event_qs.filter(
@@ -748,7 +822,12 @@ class TicketAnalyticsService:
             .values_list("ticket__technician_id", "total")
         )
 
-        xp_qs = XPTransaction.objects.filter(user_id__in=technician_ids)
+        xp_qs = XPTransaction.objects.filter(user_id__in=technician_ids).filter(
+            cls._after_user_stats_reset_filter(
+                user_relation="user",
+                timestamp_field="created_at",
+            )
+        )
         if has_window:
             xp_qs = xp_qs.filter(
                 created_at__date__gte=start_date,
@@ -763,6 +842,11 @@ class TicketAnalyticsService:
         attendance_qs = AttendanceRecord.domain.filter(
             user_id__in=technician_ids,
             check_in_at__isnull=False,
+        ).filter(
+            cls._after_user_stats_reset_filter(
+                user_relation="user",
+                timestamp_field="check_in_at",
+            )
         )
         if has_window:
             attendance_qs = attendance_qs.filter(

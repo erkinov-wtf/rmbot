@@ -34,6 +34,15 @@ class User(AbstractBaseUser, TimestampedModel, SoftDeleteModel):
     level = models.PositiveSmallIntegerField(
         choices=EmployeeLevel, default=EmployeeLevel.L1, db_index=True
     )
+    stats_reset_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    stats_reset_by = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    stats_reset_note = models.CharField(max_length=500, blank=True, default="")
 
     roles = models.ManyToManyField(
         Role, through="UserRole", related_name="users", blank=True

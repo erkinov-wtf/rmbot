@@ -12,7 +12,11 @@ from api.v1.ticket.views import (
 app_name = "ticket"
 
 urlpatterns = [
-    path("", TicketViewSet.as_view({"get": "list"}), name="ticket-list"),
+    path(
+        "",
+        TicketViewSet.as_view({"get": "list", "delete": "bulk_destroy"}),
+        name="ticket-list",
+    ),
     path("create/", TicketViewSet.as_view({"post": "create"}), name="ticket-create"),
     path(
         "claimable/",

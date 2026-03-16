@@ -262,6 +262,22 @@ export type XpTransaction = {
   created_at: string;
 };
 
+export type UserStatsResetResult = {
+  user_id: number;
+  display_name: string;
+  username: string;
+  previous_level: number;
+  new_level: number;
+  warning_active_before: boolean;
+  warning_active_after: boolean;
+  previous_stats_reset_at: string | null;
+  stats_reset_at: string;
+  stats_reset_note: string;
+  history_event_id: number;
+  history_reference: string;
+  history_created_at: string;
+};
+
 export type RulesConfig = {
   ticket_xp: {
     base_divisor: number;
@@ -1810,6 +1826,25 @@ export async function deleteTicket(
   });
 }
 
+export async function deleteTicketsMatchingQuery(
+  accessToken: string,
+  query: Omit<TicketListQuery, "page" | "per_page"> = {},
+): Promise<{ deletedCount: number }> {
+  const payload = await apiRequest<unknown>(
+    withQuery("tickets/", {
+      q: query.q,
+      status: query.status,
+      technician: query.technician,
+    }),
+    {
+      method: "DELETE",
+      accessToken,
+    },
+  );
+  const data = extractData<{ deleted_count?: number }>(payload);
+  return { deletedCount: Number(data.deleted_count ?? 0) };
+}
+
 export async function createTicket(
   accessToken: string,
   body: {
@@ -2228,6 +2263,21 @@ export async function adjustUserXp(
     body,
   });
   return extractData<XpTransaction>(payload);
+}
+
+export async function resetUserStats(
+  accessToken: string,
+  body: {
+    user_id: number;
+    comment: string;
+  },
+): Promise<UserStatsResetResult> {
+  const payload = await apiRequest<unknown>("xp/reset-stats/", {
+    method: "POST",
+    accessToken,
+    body,
+  });
+  return extractData<UserStatsResetResult>(payload);
 }
 
 export async function getRulesConfigState(

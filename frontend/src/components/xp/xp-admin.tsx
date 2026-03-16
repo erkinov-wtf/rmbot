@@ -1,10 +1,18 @@
-import { MinusCircle, PlusCircle, RefreshCcw, Search, Sparkles, UserRound } from "lucide-react";
+import {
+  MinusCircle,
+  PlusCircle,
+  RefreshCcw,
+  RotateCcw,
+  Search,
+  Sparkles,
+  UserRound,
+} from "lucide-react";
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { FeedbackToast } from "@/components/ui/feedback-toast";
 import { useI18n } from "@/i18n";
-import { adjustUserXp, listUserOptions, type UserOption } from "@/lib/api";
+import { adjustUserXp, listUserOptions, resetUserStats, type UserOption } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 type XpAdminProps = {
@@ -46,7 +54,9 @@ export function XpAdmin({
   const [comment, setComment] = useState("");
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isResettingStats, setIsResettingStats] = useState(false);
   const [feedback, setFeedback] = useState<FeedbackState>(null);
+  const isBusy = isSubmitting || isResettingStats;
 
   const selectedUser = useMemo(
     () => users.find((user) => user.id === selectedUserId) ?? null,
@@ -74,15 +84,15 @@ export function XpAdmin({
           }
           return nextUsers[0]?.id ?? null;
         });
-    } catch (error) {
-      setFeedback({
-        type: "error",
-        message: toErrorMessage(error, t("Failed to load users.")),
-      });
-    } finally {
-      setIsLoadingUsers(false);
-    }
-  },
+      } catch (error) {
+        setFeedback({
+          type: "error",
+          message: toErrorMessage(error, t("Failed to load users.")),
+        });
+      } finally {
+        setIsLoadingUsers(false);
+      }
+    },
     [accessToken, canManage, t],
   );
 
@@ -161,6 +171,73 @@ export function XpAdmin({
     }
   };
 
+  const handleResetStats = async () => {
+    if (!canManage) {
+      setFeedback({
+        type: "error",
+        message: t("Only admin roles can reset collected stats."),
+      });
+      return;
+    }
+
+    if (!selectedUser) {
+      setFeedback({
+        type: "error",
+        message: t("Select a user first."),
+      });
+      return;
+    }
+
+    const normalizedComment = comment.trim();
+    if (!normalizedComment) {
+      setFeedback({
+        type: "error",
+        message: t("Comment is required."),
+      });
+      return;
+    }
+
+    const confirmReset = window.confirm(
+      [
+        t("Reset collected stats for {{name}}?", {
+          name: selectedUser.display_name,
+        }),
+        t(
+          "XP totals and minutes-based performance stats before this moment will stop counting for this user.",
+        ),
+        t(
+          "Historical records are kept. This only resets future totals and leaderboards.",
+        ),
+      ].join("\n\n"),
+    );
+    if (!confirmReset) {
+      return;
+    }
+
+    setIsResettingStats(true);
+    setFeedback(null);
+    try {
+      await resetUserStats(accessToken, {
+        user_id: selectedUser.id,
+        comment: normalizedComment,
+      });
+      setFeedback({
+        type: "success",
+        message: t("Stats reset for {{name}}.", {
+          name: selectedUser.display_name,
+        }),
+      });
+      setComment("");
+    } catch (error) {
+      setFeedback({
+        type: "error",
+        message: toErrorMessage(error, t("Failed to reset stats.")),
+      });
+    } finally {
+      setIsResettingStats(false);
+    }
+  };
+
   return (
     <section className="rm-panel rm-animate-enter-delayed p-4 sm:p-5">
       <div
@@ -169,7 +246,9 @@ export function XpAdmin({
         <div>
           <h2 className="text-lg font-semibold text-slate-900">{t("XP Control")}</h2>
           <p className="mt-1 text-sm text-slate-600">
-            {t("Admin-only XP adjustments with required comment and Telegram notification.")}
+            {t(
+              "Admin-only XP adjustments and stat resets with required comment and Telegram notification.",
+            )}
           </p>
           {!canManage ? (
             <p className="mt-2 text-xs text-amber-700">
@@ -187,7 +266,7 @@ export function XpAdmin({
           onClick={() => {
             void loadUsers(activeQuery);
           }}
-          disabled={isLoadingUsers || isSubmitting || !canManage}
+          disabled={isLoadingUsers || isBusy || !canManage}
         >
           <RefreshCcw className="mr-2 h-4 w-4" />
           {t("Refresh users")}
@@ -221,7 +300,7 @@ export function XpAdmin({
                   value={searchInput}
                   onChange={(event) => setSearchInput(event.target.value)}
                   placeholder={t("Name, username, phone")}
-                  disabled={isLoadingUsers || isSubmitting}
+                  disabled={isLoadingUsers || isBusy}
                 />
               </div>
             </div>
@@ -229,7 +308,7 @@ export function XpAdmin({
             <Button
               type="submit"
               className="h-10 self-end"
-              disabled={isLoadingUsers || isSubmitting}
+              disabled={isLoadingUsers || isBusy}
             >
               <Search className="mr-2 h-4 w-4" />
               {t("Search")}
@@ -253,7 +332,7 @@ export function XpAdmin({
                   const value = Number(rawValue);
                   setSelectedUserId(Number.isInteger(value) && value > 0 ? value : null);
                 }}
-                disabled={isLoadingUsers || isSubmitting || users.length === 0}
+                disabled={isLoadingUsers || isBusy || users.length === 0}
               >
                 {users.length === 0 ? (
                   <option value="">{t("No users found")}</option>
@@ -306,13 +385,13 @@ export function XpAdmin({
                       mode === "add" ? "rm-menu-btn-active" : "rm-menu-btn-idle",
                     )}
                     onClick={() => setMode("add")}
-                    disabled={isSubmitting}
-                    >
+                    disabled={isBusy}
+                  >
                       <span className="inline-flex items-center gap-1">
                         <PlusCircle className="h-4 w-4" />
                         {t("Add")}
                       </span>
-                    </button>
+                  </button>
                   <button
                     type="button"
                     className={cn(
@@ -320,15 +399,15 @@ export function XpAdmin({
                       mode === "remove" ? "rm-menu-btn-active" : "rm-menu-btn-idle",
                     )}
                     onClick={() => setMode("remove")}
-                    disabled={isSubmitting}
-                    >
+                    disabled={isBusy}
+                  >
                       <span className="inline-flex items-center gap-1">
                         <MinusCircle className="h-4 w-4" />
                         {t("Remove")}
                       </span>
-                    </button>
-                  </div>
+                  </button>
                 </div>
+              </div>
 
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
@@ -344,7 +423,7 @@ export function XpAdmin({
                     setAmountInput(event.target.value.replace(/[^0-9]/g, ""))
                   }
                   placeholder={t("Enter positive integer")}
-                  disabled={isSubmitting}
+                  disabled={isBusy}
                 />
               </div>
             </div>
@@ -357,8 +436,8 @@ export function XpAdmin({
                 className={cn(fieldClassName, "mt-1 min-h-[108px] resize-y py-2")}
                 value={comment}
                 onChange={(event) => setComment(event.target.value)}
-                placeholder={t("Reason for this XP change. This message is sent to Telegram.")}
-                disabled={isSubmitting}
+                placeholder={t("Reason for this action. This message is sent to Telegram.")}
+                disabled={isBusy}
               />
             </div>
 
@@ -366,10 +445,20 @@ export function XpAdmin({
               <Button
                 type="submit"
                 className="h-10"
-                disabled={isSubmitting || isLoadingUsers || users.length === 0}
+                disabled={isBusy || isLoadingUsers || users.length === 0}
               >
                 <Sparkles className="mr-2 h-4 w-4" />
                 {isSubmitting ? t("Saving...") : t("Apply XP change")}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-10 text-rose-700"
+                disabled={isBusy || isLoadingUsers || users.length === 0}
+                onClick={() => void handleResetStats()}
+              >
+                <RotateCcw className="mr-2 h-4 w-4" />
+                {isResettingStats ? t("Resetting stats...") : t("Reset collected stats")}
               </Button>
             </div>
           </form>
