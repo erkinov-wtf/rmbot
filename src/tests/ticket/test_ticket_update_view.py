@@ -32,7 +32,7 @@ def _user(*, username: str, role_slug: str) -> User:
 
 
 @pytest.mark.django_db
-def test_ticket_update_view_forbids_non_owner_technician():
+def test_ticket_update_view_allows_other_technician_for_open_ticket():
     suffix = uuid.uuid4().hex[:6]
     inventory = Inventory.objects.create(name=f"inv-view-{suffix}")
     category = InventoryItemCategory.objects.create(name=f"cat-view-{suffix}")
@@ -70,4 +70,8 @@ def test_ticket_update_view_forbids_non_owner_technician():
 
     response = TicketViewSet.as_view({"patch": "partial_update"})(request, pk=ticket.id)
 
-    assert response.status_code == 403
+    assert response.status_code == 200
+    assert response.data["title"] == "Intruder edit"
+
+    ticket.refresh_from_db()
+    assert ticket.title == "Intruder edit"

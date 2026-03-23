@@ -212,11 +212,7 @@ function distinctNumbers(values: number[]): number[] {
 }
 
 function ticketAllowsActiveEditing(ticket: Ticket): boolean {
-  return (
-    ticket.status === "under_review" ||
-    ticket.status === "new" ||
-    ticket.status === "assigned"
-  );
+  return ticket.status !== "done";
 }
 
 function formatDate(value: string | null | undefined): string {
@@ -814,14 +810,8 @@ export function MobileTicketFlow({
     if (!selectedCreateActiveTicket || !permissions.can_create) {
       return false;
     }
-    if (!ticketAllowsActiveEditing(selectedCreateActiveTicket)) {
-      return false;
-    }
-    return (
-      selectedCreateActiveTicket.master === currentUserId ||
-      selectedCreateActiveTicket.technician === currentUserId
-    );
-  }, [currentUserId, permissions.can_create, selectedCreateActiveTicket]);
+    return ticketAllowsActiveEditing(selectedCreateActiveTicket);
+  }, [permissions.can_create, selectedCreateActiveTicket]);
 
   useEffect(() => {
     if (!selectedCreateItem) {
@@ -1053,7 +1043,7 @@ export function MobileTicketFlow({
     if (selectedCreateActiveTicket && !canEditSelectedCreateTicket) {
       setFeedback({
         type: "error",
-        message: t("This active ticket can no longer be edited from intake."),
+        message: t("This ticket can no longer be edited because it is already closed."),
       });
       return;
     }
@@ -1501,7 +1491,7 @@ export function MobileTicketFlow({
                 </p>
                 {!canEditSelectedCreateTicket ? (
                   <p className="mt-2 text-xs text-amber-700">
-                    {t("This active ticket is read-only here because work has started or it belongs to another user.")}
+                    {t("This ticket is read-only here because it is already closed.")}
                   </p>
                 ) : null}
               </div>

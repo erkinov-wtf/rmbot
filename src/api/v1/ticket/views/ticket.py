@@ -121,7 +121,7 @@ class TicketViewSet(BaseModelViewSet):
         tags=["Tickets / Workflow"],
         summary="Update ticket",
         description=(
-            "Updates an existing editable ticket before work history exists. "
+            "Updates an existing ticket while it remains open. "
             "Supports title, total minutes, and active part selection changes."
         ),
     )

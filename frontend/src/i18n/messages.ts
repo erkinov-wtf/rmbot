@@ -290,6 +290,10 @@ const RU_MESSAGES: TranslationCatalog = {
     "Этот активный тикет больше нельзя редактировать из приема.",
   "This active ticket is read-only here because work has started or it belongs to another user.":
     "Этот активный тикет доступен здесь только для чтения, потому что работа уже началась или он принадлежит другому пользователю.",
+  "This ticket can no longer be edited because it is already closed.":
+    "Этот тикет больше нельзя редактировать, потому что он уже закрыт.",
+  "This ticket is read-only here because it is already closed.":
+    "Этот тикет доступен здесь только для чтения, потому что он уже закрыт.",
   "This will delete {{count}} tickets from the current delete queue.":
     "Будут удалены {{count}} тикетов из текущей очереди удаления.",
   "This will remove tickets, parts, transitions, and work/QC history.":
@@ -298,6 +302,8 @@ const RU_MESSAGES: TranslationCatalog = {
   "Edit Active Ticket": "Редактировать активный тикет",
   "Update the active ticket before work starts.":
     "Обновите активный тикет до начала работы.",
+  "Update the active ticket while it is still open.":
+    "Обновляйте активный тикет, пока он остается открытым.",
   "Current status": "Текущий статус",
   "Current flag": "Текущий флаг",
   "Flag Color": "Цвет флага",
@@ -771,6 +777,10 @@ const UZ_MESSAGES: TranslationCatalog = {
     "Bu faol arizani qabul oynasidan endi tahrirlab bo'lmaydi.",
   "This active ticket is read-only here because work has started or it belongs to another user.":
     "Bu faol ariza bu yerda faqat o'qish uchun, chunki ish allaqachon boshlangan yoki u boshqa foydalanuvchiga tegishli.",
+  "This ticket can no longer be edited because it is already closed.":
+    "Bu arizani endi tahrirlab bo'lmaydi, chunki u allaqachon yopilgan.",
+  "This ticket is read-only here because it is already closed.":
+    "Bu ariza bu yerda faqat o'qish uchun, chunki u allaqachon yopilgan.",
   "This will delete {{count}} tickets from the current delete queue.":
     "Joriy o'chirish navbatidan {{count}} ariza o'chiriladi.",
   "This will remove tickets, parts, transitions, and work/QC history.":
@@ -779,6 +789,8 @@ const UZ_MESSAGES: TranslationCatalog = {
   "Edit Active Ticket": "Faol arizani tahrirlash",
   "Update the active ticket before work starts.":
     "Ish boshlanishidan oldin faol arizani yangilang.",
+  "Update the active ticket while it is still open.":
+    "Faol arizani u hali ochiq bo'lganida yangilang.",
   "Current status": "Joriy holat",
   "Current flag": "Joriy flag",
   "Flag Color": "Flag rangi",

@@ -46,15 +46,7 @@ class TicketEditPermission(BasePermission):
             return False
         if user.is_superuser:
             return True
-
-        role_slugs = self._role_slugs(request)
-        if role_slugs & self.admin_roles:
-            return True
-
-        if RoleSlug.TECHNICIAN not in role_slugs:
-            return False
-
-        return obj.master_id == user.id or obj.technician_id == user.id
+        return bool(self._role_slugs(request) & self.allowed_roles)
 
 
 TicketAssignPermission = HasRole.as_any(

@@ -484,11 +484,7 @@ function ticketColorLabel(
 }
 
 function ticketAllowsActiveEditing(ticket: TicketModel): boolean {
-  return (
-    ticket.status === "under_review" ||
-    ticket.status === "new" ||
-    ticket.status === "assigned"
-  );
+  return ticket.status !== "done";
 }
 
 export function TicketFlow({
@@ -704,12 +700,6 @@ export function TicketFlow({
     () => new Map(TICKET_COLOR_OPTIONS.map((option) => [option, ticketColorLabel(option, t)])),
     [t],
   );
-  const roleSlugSet = useMemo(() => new Set(roleSlugs), [roleSlugs]);
-  const canEditAnyCreateTicket = useMemo(
-    () => roleSlugSet.has("master") || roleSlugSet.has("super_admin"),
-    [roleSlugSet],
-  );
-
   const technicianLabelById = useMemo(
     () =>
       new Map(
@@ -889,25 +879,11 @@ export function TicketFlow({
     [selectedItemActiveTicket, selectedItemTicketHistory],
   );
   const canEditSelectedItemActiveTicket = useMemo(() => {
-    if (!selectedItemActiveTicket || !canCreate || !currentUserId) {
+    if (!selectedItemActiveTicket || !canCreate) {
       return false;
     }
-    if (!ticketAllowsActiveEditing(selectedItemActiveTicket)) {
-      return false;
-    }
-    if (canEditAnyCreateTicket) {
-      return true;
-    }
-    return (
-      selectedItemActiveTicket.master === currentUserId ||
-      selectedItemActiveTicket.technician === currentUserId
-    );
-  }, [
-    canCreate,
-    canEditAnyCreateTicket,
-    currentUserId,
-    selectedItemActiveTicket,
-  ]);
+    return ticketAllowsActiveEditing(selectedItemActiveTicket);
+  }, [canCreate, selectedItemActiveTicket]);
 
   const selectedReviewTicket = useMemo(
     () => reviewTickets.find((ticket) => ticket.id === selectedReviewTicketId) ?? null,
@@ -1927,7 +1903,7 @@ export function TicketFlow({
     if (selectedItemActiveTicket && !canEditSelectedItemActiveTicket) {
       setFeedback({
         type: "error",
-        message: t("This active ticket can no longer be edited from intake."),
+        message: t("This ticket can no longer be edited because it is already closed."),
       });
       return;
     }
@@ -2634,7 +2610,7 @@ export function TicketFlow({
             </p>
             <p className="mt-1 text-xs text-slate-600">
               {selectedItemActiveTicket
-                ? t("Update the active ticket before work starts.")
+                ? t("Update the active ticket while it is still open.")
                 : t("Select at least one part.")}
             </p>
 
@@ -2787,7 +2763,7 @@ export function TicketFlow({
               ) : null}
               {selectedItemActiveTicket && !canEditSelectedItemActiveTicket ? (
                 <p className="text-xs text-amber-700">
-                  {t("This active ticket is read-only here because work has started or it belongs to another user.")}
+                  {t("This ticket is read-only here because it is already closed.")}
                 </p>
               ) : null}
 

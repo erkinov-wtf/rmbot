@@ -616,24 +616,6 @@ class TicketUpdateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {"status": "Closed tickets cannot be edited."}
             )
-        if ticket.work_sessions.filter(deleted_at__isnull=True).exists():
-            raise serializers.ValidationError(
-                {
-                    "ticket": (
-                        "Ticket can no longer be edited after work session history "
-                        "has started."
-                    )
-                }
-            )
-        if ticket.part_completions.exists():
-            raise serializers.ValidationError(
-                {
-                    "ticket": (
-                        "Ticket can no longer be edited after part completion "
-                        "history exists."
-                    )
-                }
-            )
 
     def validate_title(self, value: str | None) -> str | None:
         if value is None:
@@ -682,15 +664,6 @@ class TicketUpdateSerializer(serializers.ModelSerializer):
             for part_id in sorted(active_part_ids - requested_part_ids)
         ]
         for spec in removable_specs:
-            if spec.is_completed or spec.completion_history.exists():
-                raise serializers.ValidationError(
-                    {
-                        "part_specs": (
-                            f"Ticket part '{spec.inventory_item_part.name}' "
-                            "cannot be removed after work history exists."
-                        )
-                    }
-                )
             spec.delete()
 
         new_part_ids = sorted(requested_part_ids - active_part_ids)
