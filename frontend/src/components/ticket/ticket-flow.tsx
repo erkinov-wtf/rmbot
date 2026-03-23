@@ -3662,20 +3662,6 @@ export function TicketFlow({
                             </p>
                           ) : null}
                         </button>
-                        {canCreate ? (
-                          <button
-                            type="button"
-                            onClick={() => openTicketUpdate(ticket)}
-                            className={cn(
-                              "shrink-0 rounded-md border px-2.5 py-1 text-xs font-medium transition",
-                              selectedWorkTicketId === ticket.id
-                                ? "border-white/35 text-white hover:bg-white/10"
-                                : "border-slate-300 text-slate-700 hover:bg-slate-100",
-                            )}
-                          >
-                            {t("Update")}
-                          </button>
-                        ) : null}
                       </div>
                       <Button
                         type="button"
@@ -3747,20 +3733,6 @@ export function TicketFlow({
                             </p>
                           ) : null}
                         </button>
-                        {canCreate ? (
-                          <button
-                            type="button"
-                            onClick={() => openTicketUpdate(ticket)}
-                            className={cn(
-                              "shrink-0 rounded-md border px-2.5 py-1 text-xs font-medium transition",
-                              selectedWorkTicketId === ticket.id
-                                ? "border-white/35 text-white hover:bg-white/10"
-                                : "border-slate-300 text-slate-700 hover:bg-slate-100",
-                            )}
-                          >
-                            {t("Update")}
-                          </button>
-                        ) : null}
                       </div>
                     </div>
                   );
@@ -3793,19 +3765,30 @@ export function TicketFlow({
           {selectedWorkTicket ? (
             <div className="space-y-4">
               <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-lg font-semibold text-slate-900">
-                    {t("Ticket #{{id}}", { id: selectedWorkTicket.id })}
-                  </p>
-                  <span
-                    className={cn(
-                      "rounded-full border px-2 py-0.5 text-xs font-medium",
-                      ticketStatusBadgeClass(selectedWorkTicket.status),
-                    )}
-                  >
-                    {ticketStatusLabelByValue.get(selectedWorkTicket.status) ??
-                      selectedWorkTicket.status}
-                  </span>
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-lg font-semibold text-slate-900">
+                      {t("Ticket #{{id}}", { id: selectedWorkTicket.id })}
+                    </p>
+                    <span
+                      className={cn(
+                        "rounded-full border px-2 py-0.5 text-xs font-medium",
+                        ticketStatusBadgeClass(selectedWorkTicket.status),
+                      )}
+                    >
+                      {ticketStatusLabelByValue.get(selectedWorkTicket.status) ??
+                        selectedWorkTicket.status}
+                    </span>
+                  </div>
+                  {canCreate ? (
+                    <button
+                      type="button"
+                      onClick={() => openTicketUpdate(selectedWorkTicket)}
+                      className="shrink-0 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-100"
+                    >
+                      {t("Update")}
+                    </button>
+                  ) : null}
                 </div>
                 <p className="mt-1 text-xs text-slate-600">
                   {t("Item")}:{" "}

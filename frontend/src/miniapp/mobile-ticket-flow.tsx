@@ -2013,23 +2013,7 @@ export function MobileTicketFlow({
                             {title}
                           </p>
                         ) : null}
-                      </button>
-                      {permissions.can_create ? (
-                        <button
-                          type="button"
-                          onClick={() => openTicketUpdate(ticket)}
-                          className={cn(
-                            "shrink-0 rounded-lg border px-2.5 py-1 text-xs font-semibold transition",
-                            selected
-                              ? ticket.flag_color === "yellow"
-                                ? "border-black/20 text-slate-900 hover:bg-black/5"
-                                : "border-white/35 text-white hover:bg-white/10"
-                              : "border-slate-300 text-slate-700 hover:bg-slate-100",
-                          )}
-                        >
-                          {t("Update")}
-                        </button>
-                      ) : null}
+                    </button>
                     </div>
                   </div>
                 );
@@ -2053,18 +2037,29 @@ export function MobileTicketFlow({
                   ticketCardClass(selectedWorkTicket.flag_color, false),
                 )}
               >
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-semibold text-slate-900">
-                    {t("Ticket #{{id}}", { id: selectedWorkTicket.id })}
-                  </p>
-                  <span
-                    className={cn(
-                      "rounded-full border px-2 py-0.5 text-[11px] font-semibold",
-                      statusBadgeClass(selectedWorkTicket.status),
-                    )}
-                  >
-                    {statusLabel(selectedWorkTicket.status)}
-                  </span>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <p className="text-sm font-semibold text-slate-900">
+                      {t("Ticket #{{id}}", { id: selectedWorkTicket.id })}
+                    </p>
+                    <span
+                      className={cn(
+                        "rounded-full border px-2 py-0.5 text-[11px] font-semibold",
+                        statusBadgeClass(selectedWorkTicket.status),
+                      )}
+                    >
+                      {statusLabel(selectedWorkTicket.status)}
+                    </span>
+                  </div>
+                  {permissions.can_create ? (
+                    <button
+                      type="button"
+                      onClick={() => openTicketUpdate(selectedWorkTicket)}
+                      className="shrink-0 rounded-lg border border-slate-300 bg-white/80 px-2.5 py-1 text-xs font-semibold text-slate-700 transition hover:bg-white"
+                    >
+                      {t("Update")}
+                    </button>
+                  ) : null}
                 </div>
                 <p className="mt-1 text-xs text-slate-700">
                   {t("Serial")}:{" "}

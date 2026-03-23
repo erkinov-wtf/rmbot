@@ -271,7 +271,9 @@ const RU_MESSAGES: TranslationCatalog = {
   "Telegram initData is missing. Reopen mini app from bot.":
     "Отсутствует Telegram initData. Переоткройте mini app из бота.",
   "Telegram Mini App": "Telegram Mini App",
+  "Update": "Изменить",
   "Ticket #{{id}}": "Тикет #{{id}}",
+  "Active Ticket #{{id}}": "Активный тикет #{{id}}",
   "Ticket #{{id}} approved.": "Тикет #{{id}} одобрен.",
   "Ticket #{{id}} assigned.": "Тикет #{{id}} назначен.",
   "Ticket approved and assigned.": "Тикет одобрен и назначен.",
@@ -279,20 +281,41 @@ const RU_MESSAGES: TranslationCatalog = {
   "Ticket deleted.": "Тикет удален.",
   "Ticket Flow": "Поток тикетов",
   "Ticket created successfully.": "Тикет успешно создан.",
+  "Ticket updated.": "Тикет обновлен.",
+  "Ticket updated successfully.": "Тикет успешно обновлен.",
+  "Could not update ticket.": "Не удалось обновить тикет.",
   "This action will remove ticket, parts, transitions, and work/QC history.":
     "Это действие удалит тикет, части, переходы и историю работы/QC.",
+  "This active ticket can no longer be edited from intake.":
+    "Этот активный тикет больше нельзя редактировать из приема.",
+  "This active ticket is read-only here because work has started or it belongs to another user.":
+    "Этот активный тикет доступен здесь только для чтения, потому что работа уже началась или он принадлежит другому пользователю.",
   "This will delete {{count}} tickets from the current delete queue.":
     "Будут удалены {{count}} тикетов из текущей очереди удаления.",
   "This will remove tickets, parts, transitions, and work/QC history.":
     "Будут удалены тикеты, части, переходы и история работы/QC.",
   "Ticket Workspace": "Рабочая зона тикетов",
+  "Edit Active Ticket": "Редактировать активный тикет",
+  "Update the active ticket before work starts.":
+    "Обновите активный тикет до начала работы.",
+  "Current status": "Текущий статус",
+  "Current flag": "Текущий флаг",
+  "Flag Color": "Цвет флага",
+  "Save Ticket Changes": "Сохранить изменения тикета",
+  "Saving ticket...": "Сохранение тикета...",
   "Ticket title (optional)": "Название тикета (необязательно)",
+  "Ticket title": "Название тикета",
   Tickets: "Тикеты",
   "To continue": "Чтобы продолжить",
   "Top {{value}}%": "Топ {{value}}%",
   "Top Positive Factors": "Главные положительные факторы",
   "Top Negative Factors": "Главные отрицательные факторы",
+  "Total minutes": "Общее время",
   "Total XP": "Всего XP",
+  "Open Review Queue": "Открыть очередь проверки",
+  "Loading item ticket context...": "Загрузка контекста тикета для элемента...",
+  "Select an item to create a new repair ticket or update its active one.":
+    "Выберите элемент, чтобы создать новый ремонтный тикет или обновить его активный.",
   "Work started.": "Работа начата.",
   "Work paused.": "Работа поставлена на паузу.",
   "Work resumed.": "Работа продолжена.",
@@ -729,7 +752,9 @@ const UZ_MESSAGES: TranslationCatalog = {
   "Telegram initData is missing. Reopen mini app from bot.":
     "Telegram initData mavjud emas. Mini app'ni botdan qayta oching.",
   "Telegram Mini App": "Telegram Mini App",
+  "Update": "Yangilash",
   "Ticket #{{id}}": "Ariza #{{id}}",
+  "Active Ticket #{{id}}": "Faol ariza #{{id}}",
   "Ticket #{{id}} approved.": "Ariza #{{id}} tasdiqlandi.",
   "Ticket #{{id}} assigned.": "Ariza #{{id}} biriktirildi.",
   "Ticket approved and assigned.": "Ariza tasdiqlandi va biriktirildi.",
@@ -737,20 +762,41 @@ const UZ_MESSAGES: TranslationCatalog = {
   "Ticket deleted.": "Ariza o'chirildi.",
   "Ticket Flow": "Ariza oqimi",
   "Ticket created successfully.": "Ariza muvaffaqiyatli yaratildi.",
+  "Ticket updated.": "Ariza yangilandi.",
+  "Ticket updated successfully.": "Ariza muvaffaqiyatli yangilandi.",
+  "Could not update ticket.": "Arizani yangilab bo'lmadi.",
   "This action will remove ticket, parts, transitions, and work/QC history.":
     "Bu amal ariza, qismlar, o'tishlar va ish/QC tarixini o'chiradi.",
+  "This active ticket can no longer be edited from intake.":
+    "Bu faol arizani qabul oynasidan endi tahrirlab bo'lmaydi.",
+  "This active ticket is read-only here because work has started or it belongs to another user.":
+    "Bu faol ariza bu yerda faqat o'qish uchun, chunki ish allaqachon boshlangan yoki u boshqa foydalanuvchiga tegishli.",
   "This will delete {{count}} tickets from the current delete queue.":
     "Joriy o'chirish navbatidan {{count}} ariza o'chiriladi.",
   "This will remove tickets, parts, transitions, and work/QC history.":
     "Arizalar, qismlar, o'tishlar va ish/QC tarixi o'chiriladi.",
   "Ticket Workspace": "Ariza ish maydoni",
+  "Edit Active Ticket": "Faol arizani tahrirlash",
+  "Update the active ticket before work starts.":
+    "Ish boshlanishidan oldin faol arizani yangilang.",
+  "Current status": "Joriy holat",
+  "Current flag": "Joriy flag",
+  "Flag Color": "Flag rangi",
+  "Save Ticket Changes": "Ariza o'zgarishlarini saqlash",
+  "Saving ticket...": "Ariza saqlanmoqda...",
   "Ticket title (optional)": "Ariza nomi (ixtiyoriy)",
+  "Ticket title": "Ariza nomi",
   Tickets: "Arizalar",
   "To continue": "Davom etish uchun",
   "Top {{value}}%": "Top {{value}}%",
   "Top Positive Factors": "Asosiy ijobiy omillar",
   "Top Negative Factors": "Asosiy salbiy omillar",
+  "Total minutes": "Jami daqiqa",
   "Total XP": "Jami XP",
+  "Open Review Queue": "Ko'rib chiqish navbatini ochish",
+  "Loading item ticket context...": "Element arizasi konteksti yuklanmoqda...",
+  "Select an item to create a new repair ticket or update its active one.":
+    "Yangi ta'mirlash arizasini yaratish yoki uning faolini yangilash uchun elementni tanlang.",
   "Work started.": "Ish boshlandi.",
   "Work paused.": "Ish pauzaga qo'yildi.",
   "Work resumed.": "Ish davom ettirildi.",
