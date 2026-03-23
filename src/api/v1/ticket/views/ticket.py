@@ -4,8 +4,12 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from api.v1.ticket.permissions import TicketCreatePermission, TicketDeletePermission
-from api.v1.ticket.serializers import TicketSerializer
+from api.v1.ticket.permissions import (
+    TicketCreatePermission,
+    TicketDeletePermission,
+    TicketEditPermission,
+)
+from api.v1.ticket.serializers import TicketSerializer, TicketUpdateSerializer
 from core.api.schema import extend_schema
 from core.api.views import BaseModelViewSet
 from core.utils.constants import TicketStatus, TicketTransitionAction
@@ -29,6 +33,11 @@ class TicketViewSet(BaseModelViewSet):
         )
         .order_by("-created_at")
     )
+
+    def get_serializer_class(self):
+        if self.action in {"update", "partial_update"}:
+            return TicketUpdateSerializer
+        return super().get_serializer_class()
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -81,6 +90,8 @@ class TicketViewSet(BaseModelViewSet):
 
         if self.action == "create":
             permission_classes += [TicketCreatePermission]
+        if self.action in {"update", "partial_update"}:
+            permission_classes += [TicketEditPermission]
         if self.action in {"destroy", "bulk_destroy"}:
             permission_classes += [TicketDeletePermission]
 
@@ -105,6 +116,35 @@ class TicketViewSet(BaseModelViewSet):
     )
     def retrieve(self, request, *args, **kwargs):
         return super().retrieve(request, *args, **kwargs)
+
+    @extend_schema(
+        tags=["Tickets / Workflow"],
+        summary="Update ticket",
+        description=(
+            "Updates an existing editable ticket before work history exists. "
+            "Supports title, total minutes, and active part selection changes."
+        ),
+    )
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop("partial", False)
+        ticket = self.get_object()
+        serializer = self.get_serializer(
+            ticket,
+            data=request.data,
+            partial=partial,
+        )
+        serializer.is_valid(raise_exception=True)
+        updated_ticket = serializer.save()
+        refreshed_ticket = self.get_queryset().get(pk=updated_ticket.pk)
+        response_serializer = TicketSerializer(
+            refreshed_ticket,
+            context={"request": request},
+        )
+        return Response(response_serializer.data, status=status.HTTP_200_OK)
+
+    def partial_update(self, request, *args, **kwargs):
+        kwargs["partial"] = True
+        return self.update(request, *args, **kwargs)
 
     @extend_schema(
         tags=["Tickets / Workflow"],

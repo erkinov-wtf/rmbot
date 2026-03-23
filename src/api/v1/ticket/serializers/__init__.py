@@ -1,5 +1,5 @@
 from api.v1.ticket.serializers.sessions import WorkSessionSerializer
-from api.v1.ticket.serializers.ticket import TicketSerializer
+from api.v1.ticket.serializers.ticket import TicketSerializer, TicketUpdateSerializer
 from api.v1.ticket.serializers.transitions import (
     TicketPartCompletionSerializer,
     TicketTransitionSerializer,
@@ -20,6 +20,7 @@ __all__ = [
     "TicketManualMetricsSerializer",
     "TicketQCFailSerializer",
     "TicketSerializer",
+    "TicketUpdateSerializer",
     "TicketPartCompletionSerializer",
     "TicketTransitionSerializer",
     "WorkSessionSerializer",

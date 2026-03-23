@@ -39,6 +39,7 @@ import {
   reviewTicketManualMetrics,
   startTicketWork,
   stopTicketWorkSession,
+  updateTicket,
   type InventoryItem,
   type InventoryPart,
   type TechnicianOption,
@@ -210,6 +211,14 @@ function distinctNumbers(values: number[]): number[] {
   return [...new Set(values)];
 }
 
+function ticketAllowsActiveEditing(ticket: Ticket): boolean {
+  return (
+    ticket.status === "under_review" ||
+    ticket.status === "new" ||
+    ticket.status === "assigned"
+  );
+}
+
 function formatDate(value: string | null | undefined): string {
   if (!value) {
     return "-";
@@ -324,6 +333,10 @@ export function MobileTicketFlow({
   const [allParts, setAllParts] = useState<InventoryPart[]>([]);
   const [isLoadingParts, setIsLoadingParts] = useState(false);
   const [selectedCreateItemId, setSelectedCreateItemId] = useState<number | null>(null);
+  const [selectedCreateActiveTicket, setSelectedCreateActiveTicket] = useState<Ticket | null>(
+    null,
+  );
+  const [isLoadingSelectedCreateTicket, setIsLoadingSelectedCreateTicket] = useState(false);
   const [partDrafts, setPartDrafts] = useState<Record<number, PartDraft>>({});
   const [ticketTitle, setTicketTitle] = useState("");
   const [createTotalMinutes, setCreateTotalMinutes] = useState("");
@@ -639,6 +652,38 @@ export function MobileTicketFlow({
     }
   }, [accessToken, t]);
 
+  const refreshSelectedCreateTicket = useCallback(
+    async (item: InventoryItem | null) => {
+      if (!item) {
+        setSelectedCreateActiveTicket(null);
+        return;
+      }
+
+      setSelectedCreateActiveTicket(null);
+      setIsLoadingSelectedCreateTicket(true);
+      try {
+        const tickets = await listTickets(accessToken, {
+          q: item.serial_number,
+          per_page: SEARCH_RESULT_LIMIT,
+        });
+        const activeTicket =
+          tickets.find(
+            (ticket) => ticket.inventory_item === item.id && ticket.status !== "done",
+          ) ?? null;
+        setSelectedCreateActiveTicket(activeTicket);
+      } catch (error) {
+        setSelectedCreateActiveTicket(null);
+        setFeedback({
+          type: "error",
+          message: toErrorMessage(error, t("Could not load item ticket context.")),
+        });
+      } finally {
+        setIsLoadingSelectedCreateTicket(false);
+      }
+    },
+    [accessToken, t],
+  );
+
   const refreshTechnicians = useCallback(async () => {
     setIsLoadingTechnicians(true);
     try {
@@ -740,6 +785,10 @@ export function MobileTicketFlow({
     );
   }, [createItems, inventoryCache, selectedCreateItemId]);
 
+  useEffect(() => {
+    void refreshSelectedCreateTicket(selectedCreateItem);
+  }, [refreshSelectedCreateTicket, selectedCreateItem]);
+
   const selectedCreateParts = useMemo(() => {
     if (!selectedCreateItem) {
       return [];
@@ -761,28 +810,44 @@ export function MobileTicketFlow({
       })
       .sort((left, right) => left.name.localeCompare(right.name));
   }, [allParts, selectedCreateItem]);
+  const canEditSelectedCreateTicket = useMemo(() => {
+    if (!selectedCreateActiveTicket || !permissions.can_create) {
+      return false;
+    }
+    if (!ticketAllowsActiveEditing(selectedCreateActiveTicket)) {
+      return false;
+    }
+    return (
+      selectedCreateActiveTicket.master === currentUserId ||
+      selectedCreateActiveTicket.technician === currentUserId
+    );
+  }, [currentUserId, permissions.can_create, selectedCreateActiveTicket]);
 
   useEffect(() => {
     if (!selectedCreateItem) {
       setPartDrafts({});
       return;
     }
-    setPartDrafts((prev) => {
-      const next: Record<number, PartDraft> = {};
-      selectedCreateParts.forEach((part) => {
-        next[part.id] = prev[part.id] ?? {
-          selected: false,
-        };
-      });
-      return next;
+    const activePartIds = new Set(
+      selectedCreateActiveTicket?.ticket_parts.map((part) => part.part_id) ?? [],
+    );
+    const next: Record<number, PartDraft> = {};
+    selectedCreateParts.forEach((part) => {
+      next[part.id] = {
+        selected: activePartIds.has(part.id),
+      };
     });
-  }, [selectedCreateItem, selectedCreateParts]);
+    setPartDrafts(next);
+  }, [selectedCreateActiveTicket, selectedCreateItem, selectedCreateParts]);
 
   useEffect(() => {
-    setCreateTotalMinutes("");
-    setCreateFlagColor("green");
+    setTicketTitle(selectedCreateActiveTicket?.title ?? "");
+    setCreateTotalMinutes(
+      selectedCreateActiveTicket ? String(selectedCreateActiveTicket.total_duration) : "",
+    );
+    setCreateFlagColor(selectedCreateActiveTicket?.flag_color ?? "green");
     setCreateIntakeComment("");
-  }, [selectedCreateItemId]);
+  }, [selectedCreateActiveTicket, selectedCreateItemId]);
 
   const selectedPartsCount = useMemo(
     () =>
@@ -975,6 +1040,13 @@ export function MobileTicketFlow({
       });
       return;
     }
+    if (selectedCreateActiveTicket && !canEditSelectedCreateTicket) {
+      setFeedback({
+        type: "error",
+        message: t("This active ticket can no longer be edited from intake."),
+      });
+      return;
+    }
 
     const selectedPartSpecs = selectedCreateParts
       .filter((part) => partDrafts[part.id]?.selected)
@@ -1001,42 +1073,56 @@ export function MobileTicketFlow({
 
     setIsCreatingTicket(true);
     try {
-      await createTicket(accessToken, {
-        serial_number: selectedCreateItem.serial_number,
-        title: ticketTitle.trim() || undefined,
-        total_minutes: parsedTotalMinutes,
-        flag_color: createFlagColor,
-        intake_comment: createIntakeComment.trim() || undefined,
-        part_specs: selectedPartSpecs,
-      });
+      if (selectedCreateActiveTicket) {
+        await updateTicket(accessToken, selectedCreateActiveTicket.id, {
+          title: ticketTitle.trim() || null,
+          total_minutes: parsedTotalMinutes,
+          part_specs: selectedPartSpecs,
+        });
+      } else {
+        await createTicket(accessToken, {
+          serial_number: selectedCreateItem.serial_number,
+          title: ticketTitle.trim() || undefined,
+          total_minutes: parsedTotalMinutes,
+          flag_color: createFlagColor,
+          intake_comment: createIntakeComment.trim() || undefined,
+          part_specs: selectedPartSpecs,
+        });
+      }
+      await refreshSelectedCreateTicket(selectedCreateItem);
       setFeedback({
         type: "success",
-        message: t("Ticket created successfully."),
+        message: selectedCreateActiveTicket
+          ? t("Ticket updated successfully.")
+          : t("Ticket created successfully."),
       });
-      setSelectedCreateItemId(null);
-      setPartDrafts({});
-      setTicketTitle("");
-      setCreateTotalMinutes("");
-      setCreateFlagColor("green");
       setCreateIntakeComment("");
       void Promise.all([refreshReviewTickets(), refreshQcTickets(), refreshWorkQueues()]);
     } catch (error) {
       setFeedback({
         type: "error",
-        message: toErrorMessage(error, t("Could not create ticket.")),
+        message: toErrorMessage(
+          error,
+          selectedCreateActiveTicket
+            ? t("Could not update ticket.")
+            : t("Could not create ticket."),
+        ),
       });
     } finally {
       setIsCreatingTicket(false);
     }
   }, [
     accessToken,
+    canEditSelectedCreateTicket,
     createFlagColor,
     createIntakeComment,
     createTotalMinutes,
     partDrafts,
     refreshQcTickets,
     refreshReviewTickets,
+    refreshSelectedCreateTicket,
     refreshWorkQueues,
+    selectedCreateActiveTicket,
     selectedCreateItem,
     selectedCreateParts,
     ticketTitle,
@@ -1336,7 +1422,7 @@ export function MobileTicketFlow({
           </Button>
         </div>
         <p className="mt-2 text-xs text-slate-500">
-          {t("Select an item to create a new repair ticket.")}
+          {t("Select an item to create a new repair ticket or update its active one.")}
         </p>
 
         <div className="mt-3 max-h-[34svh] space-y-2 overflow-y-auto pr-1">
@@ -1384,10 +1470,37 @@ export function MobileTicketFlow({
               <p className="text-xs text-slate-600">{selectedCreateItem.name}</p>
             </div>
 
+            {selectedCreateActiveTicket ? (
+              <div className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold text-slate-900">
+                    {t("Active Ticket #{{id}}", { id: selectedCreateActiveTicket.id })}
+                  </p>
+                  <span
+                    className={cn(
+                      "rounded-full border px-2 py-0.5 text-[11px] font-semibold",
+                      statusBadgeClass(selectedCreateActiveTicket.status),
+                    )}
+                  >
+                    {statusLabel(selectedCreateActiveTicket.status)}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-slate-600">
+                  {t("Current flag")}: {colorLabel(selectedCreateActiveTicket.flag_color)}
+                </p>
+                {!canEditSelectedCreateTicket ? (
+                  <p className="mt-2 text-xs text-amber-700">
+                    {t("This active ticket is read-only here because work has started or it belongs to another user.")}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+
             <input
               value={ticketTitle}
               onChange={(event) => setTicketTitle(event.target.value)}
               className="rm-input h-11"
+              disabled={selectedCreateActiveTicket ? !canEditSelectedCreateTicket : false}
               placeholder={t("Ticket title (optional)")}
             />
 
@@ -1400,6 +1513,8 @@ export function MobileTicketFlow({
 
             {isLoadingParts ? (
               <p className="text-sm text-slate-600">{t("Loading parts...")}</p>
+            ) : isLoadingSelectedCreateTicket ? (
+              <p className="text-sm text-slate-600">{t("Loading item ticket context...")}</p>
             ) : selectedCreateParts.length ? (
               <div className="max-h-[44svh] space-y-2 overflow-y-auto pr-1">
                 {selectedCreateParts.map((part) => {
@@ -1421,6 +1536,7 @@ export function MobileTicketFlow({
                           onChange={(event) =>
                             updatePartDraft(part.id, { selected: event.target.checked })
                           }
+                          disabled={selectedCreateActiveTicket ? !canEditSelectedCreateTicket : false}
                           className="h-5 w-5 accent-slate-900"
                         />
                       </label>
@@ -1442,27 +1558,41 @@ export function MobileTicketFlow({
                 value={createTotalMinutes}
                 onChange={(event) => setCreateTotalMinutes(event.target.value)}
                 placeholder={t("Total minutes")}
+                disabled={selectedCreateActiveTicket ? !canEditSelectedCreateTicket : false}
               />
-              <select
-                className="rm-input h-10"
-                value={createFlagColor}
-                onChange={(event) =>
-                  setCreateFlagColor(event.target.value as TicketColor)
-                }
-              >
-                {(["green", "yellow", "red"] as TicketColor[]).map((color) => (
-                  <option key={`create-flag-${color}`} value={color}>
-                    {colorLabel(color)}
-                  </option>
-                ))}
-              </select>
+              {selectedCreateActiveTicket ? (
+                <div
+                  className={cn(
+                    "flex h-10 items-center rounded-lg border px-3 text-sm",
+                    colorPillClass(selectedCreateActiveTicket.flag_color),
+                  )}
+                >
+                  {colorLabel(selectedCreateActiveTicket.flag_color)}
+                </div>
+              ) : (
+                <select
+                  className="rm-input h-10"
+                  value={createFlagColor}
+                  onChange={(event) =>
+                    setCreateFlagColor(event.target.value as TicketColor)
+                  }
+                >
+                  {(["green", "yellow", "red"] as TicketColor[]).map((color) => (
+                    <option key={`create-flag-${color}`} value={color}>
+                      {colorLabel(color)}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
-            <textarea
-              className="rm-input min-h-[80px] resize-y py-2"
-              value={createIntakeComment}
-              onChange={(event) => setCreateIntakeComment(event.target.value)}
-              placeholder={t("Comment (optional)")}
-            />
+            {!selectedCreateActiveTicket ? (
+              <textarea
+                className="rm-input min-h-[80px] resize-y py-2"
+                value={createIntakeComment}
+                onChange={(event) => setCreateIntakeComment(event.target.value)}
+                placeholder={t("Comment (optional)")}
+              />
+            ) : null}
 
             <Button
               type="button"
@@ -1470,6 +1600,8 @@ export function MobileTicketFlow({
               disabled={
                 isCreatingTicket ||
                 isLoadingParts ||
+                isLoadingSelectedCreateTicket ||
+                (selectedCreateActiveTicket && !canEditSelectedCreateTicket) ||
                 !selectedCreateItem ||
                 !selectedCreateParts.length ||
                 !Number.isInteger(Number.parseInt(createTotalMinutes, 10)) ||
@@ -1480,10 +1612,10 @@ export function MobileTicketFlow({
               {isCreatingTicket ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {t("Creating ticket...")}
+                  {selectedCreateActiveTicket ? t("Saving ticket...") : t("Creating ticket...")}
                 </>
               ) : (
-                t("Create Ticket")
+                selectedCreateActiveTicket ? t("Save Ticket Changes") : t("Create Ticket")
               )}
             </Button>
           </div>
@@ -1916,6 +2048,11 @@ export function MobileTicketFlow({
                   {inventoryCache[selectedWorkTicket.inventory_item]?.serial_number ??
                     t("Item #{{id}}", { id: selectedWorkTicket.inventory_item })}
                 </p>
+                {selectedWorkTicket.title ? (
+                  <p className="mt-1 text-sm font-semibold text-slate-900">
+                    {selectedWorkTicket.title}
+                  </p>
+                ) : null}
                 <p className="mt-1 text-xs text-slate-700">
                   {t("Priority")}: {colorLabel(selectedWorkTicket.flag_color)}
                 </p>
@@ -2237,6 +2374,11 @@ export function MobileTicketFlow({
                 {inventoryCache[selectedQcTicket.inventory_item]?.serial_number ??
                   t("Item #{{id}}", { id: selectedQcTicket.inventory_item })}
               </p>
+              {selectedQcTicket.title ? (
+                <p className="mt-1 text-sm font-semibold text-slate-900">
+                  {selectedQcTicket.title}
+                </p>
+              ) : null}
               <p className="mt-1 text-xs text-slate-700">
                 {t("Priority")}: {colorLabel(selectedQcTicket.flag_color)}
               </p>

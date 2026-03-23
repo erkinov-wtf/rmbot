@@ -1870,6 +1870,25 @@ export async function createTicket(
   return extractData<Ticket>(payload);
 }
 
+export async function updateTicket(
+  accessToken: string,
+  ticketId: number,
+  body: {
+    title?: string | null;
+    total_minutes?: number;
+    part_specs?: Array<{
+      part_id: number;
+    }>;
+  },
+): Promise<Ticket> {
+  const payload = await apiRequest<unknown>(`tickets/${ticketId}/`, {
+    method: "PATCH",
+    accessToken,
+    body,
+  });
+  return extractData<Ticket>(payload);
+}
+
 export async function listTechnicianOptions(
   accessToken: string,
 ): Promise<TechnicianOption[]> {

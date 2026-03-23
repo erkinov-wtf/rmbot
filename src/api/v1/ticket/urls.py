@@ -35,7 +35,9 @@ urlpatterns = [
     ),
     path(
         "<int:pk>/",
-        TicketViewSet.as_view({"get": "retrieve", "delete": "destroy"}),
+        TicketViewSet.as_view(
+            {"get": "retrieve", "patch": "partial_update", "put": "update", "delete": "destroy"}
+        ),
         name="ticket-detail",
     ),
     path(

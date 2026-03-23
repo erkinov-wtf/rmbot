@@ -1,6 +1,6 @@
 import math
 
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 from rest_framework import serializers
 
@@ -20,6 +20,10 @@ class TicketPartSpecInputSerializer(serializers.Serializer):
 
     def validate_comment(self, value: str) -> str:
         return value.strip()
+
+
+class TicketPartSpecSelectionInputSerializer(serializers.Serializer):
+    part_id = serializers.IntegerField(min_value=1)
 
 
 class TicketPartSpecSerializer(serializers.ModelSerializer):
@@ -470,12 +474,12 @@ class TicketSerializer(serializers.ModelSerializer):
         return green_max_minutes, yellow_max_minutes
 
     @staticmethod
-    def _resolve_part_specs(
+    def _resolve_part_ids(
         *,
         part_specs: list[dict],
         inventory_item: InventoryItem | None,
         creating_inventory_item: bool,
-    ) -> tuple[list[dict], int, int | None]:
+    ) -> tuple[list[int], int | None]:
         if not part_specs:
             raise serializers.ValidationError(
                 {"part_specs": "part_specs must contain at least one part entry."}
@@ -550,6 +554,21 @@ class TicketSerializer(serializers.ModelSerializer):
                     }
                 )
 
+        return provided_ids, part_category_id
+
+    @staticmethod
+    def _resolve_part_specs(
+        *,
+        part_specs: list[dict],
+        inventory_item: InventoryItem | None,
+        creating_inventory_item: bool,
+    ) -> tuple[list[dict], int, int | None]:
+        provided_ids, part_category_id = TicketSerializer._resolve_part_ids(
+            part_specs=part_specs,
+            inventory_item=inventory_item,
+            creating_inventory_item=creating_inventory_item,
+        )
+
         normalized: list[dict] = []
         total_minutes = 0
         for item in part_specs:
@@ -564,3 +583,172 @@ class TicketSerializer(serializers.ModelSerializer):
                 }
             )
         return normalized, total_minutes, part_category_id
+
+
+class TicketUpdateSerializer(serializers.ModelSerializer):
+    title = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    part_specs = TicketPartSpecSelectionInputSerializer(
+        many=True,
+        required=False,
+    )
+    total_minutes = serializers.IntegerField(
+        required=False,
+        min_value=1,
+    )
+
+    class Meta:
+        model = Ticket
+        fields = (
+            "title",
+            "part_specs",
+            "total_minutes",
+        )
+
+    @staticmethod
+    def _validate_editable_ticket(ticket: Ticket) -> None:
+        if ticket.deleted_at is not None:
+            raise serializers.ValidationError(
+                {"ticket": "Deleted tickets cannot be edited."}
+            )
+        if ticket.status == TicketStatus.DONE:
+            raise serializers.ValidationError(
+                {"status": "Closed tickets cannot be edited."}
+            )
+        if ticket.work_sessions.filter(deleted_at__isnull=True).exists():
+            raise serializers.ValidationError(
+                {
+                    "ticket": (
+                        "Ticket can no longer be edited after work session history "
+                        "has started."
+                    )
+                }
+            )
+        if ticket.part_completions.exists():
+            raise serializers.ValidationError(
+                {
+                    "ticket": (
+                        "Ticket can no longer be edited after part completion "
+                        "history exists."
+                    )
+                }
+            )
+
+    def validate_title(self, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        return normalized or None
+
+    def validate(self, attrs):
+        ticket = self.instance
+        if ticket is None:
+            return attrs
+
+        self._validate_editable_ticket(ticket)
+
+        raw_part_specs = attrs.get("part_specs")
+        if raw_part_specs is not None:
+            part_ids, _ = TicketSerializer._resolve_part_ids(
+                part_specs=raw_part_specs,
+                inventory_item=ticket.inventory_item,
+                creating_inventory_item=False,
+            )
+            attrs["_part_ids"] = part_ids
+
+        total_minutes = attrs.get("total_minutes")
+        attrs["_total_minutes"] = int(
+            total_minutes if total_minutes is not None else ticket.total_duration
+        )
+        return attrs
+
+    @classmethod
+    def _sync_part_specs(cls, *, ticket: Ticket, part_ids: list[int]) -> None:
+        active_specs = list(
+            ticket.part_specs.filter(deleted_at__isnull=True)
+            .select_related("inventory_item_part")
+            .order_by("id")
+        )
+        active_specs_by_part_id = {
+            spec.inventory_item_part_id: spec for spec in active_specs
+        }
+
+        requested_part_ids = set(part_ids)
+        active_part_ids = set(active_specs_by_part_id)
+
+        removable_specs = [
+            active_specs_by_part_id[part_id]
+            for part_id in sorted(active_part_ids - requested_part_ids)
+        ]
+        for spec in removable_specs:
+            if spec.is_completed or spec.completion_history.exists():
+                raise serializers.ValidationError(
+                    {
+                        "part_specs": (
+                            f"Ticket part '{spec.inventory_item_part.name}' "
+                            "cannot be removed after work history exists."
+                        )
+                    }
+                )
+            spec.delete()
+
+        new_part_ids = sorted(requested_part_ids - active_part_ids)
+        if not new_part_ids:
+            return
+
+        TicketPartSpec.objects.bulk_create(
+            [
+                TicketPartSpec(
+                    ticket=ticket,
+                    inventory_item_part_id=part_id,
+                    color=TicketColor.GREEN,
+                    comment="",
+                    minutes=0,
+                )
+                for part_id in new_part_ids
+            ]
+        )
+
+    @transaction.atomic
+    def update(self, instance, validated_data):
+        locked_ticket = (
+            Ticket.domain.select_for_update()
+            .select_related("inventory_item")
+            .prefetch_related(
+                "part_specs__inventory_item_part",
+                "part_specs__completion_history",
+                "work_sessions",
+                "part_completions",
+            )
+            .get(pk=instance.pk)
+        )
+        self._validate_editable_ticket(locked_ticket)
+
+        title = validated_data.get("title", locked_ticket.title)
+        total_minutes = int(validated_data["_total_minutes"])
+        part_ids = validated_data.get("_part_ids")
+
+        if title != locked_ticket.title:
+            locked_ticket.title = title
+
+        update_fields = {"title", "total_duration", "flag_minutes", "updated_at"}
+        if locked_ticket.is_manual:
+            locked_ticket.total_duration = total_minutes
+            locked_ticket.flag_minutes = total_minutes
+        else:
+            green_max_minutes, yellow_max_minutes = (
+                TicketSerializer._ticket_flag_thresholds()
+            )
+            locked_ticket.apply_auto_metrics(
+                total_minutes=total_minutes,
+                xp_divisor=TicketSerializer._ticket_xp_divisor(),
+                green_max_minutes=green_max_minutes,
+                yellow_max_minutes=yellow_max_minutes,
+            )
+            update_fields.update({"flag_color", "xp_amount", "is_manual"})
+
+        locked_ticket.save(update_fields=sorted(update_fields))
+
+        if part_ids is not None:
+            self._sync_part_specs(ticket=locked_ticket, part_ids=part_ids)
+
+        return locked_ticket
