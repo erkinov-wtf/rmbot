@@ -1032,6 +1032,16 @@ export function MobileTicketFlow({
     [],
   );
 
+  const openTicketUpdate = useCallback(
+    (ticket: Ticket) => {
+      setFeedback(null);
+      setActiveTab("create");
+      setSelectedCreateItemId(ticket.inventory_item);
+      void ensureInventoryLoaded([ticket.inventory_item]);
+    },
+    [ensureInventoryLoaded],
+  );
+
   const handleCreateTicket = useCallback(async () => {
     if (!selectedCreateItem) {
       setFeedback({
@@ -1076,6 +1086,7 @@ export function MobileTicketFlow({
       if (selectedCreateActiveTicket) {
         await updateTicket(accessToken, selectedCreateActiveTicket.id, {
           title: ticketTitle.trim() || null,
+          flag_color: createFlagColor,
           total_minutes: parsedTotalMinutes,
           part_specs: selectedPartSpecs,
         });
@@ -1560,30 +1571,20 @@ export function MobileTicketFlow({
                 placeholder={t("Total minutes")}
                 disabled={selectedCreateActiveTicket ? !canEditSelectedCreateTicket : false}
               />
-              {selectedCreateActiveTicket ? (
-                <div
-                  className={cn(
-                    "flex h-10 items-center rounded-lg border px-3 text-sm",
-                    colorPillClass(selectedCreateActiveTicket.flag_color),
-                  )}
-                >
-                  {colorLabel(selectedCreateActiveTicket.flag_color)}
-                </div>
-              ) : (
-                <select
-                  className="rm-input h-10"
-                  value={createFlagColor}
-                  onChange={(event) =>
-                    setCreateFlagColor(event.target.value as TicketColor)
-                  }
-                >
-                  {(["green", "yellow", "red"] as TicketColor[]).map((color) => (
-                    <option key={`create-flag-${color}`} value={color}>
-                      {colorLabel(color)}
-                    </option>
-                  ))}
-                </select>
-              )}
+              <select
+                className="rm-input h-10"
+                value={createFlagColor}
+                onChange={(event) =>
+                  setCreateFlagColor(event.target.value as TicketColor)
+                }
+                disabled={selectedCreateActiveTicket ? !canEditSelectedCreateTicket : false}
+              >
+                {(["green", "yellow", "red"] as TicketColor[]).map((color) => (
+                  <option key={`create-flag-${color}`} value={color}>
+                    {colorLabel(color)}
+                  </option>
+                ))}
+              </select>
             </div>
             {!selectedCreateActiveTicket ? (
               <textarea
@@ -1968,47 +1969,69 @@ export function MobileTicketFlow({
                 const selected = selectedWorkTicketId === ticket.id;
                 const title = (ticket.title ?? "").trim();
                 return (
-                  <button
+                  <div
                     key={`${workQueueView}-${ticket.id}`}
-                    type="button"
-                    onClick={() => {
-                      setSelectedWorkTicketId(ticket.id);
-                      void ensureInventoryLoaded([ticket.inventory_item]);
-                    }}
                     className={cn(
-                      "w-full rounded-xl border px-3 py-3 text-left transition",
+                      "rounded-xl border px-3 py-3 transition",
                       ticketCardClass(ticket.flag_color, selected),
                     )}
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-semibold">{t("Ticket #{{id}}", { id: ticket.id })}</p>
-                      <span
-                        className={cn(
-                          "rounded-full border px-2 py-0.5 text-[11px] font-semibold",
-                          selected
-                            ? ticket.flag_color === "yellow"
-                              ? "border-black/15 text-slate-800"
-                              : "border-white/35 text-white"
-                            : "border-slate-400/60 text-slate-700",
-                        )}
+                    <div className="flex items-start gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedWorkTicketId(ticket.id);
+                          void ensureInventoryLoaded([ticket.inventory_item]);
+                        }}
+                        className="min-w-0 flex-1 text-left"
                       >
-                        {statusLabel(ticket.status)}
-                      </span>
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-sm font-semibold">{t("Ticket #{{id}}", { id: ticket.id })}</p>
+                          <span
+                            className={cn(
+                              "rounded-full border px-2 py-0.5 text-[11px] font-semibold",
+                              selected
+                                ? ticket.flag_color === "yellow"
+                                  ? "border-black/15 text-slate-800"
+                                  : "border-white/35 text-white"
+                                : "border-slate-400/60 text-slate-700",
+                            )}
+                          >
+                            {statusLabel(ticket.status)}
+                          </span>
+                        </div>
+                        <p className={cn("mt-1 text-xs", ticketCardMetaClass(ticket.flag_color, selected))}>
+                          {t("Serial")}: {serial}
+                        </p>
+                        {title ? (
+                          <p
+                            className={cn(
+                              "mt-1 text-sm font-extrabold leading-tight",
+                              ticketCardMetaClass(ticket.flag_color, selected),
+                            )}
+                          >
+                            {title}
+                          </p>
+                        ) : null}
+                      </button>
+                      {permissions.can_create ? (
+                        <button
+                          type="button"
+                          onClick={() => openTicketUpdate(ticket)}
+                          className={cn(
+                            "shrink-0 rounded-lg border px-2.5 py-1 text-xs font-semibold transition",
+                            selected
+                              ? ticket.flag_color === "yellow"
+                                ? "border-black/20 text-slate-900 hover:bg-black/5"
+                                : "border-white/35 text-white hover:bg-white/10"
+                              : "border-slate-300 text-slate-700 hover:bg-slate-100",
+                          )}
+                        >
+                          {t("Update")}
+                        </button>
+                      ) : null}
                     </div>
-                    <p className={cn("mt-1 text-xs", ticketCardMetaClass(ticket.flag_color, selected))}>
-                      {t("Serial")}: {serial}
-                    </p>
-                    {title ? (
-                      <p
-                        className={cn(
-                          "mt-1 text-sm font-extrabold leading-tight",
-                          ticketCardMetaClass(ticket.flag_color, selected),
-                        )}
-                      >
-                        {title}
-                      </p>
-                    ) : null}
-                  </button>
+                  </div>
                 );
               })
             ) : (

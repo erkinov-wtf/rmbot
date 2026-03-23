@@ -978,6 +978,13 @@ export function TicketFlow({
     setFeedback(null);
   }, [routeBase, syncRouteWithUrl]);
 
+  const openTicketUpdate = useCallback(
+    (ticket: TicketModel) => {
+      navigate({ name: "createItem", itemId: ticket.inventory_item });
+    },
+    [navigate],
+  );
+
   const cacheInventoryItems = useCallback((nextItems: InventoryItem[]) => {
     if (!nextItems.length) {
       return;
@@ -1960,6 +1967,7 @@ export function TicketFlow({
         if (selectedItemActiveTicket) {
           await updateTicket(accessToken, selectedItemActiveTicket.id, {
             title: ticketTitle.trim() || null,
+            flag_color: createFlagColor,
             total_minutes: parsedTotalMinutes,
             part_specs: selectedParts.map((part) => ({
               part_id: part.id,
@@ -2732,42 +2740,29 @@ export function TicketFlow({
                     placeholder={t("e.g. 45")}
                   />
                 </div>
-                {!selectedItemActiveTicket ? (
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      {t("Flag Color")}
-                    </label>
-                    <select
-                      className={cn(fieldClassName, "mt-1")}
-                      value={createFlagColor}
-                      onChange={(event) =>
-                        setCreateFlagColor(event.target.value as TicketColor)
-                      }
-                      disabled={!canCreate || isMutating}
-                    >
-                      {TICKET_COLOR_OPTIONS.map((option) => (
-                        <option key={option} value={option}>
-                          {ticketColorLabel(option, t)}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                ) : (
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      {t("Current Flag")}
-                    </label>
-                    <div
-                      className={cn(
-                        "mt-1 flex h-10 items-center rounded-md border px-3 text-sm",
-                        ticketColorBadgeClass(selectedItemActiveTicket.flag_color),
-                      )}
-                    >
-                      {ticketColorLabelByValue.get(selectedItemActiveTicket.flag_color) ??
-                        selectedItemActiveTicket.flag_color}
-                    </div>
-                  </div>
-                )}
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600">
+                    {t("Flag Color")}
+                  </label>
+                  <select
+                    className={cn(fieldClassName, "mt-1")}
+                    value={createFlagColor}
+                    onChange={(event) =>
+                      setCreateFlagColor(event.target.value as TicketColor)
+                    }
+                    disabled={
+                      !canCreate ||
+                      isMutating ||
+                      Boolean(selectedItemActiveTicket && !canEditSelectedItemActiveTicket)
+                    }
+                  >
+                    {TICKET_COLOR_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {ticketColorLabel(option, t)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               {!selectedItemActiveTicket ? (
@@ -3639,33 +3634,49 @@ export function TicketFlow({
                           : "border-slate-200 bg-slate-50",
                       )}
                     >
-                      <button
-                        type="button"
-                        onClick={() => setSelectedWorkTicketId(ticket.id)}
-                        className="w-full text-left"
-                      >
-                        <p className="text-sm font-semibold">{t("Ticket #{{id}}", { id: ticket.id })}</p>
-                        <p
-                          className={cn(
-                            "mt-1 text-xs",
-                            selectedWorkTicketId === ticket.id ? "text-slate-200" : "text-slate-600",
-                          )}
+                      <div className="flex items-start gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedWorkTicketId(ticket.id)}
+                          className="min-w-0 flex-1 text-left"
                         >
-                          {item?.serial_number ?? t("Item #{{id}}", { id: ticket.inventory_item })}
-                        </p>
-                        {assigneeLabel ? (
+                          <p className="text-sm font-semibold">{t("Ticket #{{id}}", { id: ticket.id })}</p>
                           <p
                             className={cn(
-                              "mt-1 text-xs font-medium",
-                              selectedWorkTicketId === ticket.id
-                                ? "text-sky-200"
-                                : "text-sky-700",
+                              "mt-1 text-xs",
+                              selectedWorkTicketId === ticket.id ? "text-slate-200" : "text-slate-600",
                             )}
                           >
-                            {t("Assigned to")}: {assigneeLabel}
+                            {item?.serial_number ?? t("Item #{{id}}", { id: ticket.inventory_item })}
                           </p>
+                          {assigneeLabel ? (
+                            <p
+                              className={cn(
+                                "mt-1 text-xs font-medium",
+                                selectedWorkTicketId === ticket.id
+                                  ? "text-sky-200"
+                                  : "text-sky-700",
+                              )}
+                            >
+                              {t("Assigned to")}: {assigneeLabel}
+                            </p>
+                          ) : null}
+                        </button>
+                        {canCreate ? (
+                          <button
+                            type="button"
+                            onClick={() => openTicketUpdate(ticket)}
+                            className={cn(
+                              "shrink-0 rounded-md border px-2.5 py-1 text-xs font-medium transition",
+                              selectedWorkTicketId === ticket.id
+                                ? "border-white/35 text-white hover:bg-white/10"
+                                : "border-slate-300 text-slate-700 hover:bg-slate-100",
+                            )}
+                          >
+                            {t("Update")}
+                          </button>
                         ) : null}
-                      </button>
+                      </div>
                       <Button
                         type="button"
                         size="sm"
@@ -3699,39 +3710,59 @@ export function TicketFlow({
                       ? resolveTicketAssigneeLabel(ticket)
                       : null;
                   return (
-                    <button
+                    <div
                       key={`todo-${ticket.id}`}
-                      type="button"
-                      onClick={() => setSelectedWorkTicketId(ticket.id)}
                       className={cn(
-                        "w-full rounded-md border p-3 text-left transition",
+                        "rounded-md border p-3 transition",
                         selectedWorkTicketId === ticket.id
                           ? "border-slate-900 bg-slate-900 text-white"
                           : "border-slate-200 bg-white hover:border-slate-300",
                       )}
                     >
-                      <p className="text-sm font-semibold">{t("Ticket #{{id}}", { id: ticket.id })}</p>
-                      <p
-                        className={cn(
-                          "mt-1 text-xs",
-                          selectedWorkTicketId === ticket.id ? "text-slate-200" : "text-slate-600",
-                        )}
-                      >
-                        {item?.serial_number ?? t("Item #{{id}}", { id: ticket.inventory_item })}
-                      </p>
-                      {assigneeLabel ? (
-                        <p
-                          className={cn(
-                            "mt-1 text-xs font-medium",
-                            selectedWorkTicketId === ticket.id
-                              ? "text-sky-200"
-                              : "text-sky-700",
-                          )}
+                      <div className="flex items-start gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedWorkTicketId(ticket.id)}
+                          className="min-w-0 flex-1 text-left"
                         >
-                          {t("Assigned to")}: {assigneeLabel}
-                        </p>
-                      ) : null}
-                    </button>
+                          <p className="text-sm font-semibold">{t("Ticket #{{id}}", { id: ticket.id })}</p>
+                          <p
+                            className={cn(
+                              "mt-1 text-xs",
+                              selectedWorkTicketId === ticket.id ? "text-slate-200" : "text-slate-600",
+                            )}
+                          >
+                            {item?.serial_number ?? t("Item #{{id}}", { id: ticket.inventory_item })}
+                          </p>
+                          {assigneeLabel ? (
+                            <p
+                              className={cn(
+                                "mt-1 text-xs font-medium",
+                                selectedWorkTicketId === ticket.id
+                                  ? "text-sky-200"
+                                  : "text-sky-700",
+                              )}
+                            >
+                              {t("Assigned to")}: {assigneeLabel}
+                            </p>
+                          ) : null}
+                        </button>
+                        {canCreate ? (
+                          <button
+                            type="button"
+                            onClick={() => openTicketUpdate(ticket)}
+                            className={cn(
+                              "shrink-0 rounded-md border px-2.5 py-1 text-xs font-medium transition",
+                              selectedWorkTicketId === ticket.id
+                                ? "border-white/35 text-white hover:bg-white/10"
+                                : "border-slate-300 text-slate-700 hover:bg-slate-100",
+                            )}
+                          >
+                            {t("Update")}
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
                   );
                 })}
               </div>

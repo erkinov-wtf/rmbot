@@ -1875,6 +1875,7 @@ export async function updateTicket(
   ticketId: number,
   body: {
     title?: string | null;
+    flag_color?: TicketColor;
     total_minutes?: number;
     part_specs?: Array<{
       part_id: number;

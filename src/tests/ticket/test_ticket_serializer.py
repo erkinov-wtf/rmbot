@@ -116,6 +116,7 @@ def test_ticket_update_serializer_replaces_active_part_selection_before_work_sta
         instance=ticket,
         data={
             "title": "Updated title",
+            "flag_color": "red",
             "total_minutes": 45,
             "part_specs": [{"part_id": part_new.id}],
         },
@@ -129,6 +130,8 @@ def test_ticket_update_serializer_replaces_active_part_selection_before_work_sta
     assert updated_ticket.title == "Updated title"
     assert updated_ticket.total_duration == 45
     assert updated_ticket.flag_minutes == 45
+    assert updated_ticket.flag_color == "red"
+    assert updated_ticket.is_manual is True
     assert old_spec.deleted_at is not None
     active_part_ids = set(
         updated_ticket.part_specs.filter(deleted_at__isnull=True).values_list(

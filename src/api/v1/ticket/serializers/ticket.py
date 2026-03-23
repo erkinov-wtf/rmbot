@@ -587,6 +587,7 @@ class TicketSerializer(serializers.ModelSerializer):
 
 class TicketUpdateSerializer(serializers.ModelSerializer):
     title = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+    flag_color = serializers.ChoiceField(choices=TicketColor.choices, required=False)
     part_specs = TicketPartSpecSelectionInputSerializer(
         many=True,
         required=False,
@@ -600,6 +601,7 @@ class TicketUpdateSerializer(serializers.ModelSerializer):
         model = Ticket
         fields = (
             "title",
+            "flag_color",
             "part_specs",
             "total_minutes",
         )
@@ -725,13 +727,27 @@ class TicketUpdateSerializer(serializers.ModelSerializer):
 
         title = validated_data.get("title", locked_ticket.title)
         total_minutes = int(validated_data["_total_minutes"])
+        has_manual_flag_color = "flag_color" in validated_data
+        manual_flag_color = validated_data.get("flag_color")
         part_ids = validated_data.get("_part_ids")
+        was_manual = bool(locked_ticket.is_manual)
 
         if title != locked_ticket.title:
             locked_ticket.title = title
 
         update_fields = {"title", "total_duration", "flag_minutes", "updated_at"}
-        if locked_ticket.is_manual:
+        if has_manual_flag_color:
+            locked_ticket.total_duration = total_minutes
+            locked_ticket.flag_minutes = total_minutes
+            locked_ticket.flag_color = manual_flag_color
+            locked_ticket.is_manual = True
+            update_fields.update({"flag_color", "is_manual"})
+            if not was_manual:
+                locked_ticket.xp_amount = math.ceil(
+                    total_minutes / TicketSerializer._ticket_xp_divisor()
+                )
+                update_fields.add("xp_amount")
+        elif locked_ticket.is_manual:
             locked_ticket.total_duration = total_minutes
             locked_ticket.flag_minutes = total_minutes
         else:
